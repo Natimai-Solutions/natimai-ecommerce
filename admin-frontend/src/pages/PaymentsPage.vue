@@ -195,6 +195,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
+import { useRoute } from 'vue-router';
 import type { QTableColumn } from 'quasar';
 import { useI18n } from 'vue-i18n';
 import AppNotice from '@app/ui/AppNotice.vue';
@@ -223,9 +224,12 @@ const statuses = ref<string[]>([]);
 const providerCodes = ref<string[]>([]);
 const loading = ref(false);
 const error = ref<string | null>(null);
+const route = useRoute();
+// The dashboard links here with a status preselected (?status=Authorized).
+const initialStatus = typeof route.query.status === 'string' ? route.query.status : null;
 const filters = reactive({
   q: '',
-  status: null as string | null,
+  status: initialStatus,
   provider_code: null as string | null,
   date_from: null as string | null,
   date_to: null as string | null,

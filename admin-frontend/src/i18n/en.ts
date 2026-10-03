@@ -419,6 +419,8 @@ const en: MessageSchema = {
     t_groups_hint: 'Customers asking for professional pricing',
     t_orders: 'Orders to prepare',
     t_orders_hint: 'Paid, not shipped yet',
+    t_capture: 'Authorisations to capture',
+    t_capture_hint: 'Cards authorised, debit not triggered yet',
     t_payments: 'Payments to validate',
     t_payments_hint: 'Transfers, cheques or cash to confirm',
     t_quotes: 'Quote requests',

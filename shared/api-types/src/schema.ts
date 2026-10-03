@@ -241,8 +241,11 @@ export interface paths {
          * Oauth Callback
          * @description Handle the OAuth provider callback.
          *
-         *     Exchanges the authorization code, resolves the user, issues JWT tokens,
-         *     and redirects the browser to the frontend with the tokens in query params.
+         *     Exchanges the authorization code, resolves the user, issues the JWT pair
+         *     and redirects the browser to the frontend: the refresh token travels as an
+         *     HttpOnly cookie set on this response, never in the URL; the page then
+         *     obtains its in-memory access token from ``/login/refresh-token``. A
+         *     failure redirects with ``?error=<code>``.
          */
         get: operations["oauth-oauth_callback"];
         put?: never;
@@ -11419,6 +11422,11 @@ export interface components {
              * @default 0
              */
             payments_to_validate: number;
+            /**
+             * Payments To Capture
+             * @default 0
+             */
+            payments_to_capture: number;
             /**
              * Quote Requests Open
              * @default 0

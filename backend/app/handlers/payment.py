@@ -22,8 +22,14 @@ from app.features.order.crud.order_crud import crud_order
 from app.features.order.crud.order_status_crud import crud_order_status
 from app.features.order.models.order import Order
 from app.features.order.models.order_status import OrderStatus, OrderStatusCreate
+from app.features.order.services.status import EVENT_ORDER_STATUS_CHANGED
 from app.features.payment.crud.payment import crud_payment
 from app.features.payment.models.payment import Payment
+from app.features.payment.services.authorizations import (
+    ORDER_STATUS_CANCELLED,
+    capture_on_status,
+    void_on_cancel,
+)
 from app.features.payment.services.deposit import (
     KIND_BALANCE,
     KIND_DEPOSIT,
@@ -89,6 +95,7 @@ __all__ = [
     "on_payment_captured_notify",
     "on_payment_rejected_notify",
     "on_payment_document_infected_notify",
+    "on_order_status_changed_capture_or_void",
 ]
 
 
@@ -798,3 +805,23 @@ async def on_payment_document_infected_notify(
     await _notify_payment_event(
         session, event_type=EVENT_DOCUMENT_INFECTED, payload=payload
     )
+
+
+@outbox_handler(EVENT_ORDER_STATUS_CHANGED)
+async def on_order_status_changed_capture_or_void(
+    session: AsyncSession, payload: dict[str, Any]
+) -> None:
+    """Deferred-capture follow-up of a fulfilment step (R8 / confort).
+
+    The shipment captures the authorised card payments of the order; a
+    cancellation releases them. Both are driven by the payment settings and
+    are no-ops for a shop that captures at checkout.
+    """
+    order_id = _parse_order_id(payload)
+    if order_id is None:
+        return
+    new_status = str(payload.get("new_status") or "")
+    if new_status == ORDER_STATUS_CANCELLED:
+        await void_on_cancel(session, order_id=order_id)
+    elif new_status:
+        await capture_on_status(session, order_id=order_id, new_status=new_status)

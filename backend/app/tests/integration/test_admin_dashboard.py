@@ -97,6 +97,7 @@ async def test_empty_dashboard(db_session: AsyncSession) -> None:
 
     assert result.todo.model_dump() == {
         "payments_to_validate": 0,
+        "payments_to_capture": 0,
         "quote_requests_open": 0,
         "group_upgrade_requests_pending": 0,
         "orders_to_process": 0,

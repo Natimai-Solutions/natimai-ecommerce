@@ -301,7 +301,7 @@ takes precedence silently — check the badge before editing a `.env`.
 | Prix | `pricing_payment_commission_pct`, `pricing_fx_safety_margin_pct`, `insurance_rate_pct` ← `INSURANCE_RATE_PCT` (each change re-prices the catalogue) |
 | Taxes | `tax_default_code` ← `DEFAULT_TAX_CODE`, `tax_fees_code` ← `INVOICE_FEES_TAX_CODE` |
 | Factures | `invoice_legal_footer` ← `INVOICE_LEGAL_FOOTER` |
-| Paiement | `payment_provider_{payzen,paypal,stripe}_enabled`, `payment_instructions_manual_{cash,check,transfer}` |
+| Paiement | `payment_provider_{payzen,paypal,stripe}_enabled`, `payment_instructions_manual_{cash,check,transfer}`, `payment_auto_capture_status` (fulfilment step that captures the authorised card payments, default `InTransit`, empty = manual), `payment_void_on_cancel` (release the authorisation when the order is cancelled), `payment_authorization_validity_days` (ops alert the day before an authorisation expires unused, default 7) |
 | Notifications | `notifications_email_enabled` ← `PAYMENT_NOTIFICATIONS_EMAIL_ENABLED`, `notifications_slack_enabled` ← `PAYMENT_NOTIFICATIONS_SLACK_ENABLED`, `notifications_slack_webhook_url` ← `PAYMENT_NOTIFICATIONS_SLACK_WEBHOOK_URL` (secret) |
 | Commandes et stock | `stock_reservation_ttl_hours`, `dashboard_low_stock_threshold` (R8 / U7, dashboard « Stocks bas »), `cart_abandonment_reminder_delay_hours`, `cart_abandonment_max_age_days`, `checkout_supplier_availability_check`, `checkout_supplier_check_timeout_seconds` (same names in upper case) |
 | Fournisseurs | `supplier_delisting_grace_hours`, `supplier_file_import_inline_max_rows`, `supplier_file_import_max_rows` |

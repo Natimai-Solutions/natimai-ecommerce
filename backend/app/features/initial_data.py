@@ -51,6 +51,7 @@ DEFAULT_PAYMENT_STATUSES: tuple[tuple[str, str], ...] = (
     (MANUAL_STATUS_COMPLETED, "Payment confirmed and captured"),
     (MANUAL_STATUS_FAILED, "Payment failed or was rejected"),
     ("Authorized", "Card authorised (funds reserved), awaiting capture at shipment"),
+    ("Voided", "Card authorisation released, never captured"),
     ("Refunded", "Payment fully refunded to the customer"),
     ("PartiallyRefunded", "Payment partially refunded to the customer"),
 )

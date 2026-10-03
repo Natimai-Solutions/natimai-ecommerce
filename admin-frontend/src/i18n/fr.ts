@@ -419,6 +419,8 @@ const fr = {
     t_groups_hint: 'Clients qui demandent un tarif professionnel',
     t_orders: 'Commandes à préparer',
     t_orders_hint: 'Payées, pas encore expédiées',
+    t_capture: 'Autorisations à capturer',
+    t_capture_hint: 'Cartes autorisées, débit pas encore déclenché',
     t_payments: 'Paiements à valider',
     t_payments_hint: 'Virements, chèques ou espèces à confirmer',
     t_quotes: 'Demandes de devis',

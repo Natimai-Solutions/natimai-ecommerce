@@ -130,6 +130,16 @@ class CaptureResult:
 
 
 @dataclass(slots=True)
+class VoidResult:
+    """Outcome of voiding (cancelling) an authorisation that was never captured."""
+
+    status: str  # "completed" | "failed"
+    provider_reference: str | None = None
+    message: str | None = None
+    metadata: dict[str, Any] | None = None
+
+
+@dataclass(slots=True)
 class RefundResult:
     """Outcome of a provider refund attempt.
 
@@ -189,6 +199,20 @@ class PaymentProvider(ABC):
         raise PaymentProviderError(
             f"Provider '{self.code}' does not support deferred capture"
         )
+
+    async def void(
+        self,
+        *,
+        payment_reference: str,
+        amount: Decimal,
+        currency: str,
+    ) -> VoidResult:
+        """Release an authorisation that will never be captured (R8 / confort).
+
+        Default: unsupported — only card providers that authorise at checkout
+        implement it; a manual payment has nothing to release.
+        """
+        raise PaymentProviderError(f"Provider '{self.code}' does not support void")
 
     async def refund(
         self,

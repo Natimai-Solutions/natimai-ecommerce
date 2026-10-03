@@ -281,6 +281,53 @@ register(
     ),
 )
 
+register(
+    SettingSpec(
+        "payment_auto_capture_status",
+        "str",
+        "payment",
+        "Capture automatique des autorisations carte",
+        "Avec la validation manuelle PayZen, la carte est seulement autorisée au "
+        "checkout : le débit (capture) part de lui-même quand la commande atteint "
+        "cette étape. Vide = capture à la main depuis Paiements.",
+        default="InTransit",
+        choices=(
+            "",
+            "OrderedFromSupplier",
+            "InTransit",
+            "AtCustoms",
+            "Received",
+            "ReadyForPickup",
+            "Delivered",
+        ),
+        order=20,
+    ),
+    SettingSpec(
+        "payment_void_on_cancel",
+        "bool",
+        "payment",
+        "Libérer l'autorisation carte à l'annulation",
+        "Une commande annulée avant capture libère la réservation sur la carte "
+        "du client (annulation de l'autorisation chez le prestataire).",
+        default=True,
+        order=21,
+    ),
+    SettingSpec(
+        "payment_authorization_validity_days",
+        "int",
+        "payment",
+        "Durée de validité d'une autorisation carte (jours)",
+        "Au-delà, la banque du client libère la réservation et la capture "
+        "échoue. La veille, une alerte part vers le webhook d'exploitation pour "
+        "chaque autorisation non capturée. 0 = pas d'alerte.",
+        default=7,
+        minimum=ZERO,
+        maximum=_d(30),
+        order=22,
+        extra={"unit": "j"},
+    ),
+)
+
 # --------------------------------------------------------------------------
 # Notifications
 
