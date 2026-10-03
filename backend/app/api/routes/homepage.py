@@ -6,6 +6,7 @@ dates; the admin routes list, create, replace and delete blocks.
 
 from __future__ import annotations
 
+import datetime
 import uuid
 from typing import Any
 
@@ -167,6 +168,58 @@ async def list_blocks(
     return [await _to_public(session, b, base) for b in rows]
 
 
+def _overlaps(
+    a_start: datetime.datetime | None,
+    a_end: datetime.datetime | None,
+    b_start: datetime.datetime | None,
+    b_end: datetime.datetime | None,
+) -> bool:
+    """Two publication windows share at least one instant (None = open end)."""
+    starts_before_other_ends = (
+        b_end is None or a_start is None or as_utc(a_start) < as_utc(b_end)
+    )
+    ends_after_other_starts = (
+        a_end is None or b_start is None or as_utc(a_end) > as_utc(b_start)
+    )
+    return starts_before_other_ends and ends_after_other_starts
+
+
+async def _refuse_second_live_hero(
+    session: SessionDep, body: HomepageBlockWrite, *, exclude_id: uuid.UUID | None
+) -> None:
+    """One published hero per period: the storefront shows a single one, by
+    position, so a second live hero would silently never appear (03/10/2026)."""
+    if body.kind != "hero" or not body.is_published:
+        return
+    others = (
+        await session.exec(
+            select(HomepageBlock).where(
+                col(HomepageBlock.kind) == "hero",
+                col(HomepageBlock.is_published).is_(True),
+                col(HomepageBlock.is_active).is_(True),
+            )
+        )
+    ).all()
+    for other in others:
+        if exclude_id is not None and other.id == exclude_id:
+            continue
+        if _overlaps(body.starts_at, body.ends_at, other.starts_at, other.ends_at):
+            raise AppError(
+                code="homepage.hero.conflict",
+                status_code=409,
+                message=(
+                    f"Un autre hero publié couvre déjà cette période : « {other.title} ». "
+                    "Un seul hero s'affiche ; dépubliez-le, ou donnez aux deux des "
+                    "dates qui ne se chevauchent pas."
+                ),
+                details={
+                    "field": "is_published",
+                    "other_id": str(other.id),
+                    "other_title": other.title,
+                },
+            )
+
+
 async def _check_media(session: SessionDep, media_id: uuid.UUID | None) -> None:
     if media_id is None:
         return
@@ -186,6 +239,7 @@ async def create_block(
 ) -> HomepageBlockPublic:
     """Add a hero or a banner."""
     _validate(body)
+    await _refuse_second_live_hero(session, body, exclude_id=None)
     await _check_media(session, body.media_id)
     data = _with_translations(body, previous=None)
     block = HomepageBlock(**data, created_at=utcnow(), created_by_id=admin.id)
@@ -218,6 +272,7 @@ async def replace_block(
     """Replace every field of a block."""
     block = await _block_or_404(session, block_id)
     _validate(body)
+    await _refuse_second_live_hero(session, body, exclude_id=block.id)
     await _check_media(session, body.media_id)
     for field, value in _with_translations(body, previous=block.translations).items():
         setattr(block, field, value)

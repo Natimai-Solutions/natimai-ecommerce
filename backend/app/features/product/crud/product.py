@@ -3,7 +3,7 @@
 import logging
 import re
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -148,7 +148,7 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
                 exc,
             )
             return
-        record.sale_price_cached_at = datetime.now(timezone.utc)
+        record.sale_price_cached_at = datetime.now(UTC)
         stamp_margin(context, record)
         entry = price_change_entry(
             record.id, previous, record.sale_price_cached, reason=REASON_PRODUCT_WRITE
@@ -192,7 +192,7 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
         Returns how many rows were priced; rows whose currency has no rate
         are set to ``None``. Every change is journaled under ``reason``.
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         priced = 0
         for product in products:
             previous = product.sale_price_cached
@@ -430,7 +430,7 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
         hours_threshold: int = 24,
     ) -> list[Product]:
         """Get supplier products that need synchronization (old or never synced)"""
-        threshold_time = datetime.now(timezone.utc) - timedelta(hours=hours_threshold)
+        threshold_time = datetime.now(UTC) - timedelta(hours=hours_threshold)
 
         conditions = [
             col(Product.is_supplier_managed).is_(True),
@@ -455,7 +455,7 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
     ) -> Product | None:
         """Update the last sync time for a supplier product"""
         if sync_time is None:
-            sync_time = datetime.now(timezone.utc)
+            sync_time = datetime.now(UTC)
 
         product = await session.get(self.model, product_id)
         if not product:
@@ -494,7 +494,7 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
         limit: int = 10,
     ) -> list[Product]:
         """Get featured products ordered by explicit position first."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         statement = (
             select(Product)
             .where(
@@ -781,7 +781,7 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
         except Exception as exc:  # noqa: BLE001
             logger.warning("Fallback pricing unavailable: %s", exc)
             return
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         priced: dict[uuid.UUID, Decimal | None] = {}
         margins: dict[uuid.UUID, dict[str, Any]] = {}
         for product in products:

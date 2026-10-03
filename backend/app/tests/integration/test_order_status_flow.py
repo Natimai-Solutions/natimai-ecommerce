@@ -4,7 +4,7 @@ the propagation of a grouped departure's step to its orders."""
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
 from typing import cast
@@ -32,7 +32,7 @@ from app.features.payment.models.payment_status import PaymentStatus
 from app.features.user.models.user import User
 from app.outbox.models import OutboxEvent
 
-NOW = datetime(2026, 10, 1, 12, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 10, 1, 12, 0, tzinfo=UTC)
 
 
 async def _seed(session: AsyncSession) -> SimpleNamespace:

@@ -37,6 +37,7 @@
   <body>
     <div class="header">
       <div>
+        {% if shop_logo_url %}<img class="logo" src="{{ shop_logo_url }}" alt="{{ shop_name or '' }}">{% endif %}
         <h1>Quote</h1>
         <div>{{ quote_number }}</div>
       </div>

@@ -1,7 +1,7 @@
 import datetime
 import uuid
 from decimal import Decimal
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from sqlalchemy import JSON, Column
@@ -11,7 +11,7 @@ from app.core.config import reference_currency
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
-class QuoteRequestStatus(str, Enum):
+class QuoteRequestStatus(StrEnum):
     """Cycle de vie d'une demande de devis, côté back-office.
 
     Volontairement court : le devis lui-même se négocie hors de l'application

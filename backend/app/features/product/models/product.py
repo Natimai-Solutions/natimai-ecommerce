@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from pydantic import SerializerFunctionWrapHandler, computed_field, model_serializer
@@ -19,7 +19,7 @@ from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 from app.features.product.models.category import Category
 
 
-class SupplierType(str, Enum):
+class SupplierType(StrEnum):
     """Supported product suppliers/vendors"""
 
     INGRAM_MICRO = "ingram_micro"
@@ -30,7 +30,7 @@ class SupplierType(str, Enum):
     LOCAL = "local"  # For locally managed products
 
 
-class PricingMode(str, Enum):
+class PricingMode(StrEnum):
     """How the storefront price of a product is obtained.
 
     * ``import`` — CAF formula: cost + variable import freight + insurance,
@@ -46,14 +46,14 @@ class PricingMode(str, Enum):
     FIXED = "fixed"
 
 
-class StockLocation(str, Enum):
+class StockLocation(StrEnum):
     """Where the sellable stock of an article is (storefront filter)."""
 
     LOCAL = "local"
     SUPPLIER = "supplier"
 
 
-class AvailabilityMode(str, Enum):
+class AvailabilityMode(StrEnum):
     """Whether a product can be ordered beyond the stock known at checkout.
 
     * ``stock`` — historical behaviour: local + supplier stock must cover the
@@ -75,7 +75,7 @@ class AvailabilityMode(str, Enum):
     LOT = "lot"
 
 
-class ProductCondition(str, Enum):
+class ProductCondition(StrEnum):
     """New goods or a refurbished item (graded, with its own warranty)."""
 
     NEW = "new"
@@ -246,6 +246,17 @@ class ProductBase(Base):
             "price_extra, recomputed whenever the parent price changes; the "
             "storefront shows « + 10 000 » in the selector. None: the variant "
             "has a price of its own."
+        ),
+    )
+    gift_card_amount: Decimal | None = Field(
+        default=None,
+        decimal_places=2,
+        max_digits=12,
+        description=(
+            "Set: buying one unit of this product issues a gift card of this "
+            "amount (reference currency) to the buyer once the order is paid "
+            "(R8 / confort). The product is sold like any other (price, tax, "
+            "availability « on_demand » since nothing ships)."
         ),
     )
 
@@ -529,6 +540,7 @@ class ProductUpdate(ProductBase, BaseUpdate):
     parent_product_id: uuid.UUID | None = None
     variant_options: dict[str, str] | None = None
     price_extra: Decimal | None = None
+    gift_card_amount: Decimal | None = None
     category_id: uuid.UUID | None = None
     supplier_quantity: Decimal | None = None
     supplier_price: Decimal | None = None

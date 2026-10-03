@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -219,7 +219,7 @@ async def issue_credit_note_for_refund(
         currency=currency,
     )
 
-    issuance_date = issued_at or datetime.now(timezone.utc)
+    issuance_date = issued_at or datetime.now(UTC)
     number, sequence_number = await allocate_credit_note_number(
         session, fiscal_year=issuance_date.year
     )

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import ast
 import inspect
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
@@ -63,7 +63,7 @@ def test_status_validator() -> None:
     with pytest.raises(ValueError):
         GroupedDepartureCreate(
             name="x",
-            order_cutoff_at=datetime(2026, 10, 15, tzinfo=timezone.utc),
+            order_cutoff_at=datetime(2026, 10, 15, tzinfo=UTC),
             status="teleported",
         )
 

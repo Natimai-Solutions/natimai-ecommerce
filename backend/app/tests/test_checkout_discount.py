@@ -163,7 +163,7 @@ async def test_category_target_only_touches_its_lines() -> None:
         (_discount(is_active=False), 0, "unknown"),
         (
             _discount(
-                start_date=datetime.datetime.now(datetime.timezone.utc)
+                start_date=datetime.datetime.now(datetime.UTC)
                 + datetime.timedelta(days=1)
             ),
             0,
@@ -171,7 +171,7 @@ async def test_category_target_only_touches_its_lines() -> None:
         ),
         (
             _discount(
-                end_date=datetime.datetime.now(datetime.timezone.utc)
+                end_date=datetime.datetime.now(datetime.UTC)
                 - datetime.timedelta(days=1)
             ),
             0,

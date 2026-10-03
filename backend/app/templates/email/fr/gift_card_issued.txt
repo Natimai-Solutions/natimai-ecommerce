@@ -1,0 +1,14 @@
+Bonjour {{ full_name }},
+
+Merci pour votre commande {{ order_ref or (order_id | short_ref) }}. {% if cards | length > 1 %}Voici vos cartes cadeaux{% else %}Voici votre carte cadeau{% endif %} :
+{% for card in cards %}
+  {{ card.code }} — {{ card.amount }} {{ card.currency }}{% if card.expires_at %} (valable jusqu'au {{ date(card.expires_at) }}){% endif %}
+{%- endfor %}
+
+Pour l'offrir, transmettez simplement le code. Son bénéficiaire le saisit dans son espace client, rubrique « Mes commandes », et le montant est crédité sur son compte : il l'utilise au moment du paiement, en une ou plusieurs fois.
+{{ account_url }}
+
+Conservez ce message : le code ne sera pas renvoyé.
+
+Merci pour votre confiance,
+L'équipe {{ shop_name }}

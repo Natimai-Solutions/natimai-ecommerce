@@ -7,7 +7,7 @@ On any modification (PUT/DELETE), triggers re-projection of affected products.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Response
@@ -126,8 +126,8 @@ async def create_spec_definition(
     spec = SpecDefinition(
         id=uuid.uuid4(),
         **fields,
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
     )
     session.add(spec)
     await session.commit()
@@ -165,7 +165,7 @@ async def update_spec_definition(
         )
     for field, value in changed.items():
         setattr(spec, field, value)
-    spec.updated_at = datetime.now(timezone.utc)
+    spec.updated_at = datetime.now(UTC)
 
     session.add(spec)
     await session.commit()
@@ -195,7 +195,7 @@ async def delete_spec_definition(
         )
 
     spec.is_active = False
-    spec.updated_at = datetime.now(timezone.utc)
+    spec.updated_at = datetime.now(UTC)
     session.add(spec)
     await session.commit()
 

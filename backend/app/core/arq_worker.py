@@ -29,6 +29,10 @@ from app.tasks.inventory_tasks import (
     get_stock_reservation_cron_jobs,
     release_expired_stock_reservations_task,
 )
+from app.tasks.payment_tasks import (
+    alert_expiring_authorizations_task,
+    get_payment_cron_jobs,
+)
 from app.tasks.pricing_tasks import (
     get_pricing_cron_jobs,
     refresh_sale_prices_task,
@@ -89,6 +93,7 @@ class WorkerSettings:
     """Represents worker settings."""
 
     functions = [
+        alert_expiring_authorizations_task,
         # Fonction générique pour les handlers outbox. `max_tries` lui est propre :
         # la politique de retry vit dans app/outbox/consumer.py et ne doit pas
         # dépendre du défaut global (qui s'applique aux tâches de sync).
@@ -144,6 +149,7 @@ class WorkerSettings:
         + get_departure_cron_jobs()
         + get_stock_alert_cron_jobs()
         + get_audit_cron_jobs()
+        + get_payment_cron_jobs()
     )
 
     # NOTE: Le polling de l'outbox est géré par un service dédié (outbox-poller)

@@ -64,9 +64,9 @@ async def test_lockout_after_max_failures_then_reset(
     # Expire the lock manually → correct password logs in and resets counters.
     refreshed = await db_session.get(User, user_id)
     assert refreshed is not None
-    refreshed.locked_until = datetime.datetime.now(
-        datetime.timezone.utc
-    ) - datetime.timedelta(minutes=1)
+    refreshed.locked_until = datetime.datetime.now(datetime.UTC) - datetime.timedelta(
+        minutes=1
+    )
     db_session.add(refreshed)
     await db_session.flush()
 

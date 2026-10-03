@@ -1,21 +1,21 @@
 import datetime
 import uuid
 from decimal import Decimal
-from enum import Enum
+from enum import StrEnum
 
 from sqlmodel import Field, SQLModel
 
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
-class DiscountType(str, Enum):
+class DiscountType(StrEnum):
     """Represents discount type."""
 
     COUPON = "coupon"  # Code à saisir
     PROMOTION = "promotion"  # Automatique
 
 
-class DiscountTarget(str, Enum):
+class DiscountTarget(StrEnum):
     """Represents discount target."""
 
     PRODUCT = "product"  # Produit spécifique

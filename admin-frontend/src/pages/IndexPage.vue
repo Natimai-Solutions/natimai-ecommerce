@@ -186,6 +186,13 @@ const TODO = computed<TodoItem[]>(() => [
     to: '/payment-validations',
   },
   {
+    key: 'payments_to_capture',
+    label: t('dashboard.t_capture'),
+    hint: t('dashboard.t_capture_hint'),
+    icon: 'ph:credit-card',
+    to: '/payments?status=Authorized',
+  },
+  {
     key: 'quote_requests_open',
     label: t('dashboard.t_quotes'),
     hint: t('dashboard.t_quotes_hint'),

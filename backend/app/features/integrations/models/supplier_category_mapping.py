@@ -19,8 +19,8 @@ sous-catégories sans mappage propre. Ce qui n'est pas mappé suit
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
-from enum import Enum
+from datetime import UTC, datetime
+from enum import Enum, StrEnum
 
 from pydantic import BaseModel
 from pydantic import Field as PydanticField
@@ -29,7 +29,7 @@ from sqlalchemy import Enum as SAEnum
 from sqlmodel import Field, SQLModel
 
 
-class CategoryMappingAction(str, Enum):
+class CategoryMappingAction(StrEnum):
     """Sort des articles d'un couple (catégorie, sous-catégorie) fournisseur."""
 
     IMPORT = "import"
@@ -38,7 +38,7 @@ class CategoryMappingAction(str, Enum):
     SKIP = "skip"
 
 
-class UnmappedCategoryAction(str, Enum):
+class UnmappedCategoryAction(StrEnum):
     """Sort des articles d'une catégorie fournisseur sans mappage."""
 
     #: Comportement historique : catégorie au nom de la sous-catégorie.
@@ -98,8 +98,8 @@ class SupplierCategoryMapping(SQLModel, table=True):
         default=CategoryMappingAction.IMPORT,
         sa_column=_enum_column(CategoryMappingAction, "import"),
     )
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class CategoryMappingWrite(BaseModel):

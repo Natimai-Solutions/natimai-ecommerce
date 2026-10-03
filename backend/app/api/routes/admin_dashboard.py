@@ -72,6 +72,8 @@ from app.features.order.models.order import Order
 from app.features.order.models.order_status import OrderStatus
 from app.features.order.services.status import ORDERS_TO_PROCESS_STATUSES
 from app.features.payment.models.payment import Payment
+from app.features.payment.models.payment_status import PaymentStatus
+from app.features.payment.services.capture_service import PAYMENT_STATUS_AUTHORIZED
 from app.features.payment.services.pending_validation import (
     pending_validation_conditions,
 )
@@ -103,6 +105,8 @@ class DashboardTodo(BaseModel):
     """Work queue: how many items wait for an admin action, per screen."""
 
     payments_to_validate: int = 0
+    #: Card payments authorised, not captured yet (R8 / confort).
+    payments_to_capture: int = 0
     quote_requests_open: int = 0
     group_upgrade_requests_pending: int = 0
     orders_to_process: int = 0
@@ -174,6 +178,16 @@ async def _todo(session: AsyncSession) -> DashboardTodo:
             await _count(session, Payment, *payment_conditions)
             if payment_conditions is not None
             else 0
+        ),
+        payments_to_capture=await _count(
+            session,
+            Payment,
+            col(Payment.is_active).is_(True),
+            col(Payment.payment_status_id).in_(
+                select(PaymentStatus.id).where(
+                    col(PaymentStatus.name) == PAYMENT_STATUS_AUTHORIZED
+                )
+            ),
         ),
         quote_requests_open=await _count(
             session,

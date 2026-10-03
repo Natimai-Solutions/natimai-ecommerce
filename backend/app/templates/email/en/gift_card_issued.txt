@@ -1,0 +1,14 @@
+Hello {{ full_name }},
+
+Thank you for your order {{ order_ref or (order_id | short_ref) }}. {% if cards | length > 1 %}Here are your gift cards{% else %}Here is your gift card{% endif %}:
+{% for card in cards %}
+  {{ card.code }} — {{ card.amount }} {{ card.currency }}{% if card.expires_at %} (valid until {{ date(card.expires_at) }}){% endif %}
+{%- endfor %}
+
+To give it, simply pass the code on. Its recipient enters it in their account, “My orders” section, and the amount is credited to their account: they use it at payment, in one or several orders.
+{{ account_url }}
+
+Keep this message: the code will not be sent again.
+
+Thank you for your trust,
+The {{ shop_name }} team

@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -37,8 +37,13 @@ from app.features.notification.providers import (
 from app.features.order.models.order import Order
 from app.features.order.services.order_number import resolve_order_ref
 from app.features.order.services.tracking_link import tracking_url_from_payload
+from app.features.payment.models.gift_card import GiftCard
 from app.features.payment.models.payment import Payment
 from app.features.payment.services.deposit import PLAN_DEPOSIT, balance_amount
+from app.features.payment.services.gift_cards import (
+    EVENT_GIFT_CARDS_ISSUED,
+    email_lines,
+)
 from app.features.user.models.user import User
 from app.outbox.decorators import outbox_handler
 
@@ -305,7 +310,7 @@ async def request_balance(session: AsyncSession, order: Order) -> bool:
         pay_url=_order_pay_url(order.id),
         shop_name=_shop_name(),
     )
-    order.balance_requested_at = datetime.now(timezone.utc)
+    order.balance_requested_at = datetime.now(UTC)
     session.add(order)
     await session.flush()
     return await _send_order_email(
@@ -606,9 +611,70 @@ async def on_invoice_issued_customer(
         # Leave emailed_at unset so the ARQ retry tries again.
         raise RuntimeError(f"Invoice {invoice.invoice_number} e-mail was not delivered")
 
-    invoice.emailed_at = datetime.now(timezone.utc)
+    invoice.emailed_at = datetime.now(UTC)
     session.add(invoice)
     await session.commit()
+
+
+@outbox_handler(EVENT_GIFT_CARDS_ISSUED)
+async def on_gift_cards_issued_customer(
+    session: AsyncSession, payload: dict[str, Any]
+) -> None:
+    """Send the buyer the codes of the gift cards their paid order contains.
+
+    The codes exist only in this message and in the admin's list: a failed
+    delivery raises so the outbox retries it.
+    """
+    card_ids: list[uuid.UUID] = []
+    for raw in payload.get("card_ids") or []:
+        try:
+            card_ids.append(uuid.UUID(str(raw)))
+        except (TypeError, ValueError):
+            continue
+    if not card_ids:
+        logger.warning("gift card email: no card ids in payload, skipping")
+        return
+    from sqlmodel import col, select
+
+    cards = list(
+        (
+            await session.exec(
+                select(GiftCard)
+                .where(col(GiftCard.id).in_(card_ids))
+                .order_by(col(GiftCard.code))
+            )
+        ).all()
+    )
+    if not cards:
+        logger.warning("gift card email: cards %s not found", card_ids)
+        return
+
+    user = await _resolve_user_from_payload(session, payload)
+    full_name = (user.full_name or user.email or "") if user else ""
+    order_ref = await _resolve_order_ref(session, payload)
+    email = render_email(
+        "gift_card_issued",
+        lang=await _email_lang(session, payload),
+        full_name=full_name or "client",
+        order_id=payload.get("order_id", ""),
+        order_ref=order_ref,
+        cards=email_lines(cards),
+        account_url=f"{settings.FRONTEND_HOST.rstrip('/')}/mon-compte",
+        shop_name=_shop_name(),
+    )
+    delivered = await _send_order_email(
+        session,
+        user_id_raw=payload.get("user_id"),
+        subject=email.subject,
+        text=email.text,
+        html=email.html,
+        event_type=EVENT_GIFT_CARDS_ISSUED,
+        payload=payload,
+    )
+    if not delivered and await runtime_settings.get(
+        "notifications_email_enabled", session
+    ):
+        raise RuntimeError(f"Gift card e-mail for order {order_ref} was not delivered")
 
 
 @outbox_handler(EVENT_CREDIT_NOTE_ISSUED)
@@ -679,7 +745,7 @@ async def on_credit_note_issued_customer(
             f"Credit note {credit_note.credit_note_number} e-mail was not delivered"
         )
 
-    credit_note.emailed_at = datetime.now(timezone.utc)
+    credit_note.emailed_at = datetime.now(UTC)
     session.add(credit_note)
     await session.commit()
 

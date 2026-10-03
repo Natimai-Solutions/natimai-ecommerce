@@ -25,9 +25,9 @@ from __future__ import annotations
 
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, field_validator
@@ -43,7 +43,7 @@ from app.features.integrations.models.supplier_category_mapping import (
 _CODE_RE = re.compile(r"^[a-z0-9][a-z0-9_]{1,49}$")
 
 
-class SupplierKind(str, Enum):
+class SupplierKind(StrEnum):
     """Méthode d'approvisionnement d'un fournisseur."""
 
     MANUAL = "manual"
@@ -263,8 +263,8 @@ class Supplier(SupplierBase, table=True):
         index=True,
         description="Clé de rapprochement (Product.supplier_name), immuable",
     )
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     credentials_encrypted: str | None = Field(
         default=None,
         sa_column=Column(Text, nullable=True),

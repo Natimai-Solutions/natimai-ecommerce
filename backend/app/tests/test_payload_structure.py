@@ -34,7 +34,7 @@ def test_payload_structure_create_update_is_consistent() -> None:
     record = PayloadTestModel(name="demo")
 
     create_data = {
-        "when": datetime.datetime(2026, 5, 7, 9, 30, 0, tzinfo=datetime.timezone.utc),
+        "when": datetime.datetime(2026, 5, 7, 9, 30, 0, tzinfo=datetime.UTC),
         "owner_id": uuid.uuid4(),
     }
     create_payload = crud._build_outbox_payload(
@@ -53,7 +53,7 @@ def test_payload_structure_create_update_is_consistent() -> None:
 
     update_data = {
         "name": "demo-updated",
-        "updated_at": datetime.datetime.now(datetime.timezone.utc),
+        "updated_at": datetime.datetime.now(datetime.UTC),
     }
     update_payload = crud._build_outbox_payload(
         action="update",

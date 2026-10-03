@@ -18,6 +18,11 @@ export interface ShopPublicConfig {
   default_display_currency?: string;
   /** Cloudflare Turnstile site key of the public forms; null = no captcha. */
   captcha_site_key?: string | null;
+  /** Logo and site icon chosen in the back-office (R9 / T9). */
+  branding?: {
+    logo?: { src: string; srcset?: string | null; width: number; height: number } | null;
+    icon?: { base: string; sizes: number[]; manifest: string } | null;
+  };
 }
 
 /**

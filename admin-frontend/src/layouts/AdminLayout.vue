@@ -197,6 +197,7 @@ const allNav: NavSection[] = [
       { label: 'layout.nav.specs', icon: 'ph:sliders-horizontal', to: '/spec-definitions' },
       { label: 'layout.nav.promotions', icon: 'ph:seal-percent', to: '/promotions' },
       { label: 'layout.nav.discounts', icon: 'ph:tag', to: '/discounts' },
+      { label: 'layout.nav.gift_cards', icon: 'ph:gift', to: '/gift-cards' },
     ],
   },
   {
@@ -234,6 +235,7 @@ const allNav: NavSection[] = [
     links: [
       { label: 'layout.nav.homepage', icon: 'ph:house', to: '/homepage' },
       { label: 'layout.nav.pages', icon: 'ph:article', to: '/pages' },
+      { label: 'layout.nav.branding', icon: 'ph:paint-brush', to: '/branding' },
       { label: 'layout.nav.modules', icon: 'ph:toggle-right', to: '/modules' },
       { label: 'layout.nav.audit', icon: 'ph:clipboard-text', to: '/audit-log' },
       { label: 'layout.nav.settings', icon: 'ph:gear', to: '/system-settings' },

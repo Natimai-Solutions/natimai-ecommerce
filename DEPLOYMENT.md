@@ -301,7 +301,9 @@ takes precedence silently — check the badge before editing a `.env`.
 | Prix | `pricing_payment_commission_pct`, `pricing_fx_safety_margin_pct`, `insurance_rate_pct` ← `INSURANCE_RATE_PCT` (each change re-prices the catalogue) |
 | Taxes | `tax_default_code` ← `DEFAULT_TAX_CODE`, `tax_fees_code` ← `INVOICE_FEES_TAX_CODE` |
 | Factures | `invoice_legal_footer` ← `INVOICE_LEGAL_FOOTER` |
-| Paiement | `payment_provider_{payzen,paypal,stripe}_enabled`, `payment_instructions_manual_{cash,check,transfer}` |
+| Boutique | `shop_name`, `shop_logo_media_id`, `shop_icon_media_id` (R9 / T9 — logo and site icon chosen in Système → Identité visuelle; the API derives `/branding/{id}/icon-{16,32,180,192,512}.png`, `site.webmanifest` and `logo.webp`), contact e-mails, CGV version |
+| Paiement | `payment_provider_{payzen,paypal,stripe}_enabled`, `payment_instructions_manual_{cash,check,transfer}`, `payment_auto_capture_status` (fulfilment step that captures the authorised card payments, default `InTransit`, empty = manual), `payment_void_on_cancel` (release the authorisation when the order is cancelled), `payment_authorization_validity_days` (ops alert the day before an authorisation expires unused, default 7) |
+| Cartes cadeaux et fidélité | `gift_card_validity_months` (validity of a gift card bought in the shop or issued without a date from Catalogue → Cartes cadeaux, default 12, 0 = never expires); `loyalty_enabled` (off by default), `loyalty_amount_per_point` (goods amount worth 1 point, default 100), `loyalty_point_value` (store credit per point, default 1), `loyalty_min_points_to_convert` (default 100) |
 | Notifications | `notifications_email_enabled` ← `PAYMENT_NOTIFICATIONS_EMAIL_ENABLED`, `notifications_slack_enabled` ← `PAYMENT_NOTIFICATIONS_SLACK_ENABLED`, `notifications_slack_webhook_url` ← `PAYMENT_NOTIFICATIONS_SLACK_WEBHOOK_URL` (secret) |
 | Commandes et stock | `stock_reservation_ttl_hours`, `dashboard_low_stock_threshold` (R8 / U7, dashboard « Stocks bas »), `cart_abandonment_reminder_delay_hours`, `cart_abandonment_max_age_days`, `checkout_supplier_availability_check`, `checkout_supplier_check_timeout_seconds` (same names in upper case) |
 | Fournisseurs | `supplier_delisting_grace_hours`, `supplier_file_import_inline_max_rows`, `supplier_file_import_max_rows` |
@@ -806,10 +808,9 @@ By default the docker‑compose deployment only exposes "raw" ports
 point on `80`/`443`, **automatic Let's Encrypt TLS termination** and per‑subdomain
 routing.
 
-> ⚠️ The Kubernetes manifests (`infra/k8s/`, [`infra/DEPLOY.md`](infra/DEPLOY.md))
-> are **unmaintained and currently broken** (their secrets do not match
-> `config.py` and `FIRST_SUPERUSER` is missing, which crash‑loops the pods) —
-> docker‑compose (section 8) is the only supported deployment path.
+> The former Kubernetes manifests (`infra/k8s/`) were removed on 03/10/2026:
+> docker‑compose (section 8) is the only deployment path. `infra/` now holds
+> the Caddy configuration alone.
 
 ### Routing
 
@@ -926,6 +927,18 @@ curl -I https://admin.example.com
 ## 10. Post‑deployment checks
 
 After the first deploy (migrations + `initial_data` + workers up), verify:
+
+**Demo catalogue (optional)** — a staging or demo environment can be filled
+on purpose with `backend/app/demo/catalogue_demo.json` (4 categories,
+15 products including a refurbished one, an on-demand one and a parent with two
+variants, a hero, two banners, the « Comment ça marche ? » page):
+```bash
+docker compose exec -T api python -m app.scripts.seed_demo          # load / update
+docker compose exec -T api python -m app.scripts.seed_demo --purge  # remove it all
+```
+Never automatic: nothing loads it at start-up, and it is refused in
+`ENVIRONMENT=production` unless `--allow-production` is passed. Every demo row
+carries the `DEMO-` marker, so the purge touches nothing else.
 
 **SEO (R8 / U6)** — served by the storefront's SSR server:
 ```bash

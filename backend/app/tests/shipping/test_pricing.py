@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any, cast
@@ -124,7 +124,7 @@ def test_calculate_shipping_ignores_expired_tariff_extras() -> None:
         },
     )
 
-    as_of = datetime(2026, 5, 11, tzinfo=timezone.utc)
+    as_of = datetime(2026, 5, 11, tzinfo=UTC)
     summary = calculate_shipping_for_routes(
         routes=[route_with_expired_value_rate],
         total_weight_kg=Decimal("2"),
@@ -155,7 +155,7 @@ def test_calculate_shipping_applies_tariff_inside_effective_window() -> None:
         total_weight_kg=Decimal("2"),
         declared_value=Decimal("10000"),
         currency="XPF",
-        as_of=datetime(2026, 5, 11, tzinfo=timezone.utc),
+        as_of=datetime(2026, 5, 11, tzinfo=UTC),
     )
 
     assert summary.total_fee == Decimal("1100")

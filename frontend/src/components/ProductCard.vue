@@ -68,6 +68,22 @@
         </span>
       </div>
 
+      <button
+        type="button"
+        class="product-card__compare"
+        :class="{ 'product-card__compare--on': inCompare }"
+        :aria-pressed="inCompare"
+        :aria-label="
+          inCompare
+            ? $t('compare.remove', { name: product.name })
+            : $t('compare.add', { name: product.name })
+        "
+        :title="inCompare ? $t('compare.remove_short') : $t('compare.add_short')"
+        data-testid="product-compare"
+        @click="toggleCompare"
+      >
+        <q-icon name="ph:scales" size="18px" />
+      </button>
       <router-link
         v-if="product.has_variants"
         :to="productRoute"
@@ -101,6 +117,7 @@ import { computed } from 'vue';
 import type { components } from '@app/api-types';
 import ProductImage from '@/components/ProductImage.vue';
 import { getProductRoute } from '@/utils/productRoute';
+import { useCompareStore } from '@/stores/compare';
 import { useCurrencyStore } from '@/stores/currency';
 import { useDepartureLabels } from '@/composables/useDepartureLabels';
 import { useTranslate } from '@/composables/useTranslate';
@@ -111,7 +128,14 @@ import { conditionLabel, isRefurbished, productAvailability } from '@/utils/avai
 type ProductPublic = components['schemas']['ProductPublic'] & { offers_count?: number };
 
 const props = defineProps<{ product: ProductPublic }>();
-const emit = defineEmits<{ 'add-to-cart': [product: ProductPublic] }>();
+const emit = defineEmits<{ 'add-to-cart': [product: ProductPublic]; 'compare-full': [] }>();
+
+// Comparison shortlist (R8 / confort): a toggle on every card.
+const compareStore = useCompareStore();
+const inCompare = computed(() => compareStore.has(props.product.id));
+function toggleCompare() {
+  if (!compareStore.toggle(props.product.id)) emit('compare-full');
+}
 
 const currencyStore = useCurrencyStore();
 
@@ -286,6 +310,29 @@ const promoBadge = computed(() => {
 .product-card__offers {
   font-size: 12px;
   color: var(--n-ink-3);
+}
+
+.product-card__compare {
+  flex-shrink: 0;
+  width: 36px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--n-ink-3);
+  cursor: pointer;
+  transition: color 0.2s ease;
+
+  &:hover {
+    color: var(--n-ink);
+  }
+
+  &--on {
+    color: var(--n-accent);
+  }
 }
 
 .product-card__add {

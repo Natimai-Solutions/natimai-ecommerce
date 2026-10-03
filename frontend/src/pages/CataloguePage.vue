@@ -301,6 +301,7 @@
             :key="product.id"
             :product="product"
             @add-to-cart="onAddToCart"
+            @compare-full="cartError = t('compare.full', { max: COMPARE_MAX })"
           />
         </div>
 
@@ -344,6 +345,7 @@ import { useProductsStore } from '@/stores/products';
 import { useCartStore } from '@/stores/cart';
 import { useCurrencyStore } from '@/stores/currency';
 import { useUiStore } from '@/stores/ui';
+import { COMPARE_MAX } from '@/stores/compare';
 import AppNotice from '@app/ui/AppNotice.vue';
 import ProductCard from '@/components/ProductCard.vue';
 import type { components } from '@app/api-types';

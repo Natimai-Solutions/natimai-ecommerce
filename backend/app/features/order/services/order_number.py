@@ -13,7 +13,7 @@ accounting one; the invoice number (M3) uses a separate, gap-free counter.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -41,7 +41,7 @@ async def allocate_order_number(
     """
     result = await session.execute(order_number_seq.next_value().select())
     counter = int(result.scalar_one())
-    reference_date = now or datetime.now(timezone.utc)
+    reference_date = now or datetime.now(UTC)
     return format_order_number(counter, year=reference_date.year)
 
 

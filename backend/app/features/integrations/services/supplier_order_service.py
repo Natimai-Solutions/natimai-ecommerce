@@ -24,7 +24,7 @@ from __future__ import annotations
 import logging
 import uuid
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -193,7 +193,7 @@ async def save_supplier_order(
     error_message: str | None = None,
 ) -> SupplierOrder:
     """Insert or update the SupplierOrder row and increment the attempt counter."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     record = existing or SupplierOrder(
         supplier_name=supplier_name,
         local_order_id=local_order_id,

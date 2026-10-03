@@ -1,7 +1,7 @@
 """DB-backed spec definition — editable counterpart to the original YAML catalog."""
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import computed_field
@@ -69,8 +69,8 @@ class SpecDefinition(SpecDefinitionBase, table=True):
     __tablename__ = "spec_definitions"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class SpecDefinitionPublic(SpecDefinitionBase):

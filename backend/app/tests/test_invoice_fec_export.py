@@ -26,7 +26,7 @@ def _invoice() -> Invoice:
         sequence_number=42,
         order_id=uuid.uuid4(),
         user_id=uuid.uuid4(),
-        issued_at=datetime.datetime(2026, 8, 27, 10, 30, tzinfo=datetime.timezone.utc),
+        issued_at=datetime.datetime(2026, 8, 27, 10, 30, tzinfo=datetime.UTC),
         currency="XPF",
         total_excl_tax=Decimal("1000.00"),
         total_tax=Decimal("130.00"),

@@ -6,7 +6,7 @@ sent it, so the customer had to know it existed and go and download it.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any, cast
@@ -99,7 +99,7 @@ async def test_delivery_is_recorded_on_the_invoice(send: AsyncMock) -> None:
 
 @pytest.mark.anyio
 async def test_a_replay_does_not_send_it_again(send: AsyncMock) -> None:
-    invoice = _invoice(emailed_at=datetime.now(timezone.utc))
+    invoice = _invoice(emailed_at=datetime.now(UTC))
     session = AsyncMock()
     session.add = Mock()
     session.get = AsyncMock(return_value=invoice)

@@ -67,11 +67,16 @@ def test_the_logging_configuration_is_forced() -> None:
     Un module de bibliothèque (``features/base/crud``) appelle basicConfig à
     l'import : le root logger a déjà un handler quand le poller configure le
     sien, et basicConfig ne fait alors rien du tout — le fichier était créé
-    vide puis jamais écrit. Le worker ARQ porte déjà ce `force=True`.
+    vide puis jamais écrit. Depuis R8 / U3 la configuration est partagée
+    (``app.core.logging_config.configure_logging``) : le poller l'appelle, et
+    c'est elle qui porte le `force=True`.
     """
-    calls = _calls_named(_POLLER.read_text(encoding="utf-8"), "basicConfig")
+    source = _POLLER.read_text(encoding="utf-8")
+    assert source.count("configure_logging(") == 1
 
-    assert len(calls) == 1
-    forced = [kw for kw in calls[0].keywords if kw.arg == "force"]
+    shared = _POLLER.parent.parent / "core" / "logging_config.py"
+    basic = _calls_named(shared.read_text(encoding="utf-8"), "basicConfig")
+    assert len(basic) == 1
+    forced = [kw for kw in basic[0].keywords if kw.arg == "force"]
     assert forced, "basicConfig sans force=True ne s'applique pas"
     assert isinstance(forced[0].value, ast.Constant) and forced[0].value.value is True

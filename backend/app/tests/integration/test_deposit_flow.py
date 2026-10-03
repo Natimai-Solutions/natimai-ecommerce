@@ -6,7 +6,7 @@ admin re-send."""
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any, cast
@@ -29,7 +29,7 @@ from app.features.user.models.user import User
 from app.handlers import order as order_handlers
 from app.handlers import payment as payment_handlers
 
-NOW = datetime(2026, 10, 1, 12, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 10, 1, 12, 0, tzinfo=UTC)
 
 
 async def _seed(session: AsyncSession) -> SimpleNamespace:

@@ -41,11 +41,13 @@ from app.api.routes.analytics_product import router as analytics_product_router
 from app.api.routes.analytics_sale import router as analytics_sale_router
 from app.api.routes.analytics_user import router as analytics_user_router
 from app.api.routes.brand import router as brand_router
+from app.api.routes.branding import router as branding_router
 from app.api.routes.cart import router as cart_router
 from app.api.routes.category import router as category_router
 from app.api.routes.content_pages import router as content_pages_router
 from app.api.routes.currency import router as currency_router
 from app.api.routes.discount import router as discount_router
+from app.api.routes.gift_cards import router as gift_cards_router
 from app.api.routes.group import router as group_router
 from app.api.routes.group_security import router as group_security_router
 from app.api.routes.group_upgrade import router as group_upgrade_router
@@ -57,6 +59,7 @@ from app.api.routes.internal_storage import router as internal_storage_router
 from app.api.routes.inventory import router as inventory_router
 from app.api.routes.invoices_me import router as invoices_me_router
 from app.api.routes.login import router as login_router
+from app.api.routes.loyalty import router as loyalty_router
 from app.api.routes.media import router as media_router
 from app.api.routes.oauth import router as oauth_router
 from app.api.routes.order import router as order_router
@@ -163,8 +166,11 @@ api_router.include_router(currency_router)
 api_router.include_router(content_pages_router)
 api_router.include_router(media_router)
 api_router.include_router(homepage_router)
+api_router.include_router(branding_router)
 api_router.include_router(grouped_departures_router)
 api_router.include_router(store_credit_router)
+api_router.include_router(gift_cards_router)
+api_router.include_router(loyalty_router)
 api_router.include_router(stock_alerts_router)
 api_router.include_router(utils_router, prefix="/utils")
 api_router.include_router(webhooks_router)

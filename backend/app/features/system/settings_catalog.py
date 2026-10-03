@@ -63,6 +63,10 @@ CATEGORIES: dict[str, tuple[str, str]] = {
         "Langues et devises proposées au visiteur de la vitrine.",
     ),
     "security": ("Sécurité", "Permissions et conservation du journal d'audit."),
+    "loyalty": (
+        "Cartes cadeaux et fidélité",
+        "Validité des cartes cadeaux et bons d'achat, points de fidélité.",
+    ),
 }
 
 ZERO = Decimal("0")
@@ -96,6 +100,32 @@ register(
         public=True,
         max_length=100,
         order=10,
+    ),
+    SettingSpec(
+        "shop_logo_media_id",
+        "str",
+        "shop",
+        "Logo",
+        "Image de la médiathèque (usage « Identité visuelle ») affichée dans "
+        "l'en-tête de la vitrine, les e-mails et les PDF. Vide = le nom de la "
+        "boutique en texte. Se règle depuis Système → Identité visuelle.",
+        default="",
+        public=True,
+        max_length=36,
+        order=12,
+    ),
+    SettingSpec(
+        "shop_icon_media_id",
+        "str",
+        "shop",
+        "Icône du site",
+        "Image carrée de la médiathèque : favicon et icône d'écran d'accueil de la "
+        "vitrine (tailles dérivées automatiquement). Vide = icône par défaut. Se "
+        "règle depuis Système → Identité visuelle.",
+        default="",
+        public=True,
+        max_length=36,
+        order=13,
     ),
     SettingSpec(
         "email_support",
@@ -278,6 +308,117 @@ register(
             order=10 + index,
         )
         for index, spec in enumerate(PAYMENT_INSTRUCTION_SETTINGS)
+    ),
+)
+
+register(
+    SettingSpec(
+        "payment_auto_capture_status",
+        "str",
+        "payment",
+        "Capture automatique des autorisations carte",
+        "Avec la validation manuelle PayZen, la carte est seulement autorisée au "
+        "checkout : le débit (capture) part de lui-même quand la commande atteint "
+        "cette étape. Vide = capture à la main depuis Paiements.",
+        default="InTransit",
+        choices=(
+            "",
+            "OrderedFromSupplier",
+            "InTransit",
+            "AtCustoms",
+            "Received",
+            "ReadyForPickup",
+            "Delivered",
+        ),
+        order=20,
+    ),
+    SettingSpec(
+        "payment_void_on_cancel",
+        "bool",
+        "payment",
+        "Libérer l'autorisation carte à l'annulation",
+        "Une commande annulée avant capture libère la réservation sur la carte "
+        "du client (annulation de l'autorisation chez le prestataire).",
+        default=True,
+        order=21,
+    ),
+    SettingSpec(
+        "payment_authorization_validity_days",
+        "int",
+        "payment",
+        "Durée de validité d'une autorisation carte (jours)",
+        "Au-delà, la banque du client libère la réservation et la capture "
+        "échoue. La veille, une alerte part vers le webhook d'exploitation pour "
+        "chaque autorisation non capturée. 0 = pas d'alerte.",
+        default=7,
+        minimum=ZERO,
+        maximum=_d(30),
+        order=22,
+        extra={"unit": "j"},
+    ),
+)
+
+# --------------------------------------------------------------------------
+# Cartes cadeaux et fidélité (R8 / confort — commerce)
+
+register(
+    SettingSpec(
+        "gift_card_validity_months",
+        "int",
+        "loyalty",
+        "Validité d'une carte cadeau (mois)",
+        "Durée pendant laquelle un code acheté en boutique ou émis sans date "
+        "depuis l'admin peut être crédité sur un compte. 0 = sans limite.",
+        default=12,
+        minimum=ZERO,
+        maximum=_d(120),
+        order=1,
+        extra={"unit": "mois"},
+    ),
+    SettingSpec(
+        "loyalty_enabled",
+        "bool",
+        "loyalty",
+        "Programme de fidélité",
+        "Chaque commande encaissée rapporte des points (cartes cadeaux et frais "
+        "exclus), repris au prorata d'un remboursement ; le client les convertit "
+        "en avoir depuis son compte. Désactivé : rien n'est gagné, les soldes "
+        "existants restent convertibles plus tard.",
+        default=False,
+        public=True,
+        order=2,
+    ),
+    SettingSpec(
+        "loyalty_amount_per_point",
+        "decimal",
+        "loyalty",
+        "Montant d'achat pour 1 point",
+        "1 point par tranche de ce montant (marchandises TTC, remises déduites).",
+        default=_d(100),
+        minimum=Decimal("0.01"),
+        public=True,
+        order=3,
+    ),
+    SettingSpec(
+        "loyalty_point_value",
+        "decimal",
+        "loyalty",
+        "Valeur d'un point en avoir",
+        "Ce que vaut un point une fois converti en avoir.",
+        default=_d(1),
+        minimum=Decimal("0.01"),
+        public=True,
+        order=4,
+    ),
+    SettingSpec(
+        "loyalty_min_points_to_convert",
+        "int",
+        "loyalty",
+        "Minimum de points pour convertir",
+        default=100,
+        minimum=Decimal(1),
+        public=True,
+        order=5,
     ),
 )
 

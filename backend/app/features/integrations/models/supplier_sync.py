@@ -6,8 +6,8 @@ name (``"ingram_micro"``, ``"techdata"``, ...). One row of history per sync run,
 one mapping row per (supplier, supplier SKU) pair.
 """
 
-from datetime import datetime, timezone
-from enum import Enum
+from datetime import UTC, datetime
+from enum import StrEnum
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from sqlmodel import JSON, Column, Field, SQLModel, UniqueConstraint
 
 
-class SyncStatus(str, Enum):
+class SyncStatus(StrEnum):
     """Synchronization status enum"""
 
     PENDING = "pending"
@@ -25,7 +25,7 @@ class SyncStatus(str, Enum):
     PARTIAL = "partial"
 
 
-class SyncType(str, Enum):
+class SyncType(StrEnum):
     """Type of synchronization operation"""
 
     PRODUCT_CATALOG = "product_catalog"
@@ -55,7 +55,7 @@ class SupplierSyncLogBase(SQLModel):
     )
     job_id: str | None = Field(default=None, description="ARQ job ID")
     started_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
+        default_factory=lambda: datetime.now(UTC),
         description="Sync start timestamp",
     )
     completed_at: datetime | None = Field(
@@ -82,11 +82,11 @@ class SupplierSyncLog(SupplierSyncLogBase, table=True):
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
+        default_factory=lambda: datetime.now(UTC),
         description="Record creation timestamp",
     )
     updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
+        default_factory=lambda: datetime.now(UTC),
         description="Record last update timestamp",
     )
 
@@ -132,7 +132,7 @@ class SupplierProductSyncStatus(BaseModel):
     action: str = Field(description="Action taken (created, updated, skipped, failed)")
     error: str | None = Field(default=None, description="Error message if sync failed")
     last_synced: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
+        default_factory=lambda: datetime.now(UTC),
         description="Last sync timestamp",
     )
 
@@ -154,7 +154,7 @@ class SupplierProductMappingBase(SQLModel):
     )
     manufacturer: str | None = Field(default=None, description="Product manufacturer")
     last_synced: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
+        default_factory=lambda: datetime.now(UTC),
         description="Last synchronization timestamp",
     )
     sync_enabled: bool = Field(default=True, description="Whether to sync this product")
@@ -174,11 +174,11 @@ class SupplierProductMapping(SupplierProductMappingBase, table=True):
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
+        default_factory=lambda: datetime.now(UTC),
         description="Record creation timestamp",
     )
     updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
+        default_factory=lambda: datetime.now(UTC),
         description="Record last update timestamp",
     )
 

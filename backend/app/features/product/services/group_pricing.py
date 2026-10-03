@@ -25,7 +25,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
@@ -149,7 +149,7 @@ async def load_active_promotions(
     session: AsyncSession, *, at: datetime | None = None
 ) -> tuple[ActivePromotion, ...]:
     """Promotions in force now: an article or a category, a rate or an amount."""
-    now = at or datetime.now(timezone.utc)
+    now = at or datetime.now(UTC)
     rows = await session.exec(
         select(Discount).where(
             col(Discount.discount_type) == DiscountType.PROMOTION,

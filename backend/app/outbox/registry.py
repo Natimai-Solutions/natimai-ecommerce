@@ -9,7 +9,7 @@ outbox pattern implementation.
 import logging
 import uuid
 from collections.abc import Callable
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -83,7 +83,7 @@ class OutboxRegistry:
                 list(payload.keys()),
             )
 
-            next_run_at = datetime.now(timezone.utc)
+            next_run_at = datetime.now(UTC)
             if delay_seconds > 0:
                 next_run_at += timedelta(seconds=delay_seconds)
                 logger.debug(

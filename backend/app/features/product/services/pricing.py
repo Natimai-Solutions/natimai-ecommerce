@@ -4,7 +4,7 @@ import inspect
 import logging
 import uuid
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, ClassVar
 
@@ -692,7 +692,7 @@ class PricingContext:
     payment_commission_pct: Decimal = Decimal("0")
     #: Cushion on costs converted from a foreign currency (same module).
     fx_safety_margin_pct: Decimal = Decimal("0")
-    loaded_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    loaded_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     #: How long :meth:`for_session` keeps reusing an instance.
     CACHE_TTL_SECONDS: ClassVar[int] = 60
@@ -844,7 +844,7 @@ class PricingContext:
         if isinstance(info, dict):
             cached = info.get(cls._SESSION_KEY)
             if isinstance(cached, PricingContext) and (
-                datetime.now(timezone.utc) - cached.loaded_at
+                datetime.now(UTC) - cached.loaded_at
             ) < timedelta(seconds=cls.CACHE_TTL_SECONDS):
                 return cached
         context = await cls.load(session)

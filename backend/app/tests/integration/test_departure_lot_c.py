@@ -6,7 +6,7 @@ margin dashboard (revenue, cash collected, goods cost, real costs)."""
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
 from typing import cast
@@ -40,7 +40,7 @@ from app.features.payment.models.refund import Refund
 from app.features.product.models.product import Product
 from app.features.user.models.user import User
 
-NOW = datetime(2026, 10, 1, 12, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 10, 1, 12, 0, tzinfo=UTC)
 
 
 async def _seed(session: AsyncSession) -> SimpleNamespace:
@@ -82,7 +82,7 @@ async def _seed(session: AsyncSession) -> SimpleNamespace:
             order_number=f"CMD-{uuid.uuid4().hex[:6]}",
             total_amount=Decimal(total),
             grouped_departure_id=departure.id,
-            created_at=datetime(2026, 9, day, 10, 0, tzinfo=timezone.utc),
+            created_at=datetime(2026, 9, day, 10, 0, tzinfo=UTC),
         )
 
     o1, o2, o3 = order(paid, "1000", 1), order(paid, "2000", 2), order(pending, "50", 3)
@@ -306,6 +306,6 @@ async def test_dashboard_uses_snapshots_then_the_real_purchase_orders(
 def test_add_months_clamps_to_the_end_of_month() -> None:
     assert add_months(datetime(2026, 1, 31), 1) == datetime(2026, 2, 28)
     assert add_months(datetime(2026, 11, 15), 2) == datetime(2027, 1, 15)
-    assert add_months(datetime(2026, 12, 31, tzinfo=timezone.utc), 24) == datetime(
-        2028, 12, 31, tzinfo=timezone.utc
+    assert add_months(datetime(2026, 12, 31, tzinfo=UTC), 24) == datetime(
+        2028, 12, 31, tzinfo=UTC
     )

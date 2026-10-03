@@ -10,7 +10,7 @@ BACKEND := cd backend && uv run
 
 .PHONY: help setup dev stop logs migrate seed \
         lint format typecheck test test-backend test-fronts coverage \
-        gen-types check-types e2e audit
+        gen-types check-types e2e audit seed-demo purge-demo
 
 help: ## Liste des cibles
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | \
@@ -35,6 +35,12 @@ migrate: ## Migrations Alembic + données initiales (pile docker)
 seed: ## Fixtures du parcours e2e (client, adresse, produit en stock)
 	docker compose cp e2e/seed_e2e_data.py api:/app/e2e_seed.py
 	docker compose exec -T api python /app/e2e_seed.py
+
+seed-demo: ## Catalogue de démonstration (explicite, idempotent ; refusé en production)
+	docker compose exec -T api python -m app.scripts.seed_demo
+
+purge-demo: ## Retirer le catalogue de démonstration
+	docker compose exec -T api python -m app.scripts.seed_demo --purge
 
 lint: ## ruff + eslint (sans modification)
 	$(BACKEND) ruff check app

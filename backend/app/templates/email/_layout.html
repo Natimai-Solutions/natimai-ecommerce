@@ -18,6 +18,7 @@
     .wrapper { max-width: 600px; margin: 32px auto; background: #ffffff; border-radius: 8px; overflow: hidden; }
     .header { background: {% block header_color %}#1a3c5e{% endblock %}; padding: 24px 32px; }
     .header h1 { color: #ffffff; margin: 0; font-size: 20px; }
+    .header img.logo { display: block; max-height: 40px; max-width: 200px; margin-bottom: 12px; }
     .body { padding: 32px; color: #333333; }
     .body p { margin: 0 0 16px; line-height: 1.5; }
     .badge { display: inline-block; background: #eef2f7; color: #1a3c5e; border-radius: 4px; padding: 4px 12px; font-weight: bold; margin-bottom: 16px; font-size: 13px; }
@@ -33,7 +34,7 @@
 </head>
 <body>
   <div class="wrapper">
-    <div class="header"><h1>{% block heading %}{% endblock %}</h1></div>
+    <div class="header">{% if shop_logo_url %}<img class="logo" src="{{ shop_logo_url }}" alt="{{ shop_name }}">{% endif %}<h1>{% block heading %}{% endblock %}</h1></div>
     <div class="body">
       {% block content %}{% endblock %}
     </div>

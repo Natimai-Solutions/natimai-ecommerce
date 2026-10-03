@@ -82,7 +82,7 @@ _NEUTRAL_RESPONSE = OkMessage(
 
 def _utcnow() -> datetime.datetime:
     """Horodatage UTC conscient du fuseau, comme le reste du schéma (timestamptz)."""
-    return datetime.datetime.now(datetime.timezone.utc)
+    return datetime.datetime.now(datetime.UTC)
 
 
 async def _send_reset_email(email: str, token: str) -> None:

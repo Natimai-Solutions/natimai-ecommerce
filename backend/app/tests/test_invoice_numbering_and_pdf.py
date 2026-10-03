@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any, cast
@@ -181,7 +181,7 @@ def _make_invoice() -> Invoice:
         sequence_number=1,
         order_id=uuid.uuid4(),
         user_id=uuid.uuid4(),
-        issued_at=datetime(2026, 8, 25, tzinfo=timezone.utc),
+        issued_at=datetime(2026, 8, 25, tzinfo=UTC),
         currency="XPF",
         total_excl_tax=Decimal("407500"),
         total_tax=Decimal("65200"),

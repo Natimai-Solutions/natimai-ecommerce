@@ -62,7 +62,7 @@ class CrudUserRefreshToken(
         user: User | None = None,
     ) -> UserRefreshToken:
         """Execute rotate token."""
-        now = datetime.datetime.now(datetime.timezone.utc)
+        now = datetime.datetime.now(datetime.UTC)
 
         revoke_data = UserRefreshTokenUpdate(
             revoked_at=now,
@@ -105,7 +105,7 @@ class CrudUserRefreshToken(
         user: User | None = None,
     ) -> UserRefreshToken:
         """Execute revoke token."""
-        now = datetime.datetime.now(datetime.timezone.utc)
+        now = datetime.datetime.now(datetime.UTC)
 
         update_data = UserRefreshTokenUpdate(
             revoked_at=now,
@@ -140,7 +140,7 @@ class CrudUserRefreshToken(
         if not active_tokens:
             return 0
 
-        now = datetime.datetime.now(datetime.timezone.utc)
+        now = datetime.datetime.now(datetime.UTC)
         for token in active_tokens:
             token.revoked_at = now
             token.revoked_reason = reason

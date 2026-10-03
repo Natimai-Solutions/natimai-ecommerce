@@ -38,6 +38,9 @@
             />
           </div>
         </div>
+        <p class="admin-hint q-mt-xs q-mb-none" data-testid="media-format-hint">
+          <strong>{{ $t('media.recommended') }}</strong> {{ $t(imageFormatLabelKey(format)) }}
+        </p>
         <p class="admin-hint q-mt-xs q-mb-none">
           {{ $t('media.upload_hint') }}
         </p>
@@ -122,6 +125,7 @@ import { computed, ref, watch } from 'vue';
 import AppNotice from '@app/ui/AppNotice.vue';
 import { extractApiError } from '@/api/errors';
 import { useConfirm } from '@/composables/useConfirm';
+import { formatForKind, imageFormatLabelKey, type ImageFormatKey } from '@/utils/imageFormats';
 import {
   deleteMedia,
   listMedia,
@@ -139,9 +143,12 @@ const { confirmDelete } = useConfirm();
  * des images (filtrée par usage), en téléverse une nouvelle et renvoie celle
  * choisie via `select`.
  */
-const props = withDefaults(defineProps<{ modelValue: boolean; kind?: MediaKind }>(), {
-  kind: 'other',
-});
+const props = withDefaults(
+  defineProps<{ modelValue: boolean; kind?: MediaKind; format?: ImageFormatKey | null }>(),
+  { kind: 'other', format: null },
+);
+/** The recommended format: the caller's (a hero vs a banner), else the kind's. */
+const format = computed<ImageFormatKey>(() => props.format ?? formatForKind(props.kind));
 const emit = defineEmits<{
   'update:modelValue': [value: boolean];
   select: [asset: MediaAsset];

@@ -24,7 +24,7 @@ import uuid
 from collections import Counter
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import String, and_, func, or_
@@ -307,7 +307,7 @@ async def save_mappings(
             )
         ).all()
     }
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     for rule in rules:
         key = source_key(rule.source_category, rule.source_subcategory)
         if key == "|":

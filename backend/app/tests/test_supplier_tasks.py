@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -179,7 +179,7 @@ def test_cron_jobs_are_three_db_driven_ticks() -> None:
 
 
 def test_catalog_sync_due_logic() -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     due = supplier_tasks._catalog_sync_due
 
     assert due(interval_hours=0, last_started_at=None, now=now) is False
@@ -200,7 +200,7 @@ def test_catalog_sync_due_logic() -> None:
 async def test_catalog_tick_enqueues_only_due_enabled_suppliers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     due_adapter = FakeAdapter(
         name="due", sync_enabled=True, configured=True, sync_interval_hours=6
     )

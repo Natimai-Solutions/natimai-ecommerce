@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -129,7 +129,7 @@ async def notify_due_alerts(session: AsyncSession) -> dict[str, int]:
         )
     ).all()
     sent = failed = 0
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     for alert, product in pending:
         if not product.is_active or not product_orderable(product):
             continue

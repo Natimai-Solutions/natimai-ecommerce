@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -191,7 +191,7 @@ async def attach_now(
         # Adoption makes the product supplier-managed, which would otherwise
         # hide it until Icecat knows it: it stays on sale as the admin wrote it.
         "published_without_enrichment": True,
-        "last_supplier_sync": datetime.now(timezone.utc),
+        "last_supplier_sync": datetime.now(UTC),
         "supplier_missing_since": None,
     }
     if found.price is not None or found.quantity is not None:

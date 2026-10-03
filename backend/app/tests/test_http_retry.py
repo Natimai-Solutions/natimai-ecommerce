@@ -197,7 +197,7 @@ async def test_timeouts_are_retried(_no_real_sleeping: list[float]) -> None:
     async def attempt() -> str:
         calls.append(1)
         if len(calls) < 2:
-            raise asyncio.TimeoutError
+            raise TimeoutError
         return "payload"
 
     assert await request_with_retry(attempt, description="test") == "payload"

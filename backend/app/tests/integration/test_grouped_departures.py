@@ -4,7 +4,7 @@ order attachment, filtered order list / CSV / SKU summary, public endpoints."""
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any, cast
@@ -40,7 +40,7 @@ from app.features.order.models.order_status import OrderStatus
 from app.features.product.models.product import Product
 from app.features.user.models.user import User
 
-NOW = datetime(2026, 10, 1, 12, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 10, 1, 12, 0, tzinfo=UTC)
 
 
 def _departure(name: str, days: int, **overrides: Any) -> GroupedDeparture:
@@ -84,7 +84,7 @@ async def _seed(session: AsyncSession) -> SimpleNamespace:
             order_number=f"CMD-2026-{day:05d}",
             total_amount=Decimal(total),
             currency="XPF",
-            created_at=datetime(2026, 10, day, 10, 0, tzinfo=timezone.utc),
+            created_at=datetime(2026, 10, day, 10, 0, tzinfo=UTC),
         )
 
     o1, o2, o3 = order(paid, 1, "1000"), order(paid, 5, "2000"), order(pending, 9, "50")

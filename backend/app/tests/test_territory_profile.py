@@ -147,6 +147,8 @@ def test_shop_config_endpoint_exposes_no_secret() -> None:
         "available_locales",
         "timezone",
         "default_display_currency",
+        "captcha_site_key",
+        "branding",
     }
     # Only booleans: the module switches, never a setting value.
     assert all(isinstance(v, bool) for v in body["modules"].values())

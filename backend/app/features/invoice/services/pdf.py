@@ -65,6 +65,13 @@ _env = Environment(
 _env.filters["amount"] = _format_amount
 
 
+def _logo_url() -> str | None:
+    """The logo chosen in the back-office (R9 / T9), for the document header."""
+    from app.features.media.branding import logo_url_from_settings
+
+    return logo_url_from_settings()
+
+
 def _template(lang: str, name: str) -> Template:
     """``<lang>/<name>``, else the French one (R7 / L3).
 
@@ -87,6 +94,7 @@ def render_invoice_html(invoice: Invoice, *, lang: str = DEFAULT_LANG) -> str:
     # Snapshot first, then the columns that are authoritative on the row
     # (they also live in the snapshot; the persisted values win).
     context: dict[str, Any] = dict(invoice.snapshot)
+    context.setdefault("shop_logo_url", _logo_url())
     context.update(
         invoice_number=invoice.invoice_number,
         issued_at=invoice.issued_at,
@@ -130,6 +138,7 @@ def render_credit_note_html(
     """Render the credit note HTML from its frozen snapshot."""
     template = _template(lang, "credit_note.html")
     context: dict[str, Any] = dict(credit_note.snapshot)
+    context.setdefault("shop_logo_url", _logo_url())
     context.update(
         credit_note_number=credit_note.credit_note_number,
         issued_at=credit_note.issued_at,
@@ -184,7 +193,9 @@ def _html_to_pdf(html: str) -> bytes:
 def render_quote_html(quote: Any, *, lang: str = DEFAULT_LANG) -> str:
     """Render a quote (« devis ») from its frozen ``quote_snapshot``."""
     template = _template(lang, "quote.html")
-    return template.render(**dict(quote.quote_snapshot or {}))
+    context = dict(quote.quote_snapshot or {})
+    context.setdefault("shop_logo_url", _logo_url())
+    return template.render(**context)
 
 
 def render_quote_pdf(quote: Any, *, lang: str = DEFAULT_LANG) -> bytes:

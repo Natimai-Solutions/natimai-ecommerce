@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import hmac
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Request
@@ -63,10 +63,10 @@ def _parse_estimated_delivery(raw: Any) -> datetime | None:
     if not raw:
         return None
     if isinstance(raw, datetime):
-        return raw.replace(tzinfo=timezone.utc) if raw.tzinfo is None else raw
+        return raw.replace(tzinfo=UTC) if raw.tzinfo is None else raw
     for fmt in ("%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d"):
         try:
-            return datetime.strptime(str(raw), fmt).replace(tzinfo=timezone.utc)
+            return datetime.strptime(str(raw), fmt).replace(tzinfo=UTC)
         except ValueError:
             continue
     return None

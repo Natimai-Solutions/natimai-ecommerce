@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -131,7 +131,7 @@ async def test_guest_carts_are_reminded_only_with_an_email(
 ) -> None:
     monkeypatch.setattr(settings, "CART_ABANDONMENT_REMINDER_DELAY_HOURS", 24)
     monkeypatch.setattr(settings, "CART_ABANDONMENT_MAX_AGE_DAYS", 14)
-    now = datetime(2026, 10, 2, 12, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 10, 2, 12, 0, tzinfo=UTC)
     product = _product("Câble")
     db_session.add(product)
     await db_session.flush()

@@ -1,6 +1,6 @@
 import uuid
 from collections.abc import Generator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
@@ -55,7 +55,7 @@ def _build_tracking(
         route_id=route_id,
         status_id=status_id,
         address_id=address_id,
-        selected_at=datetime.now(timezone.utc),
+        selected_at=datetime.now(UTC),
         sequence_order=sequence_order,
     )
 

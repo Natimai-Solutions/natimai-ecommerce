@@ -26,7 +26,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -98,7 +98,7 @@ class ReceiptOutcome:
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 async def active_receipts(
@@ -160,7 +160,7 @@ def _check_received_at(received_at: datetime | None) -> datetime:
     if received_at is None:
         return _now()
     if received_at.tzinfo is None:
-        received_at = received_at.replace(tzinfo=timezone.utc)
+        received_at = received_at.replace(tzinfo=UTC)
     if received_at > _now() + _FUTURE_TOLERANCE:
         raise AppError(
             code="payment.receipt.date_in_future",

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime, time, timedelta, timezone
+from datetime import UTC, datetime, time, timedelta
 from decimal import Decimal
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -267,9 +267,7 @@ def reminder_fire_time(
     if anchor == "departure" and departure.departure_at:
         base = departure.departure_at
     local_day = base.astimezone(LOCAL_TZ).date() - timedelta(days=offset_days)
-    return datetime.combine(local_day, REMINDER_HOUR, tzinfo=LOCAL_TZ).astimezone(
-        timezone.utc
-    )
+    return datetime.combine(local_day, REMINDER_HOUR, tzinfo=LOCAL_TZ).astimezone(UTC)
 
 
 def render_reminder(

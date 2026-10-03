@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from sqlalchemy import func
@@ -136,7 +136,7 @@ async def refund_payment(
             details={"payment_id": str(payment_id)},
         ) from exc
     completed = result.status == "completed"
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     refund = Refund(
         payment_id=payment_id,

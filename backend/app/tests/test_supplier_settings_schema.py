@@ -84,5 +84,5 @@ def test_supplier_thresholds_replace_the_environment(
     [(0, 1, True), (5, 1, True), (6, 3, True), (7, 3, False), (5, 0, False)],
 )
 def test_icecat_tick_due_every_interval(hour: int, interval: int, due: bool) -> None:
-    now = datetime.datetime(2026, 10, 1, hour, 15, tzinfo=datetime.timezone.utc)
+    now = datetime.datetime(2026, 10, 1, hour, 15, tzinfo=datetime.UTC)
     assert _due(now, interval) is due

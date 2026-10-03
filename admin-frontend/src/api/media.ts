@@ -5,13 +5,14 @@ import type { components } from '@app/api-types';
 export type MediaAsset = components['schemas']['MediaAssetPublic'];
 
 /** Usage d'une image : filtre la médiathèque selon l'écran qui l'ouvre. */
-export type MediaKind = 'homepage' | 'product' | 'category' | 'page' | 'other';
+export type MediaKind = 'homepage' | 'product' | 'category' | 'page' | 'branding' | 'other';
 
 export const MEDIA_KIND_LABELS: Record<MediaKind, string> = labels({
   homepage: 'api.media_kind.homepage',
   product: 'api.media_kind.product',
   category: 'api.media_kind.category',
   page: 'api.media_kind.page',
+  branding: 'api.media_kind.branding',
   other: 'api.media_kind.other',
 });
 

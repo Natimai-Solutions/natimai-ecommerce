@@ -226,7 +226,7 @@ async def update_quote_request(
         # `handled_at` marque la clôture, pas la dernière modification : une
         # demande rouverte doit repartir sans date de traitement.
         if body.status in CLOSED_QUOTE_STATUSES:
-            quote.handled_at = datetime.datetime.now(datetime.timezone.utc)
+            quote.handled_at = datetime.datetime.now(datetime.UTC)
             quote.handled_by_id = admin.id
         else:
             quote.handled_at = None

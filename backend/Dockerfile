@@ -15,8 +15,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # uv figé (la 0.4.15 d'origine datait d'août 2024) ; même version en CI.
+# Depuis PyPI plutôt que l'image ghcr.io/astral-sh/uv : les tirages anonymes
+# de ghcr.io sont limités par IP et la CI E2E a été refusée (429) alors que
+# rien n'avait changé (03/10/2026). PyPI est déjà joint pour les dépendances.
 # Ref: https://docs.astral.sh/uv/guides/integration/docker/#installing-uv
-COPY --from=ghcr.io/astral-sh/uv:0.8.17 /uv /bin/uv
+RUN pip install --no-cache-dir uv==0.8.17
 
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
@@ -65,7 +68,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=ghcr.io/astral-sh/uv:0.8.17 /uv /bin/uv
+# Le binaire uv installé dans l'étape de build (même version, aucun tirage).
+COPY --from=builder /usr/local/bin/uv /bin/uv
 
 # Utilisateur applicatif sans privilèges. L'entrypoint démarre en root le
 # temps de rendre le volume de stockage à cet utilisateur (volumes créés par

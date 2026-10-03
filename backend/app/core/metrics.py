@@ -17,6 +17,7 @@ import threading
 import time
 from collections import defaultdict
 from collections.abc import Iterable
+from datetime import UTC
 from typing import Any
 
 #: Latency buckets in seconds (Prometheus convention, ``+Inf`` implied).
@@ -125,7 +126,7 @@ def gauge_lines(
 
 async def background_lines(session: Any) -> list[str]:
     """ARQ queue depth and outbox state, read now."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from sqlalchemy import func
     from sqlmodel import col, select
@@ -171,8 +172,8 @@ async def background_lines(session: Any) -> list[str]:
         age = 0.0
         if oldest is not None:
             if oldest.tzinfo is None:
-                oldest = oldest.replace(tzinfo=timezone.utc)
-            age = max(0.0, (datetime.now(timezone.utc) - oldest).total_seconds())
+                oldest = oldest.replace(tzinfo=UTC)
+            age = max(0.0, (datetime.now(UTC) - oldest).total_seconds())
         lines += gauge_lines(
             "outbox_oldest_pending_seconds",
             "Age of the oldest pending outbox event (0 when none).",

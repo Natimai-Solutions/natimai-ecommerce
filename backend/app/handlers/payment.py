@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -22,14 +22,22 @@ from app.features.order.crud.order_crud import crud_order
 from app.features.order.crud.order_status_crud import crud_order_status
 from app.features.order.models.order import Order
 from app.features.order.models.order_status import OrderStatus, OrderStatusCreate
+from app.features.order.services.status import EVENT_ORDER_STATUS_CHANGED
 from app.features.payment.crud.payment import crud_payment
 from app.features.payment.models.payment import Payment
+from app.features.payment.services.authorizations import (
+    ORDER_STATUS_CANCELLED,
+    capture_on_status,
+    void_on_cancel,
+)
 from app.features.payment.services.deposit import (
     KIND_BALANCE,
     KIND_DEPOSIT,
     KIND_FULL,
     ORDER_STATUS_DEPOSIT_PAID,
 )
+from app.features.payment.services.gift_cards import issue_for_order
+from app.features.payment.services.loyalty import earn_for_order, revoke_for_refund
 from app.features.payment.services.notifications import (
     send_payment_event_notifications,
 )
@@ -89,6 +97,7 @@ __all__ = [
     "on_payment_captured_notify",
     "on_payment_rejected_notify",
     "on_payment_document_infected_notify",
+    "on_order_status_changed_capture_or_void",
 ]
 
 
@@ -338,7 +347,7 @@ async def on_payment_captured(session: AsyncSession, payload: dict[str, Any]) ->
         # The goods were bought and reserved on the deposit; the balance only
         # settles the order. « DepositPaid » becomes « Paid »; a fulfilment
         # status (Received…) is kept, the customer follows the departure.
-        order.balance_paid_at = datetime.now(timezone.utc)
+        order.balance_paid_at = datetime.now(UTC)
         session.add(order)
         current = await session.get(OrderStatus, order.order_status_id)
         if current is not None and current.name == ORDER_STATUS_DEPOSIT_PAID:
@@ -488,6 +497,33 @@ async def on_payment_captured_issue_invoice(
     await session.commit()
 
 
+@outbox_handler("payment.captured")
+async def on_payment_captured_issue_gift_cards(
+    session: AsyncSession, payload: dict[str, Any]
+) -> None:
+    """Issue the gift cards an order contains, and credit its loyalty points,
+    once it is paid (R8 / confort).
+
+    Same guards as the invoice: never on a partial or mismatched capture, and
+    not on a deposit (the cards go out with the balance, when the order is
+    fully settled). ``issue_for_order`` is idempotent, so a retry never
+    doubles a customer's cards.
+    """
+    order_id = _parse_order_id(payload)
+    if order_id is None:
+        return
+    mismatch = await _captured_amount_mismatch(session, payload=payload)
+    if mismatch == PARTIAL or isinstance(mismatch, dict):
+        return
+    payment, _order = await _load_payment_and_order(session, payload)
+    if _payment_kind(payment) == KIND_DEPOSIT:
+        return
+    issued = await issue_for_order(session, order_id=order_id)
+    earned = await earn_for_order(session, order_id=order_id)
+    if issued or earned:
+        await session.commit()
+
+
 @outbox_handler("payment.refunded")
 async def on_payment_refunded(session: AsyncSession, payload: dict[str, Any]) -> None:
     """Sync the order status when a payment is (partially) refunded."""
@@ -506,6 +542,17 @@ async def on_payment_refunded(session: AsyncSession, payload: dict[str, Any]) ->
             ORDER_STATUS_REFUNDED if fully else ORDER_STATUS_PARTIALLY_REFUNDED
         ),
     )
+    # Loyalty points earned on the order go back in proportion (R8 / confort).
+    refund_order_id = _parse_order_id(payload)
+    if refund_order_id is not None:
+        try:
+            refunded = Decimal(str(payload.get("amount") or 0))
+        except (ArithmeticError, ValueError):
+            refunded = Decimal(0)
+        if await revoke_for_refund(
+            session, order_id=refund_order_id, refunded=refunded, fully=fully
+        ):
+            await session.commit()
     # Only a *fully* refunded order gives its stock back, and only the
     # reservations still PENDING. A captured payment has already confirmed its
     # movements (COMPLETED), so this is a no-op on the normal flow — it exists
@@ -798,3 +845,23 @@ async def on_payment_document_infected_notify(
     await _notify_payment_event(
         session, event_type=EVENT_DOCUMENT_INFECTED, payload=payload
     )
+
+
+@outbox_handler(EVENT_ORDER_STATUS_CHANGED)
+async def on_order_status_changed_capture_or_void(
+    session: AsyncSession, payload: dict[str, Any]
+) -> None:
+    """Deferred-capture follow-up of a fulfilment step (R8 / confort).
+
+    The shipment captures the authorised card payments of the order; a
+    cancellation releases them. Both are driven by the payment settings and
+    are no-ops for a shop that captures at checkout.
+    """
+    order_id = _parse_order_id(payload)
+    if order_id is None:
+        return
+    new_status = str(payload.get("new_status") or "")
+    if new_status == ORDER_STATUS_CANCELLED:
+        await void_on_cancel(session, order_id=order_id)
+    elif new_status:
+        await capture_on_status(session, order_id=order_id, new_status=new_status)

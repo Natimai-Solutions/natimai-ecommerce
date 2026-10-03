@@ -6,7 +6,7 @@ closed the tab held the stock indefinitely.
 """
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -78,7 +78,7 @@ async def _seed_order_with_reservation(
     session.add(order)
     await session.flush()
 
-    reserved_at = datetime.now(timezone.utc) - timedelta(hours=reserved_hours_ago)
+    reserved_at = datetime.now(UTC) - timedelta(hours=reserved_hours_ago)
     for quantity, reason in (
         (Decimal("2.00"), "Local stock reserved during checkout (segment=local)"),
         (Decimal("3.00"), "Supplier stock reserved (segment=supplier_direct)"),
@@ -113,7 +113,7 @@ async def test_stale_query_ignores_fresh_reservations(
     )
     await db_session.commit()
 
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=48)
+    cutoff = datetime.now(UTC) - timedelta(hours=48)
     stale = await crud_stock_movement.get_stale_order_reference_ids(
         db_session, older_than=cutoff
     )
@@ -138,7 +138,7 @@ async def test_stale_query_ignores_already_settled_movements(
         db_session.add(movement)
     await db_session.commit()
 
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=48)
+    cutoff = datetime.now(UTC) - timedelta(hours=48)
     stale = await crud_stock_movement.get_stale_order_reference_ids(
         db_session, older_than=cutoff
     )

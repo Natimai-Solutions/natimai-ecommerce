@@ -97,6 +97,10 @@ def render_email(
 
     lang = resolve_locale(lang, request_locale())
     context.setdefault("shop_name", runtime_settings.peek("shop_name"))
+    # The logo chosen in the back-office (R9 / T9); None keeps the text header.
+    from app.features.media.branding import logo_url_from_settings
+
+    context.setdefault("shop_logo_url", logo_url_from_settings())
     return RenderedEmail(
         subject=_render_part(name, "subject.txt", lang, context).strip(),
         text=_render_part(name, "txt", lang, context),

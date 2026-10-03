@@ -7,7 +7,7 @@ real-engine tests would have caught all of them.
 """
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from types import SimpleNamespace
 
@@ -354,7 +354,7 @@ async def _seed_lot_with_next_leg(
     session.add(cons)
     await session.flush()
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     session.add_all(
         [
             ShippingRouteTracking(

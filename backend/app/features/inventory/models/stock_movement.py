@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from enum import Enum
+from enum import StrEnum
 
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlmodel import Column, Field, SQLModel
@@ -9,7 +9,7 @@ from sqlmodel import Column, Field, SQLModel
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
-class MovementType(str, Enum):
+class MovementType(StrEnum):
     """Enumeration for stock movement types."""
 
     INCOMING = "incoming"
@@ -18,7 +18,7 @@ class MovementType(str, Enum):
     ADJUSTMENT = "adjustment"
 
 
-class ReferenceType(str, Enum):
+class ReferenceType(StrEnum):
     """Enumeration for movement reference types."""
 
     ORDER = "order"
@@ -27,7 +27,7 @@ class ReferenceType(str, Enum):
     CORRECTION = "correction"
 
 
-class MovementStatus(str, Enum):
+class MovementStatus(StrEnum):
     """Enumeration for movement status."""
 
     PENDING = "pending"

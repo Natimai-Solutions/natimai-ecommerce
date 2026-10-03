@@ -266,6 +266,25 @@
                 inWishlist ? $t('product.wish_in') : $t('product.wish_add')
               }}</q-tooltip>
             </q-btn>
+            <q-btn
+              outline
+              color="primary"
+              icon="ph:scales"
+              class="product__wish"
+              :class="{ 'product__wish--on': inCompare }"
+              :aria-pressed="inCompare"
+              :aria-label="
+                inCompare
+                  ? $t('compare.remove', { name: product.name })
+                  : $t('compare.add', { name: product.name })
+              "
+              data-testid="product-compare"
+              @click="toggleCompare"
+            >
+              <q-tooltip>{{
+                inCompare ? $t('compare.remove_short') : $t('compare.add_short')
+              }}</q-tooltip>
+            </q-btn>
           </div>
 
           <AppNotice v-if="cartError" tone="warning" dense class="q-mt-md">
@@ -476,6 +495,7 @@ import { useUiStore } from '@/stores/ui';
 import ProductCard from '@/components/ProductCard.vue';
 import { getRelatedProducts, type RelatedProductsResponse } from '@/api/products';
 import { useProductsStore } from '@/stores/products';
+import { COMPARE_MAX, useCompareStore } from '@/stores/compare';
 import { useCurrencyStore } from '@/stores/currency';
 import { useDepartureStore } from '@/stores/departure';
 import { subscribeStockAlert } from '@/api/stockAlerts';
@@ -565,6 +585,15 @@ const authStore = useAuthStore();
 
 // Favoris : la liste du compte (Mon compte → Favoris et alertes).
 const inWishlist = ref(false);
+// Comparison shortlist (R8 / confort).
+const compareStore = useCompareStore();
+const inCompare = computed(() => !!product.value && compareStore.has(product.value.id));
+function toggleCompare() {
+  if (!product.value) return;
+  if (!compareStore.toggle(product.value.id)) {
+    cartError.value = t('compare.full', { max: COMPARE_MAX });
+  }
+}
 const wishSaving = ref(false);
 
 async function refreshWishlistState() {

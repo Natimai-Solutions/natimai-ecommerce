@@ -13,7 +13,7 @@ survives the deletion of the account.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import BaseModel
@@ -25,9 +25,7 @@ class AdminAuditEntry(SQLModel, table=True):
     __tablename__ = "admin_audit_log"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc), index=True
-    )
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), index=True)
     actor_id: uuid.UUID | None = Field(default=None, index=True)
     actor_email: str | None = Field(default=None, max_length=255)
     #: ``http`` for a request, ``auth.*`` for a sign-in / two-factor event.

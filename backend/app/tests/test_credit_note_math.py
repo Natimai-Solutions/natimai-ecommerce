@@ -8,7 +8,7 @@ actually refunded — an accountant checks that first.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from types import SimpleNamespace
 from typing import cast
@@ -170,7 +170,7 @@ def _invoice(total: str = "100000.00") -> SimpleNamespace:
     return SimpleNamespace(
         id="11111111-1111-1111-1111-111111111111",
         invoice_number="FAC-2026-00007",
-        issued_at=datetime(2026, 3, 4, tzinfo=timezone.utc),
+        issued_at=datetime(2026, 3, 4, tzinfo=UTC),
         currency="XPF",
         total_incl_tax=Decimal(total),
         snapshot={

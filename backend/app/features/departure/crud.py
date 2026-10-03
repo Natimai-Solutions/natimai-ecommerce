@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Iterable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from sqlalchemy import func
@@ -22,7 +22,7 @@ from app.features.order.models.order import Order
 
 def utcnow() -> datetime:
     """Aware UTC now — one place to patch in tests."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class GroupedDepartureCrud(

@@ -241,8 +241,11 @@ export interface paths {
          * Oauth Callback
          * @description Handle the OAuth provider callback.
          *
-         *     Exchanges the authorization code, resolves the user, issues JWT tokens,
-         *     and redirects the browser to the frontend with the tokens in query params.
+         *     Exchanges the authorization code, resolves the user, issues the JWT pair
+         *     and redirects the browser to the frontend: the refresh token travels as an
+         *     HttpOnly cookie set on this response, never in the URL; the page then
+         *     obtains its in-memory access token from ``/login/refresh-token``. A
+         *     failure redirects with ``?error=<code>``.
          */
         get: operations["oauth-oauth_callback"];
         put?: never;
@@ -3579,6 +3582,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/product/compare": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Compare Products
+         * @description Side-by-side comparison of up to four products (R8 / confort).
+         *
+         *     Products that no longer exist or are unpublished are left out rather than
+         *     failing the page: the shortlist lives in the visitor's browser and may be
+         *     stale.
+         */
+        get: operations["product-compare_products"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/product/{product_id}/key-specs": {
         parameters: {
             query?: never;
@@ -6590,6 +6617,154 @@ export interface paths {
          *     reason; optionally tied to the order it compensates.
          */
         post: operations["store-credit-grant_store_credit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/gift-cards/redeem": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Redeem Gift Card
+         * @description Credit the card's amount to the customer's store credit.
+         */
+        post: operations["gift-cards-redeem_gift_card"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/gift-cards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Gift Cards
+         * @description Every card, newest first; filters on text, kind and computed state.
+         */
+        get: operations["gift-cards-list_gift_cards"];
+        put?: never;
+        /**
+         * Issue Gift Cards
+         * @description Issue ``count`` gift cards, or one nominative voucher.
+         */
+        post: operations["gift-cards-issue_gift_cards"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/gift-cards/{card_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Gift Card
+         * @description Cancel a card that was not redeemed (lost, issued by mistake).
+         */
+        post: operations["gift-cards-cancel_gift_card"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/gift-cards/{card_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore Gift Card
+         * @description Undo a cancellation.
+         */
+        post: operations["gift-cards-restore_gift_card"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/loyalty/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My Loyalty
+         * @description Points, their value in store credit, the ledger and the rules.
+         */
+        get: operations["loyalty-my_loyalty"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/loyalty/convert": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Convert Points
+         * @description Turn points into store credit, spent at checkout like any avoir.
+         */
+        post: operations["loyalty-convert_points"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/users/{user_id}/loyalty": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * User Loyalty
+         * @description A customer's points and ledger.
+         */
+        get: operations["loyalty-user_loyalty"];
+        put?: never;
+        /**
+         * Adjust Loyalty
+         * @description Add or take back points, with a reason.
+         */
+        post: operations["loyalty-adjust_loyalty"];
         delete?: never;
         options?: never;
         head?: never;
@@ -10027,6 +10202,32 @@ export interface components {
             image_url?: string | null;
         };
         /**
+         * BrandingIcon
+         * @description Where the icon sizes live: ``{base}/icon-{size}.png`` and the manifest.
+         */
+        BrandingIcon: {
+            /** Base */
+            base: string;
+            /** Sizes */
+            sizes: number[];
+            /** Manifest */
+            manifest: string;
+        };
+        /**
+         * BrandingImage
+         * @description An image of the brand: the logo as the storefront shows it.
+         */
+        BrandingImage: {
+            /** Src */
+            src: string;
+            /** Srcset */
+            srcset?: string | null;
+            /** Width */
+            width: number;
+            /** Height */
+            height: number;
+        };
+        /**
          * BrandsPublic
          * @description Represents brands public.
          */
@@ -10933,6 +11134,21 @@ export interface components {
             payments_last_24h: number;
         };
         /**
+         * CompareRow
+         * @description One spec across the compared products (``values`` keyed by product id,
+         *     None when a product has no value for it).
+         */
+        CompareRow: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Values */
+            values?: {
+                [key: string]: string | null;
+            };
+        };
+        /**
          * CompleteSignupRequest
          * @description Finalise account creation.
          */
@@ -11419,6 +11635,11 @@ export interface components {
              * @default 0
              */
             payments_to_validate: number;
+            /**
+             * Payments To Capture
+             * @default 0
+             */
+            payments_to_capture: number;
             /**
              * Quote Requests Open
              * @default 0
@@ -12329,6 +12550,119 @@ export interface components {
              * Format: email
              */
             email: string;
+        };
+        /**
+         * GiftCardIssue
+         * @description Admin payload: issue ``count`` cards or one nominative voucher.
+         */
+        GiftCardIssue: {
+            /**
+             * Kind
+             * @default gift_card
+             */
+            kind: string;
+            /** Amount */
+            amount: number | string;
+            /**
+             * Count
+             * @default 1
+             */
+            count: number;
+            /** Recipient Email */
+            recipient_email?: string | null;
+            /** Note */
+            note?: string | null;
+            /** Expires At */
+            expires_at?: string | null;
+        };
+        /**
+         * GiftCardPublic
+         * @description Admin view of a card: the full code is shown to the admin only.
+         */
+        GiftCardPublic: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /**
+             * Kind
+             * @description gift_card | voucher
+             */
+            kind: string;
+            /** Amount */
+            amount: string;
+            /** Currency */
+            currency?: string;
+            /**
+             * Recipient Email
+             * @description Voucher: the only account allowed to redeem. Gift card bought in the shop: the buyer, for information.
+             */
+            recipient_email?: string | null;
+            /**
+             * Note
+             * @description Admin note (occasion, reason)
+             */
+            note?: string | null;
+            /**
+             * Expires At
+             * @description None: never
+             */
+            expires_at?: string | null;
+            /**
+             * Order Id
+             * @description Order the card was bought in (None when issued by the admin)
+             */
+            order_id?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Code */
+            code: string;
+            /** Redeemed At */
+            redeemed_at?: string | null;
+            /** Redeemed By Id */
+            redeemed_by_id?: string | null;
+            /** Redeemed By Email */
+            redeemed_by_email?: string | null;
+            /**
+             * State
+             * @description active | redeemed | expired | cancelled (computed)
+             */
+            state: string;
+        };
+        /**
+         * GiftCardRedeem
+         * @description Customer payload: the code as typed (case and dashes do not matter).
+         */
+        GiftCardRedeem: {
+            /** Code */
+            code: string;
+        };
+        /**
+         * GiftCardsPublic
+         * @description A page of cards.
+         */
+        GiftCardsPublic: {
+            /** Data */
+            data: components["schemas"]["GiftCardPublic"][];
+            /** Count */
+            count: number;
         };
         /**
          * GroupCreate
@@ -13752,6 +14086,125 @@ export interface components {
              * Format: date-time
              */
             timestamp: string;
+        };
+        /**
+         * LoyaltyAccount
+         * @description Balance, ledger and rules of one customer.
+         */
+        LoyaltyAccount: {
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+            /** Points */
+            points: number;
+            /**
+             * Credit Value
+             * @description Valeur en avoir du solde de points
+             */
+            credit_value: string;
+            rules: components["schemas"]["LoyaltyRules"];
+            /** Entries */
+            entries?: components["schemas"]["LoyaltyEntryPublic"][];
+        };
+        /**
+         * LoyaltyAdjust
+         * @description Admin payload: add (positive) or take back (negative) points.
+         */
+        LoyaltyAdjust: {
+            /** Points */
+            points: number;
+            /** Reason */
+            reason: string;
+            /** Order Id */
+            order_id?: string | null;
+        };
+        /**
+         * LoyaltyConvert
+         * @description Customer payload: how many points to turn into store credit.
+         */
+        LoyaltyConvert: {
+            /** Points */
+            points: number;
+        };
+        /**
+         * LoyaltyEntryPublic
+         * @description Ledger entry as the customer and the admin see it.
+         */
+        LoyaltyEntryPublic: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+            /**
+             * Points
+             * @description Signé : positif gagné, négatif converti ou repris
+             */
+            points: number;
+            /**
+             * Kind
+             * @description earn | convert | revoke | adjust
+             */
+            kind: string;
+            /** Reason */
+            reason?: string | null;
+            /**
+             * Order Id
+             * @description Commande à l'origine des points (gain ou reprise)
+             */
+            order_id?: string | null;
+            /**
+             * Store Credit Entry Id
+             * @description Avoir créé par une conversion
+             */
+            store_credit_entry_id?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+        };
+        /**
+         * LoyaltyRules
+         * @description How the programme works, for the storefront wording.
+         */
+        LoyaltyRules: {
+            /** Enabled */
+            enabled: boolean;
+            /** Currency */
+            currency: string;
+            /**
+             * Amount Per Point
+             * @description Montant d'achat qui vaut 1 point
+             */
+            amount_per_point: string;
+            /**
+             * Point Value
+             * @description Valeur d'un point converti en avoir
+             */
+            point_value: string;
+            /** Min Points To Convert */
+            min_points_to_convert: number;
         };
         /**
          * MarginPreview
@@ -17235,6 +17688,16 @@ export interface components {
          */
         PricingMode: "import" | "domestic" | "fixed";
         /**
+         * ProductCompareResponse
+         * @description Response for GET /product/compare.
+         */
+        ProductCompareResponse: {
+            /** Products */
+            products: components["schemas"]["ProductPublic"][];
+            /** Rows */
+            rows: components["schemas"]["CompareRow"][];
+        };
+        /**
          * ProductCondition
          * @description New goods or a refurbished item (graded, with its own warranty).
          * @enum {string}
@@ -17372,6 +17835,11 @@ export interface components {
              * @description Variant only (R9 / T6): supplement over the parent's fixed price (« i7 : + 10 000 »). When set, base_price = parent.base_price + price_extra, recomputed whenever the parent price changes; the storefront shows « + 10 000 » in the selector. None: the variant has a price of its own.
              */
             price_extra?: number | string | null;
+            /**
+             * Gift Card Amount
+             * @description Set: buying one unit of this product issues a gift card of this amount (reference currency) to the buyer once the order is paid (R8 / confort). The product is sold like any other (price, tax, availability « on_demand » since nothing ships).
+             */
+            gift_card_amount?: number | string | null;
             /**
              * Supplier Sku
              * @description Supplier/vendor SKU identifier
@@ -17913,6 +18381,11 @@ export interface components {
              * @description Variant only (R9 / T6): supplement over the parent's fixed price (« i7 : + 10 000 »). When set, base_price = parent.base_price + price_extra, recomputed whenever the parent price changes; the storefront shows « + 10 000 » in the selector. None: the variant has a price of its own.
              */
             price_extra?: string | null;
+            /**
+             * Gift Card Amount
+             * @description Set: buying one unit of this product issues a gift card of this amount (reference currency) to the buyer once the order is paid (R8 / confort). The product is sold like any other (price, tax, availability « on_demand » since nothing ships).
+             */
+            gift_card_amount?: string | null;
             /** Supplier Sku */
             supplier_sku?: string | null;
             /** Vendor Part Number */
@@ -18328,6 +18801,8 @@ export interface components {
             has_variants?: boolean | null;
             /** Price Extra */
             price_extra?: number | string | null;
+            /** Gift Card Amount */
+            gift_card_amount?: number | string | null;
             /** Supplier Sku */
             supplier_sku?: string | null;
             /** Vendor Part Number */
@@ -20519,6 +20994,14 @@ export interface components {
             pricing_effective: boolean;
         };
         /**
+         * ShopBranding
+         * @description Logo and icon of the shop, for ``GET /system/config``.
+         */
+        ShopBranding: {
+            logo?: components["schemas"]["BrandingImage"] | null;
+            icon?: components["schemas"]["BrandingIcon"] | null;
+        };
+        /**
          * ShopConfigPublic
          * @description What every client may know about this deployment (no secrets).
          */
@@ -20569,6 +21052,7 @@ export interface components {
             default_display_currency: string;
             /** Captcha Site Key */
             captcha_site_key?: string | null;
+            branding?: components["schemas"]["ShopBranding"];
         };
         /**
          * Shortage
@@ -29235,6 +29719,37 @@ export interface operations {
             };
         };
     };
+    "product-compare_products": {
+        parameters: {
+            query: {
+                ids: string[];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductCompareResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "product-get_product_key_specs": {
         parameters: {
             query?: never;
@@ -35577,6 +36092,288 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StoreCreditBalance"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "gift-cards-redeem_gift_card": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GiftCardRedeem"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoreCreditBalance"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "gift-cards-list_gift_cards": {
+        parameters: {
+            query?: {
+                q?: string | null;
+                kind?: string | null;
+                state?: string | null;
+                skip?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GiftCardsPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "gift-cards-issue_gift_cards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GiftCardIssue"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GiftCardPublic"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "gift-cards-cancel_gift_card": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                card_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GiftCardPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "gift-cards-restore_gift_card": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                card_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GiftCardPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "loyalty-my_loyalty": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoyaltyAccount"];
+                };
+            };
+        };
+    };
+    "loyalty-convert_points": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoyaltyConvert"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoyaltyAccount"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "loyalty-user_loyalty": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoyaltyAccount"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "loyalty-adjust_loyalty": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoyaltyAdjust"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoyaltyAccount"];
                 };
             };
             /** @description Validation Error */

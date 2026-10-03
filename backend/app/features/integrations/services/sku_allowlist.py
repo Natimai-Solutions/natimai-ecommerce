@@ -11,7 +11,7 @@ whole synced catalogue is followed, as before.
 from __future__ import annotations
 
 from collections.abc import Iterable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -124,7 +124,7 @@ async def save_allowlist(
     """
     skus = normalize_skus(raw_skus)
     supplier.sku_allowlist = skus or None
-    supplier.updated_at = datetime.now(timezone.utc)
+    supplier.updated_at = datetime.now(UTC)
     session.add(supplier)
 
     deactivated = 0

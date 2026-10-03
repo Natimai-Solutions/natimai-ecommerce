@@ -9,7 +9,7 @@ ensures reliable event processing with retry logic and exponential backoff.
 import importlib
 import logging
 from collections.abc import Callable
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
 from sqlmodel import col, select
@@ -179,7 +179,7 @@ async def poll_outbox_once(session: AsyncSession) -> bool:
         result = await session.exec(
             select(OutboxEvent)
             .where(OutboxEvent.status == "PENDING")
-            .where(OutboxEvent.next_run_at <= datetime.now(timezone.utc))
+            .where(OutboxEvent.next_run_at <= datetime.now(UTC))
             .order_by(col(OutboxEvent.created_at))
             .limit(1)
         )
@@ -235,9 +235,7 @@ async def poll_outbox_once(session: AsyncSession) -> bool:
             event.attempts += 1
             idx = min(event.attempts - 1, len(BACKOFF) - 1)
             delay_seconds = BACKOFF[idx]
-            event.next_run_at = datetime.now(timezone.utc) + timedelta(
-                seconds=delay_seconds
-            )
+            event.next_run_at = datetime.now(UTC) + timedelta(seconds=delay_seconds)
             event.last_error = str(e)[:1000]
             event.touch()
             session.add(event)
@@ -297,7 +295,7 @@ class OutboxPoller:
             query = (
                 select(OutboxEvent)
                 .where(OutboxEvent.status == "PENDING")
-                .where(OutboxEvent.next_run_at <= datetime.now(timezone.utc))
+                .where(OutboxEvent.next_run_at <= datetime.now(UTC))
                 .order_by(col(OutboxEvent.created_at))
             )
 
@@ -369,7 +367,7 @@ class OutboxPoller:
                     event.attempts += 1
                     idx = min(event.attempts - 1, len(BACKOFF) - 1)
                     delay_seconds = BACKOFF[idx]
-                    event.next_run_at = datetime.now(timezone.utc) + timedelta(
+                    event.next_run_at = datetime.now(UTC) + timedelta(
                         seconds=delay_seconds
                     )
                     event.last_error = str(e)[:1000]
@@ -449,9 +447,7 @@ class OutboxPoller:
                 event.attempts += 1
                 idx = min(event.attempts - 1, len(BACKOFF) - 1)
                 delay_seconds = BACKOFF[idx]
-                event.next_run_at = datetime.now(timezone.utc) + timedelta(
-                    seconds=delay_seconds
-                )
+                event.next_run_at = datetime.now(UTC) + timedelta(seconds=delay_seconds)
                 event.last_error = str(e)[:1000]
                 event.touch()
                 session.add(event)
@@ -507,7 +503,7 @@ class OutboxPoller:
 
             for event in failed_events:
                 event.status = "PENDING"
-                event.next_run_at = datetime.now(timezone.utc)
+                event.next_run_at = datetime.now(UTC)
                 event.touch()
                 session.add(event)
                 logger.debug("Reset event %s for retry", event.id)
@@ -539,7 +535,7 @@ class OutboxPoller:
         try:
             logger.debug("Cleaning up events older than %d days", days_old)
 
-            cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_old)
+            cutoff_date = datetime.now(UTC) - timedelta(days=days_old)
 
             result = await session.exec(
                 select(OutboxEvent)

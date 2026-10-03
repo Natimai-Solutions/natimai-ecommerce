@@ -11,6 +11,7 @@ from app.features.payment.providers.base import (
     InitiationRequest,
     InitiationResult,
     RefundResult,
+    VoidResult,
     WebhookResult,
 )
 from app.features.payment.utils.payzen import (
@@ -109,6 +110,31 @@ class PayzenProvider(ApiPaymentProvider):
     ) -> str:
         """The PayZen transaction uuid recorded from the IPN."""
         return self.capture_reference(provider_data) or provider_reference or fallback
+
+    async def void(
+        self,
+        *,
+        payment_reference: str,
+        amount: Decimal,
+        currency: str,
+    ) -> VoidResult:
+        """Cancel an AUTHORISED, never captured PayZen transaction.
+
+        PayZen's ``Transaction/CancelOrRefund`` cancels a transaction that is
+        not yet settled — exactly the state of a deferred-capture
+        authorisation. ⚠️ To verify against the PayZen sandbox before use.
+        """
+        answer = await refund_payzen_transaction(
+            payment_reference,
+            amount_minor=decimal_to_minor_units(amount, currency),
+            currency=currency,
+        )
+        return VoidResult(
+            status="completed",
+            provider_reference=answer.get("uuid") or payment_reference,
+            message="Autorisation PayZen annulée.",
+            metadata={"detailed_status": answer.get("detailedStatus")},
+        )
 
     async def refund(
         self,

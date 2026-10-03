@@ -30,6 +30,16 @@
     <div v-if="error || notice" class="admin-notices">
       <AppNotice v-if="error" tone="error" dense>{{ error }}</AppNotice>
       <AppNotice v-if="notice" tone="success" dense>{{ notice }}</AppNotice>
+      <AppNotice
+        v-if="liveHeroes.length > 1"
+        tone="warning"
+        dense
+        data-testid="homepage-hero-warning"
+      >
+        {{
+          $t('homepage.hero_conflict', { n: liveHeroes.length, shown: liveHeroes[0]?.title ?? '' })
+        }}
+      </AppNotice>
     </div>
 
     <div v-if="loading && !blocks.length" class="text-center q-pa-lg">
@@ -218,6 +228,10 @@
             </div>
 
             <h3 class="admin-subtitle q-mt-md">{{ $t('homepage.image') }}</h3>
+            <p class="admin-hint q-mb-sm">
+              <strong>{{ $t('media.recommended') }}</strong>
+              {{ $t(imageFormatLabelKey(form.kind)) }}
+            </p>
             <div class="row items-center q-gutter-md">
               <img v-if="previewSrc" :src="previewSrc" alt="" class="homepage-preview" />
               <div v-else class="homepage-preview homepage-thumb--empty">
@@ -305,7 +319,7 @@
       </q-card>
     </q-dialog>
 
-    <MediaPicker v-model="pickerOpen" kind="homepage" @select="onPick" />
+    <MediaPicker v-model="pickerOpen" kind="homepage" :format="form.kind" @select="onPick" />
   </q-page>
 </template>
 
@@ -319,6 +333,7 @@ import type { StatusTone } from '@app/ui/statusTone';
 import { formatDateTime } from '@app/utils';
 import PageHeader from '@/components/PageHeader.vue';
 import MediaPicker from '@/components/MediaPicker.vue';
+import { imageFormatLabelKey } from '@/utils/imageFormats';
 import ContentLanguageTabs from '@/components/ContentLanguageTabs.vue';
 import { useDialogGuard, useFormSnapshot } from '@/composables/useUnsavedGuard';
 import { useConfirm } from '@/composables/useConfirm';
@@ -366,6 +381,11 @@ const groups = computed<BlockGroup[]>(() => [
     blocks: blocks.value.filter((b) => b.kind === 'banner'),
   },
 ]);
+
+/** Heroes live right now: the storefront shows the first by position only. */
+const liveHeroes = computed(() =>
+  blocks.value.filter((b) => b.kind === 'hero' && status(b).tone === 'ok'),
+);
 
 function status(block: HomepageBlock): { label: string; tone: StatusTone; icon: string } {
   if (!block.is_published) {

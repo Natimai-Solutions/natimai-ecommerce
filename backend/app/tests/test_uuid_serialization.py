@@ -28,11 +28,11 @@ def test_json_serialization() -> None:
     test_data = {
         "id": uuid.uuid4(),
         "name": "Test Product",
-        "created_at": datetime.datetime.now(datetime.timezone.utc),
+        "created_at": datetime.datetime.now(datetime.UTC),
         "price": 19.99,
         "nested": {
             "user_id": uuid.uuid4(),
-            "updated_at": datetime.datetime.now(datetime.timezone.utc),
+            "updated_at": datetime.datetime.now(datetime.UTC),
         },
         "tags": [
             {"tag_id": uuid.uuid4(), "name": "electronics"},

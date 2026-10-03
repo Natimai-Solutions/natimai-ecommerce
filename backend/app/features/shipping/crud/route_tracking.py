@@ -5,7 +5,7 @@ CRUD for shipping route tracking and consolidations.
 # mypy: disable-error-code="arg-type,attr-defined,no-untyped-def"
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy.orm import selectinload
@@ -187,7 +187,7 @@ class ShippingRouteTrackingCrud(
         # Update the tracking
         update_data = {
             "status_id": new_status_id_resolved,
-            "last_status_update": datetime.now(timezone.utc),
+            "last_status_update": datetime.now(UTC),
         }
         if reason:
             update_data["notes"] = reason

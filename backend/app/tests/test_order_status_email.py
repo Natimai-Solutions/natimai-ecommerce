@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock
@@ -48,7 +48,7 @@ def send(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
 async def test_fulfilment_step_is_emailed_with_the_departure(send: AsyncMock) -> None:
     departure = SimpleNamespace(
         name="Octobre",
-        estimated_delivery_at=datetime(2026, 11, 10, tzinfo=timezone.utc),
+        estimated_delivery_at=datetime(2026, 11, 10, tzinfo=UTC),
     )
     session = AsyncMock()
     session.get = AsyncMock(return_value=departure)

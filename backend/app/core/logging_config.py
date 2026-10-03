@@ -16,7 +16,7 @@ from __future__ import annotations
 import json
 import logging
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 #: Attributes of a ``LogRecord`` that are not user-provided ``extra`` fields.
@@ -58,7 +58,7 @@ class JsonFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         payload: dict[str, Any] = {
-            "time": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(
+            "time": datetime.fromtimestamp(record.created, tz=UTC).isoformat(
                 timespec="milliseconds"
             ),
             "level": record.levelname,

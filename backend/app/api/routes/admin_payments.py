@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -219,15 +219,12 @@ async def list_payments(
         conditions.append(col(Payment.provider_code) == provider_code)
     if date_from:
         conditions.append(
-            col(Payment.created_at)
-            >= datetime.combine(date_from, time.min, tzinfo=timezone.utc)
+            col(Payment.created_at) >= datetime.combine(date_from, time.min, tzinfo=UTC)
         )
     if date_to:
         conditions.append(
             col(Payment.created_at)
-            < datetime.combine(
-                date_to + timedelta(days=1), time.min, tzinfo=timezone.utc
-            )
+            < datetime.combine(date_to + timedelta(days=1), time.min, tzinfo=UTC)
         )
     if q and q.strip():
         like = f"%{q.strip()}%"

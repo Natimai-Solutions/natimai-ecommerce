@@ -1,4 +1,5 @@
 import uuid
+from datetime import UTC
 
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -164,9 +165,9 @@ class UserNotificationCrud(
             return None
 
         user_notification.is_read = True
-        from datetime import datetime, timezone
+        from datetime import datetime
 
-        user_notification.read_at = datetime.now(timezone.utc)
+        user_notification.read_at = datetime.now(UTC)
 
         session.add(user_notification)
         await session.commit()
@@ -187,11 +188,11 @@ class UserNotificationCrud(
         user_notifications = exec_result.all()
 
         count = 0
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         for user_notification in user_notifications:
             user_notification.is_read = True
-            user_notification.read_at = datetime.now(timezone.utc)
+            user_notification.read_at = datetime.now(UTC)
             session.add(user_notification)
             count += 1
 

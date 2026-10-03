@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import AsyncMock, Mock
@@ -30,7 +30,7 @@ def _sql(statement: ClauseElement) -> str:
 def test_sweep_selects_open_quiet_carts_never_reminded() -> None:
     sql = _sql(
         abandonment.abandoned_carts_statement(
-            now=datetime(2026, 9, 10, 12, tzinfo=timezone.utc),
+            now=datetime(2026, 9, 10, 12, tzinfo=UTC),
             delay_hours=24,
             max_age_days=14,
             limit=200,

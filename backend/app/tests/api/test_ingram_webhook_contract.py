@@ -10,7 +10,7 @@ the tracking forward.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -136,7 +136,7 @@ async def test_a_shipment_updates_the_order_and_publishes_the_event(
     )
 
     assert order.supplier_status_label == "shipped"
-    assert order.estimated_delivery == datetime(2026, 9, 15, tzinfo=timezone.utc)
+    assert order.estimated_delivery == datetime(2026, 9, 15, tzinfo=UTC)
     publish.assert_awaited_once()
     assert publish.await_args is not None
     assert publish.await_args.kwargs["event_type"] == "supplier_order.shipped"
@@ -195,16 +195,14 @@ async def test_a_non_shipping_status_only_records_the_label(
 
 
 def test_delivery_dates_accept_ingram_s_formats() -> None:
-    assert _parse_estimated_delivery("2026-09-15") == datetime(
-        2026, 9, 15, tzinfo=timezone.utc
-    )
+    assert _parse_estimated_delivery("2026-09-15") == datetime(2026, 9, 15, tzinfo=UTC)
     assert _parse_estimated_delivery("2026-09-15T10:30:00Z") == datetime(
-        2026, 9, 15, 10, 30, tzinfo=timezone.utc
+        2026, 9, 15, 10, 30, tzinfo=UTC
     )
     # An unparseable or absent date must not sink the whole callback.
     assert _parse_estimated_delivery("15/09/2026") is None
     assert _parse_estimated_delivery(None) is None
     # Naive datetimes are assumed UTC rather than silently compared as naive.
     assert _parse_estimated_delivery(datetime(2026, 9, 15)) == datetime(
-        2026, 9, 15, tzinfo=timezone.utc
+        2026, 9, 15, tzinfo=UTC
     )

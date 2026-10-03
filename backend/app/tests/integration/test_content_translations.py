@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Iterator
+from datetime import UTC
 from decimal import Decimal
 from types import SimpleNamespace
 from typing import cast
@@ -210,7 +211,7 @@ async def test_categories_pages_blocks_and_spec_labels_follow_the_language(
     assert (home.hero.title, home.hero.subtitle) == ("Welcome", "Matériel importé")
 
     # Spec labels: the storefront facets read the translated label.
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from app.features.product.models.spec_definition import SpecDefinition
 
@@ -221,8 +222,8 @@ async def test_categories_pages_blocks_and_spec_labels_follow_the_language(
             type="numeric",
             unit="Go",
             translations={"en": {"label_fr": "Memory (GB)", "_source": "x"}},
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
         )
     )
     await db_session.commit()

@@ -18,20 +18,23 @@ own endpoint).
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from fastapi import status as http_status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.api.deps import CurrentSuperUser, SessionDep
+from app.api.routes.media import request_origin
 from app.core import runtime_settings as rs
 from app.core.captcha import captcha_site_key
 from app.core.config import settings
 from app.core.errors import AppError
 from app.core.i18n import get_default_locale, get_offered_locales
+from app.features.media.branding import ShopBranding, shop_branding
+from app.features.media.service import public_base_url
 from app.features.system.models.system_setting import (
     SystemSettingPublic,
     SystemSettingUpdate,
@@ -77,6 +80,8 @@ class ShopConfigPublic(BaseModel):
     default_display_currency: str = "XPF"
     #: Cloudflare Turnstile site key of the public forms; None = no captcha.
     captcha_site_key: str | None = None
+    #: Logo and site icon chosen in the back-office (R9 / T9); empty = defaults.
+    branding: ShopBranding = Field(default_factory=ShopBranding)
 
 
 class RuntimeSettingPublic(BaseModel):
@@ -155,9 +160,10 @@ def _public(row: SettingRow) -> RuntimeSettingPublic:
 
 
 @router.get("/system/config", response_model=ShopConfigPublic)
-async def get_shop_config(session: SessionDep) -> ShopConfigPublic:
+async def get_shop_config(request: Request, session: SessionDep) -> ShopConfigPublic:
     """Territory and mode of the shop, for the storefront and the admin."""
     profile = settings.territory_profile
+    branding = await shop_branding(session, public_base_url(request_origin(request)))
     return ShopConfigPublic(
         shop_mode=settings.SHOP_MODE,
         territory_profile=profile.code,
@@ -175,6 +181,7 @@ async def get_shop_config(session: SessionDep) -> ShopConfigPublic:
             or settings.REFERENCE_CURRENCY
         ),
         captcha_site_key=(await captcha_site_key(session)) or None,
+        branding=branding,
     )
 
 
@@ -221,7 +228,6 @@ async def admin_get_setting(
 
 
 async def _put_module_switch(session: Any, key: str, value: str) -> SystemSettingPublic:
-    from datetime import timezone
 
     spec = spec_for(key.removeprefix(MODULE_PREFIX))  # 404 on an unknown module
     lowered = value.strip().lower()
@@ -238,7 +244,7 @@ async def _put_module_switch(session: Any, key: str, value: str) -> SystemSettin
         key=key,
         value=lowered,
         description=spec.label,
-        updated_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(UTC),
     )
 
 

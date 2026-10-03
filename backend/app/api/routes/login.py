@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Annotated, Never
 
 from fastapi import APIRouter, Depends, Form, Request, Response, status
@@ -65,7 +65,7 @@ def _build_token_bundle(user_id: uuid.UUID) -> tuple[str, str, str, datetime]:
         expires_delta=refresh_token_expires,
         jti=refresh_jti,
     )
-    refresh_expires_at = datetime.now(timezone.utc) + refresh_token_expires
+    refresh_expires_at = datetime.now(UTC) + refresh_token_expires
 
     return access_token, refresh_token, refresh_jti, refresh_expires_at
 
@@ -295,12 +295,12 @@ async def refresh_access_token(
             jti=token_jti,
         )
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     # expires_at is timestamptz since sqlmodel 0.0.45; keep the guard for a
     # naive value (always UTC wall-clock) before comparing to the aware `now`.
     session_expires_at = current_refresh_session.expires_at
     if session_expires_at.tzinfo is None:
-        session_expires_at = session_expires_at.replace(tzinfo=timezone.utc)
+        session_expires_at = session_expires_at.replace(tzinfo=UTC)
 
     if current_refresh_session.revoked_at is not None:
         await crud_user_refresh_token.revoke_all_active_for_user(

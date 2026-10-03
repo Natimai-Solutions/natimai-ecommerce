@@ -6,7 +6,7 @@ the open one, else the next draft."""
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any, cast
 
@@ -45,7 +45,7 @@ from app.features.user.models.group_upgrade_request import (
 from app.features.user.models.user import User
 
 # 02:00 in Tahiti (UTC-10): local midnight is 2026-10-01 10:00 UTC.
-NOW = datetime(2026, 10, 1, 12, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 10, 1, 12, 0, tzinfo=UTC)
 
 
 async def _user(session: AsyncSession, *, superuser: bool = False) -> User:
@@ -97,6 +97,7 @@ async def test_empty_dashboard(db_session: AsyncSession) -> None:
 
     assert result.todo.model_dump() == {
         "payments_to_validate": 0,
+        "payments_to_capture": 0,
         "quote_requests_open": 0,
         "group_upgrade_requests_pending": 0,
         "orders_to_process": 0,

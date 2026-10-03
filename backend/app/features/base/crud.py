@@ -301,7 +301,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             "model": self.model.__name__,
             "action": action,
             "user_id": str(user.id) if user else None,
-            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
         }
 
         if action in ["create", "update"] and data:
@@ -687,7 +687,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
 
         # Extract data dictionary
         data_dict = self._extract_data_dict(data)
-        data_dict["created_at"] = datetime.datetime.now(datetime.timezone.utc)
+        data_dict["created_at"] = datetime.datetime.now(datetime.UTC)
         if user and user.id:
             data_dict["created_by_id"] = user.id
         record = self.model(**data_dict)
@@ -912,7 +912,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
 
         # Extract and apply updates
         data_dict = self._extract_data_dict(data)
-        data_dict["modify_at"] = datetime.datetime.now(datetime.timezone.utc)
+        data_dict["modify_at"] = datetime.datetime.now(datetime.UTC)
         if user and user.id:
             data_dict["modify_by_id"] = user.id
         for key in data_dict.keys():

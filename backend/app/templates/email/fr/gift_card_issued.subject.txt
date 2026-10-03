@@ -1,0 +1,1 @@
+{% if cards | length > 1 %}Vos cartes cadeaux {{ shop_name }}{% else %}Votre carte cadeau {{ shop_name }}{% endif %}

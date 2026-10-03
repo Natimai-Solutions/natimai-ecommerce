@@ -35,9 +35,13 @@ class CaptureOutcome:
 
 
 async def capture_payment(
-    session: AsyncSession, *, payment: Payment, admin: User
+    session: AsyncSession, *, payment: Payment, admin: User | None
 ) -> CaptureOutcome:
-    """Capture an authorised payment (trigger the actual card debit)."""
+    """Capture an authorised payment (trigger the actual card debit).
+
+    ``admin`` is the administrator who clicked, or None when the shipment
+    captured it automatically (``services/authorizations.py``).
+    """
     # Capture plain values before any commit (which expires the ORM instances).
     payment_id = payment.id
     order_id = payment.order_id
@@ -46,7 +50,7 @@ async def capture_payment(
     amount = payment.amount
     provider_code = payment.provider_code
     current_status_id = payment.payment_status_id
-    admin_id = admin.id
+    admin_id = admin.id if admin is not None else None
     provider_data = dict(payment.provider_data or {})
 
     authorized = await crud_payment_status.get_by_name(
@@ -110,7 +114,8 @@ async def capture_payment(
             "total_amount": str(amount),
             "currency": currency,
             "action": "capture",
-            "admin_user_id": str(admin_id),
+            "admin_user_id": str(admin_id) if admin_id else None,
+            "trigger": "admin" if admin_id else "auto",
             "metadata": {"trans_uuid": trans_uuid},
         },
         correlation_id=payment_id,
