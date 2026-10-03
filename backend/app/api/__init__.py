@@ -59,6 +59,7 @@ from app.api.routes.internal_storage import router as internal_storage_router
 from app.api.routes.inventory import router as inventory_router
 from app.api.routes.invoices_me import router as invoices_me_router
 from app.api.routes.login import router as login_router
+from app.api.routes.loyalty import router as loyalty_router
 from app.api.routes.media import router as media_router
 from app.api.routes.oauth import router as oauth_router
 from app.api.routes.order import router as order_router
@@ -169,6 +170,7 @@ api_router.include_router(branding_router)
 api_router.include_router(grouped_departures_router)
 api_router.include_router(store_credit_router)
 api_router.include_router(gift_cards_router)
+api_router.include_router(loyalty_router)
 api_router.include_router(stock_alerts_router)
 api_router.include_router(utils_router, prefix="/utils")
 api_router.include_router(webhooks_router)

@@ -159,6 +159,12 @@ const en: MessageSchema = {
       expired: 'Expired',
       redeemed: 'Redeemed',
     },
+    loyalty_kind: {
+      adjust: 'Adjustment',
+      convert: 'Converted to credit',
+      earn: 'Earned',
+      revoke: 'Taken back',
+    },
     store_credit_kind: {
       grant: 'Grant',
       revoke: 'Revocation',
@@ -1206,6 +1212,14 @@ const en: MessageSchema = {
     margin_ht: 'Margin excl. tax',
     margin_pct: 'i.e. {pct} of revenue excl. tax ({revenue} − cost {cost})',
     mode: 'Method',
+    loyalty: 'Loyalty points',
+    loyalty_balance: 'Customer balance:',
+    loyalty_points: 'Points (negative to take back) *',
+    loyalty_points_hint:
+      'A commercial gesture, a correction; the customer converts points into store credit from their account.',
+    loyalty_saved: 'Points saved. Customer balance: {points}.',
+    loyalty_tip: 'Add or take back loyalty points for the customer',
+    loyalty_title: 'Customer loyalty points',
     negative: '. A negative amount takes credit back.',
     next_leg: 'Next leg',
     no_cost_lines: '{n} line(s) without known cost, not counted',

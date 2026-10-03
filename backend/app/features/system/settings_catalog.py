@@ -375,6 +375,51 @@ register(
         order=1,
         extra={"unit": "mois"},
     ),
+    SettingSpec(
+        "loyalty_enabled",
+        "bool",
+        "loyalty",
+        "Programme de fidélité",
+        "Chaque commande encaissée rapporte des points (cartes cadeaux et frais "
+        "exclus), repris au prorata d'un remboursement ; le client les convertit "
+        "en avoir depuis son compte. Désactivé : rien n'est gagné, les soldes "
+        "existants restent convertibles plus tard.",
+        default=False,
+        public=True,
+        order=2,
+    ),
+    SettingSpec(
+        "loyalty_amount_per_point",
+        "decimal",
+        "loyalty",
+        "Montant d'achat pour 1 point",
+        "1 point par tranche de ce montant (marchandises TTC, remises déduites).",
+        default=_d(100),
+        minimum=Decimal("0.01"),
+        public=True,
+        order=3,
+    ),
+    SettingSpec(
+        "loyalty_point_value",
+        "decimal",
+        "loyalty",
+        "Valeur d'un point en avoir",
+        "Ce que vaut un point une fois converti en avoir.",
+        default=_d(1),
+        minimum=Decimal("0.01"),
+        public=True,
+        order=4,
+    ),
+    SettingSpec(
+        "loyalty_min_points_to_convert",
+        "int",
+        "loyalty",
+        "Minimum de points pour convertir",
+        default=100,
+        minimum=Decimal(1),
+        public=True,
+        order=5,
+    ),
 )
 
 # --------------------------------------------------------------------------

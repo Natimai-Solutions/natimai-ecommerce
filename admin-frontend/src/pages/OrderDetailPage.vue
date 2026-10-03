@@ -402,6 +402,18 @@
               >
                 <q-tooltip>{{ $t('order.credit_tip') }}</q-tooltip>
               </q-btn>
+              <q-btn
+                v-if="loyalty?.rules.enabled || (loyalty && loyalty.points > 0)"
+                flat
+                dense
+                no-caps
+                icon="ph:star"
+                :label="$t('order.loyalty')"
+                data-testid="order-loyalty"
+                @click="openLoyalty"
+              >
+                <q-tooltip>{{ $t('order.loyalty_tip') }}</q-tooltip>
+              </q-btn>
             </div>
             <AppNotice
               v-if="storeCredit && Number(storeCredit.balance) > 0"
@@ -601,6 +613,65 @@
                 no-caps
                 :label="$t('order.hand_over')"
                 :loading="shipping"
+              />
+            </q-card-actions>
+          </q-form>
+        </q-card>
+      </q-dialog>
+
+      <!-- Loyalty points dialog -->
+      <q-dialog v-model="loyaltyDialog">
+        <q-card class="app-dialog">
+          <q-card-section class="app-dialog__head">
+            <h2 class="app-dialog__title">{{ $t('order.loyalty_title') }}</h2>
+            <p class="app-dialog__text">
+              {{ $t('order.loyalty_balance') }}
+              <span class="font-mono">{{ loyalty ? loyalty.points : '—' }}</span>
+              <span v-if="loyalty"> ({{ formatMoney(Number(loyalty.credit_value)) }})</span>
+            </p>
+          </q-card-section>
+          <q-form @submit.prevent="submitLoyalty">
+            <q-card-section class="q-gutter-sm">
+              <AppNotice v-if="loyaltyError" tone="error" dense>{{ loyaltyError }}</AppNotice>
+              <q-input
+                v-model="loyaltyPoints"
+                type="number"
+                step="1"
+                :label="$t('order.loyalty_points')"
+                :hint="$t('order.loyalty_points_hint')"
+                outlined
+                dense
+                bottom-slots
+                autofocus
+              />
+              <q-input
+                v-model="loyaltyReason"
+                :label="$t('order.reason')"
+                outlined
+                dense
+                :rules="[(v: string) => !!v.trim() || $t('common.required')]"
+              />
+              <q-list v-if="loyalty?.entries?.length" dense bordered class="q-mt-sm">
+                <q-item v-for="e in (loyalty.entries ?? []).slice(0, 5)" :key="e.id">
+                  <q-item-section>
+                    <q-item-label
+                      >{{ LOYALTY_KIND_LABELS[e.kind] ?? e.kind }} · {{ e.reason }}</q-item-label
+                    >
+                    <q-item-label caption>{{ formatDate(e.created_at ?? null) }}</q-item-label>
+                  </q-item-section>
+                  <q-item-section side class="font-mono">{{ e.points }}</q-item-section>
+                </q-item>
+              </q-list>
+            </q-card-section>
+            <q-card-actions align="right" class="app-dialog__actions">
+              <q-btn flat no-caps :label="$t('order.cancel')" v-close-popup />
+              <q-btn
+                type="submit"
+                color="primary"
+                unelevated
+                no-caps
+                :label="$t('common.save')"
+                :loading="loyaltySaving"
               />
             </q-card-actions>
           </q-form>
@@ -835,6 +906,45 @@ async function submitCredit() {
     creditSaving.value = false;
   }
 }
+// --- Loyalty points of the customer (R8 / confort) ---
+const loyalty = ref<LoyaltyAccount | null>(null);
+const loyaltyDialog = ref(false);
+const loyaltyPoints = ref('');
+const loyaltyReason = ref('');
+const loyaltySaving = ref(false);
+const loyaltyError = ref<string | null>(null);
+
+async function loadLoyalty() {
+  if (!order.value) return;
+  loyalty.value = await getUserLoyalty(order.value.user_id).catch(() => null);
+}
+
+function openLoyalty() {
+  loyaltyPoints.value = '';
+  loyaltyReason.value = '';
+  loyaltyError.value = null;
+  loyaltyDialog.value = true;
+}
+
+async function submitLoyalty() {
+  if (!order.value) return;
+  loyaltySaving.value = true;
+  loyaltyError.value = null;
+  try {
+    loyalty.value = await adjustLoyalty(order.value.user_id, {
+      points: Math.trunc(Number(loyaltyPoints.value) || 0),
+      reason: loyaltyReason.value.trim(),
+      order_id: order.value.order_id,
+    });
+    loyaltyDialog.value = false;
+    refundNotice.value = t('order.loyalty_saved', { points: loyalty.value.points });
+  } catch (err) {
+    loyaltyError.value = extractApiError(err) ?? t('common.save_failed');
+  } finally {
+    loyaltySaving.value = false;
+  }
+}
+
 async function sendBalanceRequest() {
   if (!order.value) return;
   requestingBalance.value = true;
@@ -872,6 +982,12 @@ import {
 } from '@/api/shipping';
 import { extractApiError } from '@/api/errors';
 import { assignOrders, listDepartures, type Departure } from '@/api/departures';
+import {
+  LOYALTY_KIND_LABELS,
+  adjustLoyalty,
+  getUserLoyalty,
+  type LoyaltyAccount,
+} from '@/api/loyalty';
 import {
   getUserStoreCredit,
   grantStoreCredit,
@@ -1042,6 +1158,7 @@ async function load() {
   try {
     order.value = await getOrder(orderId.value);
     await loadStoreCredit();
+    await loadLoyalty();
     departures.value = await listDepartures().catch(() => []);
     statusNames.value = await listOrderStatuses().catch(() => []);
   } catch (err) {

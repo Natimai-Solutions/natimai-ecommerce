@@ -37,6 +37,7 @@ from app.features.payment.services.deposit import (
     ORDER_STATUS_DEPOSIT_PAID,
 )
 from app.features.payment.services.gift_cards import issue_for_order
+from app.features.payment.services.loyalty import earn_for_order, revoke_for_refund
 from app.features.payment.services.notifications import (
     send_payment_event_notifications,
 )
@@ -500,7 +501,8 @@ async def on_payment_captured_issue_invoice(
 async def on_payment_captured_issue_gift_cards(
     session: AsyncSession, payload: dict[str, Any]
 ) -> None:
-    """Issue the gift cards an order contains once it is paid (R8 / confort).
+    """Issue the gift cards an order contains, and credit its loyalty points,
+    once it is paid (R8 / confort).
 
     Same guards as the invoice: never on a partial or mismatched capture, and
     not on a deposit (the cards go out with the balance, when the order is
@@ -516,7 +518,9 @@ async def on_payment_captured_issue_gift_cards(
     payment, _order = await _load_payment_and_order(session, payload)
     if _payment_kind(payment) == KIND_DEPOSIT:
         return
-    if await issue_for_order(session, order_id=order_id):
+    issued = await issue_for_order(session, order_id=order_id)
+    earned = await earn_for_order(session, order_id=order_id)
+    if issued or earned:
         await session.commit()
 
 
@@ -538,6 +542,17 @@ async def on_payment_refunded(session: AsyncSession, payload: dict[str, Any]) ->
             ORDER_STATUS_REFUNDED if fully else ORDER_STATUS_PARTIALLY_REFUNDED
         ),
     )
+    # Loyalty points earned on the order go back in proportion (R8 / confort).
+    refund_order_id = _parse_order_id(payload)
+    if refund_order_id is not None:
+        try:
+            refunded = Decimal(str(payload.get("amount") or 0))
+        except (ArithmeticError, ValueError):
+            refunded = Decimal(0)
+        if await revoke_for_refund(
+            session, order_id=refund_order_id, refunded=refunded, fully=fully
+        ):
+            await session.commit()
     # Only a *fully* refunded order gives its stock back, and only the
     # reservations still PENDING. A captured payment has already confirmed its
     # movements (COMPLETED), so this is a no-op on the normal flow — it exists

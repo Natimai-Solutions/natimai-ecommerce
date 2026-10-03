@@ -66,6 +66,72 @@
       </ul>
     </section>
 
+    <section
+      v-if="loyalty && (loyalty.rules.enabled || loyalty.points > 0)"
+      class="app-section"
+      data-testid="account-loyalty"
+    >
+      <div class="app-panel credit">
+        <div class="credit__main">
+          <span class="credit__label">{{ $t('orders.loyalty') }}</span>
+          <span class="credit__amount font-mono">
+            {{ $t('orders.loyalty_points', { n: loyalty.points }) }}
+          </span>
+          <span class="credit__hint">
+            {{
+              $t('orders.loyalty_hint', {
+                value: money(loyalty.credit_value),
+                amount: money(loyalty.rules.amount_per_point),
+                point: money(loyalty.rules.point_value),
+              })
+            }}
+          </span>
+        </div>
+        <div class="credit__redeem">
+          <q-btn
+            unelevated
+            no-caps
+            color="primary"
+            :label="$t('orders.loyalty_convert', { amount: money(loyalty.credit_value) })"
+            :disable="loyalty.points < loyalty.rules.min_points_to_convert"
+            :loading="converting"
+            data-testid="account-loyalty-convert"
+            @click="convertAll"
+          />
+          <span v-if="loyalty.points < loyalty.rules.min_points_to_convert" class="credit__hint">
+            {{ $t('orders.loyalty_min', { n: loyalty.rules.min_points_to_convert }) }}
+          </span>
+          <span v-if="loyaltyError" class="credit__error" role="alert">{{ loyaltyError }}</span>
+          <span v-else-if="converted" class="credit__hint" role="status">{{ converted }}</span>
+        </div>
+        <button
+          v-if="loyalty.entries?.length"
+          type="button"
+          class="text-link"
+          :aria-expanded="showLoyaltyHistory"
+          @click="showLoyaltyHistory = !showLoyaltyHistory"
+        >
+          {{ showLoyaltyHistory ? $t('orders.hide_history') : $t('orders.show_history') }}
+        </button>
+      </div>
+      <ul v-if="showLoyaltyHistory" class="app-rows credit__history">
+        <li v-for="entry in loyalty.entries ?? []" :key="entry.id" class="app-row">
+          <div class="app-row__main">
+            <span class="app-row__title">{{ loyaltyKindLabel(entry.kind) }}</span>
+            <span class="app-row__meta"
+              >{{ entry.reason }} · {{ formatDate(entry.created_at) }}</span
+            >
+          </div>
+          <span
+            class="font-mono app-row__side"
+            :class="entry.points < 0 ? 'text-muted' : 'credit__plus'"
+          >
+            {{ entry.points < 0 ? '−' : '+' }} {{ Math.abs(entry.points) }}
+          </span>
+        </li>
+      </ul>
+    </section>
+
     <section class="app-section">
       <div class="app-section__head">
         <h2 class="app-section__title">{{ $t('orders.title') }}</h2>
@@ -190,6 +256,7 @@ import { downloadCreditNotePdf, listMyCreditNotes, type CreditNote } from '@/api
 import { downloadInvoicePdf, listMyInvoices, type Invoice } from '@/api/invoices';
 import { listMyOrders, type Order } from '@/api/orders';
 import { redeemGiftCard } from '@/api/giftCards';
+import { convertLoyaltyPoints, getMyLoyalty, type LoyaltyAccount } from '@/api/loyalty';
 import { getMyStoreCredit, type StoreCreditBalance } from '@/api/storeCredit';
 import { useCurrencyStore } from '@/stores/currency';
 import { apiErrorMessage } from '@/utils/errors';
@@ -220,6 +287,36 @@ const hasCredit = computed(
     !!storeCredit.value &&
     (Number(storeCredit.value.balance) > 0 || storeCredit.value.entries.length > 0),
 );
+
+// Loyalty points → store credit (R8 / confort).
+const loyalty = ref<LoyaltyAccount | null>(null);
+const showLoyaltyHistory = ref(false);
+const converting = ref(false);
+const loyaltyError = ref<string | null>(null);
+const converted = ref<string | null>(null);
+
+function loyaltyKindLabel(kind: string): string {
+  return ['earn', 'convert', 'revoke', 'adjust'].includes(kind)
+    ? t(`orders.loyalty_kind.${kind}`)
+    : kind;
+}
+
+async function convertAll() {
+  if (!loyalty.value || converting.value) return;
+  converting.value = true;
+  loyaltyError.value = null;
+  converted.value = null;
+  const points = loyalty.value.points;
+  try {
+    loyalty.value = await convertLoyaltyPoints(points);
+    converted.value = t('orders.loyalty_done', { n: points });
+    storeCredit.value = await getMyStoreCredit().catch(() => storeCredit.value);
+  } catch (err) {
+    loyaltyError.value = apiErrorMessage(err) ?? t('orders.loyalty_failed');
+  } finally {
+    converting.value = false;
+  }
+}
 
 // Gift card / voucher code → store credit (R8 / confort).
 const giftCode = ref('');
@@ -324,11 +421,13 @@ function reload() {
 
 async function loadDocuments() {
   // Les documents ne bloquent jamais la liste : une panne se signale à part.
-  const [inv, notes, credit] = await Promise.allSettled([
+  const [inv, notes, credit, points] = await Promise.allSettled([
     listMyInvoices(),
     listMyCreditNotes(),
     getMyStoreCredit(),
+    getMyLoyalty(),
   ]);
+  loyalty.value = points.status === 'fulfilled' ? points.value : null;
   invoices.value = inv.status === 'fulfilled' ? inv.value : [];
   creditNotes.value = notes.status === 'fulfilled' ? notes.value : [];
   storeCredit.value = credit.status === 'fulfilled' ? credit.value : null;

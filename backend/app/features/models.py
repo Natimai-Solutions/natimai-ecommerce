@@ -25,6 +25,7 @@ from app.features.order.models.order_line import OrderLine
 from app.features.order.models.order_status import OrderStatus
 from app.features.partner.models import Partner
 from app.features.payment.models.gift_card import GiftCard
+from app.features.payment.models.loyalty import LoyaltyEntry
 from app.features.payment.models.payment import Payment
 from app.features.payment.models.payment_attachment import PaymentAttachment
 from app.features.payment.models.payment_log import PaymentLog
@@ -109,6 +110,7 @@ __all__ = [
     "StockAlert",
     "ProductPriceEntry",
     "GiftCard",
+    "LoyaltyEntry",
     "StoreCreditEntry",
     "PaymentReceipt",
     "PaymentValidation",

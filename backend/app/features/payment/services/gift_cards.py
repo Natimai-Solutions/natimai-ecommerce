@@ -144,6 +144,7 @@ async def issue(
             expires_at=expires_at,
             order_id=order_id,
             created_by_id=created_by_id,
+            created_at=datetime.now(UTC),
         )
         for _ in range(count)
     ]

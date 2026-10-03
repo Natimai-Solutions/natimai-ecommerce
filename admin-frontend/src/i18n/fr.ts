@@ -157,6 +157,12 @@ const fr = {
       expired: 'Expirée',
       redeemed: 'Utilisée',
     },
+    loyalty_kind: {
+      adjust: 'Ajustement',
+      convert: 'Converti en avoir',
+      earn: 'Gagné',
+      revoke: 'Repris',
+    },
     store_credit_kind: {
       grant: 'Octroi',
       revoke: 'Reprise',
@@ -1212,6 +1218,14 @@ const fr = {
     margin_ht: 'Marge HT',
     margin_pct: 'soit {pct} du CA HT ({revenue} − coût {cost})',
     mode: 'Mode',
+    loyalty: 'Points de fidélité',
+    loyalty_balance: 'Solde du client :',
+    loyalty_points: 'Points (négatif pour reprendre) *',
+    loyalty_points_hint:
+      'Un geste commercial, une correction ; le client convertit ses points en avoir depuis son compte.',
+    loyalty_saved: 'Points enregistrés. Solde du client : {points}.',
+    loyalty_tip: 'Ajouter ou reprendre des points de fidélité au client',
+    loyalty_title: 'Points de fidélité du client',
     negative: ". Un montant négatif reprend de l'avoir.",
     next_leg: 'Tronçon suivant',
     no_cost_lines: '{n} ligne(s) sans coût connu, non comptée(s)',

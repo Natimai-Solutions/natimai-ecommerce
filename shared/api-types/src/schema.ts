@@ -6707,6 +6707,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/loyalty/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My Loyalty
+         * @description Points, their value in store credit, the ledger and the rules.
+         */
+        get: operations["loyalty-my_loyalty"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/loyalty/convert": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Convert Points
+         * @description Turn points into store credit, spent at checkout like any avoir.
+         */
+        post: operations["loyalty-convert_points"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/users/{user_id}/loyalty": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * User Loyalty
+         * @description A customer's points and ledger.
+         */
+        get: operations["loyalty-user_loyalty"];
+        put?: never;
+        /**
+         * Adjust Loyalty
+         * @description Add or take back points, with a reason.
+         */
+        post: operations["loyalty-adjust_loyalty"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/stock-alerts": {
         parameters: {
             query?: never;
@@ -14022,6 +14086,125 @@ export interface components {
              * Format: date-time
              */
             timestamp: string;
+        };
+        /**
+         * LoyaltyAccount
+         * @description Balance, ledger and rules of one customer.
+         */
+        LoyaltyAccount: {
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+            /** Points */
+            points: number;
+            /**
+             * Credit Value
+             * @description Valeur en avoir du solde de points
+             */
+            credit_value: string;
+            rules: components["schemas"]["LoyaltyRules"];
+            /** Entries */
+            entries?: components["schemas"]["LoyaltyEntryPublic"][];
+        };
+        /**
+         * LoyaltyAdjust
+         * @description Admin payload: add (positive) or take back (negative) points.
+         */
+        LoyaltyAdjust: {
+            /** Points */
+            points: number;
+            /** Reason */
+            reason: string;
+            /** Order Id */
+            order_id?: string | null;
+        };
+        /**
+         * LoyaltyConvert
+         * @description Customer payload: how many points to turn into store credit.
+         */
+        LoyaltyConvert: {
+            /** Points */
+            points: number;
+        };
+        /**
+         * LoyaltyEntryPublic
+         * @description Ledger entry as the customer and the admin see it.
+         */
+        LoyaltyEntryPublic: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+            /**
+             * Points
+             * @description Signé : positif gagné, négatif converti ou repris
+             */
+            points: number;
+            /**
+             * Kind
+             * @description earn | convert | revoke | adjust
+             */
+            kind: string;
+            /** Reason */
+            reason?: string | null;
+            /**
+             * Order Id
+             * @description Commande à l'origine des points (gain ou reprise)
+             */
+            order_id?: string | null;
+            /**
+             * Store Credit Entry Id
+             * @description Avoir créé par une conversion
+             */
+            store_credit_entry_id?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+        };
+        /**
+         * LoyaltyRules
+         * @description How the programme works, for the storefront wording.
+         */
+        LoyaltyRules: {
+            /** Enabled */
+            enabled: boolean;
+            /** Currency */
+            currency: string;
+            /**
+             * Amount Per Point
+             * @description Montant d'achat qui vaut 1 point
+             */
+            amount_per_point: string;
+            /**
+             * Point Value
+             * @description Valeur d'un point converti en avoir
+             */
+            point_value: string;
+            /** Min Points To Convert */
+            min_points_to_convert: number;
         };
         /**
          * MarginPreview
@@ -36072,6 +36255,125 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GiftCardPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "loyalty-my_loyalty": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoyaltyAccount"];
+                };
+            };
+        };
+    };
+    "loyalty-convert_points": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoyaltyConvert"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoyaltyAccount"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "loyalty-user_loyalty": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoyaltyAccount"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "loyalty-adjust_loyalty": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoyaltyAdjust"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoyaltyAccount"];
                 };
             };
             /** @description Validation Error */
