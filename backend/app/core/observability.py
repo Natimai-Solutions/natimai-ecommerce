@@ -5,7 +5,7 @@ import logging
 import math
 from collections import deque
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from threading import Lock
 from typing import Any
@@ -69,7 +69,7 @@ class CheckoutMetricsStore:
     ) -> None:
         """Execute record."""
         event = CheckoutMetricEvent(
-            happened_at=datetime.now(timezone.utc),
+            happened_at=datetime.now(UTC),
             success=success,
             duration_ms=max(duration_ms, 0),
             error_code=error_code,
@@ -90,7 +90,7 @@ class CheckoutMetricsStore:
         min_attempts_for_alert: int = 3,
     ) -> dict[str, Any]:
         """Execute snapshot."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         window_start = now - timedelta(minutes=window_minutes)
 
         with self._lock:

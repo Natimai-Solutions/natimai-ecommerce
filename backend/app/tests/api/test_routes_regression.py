@@ -1,6 +1,6 @@
 import uuid
 from collections.abc import AsyncGenerator, Generator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import AsyncMock
@@ -234,7 +234,7 @@ async def test_tracking_update_status_passes_harmonized_signature(
         route_id=uuid.uuid4(),
         status_id=new_status_id,
         address_id=uuid.uuid4(),
-        selected_at=datetime.now(timezone.utc),
+        selected_at=datetime.now(UTC),
         sequence_order=1,
     )
 

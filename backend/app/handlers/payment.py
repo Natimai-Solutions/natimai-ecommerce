@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -338,7 +338,7 @@ async def on_payment_captured(session: AsyncSession, payload: dict[str, Any]) ->
         # The goods were bought and reserved on the deposit; the balance only
         # settles the order. « DepositPaid » becomes « Paid »; a fulfilment
         # status (Received…) is kept, the customer follows the departure.
-        order.balance_paid_at = datetime.now(timezone.utc)
+        order.balance_paid_at = datetime.now(UTC)
         session.add(order)
         current = await session.get(OrderStatus, order.order_status_id)
         if current is not None and current.name == ORDER_STATUS_DEPOSIT_PAID:

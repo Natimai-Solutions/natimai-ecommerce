@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Query, status
 from pydantic import BaseModel
@@ -129,7 +129,7 @@ async def submit_upgrade_request(
         price_group_id=payload.price_group_id,
         business_registration_number=payload.business_registration_number,
         attestation_notes=payload.attestation_notes,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
     session.add(req)
     await session.commit()
@@ -296,7 +296,7 @@ async def approve_upgrade_request(
 
     req.status = UpgradeRequestStatus.approved
     req.reviewed_by_id = admin_id
-    req.reviewed_at = datetime.now(timezone.utc)
+    req.reviewed_at = datetime.now(UTC)
     req.admin_comment = payload.comment
     session.add(req)
 
@@ -336,7 +336,7 @@ async def reject_upgrade_request(
     admin_id = current_user.id  # capture before commit (MissingGreenlet)
     req.status = UpgradeRequestStatus.rejected
     req.reviewed_by_id = admin_id
-    req.reviewed_at = datetime.now(timezone.utc)
+    req.reviewed_at = datetime.now(UTC)
     req.admin_comment = payload.comment
     session.add(req)
 

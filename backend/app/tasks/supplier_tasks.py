@@ -10,7 +10,7 @@ supplier in the admin takes effect at the next tick — no worker restart.
 """
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
@@ -51,12 +51,12 @@ INVENTORY_SYNC_EVERY_HOURS = 2
 
 def _as_utc(value: datetime) -> datetime:
     """Read a stored timestamp as UTC-aware (defensive: a naive value is UTC)."""
-    return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
 def _now() -> datetime:
     """Execute now."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 async def _load_adapter(

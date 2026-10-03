@@ -34,13 +34,13 @@ def test_datetime_serialization() -> None:
 
     test_data = {
         "name": "test",
-        "created_at": datetime.datetime.now(datetime.timezone.utc),
+        "created_at": datetime.datetime.now(datetime.UTC),
         "updated_at": datetime.datetime(2025, 9, 18, 14, 30, 0),
         "id": uuid.uuid4(),
         "nested": {
             "user_id": uuid.uuid4(),
             "timestamps": [
-                datetime.datetime.now(datetime.timezone.utc),
+                datetime.datetime.now(datetime.UTC),
                 datetime.datetime(2025, 1, 1),
             ],
         },
@@ -75,7 +75,7 @@ def test_payload_json_compatibility() -> None:
         user=None,
         data={
             "name": "updated",
-            "created_at": datetime.datetime.now(datetime.timezone.utc),
+            "created_at": datetime.datetime.now(datetime.UTC),
             "modified_at": datetime.datetime(2025, 9, 18),
             "owner_id": uuid.uuid4(),
         },

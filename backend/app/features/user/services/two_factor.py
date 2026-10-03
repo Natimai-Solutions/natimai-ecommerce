@@ -22,7 +22,7 @@ import hmac
 import io
 import secrets
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.core import totp
 from app.core.config import settings
@@ -116,7 +116,7 @@ def confirm(user: User, code: str) -> list[str]:
         )
     codes = _new_recovery_codes()
     user.totp_enabled = True
-    user.totp_enabled_at = datetime.now(timezone.utc)
+    user.totp_enabled_at = datetime.now(UTC)
     user.totp_last_step = step
     user.totp_recovery_hashes = [_hash_recovery(c) for c in codes]
     return codes

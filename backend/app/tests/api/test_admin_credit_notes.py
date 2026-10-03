@@ -11,7 +11,7 @@ from __future__ import annotations
 import csv
 import io
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any, cast
@@ -47,7 +47,7 @@ def _note(number: str = "AV-2026-00001", **overrides: Any) -> Any:
         "refund_id": uuid.uuid4(),
         "order_id": uuid.uuid4(),
         "user_id": uuid.uuid4(),
-        "issued_at": datetime(2026, 8, 27, 10, 30, tzinfo=timezone.utc),
+        "issued_at": datetime(2026, 8, 27, 10, 30, tzinfo=UTC),
         "currency": "XPF",
         "total_excl_tax": Decimal("1000.00"),
         "total_tax": Decimal("130.00"),

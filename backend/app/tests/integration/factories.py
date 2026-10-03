@@ -7,7 +7,7 @@ unexpired — mirroring how an endpoint receives freshly-loaded objects.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from types import SimpleNamespace
 
@@ -89,7 +89,7 @@ async def seed_shipping_scenario(
     session.add(consolidation)
     await session.flush()
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     trackings = [
         ShippingRouteTracking(
             order_id=order.id,

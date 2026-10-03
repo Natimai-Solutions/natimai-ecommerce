@@ -6,7 +6,7 @@ single set of tables serves every distributor.
 """
 # mypy: disable-error-code="arg-type"
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -59,7 +59,7 @@ class SupplierSyncLogCrud(
     ) -> SupplierSyncLog:
         """Mark a sync as started."""
         update_data = SupplierSyncLogUpdate(
-            status=SyncStatus.RUNNING, started_at=datetime.now(timezone.utc)
+            status=SyncStatus.RUNNING, started_at=datetime.now(UTC)
         )
         return await self.update(session=session, id=sync_log_id, data=update_data)
 
@@ -72,7 +72,7 @@ class SupplierSyncLogCrud(
         error_message: str | None = None,
     ) -> SupplierSyncLog:
         """Mark a sync as completed and compute its duration."""
-        completed_at = datetime.now(timezone.utc)
+        completed_at = datetime.now(UTC)
 
         sync_log = await self.read(session=session, id=sync_log_id)
         duration_seconds = None
@@ -81,7 +81,7 @@ class SupplierSyncLogCrud(
             # while ``completed_at`` is UTC-aware. Read the stored one as UTC.
             started_at = sync_log.started_at
             if started_at.tzinfo is None:
-                started_at = started_at.replace(tzinfo=timezone.utc)
+                started_at = started_at.replace(tzinfo=UTC)
             duration_seconds = (completed_at - started_at).total_seconds()
 
         update_data = SupplierSyncLogUpdate(
@@ -102,7 +102,7 @@ class SupplierSyncLogCrud(
         limit: int = 50,
     ) -> list[SupplierSyncLog]:
         """Get recent sync logs, optionally filtered by supplier/type."""
-        since = datetime.now(timezone.utc) - timedelta(hours=hours)
+        since = datetime.now(UTC) - timedelta(hours=hours)
 
         statement = (
             select(SupplierSyncLog)
@@ -146,7 +146,7 @@ class SupplierSyncLogCrud(
         days: int = 30,
     ) -> dict[str, Any]:
         """Get aggregated sync statistics for the last N days."""
-        since = datetime.now(timezone.utc) - timedelta(days=days)
+        since = datetime.now(UTC) - timedelta(days=days)
 
         def _scoped(statement: Any) -> Any:
             """Execute scoped."""
@@ -192,14 +192,14 @@ class SupplierSyncLogCrud(
             "status_breakdown": {row[0]: row[1] for row in status_rows},
             "type_breakdown": {row[0]: row[1] for row in type_rows},
             "average_duration_seconds": avg_duration.first(),
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": datetime.now(UTC).isoformat(),
         }
 
     async def cleanup_old_logs(
         self, session: AsyncSession, days_to_keep: int = 90
     ) -> int:
         """Delete sync logs older than ``days_to_keep`` days."""
-        cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_to_keep)
+        cutoff_date = datetime.now(UTC) - timedelta(days=days_to_keep)
 
         count_statement = select(func.count(col(SupplierSyncLog.id))).where(
             SupplierSyncLog.created_at < cutoff_date
@@ -277,7 +277,7 @@ class SupplierProductMappingCrud(
     ) -> SupplierProductMapping:
         """Create or update the persisted mapping for a (supplier, SKU) pair."""
         if sync_time is None:
-            sync_time = datetime.now(timezone.utc)
+            sync_time = datetime.now(UTC)
 
         mapping = await self.get_by_supplier_sku(
             session=session, supplier_name=supplier_name, supplier_sku=supplier_sku
@@ -345,7 +345,7 @@ class SupplierProductMappingCrud(
     ) -> SupplierProductMapping:
         """Update the last-synced timestamp for a mapping."""
         if sync_time is None:
-            sync_time = datetime.now(timezone.utc)
+            sync_time = datetime.now(UTC)
         update_data = SupplierProductMappingUpdate(last_synced=sync_time)
         return await self.update(session=session, id=mapping_id, data=update_data)
 
@@ -356,7 +356,7 @@ class SupplierProductMappingCrud(
         hours: int = 24,
     ) -> list[SupplierProductMapping]:
         """Get product mappings not synced within the last ``hours``."""
-        stale_threshold = datetime.now(timezone.utc) - timedelta(hours=hours)
+        stale_threshold = datetime.now(UTC) - timedelta(hours=hours)
 
         conditions = [
             col(SupplierProductMapping.sync_enabled).is_(True),

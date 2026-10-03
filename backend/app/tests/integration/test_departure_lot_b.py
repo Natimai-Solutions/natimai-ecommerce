@@ -5,7 +5,7 @@ publish through the webhook, cancellation on a closed departure)."""
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any, cast
@@ -42,7 +42,7 @@ from app.features.product.models.product import Product
 from app.features.system.models.system_setting import SystemSetting
 from app.features.user.models.user import User
 
-NOW = datetime(2026, 10, 1, 12, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 10, 1, 12, 0, tzinfo=UTC)
 
 
 async def _seed(session: AsyncSession) -> SimpleNamespace:

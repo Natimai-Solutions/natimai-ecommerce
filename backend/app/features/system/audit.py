@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import delete as sa_delete
@@ -123,7 +123,7 @@ async def purge_older_than(session: AsyncSession, days: int) -> int:
     """Delete entries older than ``days`` (0 or less: keep everything)."""
     if days <= 0:
         return 0
-    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    cutoff = datetime.now(UTC) - timedelta(days=days)
     result = await session.exec(
         sa_delete(AdminAuditEntry).where(col(AdminAuditEntry.created_at) < cutoff)
     )

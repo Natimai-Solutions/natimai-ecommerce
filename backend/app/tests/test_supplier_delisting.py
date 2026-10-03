@@ -11,7 +11,7 @@ fault must never delist the catalog.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
 import pytest
@@ -97,7 +97,7 @@ async def test_absence_within_the_grace_period_changes_nothing(
     crud: Any, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(settings, "SUPPLIER_DELISTING_GRACE_HOURS", 72)
-    flagged_at = datetime.now(timezone.utc) - timedelta(hours=10)
+    flagged_at = datetime.now(UTC) - timedelta(hours=10)
     crud.seed["GONE"] = _FakeProduct(sku="GONE", missing_since=flagged_at)
 
     flagged, delisted = await supplier_tasks._handle_missing_skus(
@@ -116,7 +116,7 @@ async def test_persistent_absence_deactivates_the_product(
     crud: Any, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(settings, "SUPPLIER_DELISTING_GRACE_HOURS", 72)
-    flagged_at = datetime.now(timezone.utc) - timedelta(hours=100)
+    flagged_at = datetime.now(UTC) - timedelta(hours=100)
     crud.seed["GONE"] = _FakeProduct(sku="GONE", missing_since=flagged_at)
 
     flagged, delisted = await supplier_tasks._handle_missing_skus(
@@ -136,7 +136,7 @@ async def test_naive_timestamps_are_read_as_utc(
 ) -> None:
     """Postgres hands back naive datetimes; comparing them must not explode."""
     monkeypatch.setattr(settings, "SUPPLIER_DELISTING_GRACE_HOURS", 72)
-    naive = (datetime.now(timezone.utc) - timedelta(hours=100)).replace(tzinfo=None)
+    naive = (datetime.now(UTC) - timedelta(hours=100)).replace(tzinfo=None)
     crud.seed["GONE"] = _FakeProduct(sku="GONE", missing_since=naive)
 
     _, delisted = await supplier_tasks._handle_missing_skus(
@@ -176,7 +176,7 @@ async def test_grace_period_of_zero_disables_deactivation(
 ) -> None:
     """The absence is still recorded, but nothing is ever taken offline."""
     monkeypatch.setattr(settings, "SUPPLIER_DELISTING_GRACE_HOURS", 0)
-    flagged_at = datetime.now(timezone.utc) - timedelta(days=365)
+    flagged_at = datetime.now(UTC) - timedelta(days=365)
     crud.seed["GONE"] = _FakeProduct(sku="GONE", missing_since=flagged_at)
 
     flagged, delisted = await supplier_tasks._handle_missing_skus(
@@ -214,7 +214,7 @@ async def test_an_already_inactive_product_is_not_touched_again(
 ) -> None:
     """Idempotence: a delisted product must not be rewritten on every run."""
     monkeypatch.setattr(settings, "SUPPLIER_DELISTING_GRACE_HOURS", 72)
-    flagged_at = datetime.now(timezone.utc) - timedelta(hours=200)
+    flagged_at = datetime.now(UTC) - timedelta(hours=200)
     crud.seed["GONE"] = _FakeProduct(
         sku="GONE", missing_since=flagged_at, is_active=False
     )

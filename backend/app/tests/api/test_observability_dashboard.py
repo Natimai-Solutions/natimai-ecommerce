@@ -4,7 +4,7 @@ import json
 import logging
 import uuid
 from collections.abc import AsyncGenerator, Generator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from types import SimpleNamespace
 
@@ -78,7 +78,7 @@ def test_log_structured_event_emits_json_message() -> None:
     logger.handlers.clear()
     logger.addHandler(capture_handler)
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     log_structured_event(
         logger,
         level="info",

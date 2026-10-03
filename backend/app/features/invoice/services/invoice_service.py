@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -397,7 +397,7 @@ async def issue_invoice_for_order(
         raise InvoiceIssuanceError(f"Order {order_id} not found")
 
     user = await session.get(User, order.user_id)
-    issuance_date = issued_at or datetime.now(timezone.utc)
+    issuance_date = issued_at or datetime.now(UTC)
     snapshot = await build_invoice_snapshot(session, order=order, user=user)
 
     invoice_number, sequence_number = await allocate_invoice_number(

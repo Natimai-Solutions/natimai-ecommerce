@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -37,7 +37,7 @@ CUSTOMS_REGIME_IMPORT = "import"
 CUSTOMS_REGIMES: tuple[str, ...] = (CUSTOMS_REGIME_DOMESTIC, CUSTOMS_REGIME_IMPORT)
 
 
-class OriginRegime(str, Enum):
+class OriginRegime(StrEnum):
     """Customs regime of an origin, as it drives pricing."""
 
     DOMESTIC = "domestic"  # no customs rate, no import freight in the price

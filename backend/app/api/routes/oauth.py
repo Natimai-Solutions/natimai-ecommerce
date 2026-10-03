@@ -33,7 +33,7 @@ import re
 import secrets
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 from urllib.parse import urlencode
 
@@ -315,7 +315,7 @@ def _build_token_bundle(user_id: uuid.UUID) -> tuple[str, str, str, datetime]:
     refresh_tok = security.create_refresh_token(
         user_id, expires_delta=refresh_token_expires, jti=refresh_jti
     )
-    refresh_expires_at = datetime.now(timezone.utc) + refresh_token_expires
+    refresh_expires_at = datetime.now(UTC) + refresh_token_expires
     return access_tok, refresh_tok, refresh_jti, refresh_expires_at
 
 

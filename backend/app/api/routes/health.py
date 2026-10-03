@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter
 from fastapi.encoders import jsonable_encoder
@@ -31,7 +31,7 @@ class ReadinessResponse(BaseModel):
 @router.get("/healthz/liveness", response_model=LivenessResponse)
 async def healthz_liveness() -> LivenessResponse:
     """Lightweight liveness probe."""
-    return LivenessResponse(status="alive", timestamp=datetime.now(timezone.utc))
+    return LivenessResponse(status="alive", timestamp=datetime.now(UTC))
 
 
 @router.get("/healthz/ready", response_model=ReadinessResponse)
@@ -61,7 +61,7 @@ async def healthz_ready(session: SessionDep) -> ReadinessResponse | JSONResponse
 
     response = ReadinessResponse(
         status=overall_status,
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
         database=database_ok,
         redis=redis_ok,
     )

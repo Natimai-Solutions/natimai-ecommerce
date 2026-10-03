@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from sqlmodel import Field, SQLModel, UniqueConstraint
@@ -242,7 +242,7 @@ class CartDetailPublic(SQLModel):
     items: list[CartItemDetail] = Field(default_factory=list)
 
 
-class CheckoutShippingPreference(str, Enum):
+class CheckoutShippingPreference(StrEnum):
     """Represents checkout shipping preference."""
 
     FASTEST = "fastest"

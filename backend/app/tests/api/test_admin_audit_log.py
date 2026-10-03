@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -79,7 +79,7 @@ async def test_retention_purges_old_entries(db: AsyncSession) -> None:
     old = AdminAuditEntry(
         event="http",
         path="/old",
-        created_at=datetime.now(timezone.utc) - timedelta(days=500),
+        created_at=datetime.now(UTC) - timedelta(days=500),
     )
     recent = AdminAuditEntry(event="http", path="/recent")
     old_id, recent_id = old.id, recent.id

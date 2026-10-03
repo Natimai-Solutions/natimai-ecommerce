@@ -1,6 +1,6 @@
 import uuid
 from collections.abc import AsyncGenerator, Generator
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -158,8 +158,8 @@ def test_refresh_access_token_revoked_returns_error_payload(
         id=uuid.uuid4(),
         user_id=user_id,
         jti=refresh_jti,
-        expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
-        revoked_at=datetime.now(timezone.utc),
+        expires_at=datetime.now(UTC) + timedelta(hours=1),
+        revoked_at=datetime.now(UTC),
     )
 
     revoke_all_mock = AsyncMock(return_value=1)
@@ -217,7 +217,7 @@ def test_refresh_access_token_expired_returns_error_payload(
         id=uuid.uuid4(),
         user_id=user_id,
         jti=refresh_jti,
-        expires_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+        expires_at=datetime.now(UTC) - timedelta(minutes=1),
         revoked_at=None,
     )
 

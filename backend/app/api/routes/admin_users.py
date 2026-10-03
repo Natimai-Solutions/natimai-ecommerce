@@ -118,7 +118,7 @@ class InvitationResult(BaseModel):
 
 
 def _utcnow() -> datetime.datetime:
-    return datetime.datetime.now(datetime.timezone.utc)
+    return datetime.datetime.now(datetime.UTC)
 
 
 def invitation_pending(user: User) -> bool:

@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
@@ -134,7 +134,7 @@ async def test_poll_outbox_once_schedules_retry_when_enqueue_fails(
         AsyncMock(side_effect=RuntimeError("enqueue failed")),
     )
 
-    before = datetime.now(timezone.utc)
+    before = datetime.now(UTC)
     processed = await poll_outbox_once(session)
 
     assert processed is True

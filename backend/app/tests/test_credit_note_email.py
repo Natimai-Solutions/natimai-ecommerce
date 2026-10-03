@@ -7,7 +7,7 @@ twice, and a failed delivery raises so ARQ retries.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any, cast
@@ -100,7 +100,7 @@ async def test_the_credit_note_is_emailed_with_its_references(send: AsyncMock) -
 
 @pytest.mark.anyio
 async def test_a_replay_does_not_send_it_again(send: AsyncMock) -> None:
-    note = _note(emailed_at=datetime.now(timezone.utc))
+    note = _note(emailed_at=datetime.now(UTC))
     await handlers.on_credit_note_issued_customer(
         cast(Any, _session(note)), _payload(note)
     )

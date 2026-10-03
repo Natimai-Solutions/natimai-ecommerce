@@ -35,9 +35,7 @@ def _discount(**overrides: Any) -> Discount:
 
 
 def _hours(delta: int) -> datetime.datetime:
-    return datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(
-        hours=delta
-    )
+    return datetime.datetime.now(datetime.UTC) + datetime.timedelta(hours=delta)
 
 
 @pytest.mark.asyncio

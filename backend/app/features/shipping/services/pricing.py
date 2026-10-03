@@ -4,7 +4,7 @@ import json
 import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
@@ -212,9 +212,9 @@ def _parse_effective_date(value: Any) -> datetime | None:
     if value is None:
         return None
     if isinstance(value, datetime):
-        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+        return value if value.tzinfo else value.replace(tzinfo=UTC)
     if isinstance(value, date):
-        return datetime(value.year, value.month, value.day, tzinfo=timezone.utc)
+        return datetime(value.year, value.month, value.day, tzinfo=UTC)
     if isinstance(value, str):
         text = value.strip()
         if not text:
@@ -227,7 +227,7 @@ def _parse_effective_date(value: Any) -> datetime | None:
                 parsed = datetime.fromisoformat(f"{normalized}T00:00:00")
             except ValueError:
                 return None
-        return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
     return None
 
 
@@ -318,9 +318,9 @@ def calculate_shipping_for_routes(
     """
     normalized_weight_kg = max(total_weight_kg, Decimal("0"))
     normalized_declared_value = max(declared_value, Decimal("0"))
-    effective_at = as_of or datetime.now(timezone.utc)
+    effective_at = as_of or datetime.now(UTC)
     if effective_at.tzinfo is None:
-        effective_at = effective_at.replace(tzinfo=timezone.utc)
+        effective_at = effective_at.replace(tzinfo=UTC)
 
     breakdowns: list[RouteShippingCostBreakdown] = []
     eta_values: list[int] = []

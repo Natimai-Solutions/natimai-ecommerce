@@ -1,7 +1,7 @@
 # mypy: disable-error-code="assignment,misc,override"
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from pydantic import field_validator
 from sqlmodel import Field, SQLModel
@@ -139,7 +139,7 @@ class UserNotificationBase(Base):
         default=None, description="When the notification was read"
     )
     sent_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
+        default_factory=lambda: datetime.now(UTC),
         description="When the notification was sent",
     )
 

@@ -1,6 +1,6 @@
 import uuid
 from collections.abc import AsyncGenerator, Generator
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -95,9 +95,7 @@ async def test_refresh_token_rotates_and_returns_new_pair(
         jti=old_jti,
         # Naive UTC, mirroring the tz-less DB column (regression: comparing this
         # to an aware `now` used to raise TypeError).
-        expires_at=(datetime.now(timezone.utc) + timedelta(hours=1)).replace(
-            tzinfo=None
-        ),
+        expires_at=(datetime.now(UTC) + timedelta(hours=1)).replace(tzinfo=None),
         revoked_at=None,
     )
 
@@ -150,7 +148,7 @@ async def test_refresh_token_expired_is_revoked_and_rejected(
         id=uuid.uuid4(),
         user_id=user_id,
         jti=old_jti,
-        expires_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+        expires_at=datetime.now(UTC) - timedelta(minutes=1),
         revoked_at=None,
     )
 
@@ -205,8 +203,8 @@ async def test_refresh_token_reuse_revokes_all_active_sessions(
         id=uuid.uuid4(),
         user_id=user_id,
         jti=old_jti,
-        expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
-        revoked_at=datetime.now(timezone.utc),
+        expires_at=datetime.now(UTC) + timedelta(hours=1),
+        revoked_at=datetime.now(UTC),
     )
 
     read_user_mock = AsyncMock(return_value=user)

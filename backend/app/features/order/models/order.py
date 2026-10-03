@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from sqlalchemy import Sequence
@@ -15,7 +15,7 @@ from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 order_number_seq = Sequence("order_number_seq", metadata=SQLModel.metadata)
 
 
-class DeliveryType(str, Enum):
+class DeliveryType(StrEnum):
     """Last-leg delivery mode chosen by the customer at checkout."""
 
     PICKUP = "pickup"  # retrait en magasin

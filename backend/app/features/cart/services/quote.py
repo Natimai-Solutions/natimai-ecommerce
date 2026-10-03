@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -104,7 +104,7 @@ async def issue_quote(
     """Freeze the quote: number (kept on a re-issue), lines, totals, validity,
     seller and buyer blocks. Status « quoted ». Flushes, no commit."""
     currency = quote_currency(quote)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     if not quote.quote_number:
         quote.quote_number = await allocate_quote_number(session, fiscal_year=now.year)
     references: dict[uuid.UUID, str] = {}

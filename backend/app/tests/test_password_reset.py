@@ -69,7 +69,7 @@ def _user(**overrides: object) -> SimpleNamespace:
         password_reset_token=None,
         password_reset_token_expires=None,
         failed_login_attempts=3,
-        locked_until=datetime.datetime(2026, 1, 1, tzinfo=datetime.timezone.utc),
+        locked_until=datetime.datetime(2026, 1, 1, tzinfo=datetime.UTC),
     )
     for key, value in overrides.items():
         setattr(user, key, value)
@@ -178,9 +178,7 @@ async def test_resetting_replaces_the_password_and_clears_the_lock(
     )
     user = _user(
         password_reset_token=hash_reset_token(_VALID_TOKEN),
-        password_reset_token_expires=datetime.datetime(
-            2099, 1, 1, tzinfo=datetime.timezone.utc
-        ),
+        password_reset_token_expires=datetime.datetime(2099, 1, 1, tzinfo=datetime.UTC),
     )
 
     await reset_password(
@@ -210,7 +208,7 @@ async def test_an_unusable_token_is_rejected_indistinctly() -> None:
             _user(
                 password_reset_token=hash_reset_token(_VALID_TOKEN),
                 password_reset_token_expires=datetime.datetime(
-                    2000, 1, 1, tzinfo=datetime.timezone.utc
+                    2000, 1, 1, tzinfo=datetime.UTC
                 ),
             )
         ),  # expiré
@@ -219,7 +217,7 @@ async def test_an_unusable_token_is_rejected_indistinctly() -> None:
                 is_active=False,
                 password_reset_token=hash_reset_token(_VALID_TOKEN),
                 password_reset_token_expires=datetime.datetime(
-                    2099, 1, 1, tzinfo=datetime.timezone.utc
+                    2099, 1, 1, tzinfo=datetime.UTC
                 ),
             )
         ),  # compte désactivé

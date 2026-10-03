@@ -41,7 +41,7 @@ INVITATION_TOKEN_TTL_HOURS = 72
 
 def _utcnow() -> datetime.datetime:
     """Horodatage UTC conscient du fuseau, comme le reste du schéma (timestamptz)."""
-    return datetime.datetime.now(datetime.timezone.utc)
+    return datetime.datetime.now(datetime.UTC)
 
 
 def unusable_password_hash() -> str:

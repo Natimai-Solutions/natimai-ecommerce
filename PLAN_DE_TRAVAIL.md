@@ -321,6 +321,7 @@ Hors périmètre, documenté comme feuille de route : contenu multilingue en bas
 | Panier invité : fusion « plus grande quantité » | à confirmer après explication (voir ci-dessous) |
 | RGPD : suppression bloquée tant qu'une commande est en cours | ✅ confirmé |
 
+- ✅ **Confort — `StrEnum` et cible Python 3.11** (03/10/2026) : ruff `target-version = "py311"` ; les 23 énumérations `(str, Enum)` passent en `enum.StrEnum` (`str()` et les f-strings rendent désormais la valeur, plus `Classe.MEMBRE`) ; `datetime.timezone.utc` → `datetime.UTC` sur 263 occurrences, alias d'exceptions et imports modernisés par ruff (corrections sûres uniquement). Suite complète verte.
 ### R9 — Retours de recette du 02/10/2026 (priorité 9) — ✅ livré le 02/10/2026 (T1 à T8)
 
 Recette du premier déploiement. **Corrigé le 02/10/2026** (petits changements) :

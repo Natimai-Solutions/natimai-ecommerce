@@ -1,7 +1,7 @@
 import secrets
 import warnings
 from decimal import Decimal
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, Self
 
 from pydantic import (
     AnyUrl,
@@ -13,7 +13,6 @@ from pydantic import (
 )
 from pydantic_core import MultiHostUrl
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing_extensions import Self
 
 from app.core.territory import get_profile
 from app.features.integrations.services.supplier_data_normalization import (

@@ -33,7 +33,7 @@ def test_product_create_payload_is_json_serializable() -> None:
         user=None,
         data={
             "name": "Phone",
-            "synced_at": datetime.datetime.now(datetime.timezone.utc),
+            "synced_at": datetime.datetime.now(datetime.UTC),
             "owner_id": uuid4(),
         },
     )

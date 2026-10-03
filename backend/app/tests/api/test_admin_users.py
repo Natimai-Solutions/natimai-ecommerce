@@ -56,7 +56,7 @@ def _user(**overrides: Any) -> Any:
         is_superuser=False,
         is_verified=False,
         price_group_id=None,
-        created_at=datetime.datetime(2026, 9, 1, 8, 0, tzinfo=datetime.timezone.utc),
+        created_at=datetime.datetime(2026, 9, 1, 8, 0, tzinfo=datetime.UTC),
         last_login=None,
         locked_until=None,
         password_reset_token=None,
@@ -119,9 +119,7 @@ def test_the_invitation_token_is_stored_hashed_with_a_long_ttl() -> None:
     assert len(token) >= 32
     assert user.password_reset_token == hash_reset_token(token)
     assert token not in user.password_reset_token
-    remaining = user.password_reset_token_expires - datetime.datetime.now(
-        datetime.timezone.utc
-    )
+    remaining = user.password_reset_token_expires - datetime.datetime.now(datetime.UTC)
     # Bien plus qu'une réinitialisation (30 min) : l'invité ne guette pas sa boîte.
     assert datetime.timedelta(hours=INVITATION_TOKEN_TTL_HOURS - 1) < remaining
     assert remaining <= datetime.timedelta(hours=INVITATION_TOKEN_TTL_HOURS)
@@ -140,9 +138,7 @@ def test_pending_means_neither_verified_nor_ever_logged_in() -> None:
     # Un compte historique jamais vérifié mais déjà ouvert n'est pas un invité.
     assert (
         invitation_pending(
-            _user(
-                last_login=datetime.datetime(2026, 1, 1, tzinfo=datetime.timezone.utc)
-            )
+            _user(last_login=datetime.datetime(2026, 1, 1, tzinfo=datetime.UTC))
         )
         is False
     )
@@ -265,7 +261,7 @@ async def test_an_activated_account_cannot_be_re_invited(sent: AsyncMock) -> Non
     de la personne, qui s'applique une fois le compte ouvert."""
     user = _user(
         is_verified=True,
-        last_login=datetime.datetime(2026, 9, 2, tzinfo=datetime.timezone.utc),
+        last_login=datetime.datetime(2026, 9, 2, tzinfo=datetime.UTC),
     )
 
     with pytest.raises(AppError) as exc:
@@ -323,7 +319,7 @@ async def test_deactivating_cuts_open_sessions(monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setattr(crud_user_refresh_token, "revoke_all_active_for_user", revoke)
     user = _user(
         is_verified=True,
-        last_login=datetime.datetime(2026, 9, 2, tzinfo=datetime.timezone.utc),
+        last_login=datetime.datetime(2026, 9, 2, tzinfo=datetime.UTC),
     )
     admin = _admin()
 

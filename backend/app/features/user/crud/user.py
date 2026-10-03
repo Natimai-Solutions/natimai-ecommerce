@@ -34,7 +34,7 @@ class AccountLockedError(Exception):
 
 def _utcnow() -> datetime.datetime:
     """Aware UTC now — the DB columns are TIMESTAMP WITH TIME ZONE."""
-    return datetime.datetime.now(datetime.timezone.utc)
+    return datetime.datetime.now(datetime.UTC)
 
 
 def mark_logged_in(user: User) -> None:

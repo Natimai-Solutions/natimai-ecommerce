@@ -1,6 +1,6 @@
 import hashlib
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import bcrypt
@@ -32,7 +32,7 @@ ALGORITHM = "HS256"
 
 def create_access_token(subject: str | Any, expires_delta: timedelta) -> str:
     """Create access token."""
-    expire = datetime.now(timezone.utc) + expires_delta
+    expire = datetime.now(UTC) + expires_delta
     to_encode = {"exp": expire, "sub": str(subject), "type": "access"}
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
@@ -42,7 +42,7 @@ def create_refresh_token(
     subject: str | Any, expires_delta: timedelta, jti: str | None = None
 ) -> str:
     """Create refresh token."""
-    expire = datetime.now(timezone.utc) + expires_delta
+    expire = datetime.now(UTC) + expires_delta
     refresh_jti = jti or str(uuid.uuid4())
     to_encode = {
         "exp": expire,

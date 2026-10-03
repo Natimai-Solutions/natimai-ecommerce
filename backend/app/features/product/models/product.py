@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from pydantic import SerializerFunctionWrapHandler, computed_field, model_serializer
@@ -19,7 +19,7 @@ from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 from app.features.product.models.category import Category
 
 
-class SupplierType(str, Enum):
+class SupplierType(StrEnum):
     """Supported product suppliers/vendors"""
 
     INGRAM_MICRO = "ingram_micro"
@@ -30,7 +30,7 @@ class SupplierType(str, Enum):
     LOCAL = "local"  # For locally managed products
 
 
-class PricingMode(str, Enum):
+class PricingMode(StrEnum):
     """How the storefront price of a product is obtained.
 
     * ``import`` — CAF formula: cost + variable import freight + insurance,
@@ -46,14 +46,14 @@ class PricingMode(str, Enum):
     FIXED = "fixed"
 
 
-class StockLocation(str, Enum):
+class StockLocation(StrEnum):
     """Where the sellable stock of an article is (storefront filter)."""
 
     LOCAL = "local"
     SUPPLIER = "supplier"
 
 
-class AvailabilityMode(str, Enum):
+class AvailabilityMode(StrEnum):
     """Whether a product can be ordered beyond the stock known at checkout.
 
     * ``stock`` — historical behaviour: local + supplier stock must cover the
@@ -75,7 +75,7 @@ class AvailabilityMode(str, Enum):
     LOT = "lot"
 
 
-class ProductCondition(str, Enum):
+class ProductCondition(StrEnum):
     """New goods or a refurbished item (graded, with its own warranty)."""
 
     NEW = "new"

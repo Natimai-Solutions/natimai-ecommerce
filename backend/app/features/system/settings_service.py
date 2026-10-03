@@ -13,7 +13,7 @@ import inspect
 import logging
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -158,7 +158,7 @@ async def write_setting(
     if row is None:
         row = SystemSetting(key=key, value=stored_text, description=spec.label[:500])
     row.value = stored_text
-    row.updated_at = datetime.now(timezone.utc)
+    row.updated_at = datetime.now(UTC)
     row.updated_by_id = actor_id
     session.add(row)
     await session.commit()

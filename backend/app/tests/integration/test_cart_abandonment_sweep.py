@@ -8,7 +8,7 @@ customer's are not. The back-office overview counts them.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -27,7 +27,7 @@ from app.features.user.models.user import User
 from app.features.user.models.user_preference import UserPreference
 from app.outbox.models import OutboxEvent
 
-NOW = datetime(2026, 9, 10, 12, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 9, 10, 12, 0, tzinfo=UTC)
 
 
 async def _user(session: AsyncSession, *, marketing: bool | None = None) -> User:

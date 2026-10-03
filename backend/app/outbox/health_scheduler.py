@@ -17,7 +17,7 @@ import asyncio
 import logging
 import os
 import signal
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, TypedDict
 
 from app.core.alerting import send_alert
@@ -108,7 +108,7 @@ class HealthCheckScheduler:
 
     async def _run_health_check(self, stats: SchedulerStats) -> None:
         """Execute one health-check cycle and trigger recovery when needed."""
-        check_start = datetime.now(timezone.utc)
+        check_start = datetime.now(UTC)
 
         try:
             # 1. Vérification de santé
@@ -142,7 +142,7 @@ class HealthCheckScheduler:
 
                     if recovered > 0:
                         stats["total_recoveries"] += recovered
-                        stats["last_recovery"] = datetime.now(timezone.utc).isoformat()
+                        stats["last_recovery"] = datetime.now(UTC).isoformat()
                         logger.debug("Successfully recovered %d jobs", recovered)
                     else:
                         logger.warning("Recovery attempted but no jobs recovered")

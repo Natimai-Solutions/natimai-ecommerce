@@ -9,7 +9,7 @@ This module provides functionality to detect and recover from:
 
 import asyncio
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlmodel import col, select
@@ -75,7 +75,7 @@ class OutboxHealthChecker:
                     .where(col(OutboxEvent.status).in_(["RUNNING", "DONE"]))
                     .where(
                         OutboxEvent.updated_at
-                        > datetime.now(timezone.utc) - self.stale_threshold
+                        > datetime.now(UTC) - self.stale_threshold
                     )
                 )
                 result = await session.exec(stmt)
@@ -118,7 +118,7 @@ class OutboxHealthChecker:
                 "status": "healthy"
                 if not orphaned_jobs and not missing_jobs
                 else "degraded",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
                 "stats": {
                     "redis_jobs": len(outbox_jobs),
                     "recent_events": len(recent_events),
@@ -135,7 +135,7 @@ class OutboxHealthChecker:
             logger.error("Health check failed: %s", str(e))
             return {
                 "status": "error",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
                 "error": str(e),
             }
 
@@ -166,7 +166,7 @@ class OutboxHealthChecker:
                         # Reset to PENDING for re-processing
                         event.status = "PENDING"
                         event.attempts += 1
-                        event.next_run_at = datetime.now(timezone.utc)
+                        event.next_run_at = datetime.now(UTC)
                         event.last_error = "Recovered from missing ARQ job"
                         session.add(event)
 

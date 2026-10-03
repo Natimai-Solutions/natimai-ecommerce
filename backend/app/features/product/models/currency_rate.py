@@ -1,14 +1,14 @@
 import uuid
 from datetime import date
 from decimal import Decimal
-from enum import Enum
+from enum import StrEnum
 
 from sqlmodel import Field, SQLModel
 
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
-class CurrencyRateSource(str, Enum):
+class CurrencyRateSource(StrEnum):
     manual = "manual"
     auto = "auto"
 

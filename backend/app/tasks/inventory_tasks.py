@@ -17,7 +17,7 @@ releases the stock through the normal path.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from arq import cron
@@ -41,7 +41,7 @@ SWEEP_BATCH_SIZE = 500
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 async def release_expired_stock_reservations_task(

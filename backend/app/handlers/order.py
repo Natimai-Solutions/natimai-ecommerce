@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -305,7 +305,7 @@ async def request_balance(session: AsyncSession, order: Order) -> bool:
         pay_url=_order_pay_url(order.id),
         shop_name=_shop_name(),
     )
-    order.balance_requested_at = datetime.now(timezone.utc)
+    order.balance_requested_at = datetime.now(UTC)
     session.add(order)
     await session.flush()
     return await _send_order_email(
@@ -606,7 +606,7 @@ async def on_invoice_issued_customer(
         # Leave emailed_at unset so the ARQ retry tries again.
         raise RuntimeError(f"Invoice {invoice.invoice_number} e-mail was not delivered")
 
-    invoice.emailed_at = datetime.now(timezone.utc)
+    invoice.emailed_at = datetime.now(UTC)
     session.add(invoice)
     await session.commit()
 
@@ -679,7 +679,7 @@ async def on_credit_note_issued_customer(
             f"Credit note {credit_note.credit_note_number} e-mail was not delivered"
         )
 
-    credit_note.emailed_at = datetime.now(timezone.utc)
+    credit_note.emailed_at = datetime.now(UTC)
     session.add(credit_note)
     await session.commit()
 

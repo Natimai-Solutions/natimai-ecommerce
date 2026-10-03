@@ -82,7 +82,7 @@ def update_product_with_icecat_data(
         update_data.dimensions_height = icecat_product_data.dimensions_height_cm
 
     update_data.is_enriched = True
-    update_data.last_enrichment_sync = datetime.datetime.now(tz=datetime.timezone.utc)
+    update_data.last_enrichment_sync = datetime.datetime.now(tz=datetime.UTC)
 
     return update_data
 
@@ -239,7 +239,7 @@ async def _stamp_enrichment_attempt(session: AsyncSession, product_id: UUID) -> 
     """
     from app.features.product.models.product import Product
 
-    now = datetime.datetime.now(tz=datetime.timezone.utc)
+    now = datetime.datetime.now(tz=datetime.UTC)
     await session.execute(
         sa_update(Product)
         .where(col(Product.id) == product_id)
@@ -289,7 +289,7 @@ async def batch_enrich_products_task(
                 "icecat_enrichment_retry_cooldown_days", session
             )
             cooldown_cutoff = datetime.datetime.now(
-                tz=datetime.timezone.utc
+                tz=datetime.UTC
             ) - datetime.timedelta(days=int(cooldown_days))
             query = (
                 select(Product)
@@ -559,7 +559,7 @@ async def scheduled_batch_enrich_task(_ctx: dict[str, Any]) -> dict[str, Any]:
     values = await runtime_settings.get_many(
         ["icecat_enrichment_interval_hours", "icecat_batch_enrich_limit"]
     )
-    now = datetime.datetime.now(tz=datetime.timezone.utc)
+    now = datetime.datetime.now(tz=datetime.UTC)
     if not _due(now, int(values["icecat_enrichment_interval_hours"])):
         return {"status": "not_due"}
     return await batch_enrich_products_task(

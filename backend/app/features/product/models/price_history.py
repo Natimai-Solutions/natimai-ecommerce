@@ -7,7 +7,7 @@ que le balayage nocturne ne remplisse pas la table sans raison.
 """
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from sqlmodel import Field, SQLModel
@@ -29,9 +29,7 @@ class ProductPriceEntry(SQLModel, table=True):
     #: ``currency_rate:EUR``, ``tax_rate_created:TVA_NORMALE``, ``category_…``,
     #: ``system_setting:pricing_…``, ``admin_inline``…
     reason: str = Field(max_length=120, index=True)
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc), index=True
-    )
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), index=True)
 
 
 class ProductPriceEntryPublic(SQLModel):

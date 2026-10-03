@@ -1,14 +1,14 @@
 """Model for tracking supplier purchase orders created on behalf of local orders."""
 
-from datetime import datetime, timezone
-from enum import Enum
+from datetime import UTC, datetime
+from enum import StrEnum
 from typing import Any
 from uuid import UUID, uuid4
 
 from sqlmodel import JSON, Column, Field, SQLModel
 
 
-class SupplierOrderStatus(str, Enum):
+class SupplierOrderStatus(StrEnum):
     PENDING = "pending"
     SUBMITTED = "submitted"
     ERROR = "error"
@@ -64,10 +64,10 @@ class SupplierOrder(SQLModel, table=True):
         description="Delivery estimate returned by the supplier webhook",
     )
     created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
+        default_factory=lambda: datetime.now(UTC),
     )
     updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
+        default_factory=lambda: datetime.now(UTC),
     )
 
 

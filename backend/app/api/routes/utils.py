@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
@@ -170,7 +170,7 @@ async def get_observability_dashboard(
     _current_user: CurrentSuperUser,
 ) -> ObservabilityDashboard:
     """Get observability dashboard (superuser only — business metrics)."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     commerce_metrics = await _collect_commerce_metrics(session, now=now)
     outbox_metrics = await _collect_outbox_metrics(session, now=now)
     checkout_snapshot = get_checkout_metrics_snapshot(window_minutes=60)

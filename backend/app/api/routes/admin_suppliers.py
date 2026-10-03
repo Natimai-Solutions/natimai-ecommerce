@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Annotated, Any, Literal
 
@@ -285,7 +285,7 @@ async def update_supplier(
     fields = payload.model_dump(exclude_unset=True)
     for name, value in fields.items():
         setattr(supplier, name, value)
-    supplier.updated_at = datetime.now(timezone.utc)
+    supplier.updated_at = datetime.now(UTC)
     await _validate(session, supplier)
     session.add(supplier)
     await session.commit()
@@ -367,7 +367,7 @@ async def put_supplier_credentials(
     supplier.credentials_encrypted = encrypt_json(
         {"username": payload.username, "password": payload.password}
     )
-    supplier.updated_at = datetime.now(timezone.utc)
+    supplier.updated_at = datetime.now(UTC)
     session.add(supplier)
     await session.commit()
     await session.refresh(supplier)
@@ -384,7 +384,7 @@ async def delete_supplier_credentials(
     actor_id = current_user.id
     supplier = await _load(session, code)
     supplier.credentials_encrypted = None
-    supplier.updated_at = datetime.now(timezone.utc)
+    supplier.updated_at = datetime.now(UTC)
     session.add(supplier)
     await session.commit()
     await session.refresh(supplier)
@@ -552,7 +552,7 @@ async def deactivate_supplier(
     linked = int(count_result.one())
     supplier.is_active = False
     supplier.sync_enabled = False
-    supplier.updated_at = datetime.now(timezone.utc)
+    supplier.updated_at = datetime.now(UTC)
     session.add(supplier)
     withdrawn: int | None = None
     if products != "keep":

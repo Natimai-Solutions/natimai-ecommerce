@@ -13,7 +13,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import func, or_
@@ -120,7 +120,7 @@ async def best_sellers_in_categories(
     then the most recent."""
     if not category_ids or limit <= 0:
         return []
-    since = datetime.now(timezone.utc) - timedelta(days=SALES_WINDOW_DAYS)
+    since = datetime.now(UTC) - timedelta(days=SALES_WINDOW_DAYS)
     sold = (
         select(
             col(OrderLine.product_id).label("product_id"),
@@ -246,7 +246,7 @@ async def replace_product_links(
     for row in existing:
         await session.delete(row)
     await session.flush()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     rows = [
         ProductLink(
             product_id=product.id,

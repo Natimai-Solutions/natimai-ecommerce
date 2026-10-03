@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any, cast
 
@@ -17,7 +17,7 @@ from app.features.payment.models.payment import Payment
 from app.features.payment.models.payment_status import PaymentStatus
 from app.features.user.models.user import User
 
-NOW = datetime(2026, 10, 2, 12, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 10, 2, 12, 0, tzinfo=UTC)
 
 
 async def list_payments(session: AsyncSession, admin: Any, **filters: Any) -> Any:

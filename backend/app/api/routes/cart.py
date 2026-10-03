@@ -2,9 +2,9 @@ import logging
 import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from decimal import Decimal
-from enum import Enum
+from enum import StrEnum
 from time import perf_counter
 from typing import Annotated, Any
 
@@ -166,7 +166,7 @@ _PENDING_PAYMENT_STATUS = "Pending"
 logger = logging.getLogger(__name__)
 
 
-class FulfillmentSegment(str, Enum):
+class FulfillmentSegment(StrEnum):
     """Where an allocation is served from, and how it reaches the customer.
 
     Values are frozen: they are written into ``OrderLine.notes``
@@ -885,7 +885,7 @@ async def _link_fulfillment_segments_to_tracking(
                 status_id=route_tracking_status.id,
                 address_id=shipping_address_record.id,
                 consolidation_id=consolidation_id,
-                selected_at=datetime.now(timezone.utc),
+                selected_at=datetime.now(UTC),
                 sequence_order=sequence_order,
                 last_status_update=None,
                 tracking_ref=None,
@@ -1031,7 +1031,7 @@ async def _link_selected_routes_to_tracking(
                 status_id=route_tracking_status.id,
                 address_id=shipping_address_record.id,
                 consolidation_id=None,
-                selected_at=datetime.now(timezone.utc),
+                selected_at=datetime.now(UTC),
                 sequence_order=sequence_order,
                 last_status_update=None,
                 tracking_ref=None,
@@ -3075,7 +3075,7 @@ async def checkout_my_cart(
             message="Les conditions générales de vente doivent être acceptées",
             details={"cart_id": str(cart.id), "cgv_version": cgv_version},
         )
-    cgv_accepted_at = datetime.now(timezone.utc)
+    cgv_accepted_at = datetime.now(UTC)
 
     try:
         # Départ groupé ouvert le plus proche (None = boutique classique, ou
@@ -3305,7 +3305,7 @@ async def checkout_my_cart(
             if won_quote is not None:
                 won_quote.order_id = order.id
                 won_quote.status = QuoteRequestStatus.WON.value
-                won_quote.handled_at = datetime.now(timezone.utc)
+                won_quote.handled_at = datetime.now(UTC)
                 session.add(won_quote)
 
         for item in items:

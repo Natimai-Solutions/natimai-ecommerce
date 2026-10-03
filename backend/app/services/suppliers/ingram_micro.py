@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import AsyncIterator
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 from uuid import uuid4
 
@@ -80,7 +80,7 @@ class IngramProductData(BaseModel):
     specification_url: str | None = Field(
         default=None, description="Product specification URL"
     )
-    last_updated: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    last_updated: datetime = Field(default_factory=lambda: datetime.now(UTC))
     upc_code: str | None = Field(default=None, description="Product UPC code")
     ean: str | None = Field(default=None, description="Product EAN code")
 
@@ -118,7 +118,7 @@ class IngramMicroService:
         if (
             self.access_token
             and self.token_expires_at
-            and datetime.now(timezone.utc) < self.token_expires_at
+            and datetime.now(UTC) < self.token_expires_at
         ):
             return self.access_token
 
@@ -141,7 +141,7 @@ class IngramMicroService:
                         token_data = await response.json()
                         self.access_token = token_data["access_token"]
                         expires_in = int(token_data.get("expires_in", 3600))
-                        self.token_expires_at = datetime.now(timezone.utc).replace(
+                        self.token_expires_at = datetime.now(UTC).replace(
                             second=0, microsecond=0
                         ) + timedelta(seconds=expires_in - 300)  # 5 min buffer
 

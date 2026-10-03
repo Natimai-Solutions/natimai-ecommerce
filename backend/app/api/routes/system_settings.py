@@ -18,7 +18,7 @@ own endpoint).
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -221,7 +221,6 @@ async def admin_get_setting(
 
 
 async def _put_module_switch(session: Any, key: str, value: str) -> SystemSettingPublic:
-    from datetime import timezone
 
     spec = spec_for(key.removeprefix(MODULE_PREFIX))  # 404 on an unknown module
     lowered = value.strip().lower()
@@ -238,7 +237,7 @@ async def _put_module_switch(session: Any, key: str, value: str) -> SystemSettin
         key=key,
         value=lowered,
         description=spec.label,
-        updated_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(UTC),
     )
 
 

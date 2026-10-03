@@ -6,7 +6,7 @@ against a mocked session.
 """
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
@@ -79,7 +79,7 @@ async def _seed(
             sequence_number=1,
             order_id=order.id,
             user_id=user.id,
-            issued_at=datetime(2026, 3, 4, tzinfo=timezone.utc),
+            issued_at=datetime(2026, 3, 4, tzinfo=UTC),
             currency="XPF",
             total_excl_tax=Decimal("87586.21"),
             total_tax=Decimal("12413.79"),
@@ -165,7 +165,7 @@ async def test_numbering_is_sequential_and_gap_free(db_session: AsyncSession) ->
         note = await issue_credit_note_for_refund(db_session, refund_id=refund_id)
         numbers.append(note.credit_note_number)
 
-    year = datetime.now(timezone.utc).year
+    year = datetime.now(UTC).year
     assert numbers == [
         f"AV-{year}-00001",
         f"AV-{year}-00002",

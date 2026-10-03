@@ -18,7 +18,7 @@ import logging
 import uuid
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, Literal
 
@@ -379,7 +379,7 @@ class SupplierSyncOrchestrator:
                 data["supplier_price_currency"] = snapshot.supplier_price_currency
                 data["cost_amount"] = snapshot.supplier_price
                 data["cost_currency"] = snapshot.supplier_price_currency
-            data["last_supplier_sync"] = datetime.now(timezone.utc)
+            data["last_supplier_sync"] = datetime.now(UTC)
             data["supplier_missing_since"] = None
 
         return data
@@ -479,7 +479,7 @@ class SupplierSyncOrchestrator:
         Avoids an internal commit so that product and mapping stay in the same
         transaction, committed once by the caller (sync_products_to_database).
         """
-        sync_time = datetime.now(timezone.utc)
+        sync_time = datetime.now(UTC)
         mapping = await supplier_product_mapping_crud.get_by_supplier_sku(
             session=session,
             supplier_name=self.adapter.name,

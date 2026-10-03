@@ -8,7 +8,7 @@ conversion and the per-session cache. No database.
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any
@@ -178,7 +178,7 @@ async def test_for_session_caches_the_context_for_a_minute(
     assert load.await_count == 1
 
     # Past the TTL the referentials are reloaded (a rate may have changed).
-    fresh.loaded_at = datetime.now(timezone.utc) - timedelta(
+    fresh.loaded_at = datetime.now(UTC) - timedelta(
         seconds=PricingContext.CACHE_TTL_SECONDS + 1
     )
     await PricingContext.for_session(session)  # type: ignore[arg-type]

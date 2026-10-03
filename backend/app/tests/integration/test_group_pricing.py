@@ -9,7 +9,7 @@ the stored reference price of a fixed-price article is never overwritten.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any, cast
@@ -316,7 +316,7 @@ async def test_a_promotion_never_stacks_on_the_group_price(
         cast(Any, db_session),
         admin,
     )
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     db_session.add_all(
         [
             _promotion(

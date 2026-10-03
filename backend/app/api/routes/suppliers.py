@@ -14,7 +14,7 @@ import json
 import logging
 import uuid
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Annotated, Any
 
@@ -358,7 +358,7 @@ async def trigger_product_sync(
         supplier_name=adapter.name,
         status="queued",
         message=f"Product sync queued for categories: {categories}",
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
     )
 
 
@@ -394,7 +394,7 @@ async def trigger_inventory_sync(
         supplier_name=adapter.name,
         status="queued",
         message=f"Inventory refresh queued for {count} products",
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
     )
 
 

@@ -1,7 +1,7 @@
 # mypy: disable-error-code="arg-type,assignment"
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from sqlmodel import col, select
@@ -68,7 +68,7 @@ class CartCrud(CrudBase[Cart, CartCreate, CartUpdate]):
         cart = await self.get_active_guest_cart(session, guest_token=guest_token)
         if cart is not None:
             return cart
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         cart = self.model(
             user_id=None,
             guest_token=guest_token,
@@ -95,7 +95,7 @@ class CartCrud(CrudBase[Cart, CartCreate, CartUpdate]):
         if cart is not None:
             return cart
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         cart = self.model(
             user_id=user_id,
             currency=currency or settings.REFERENCE_CURRENCY,
@@ -140,7 +140,7 @@ class CartCrud(CrudBase[Cart, CartCreate, CartUpdate]):
         cart.total_amount = quantize_amount(total, cart.currency)
         # Every route that changes the lines ends here: the stamp the
         # abandoned-cart sweep reads (« last touched »).
-        cart.last_activity_at = datetime.now(timezone.utc)
+        cart.last_activity_at = datetime.now(UTC)
         cart.modify_at = cart.last_activity_at
         session.add(cart)
         await session.commit()

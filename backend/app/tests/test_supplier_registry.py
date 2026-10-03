@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -48,7 +48,7 @@ def _row(
         "column_mapping": None,
         "settings": {"environment": "production", "country_code": "US"},
         "is_active": True,
-        "updated_at": datetime(2026, 1, 1, tzinfo=timezone.utc),
+        "updated_at": datetime(2026, 1, 1, tzinfo=UTC),
     }
     fields.update(overrides)
     return SimpleNamespace(**fields)
@@ -111,7 +111,7 @@ def test_adapter_instances_are_cached_until_the_row_changes() -> None:
     again = adapter_for_supplier(row)  # type: ignore[arg-type]
     assert first is again
 
-    row.updated_at = datetime(2026, 2, 1, tzinfo=timezone.utc)
+    row.updated_at = datetime(2026, 2, 1, tzinfo=UTC)
     rebuilt = adapter_for_supplier(row)  # type: ignore[arg-type]
     assert rebuilt is not first
 
