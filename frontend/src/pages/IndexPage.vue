@@ -513,16 +513,13 @@ a.banner:hover {
   padding: 0;
   list-style: none;
   display: grid;
-  // auto-fit : les tuiles s'étirent sur la ligne, sans orpheline quand il y
-  // en a 5 ou 7.
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  // auto-fill : autant de colonnes de 180 à 280 px que la ligne en contient,
+  // l'espace restant à droite. Avec deux ou trois catégories sur un grand
+  // écran, les tuiles restent côte à côte au lieu d'être réparties aux deux
+  // bouts de la ligne (03/10/2026) ; une tuile seule garde une taille lisible.
+  grid-template-columns: repeat(auto-fill, minmax(180px, 280px));
+  justify-content: start;
   gap: 20px;
-
-  // Peu de catégories : sans plafond, une tuile seule prenait toute la
-  // largeur (image 4/3 géante). Au-delà de 4 tuiles par ligne, sans effet.
-  > li {
-    max-width: 280px;
-  }
 
   // Mobile : une rangée qui défile, plutôt qu'une grille à tuile orpheline.
   @media (max-width: 599px) {
@@ -537,7 +534,6 @@ a.banner:hover {
     scrollbar-width: none;
 
     > li {
-      max-width: none;
       scroll-snap-align: start;
     }
   }
