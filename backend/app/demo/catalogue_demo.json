@@ -1,0 +1,375 @@
+{
+  "format": "natimai-demo/1",
+  "marker": "DEMO-",
+  "categories": [
+    {
+      "name": "Ordinateurs portables",
+      "description": "Portables neufs et reconditionnés, du bureautique à la station mobile.",
+      "customs_rate_pct": "7.00",
+      "image_url": "https://placehold.co/800x600/e8eef5/1a3c5e/png?text=Portables"
+    },
+    {
+      "name": "Écrans",
+      "description": "Moniteurs bureautique, création et gaming.",
+      "customs_rate_pct": "7.00",
+      "image_url": "https://placehold.co/800x600/e8eef5/1a3c5e/png?text=Ecrans"
+    },
+    {
+      "name": "Périphériques",
+      "description": "Claviers, souris, casques, webcams.",
+      "customs_rate_pct": "5.00",
+      "image_url": "https://placehold.co/800x600/e8eef5/1a3c5e/png?text=Peripheriques"
+    },
+    {
+      "name": "Réseau et stockage",
+      "description": "Routeurs, switchs, disques et NAS.",
+      "customs_rate_pct": "5.00",
+      "image_url": "https://placehold.co/800x600/e8eef5/1a3c5e/png?text=Reseau"
+    }
+  ],
+  "products": [
+    {
+      "sku": "DEMO-NB-001",
+      "name": "Portable 14\" Pro i5 16 Go",
+      "category": "Ordinateurs portables",
+      "base_price": "189000",
+      "cost_amount": "120000",
+      "weight": 1.6,
+      "manufacturer": "Lenovo",
+      "ean": "0196801234567",
+      "description": "Portable professionnel 14 pouces, Core i5, 16 Go, SSD 512 Go.",
+      "long_description": "<p>Un portable fin et robuste pour le bureau et les déplacements : écran 14\" IPS, clavier rétroéclairé, autonomie d'une journée.</p>",
+      "features": [
+        "Intel Core i5 13e gén.",
+        "16 Go DDR5",
+        "SSD 512 Go NVMe",
+        "Écran 14\" IPS 1920×1200",
+        "Windows 11 Pro"
+      ],
+      "quantity": 8,
+      "image_url": "https://placehold.co/1200x1200/e8eef5/1a3c5e/png?text=Portable+14\"+Pro+i5+16+Go",
+      "is_featured": true
+    },
+    {
+      "sku": "DEMO-NB-002",
+      "name": "Portable 15\" Essentiel Ryzen 5",
+      "category": "Ordinateurs portables",
+      "base_price": "129000",
+      "cost_amount": "82000",
+      "weight": 1.8,
+      "manufacturer": "HP",
+      "ean": "0196801234574",
+      "description": "Portable 15,6 pouces pour la bureautique et la famille.",
+      "long_description": "<p>Ryzen 5, 8 Go, SSD 256 Go : l'essentiel pour travailler et naviguer.</p>",
+      "features": [
+        "AMD Ryzen 5",
+        "8 Go",
+        "SSD 256 Go",
+        "Écran 15,6\" FHD"
+      ],
+      "quantity": 8,
+      "image_url": "https://placehold.co/1200x1200/e8eef5/1a3c5e/png?text=Portable+15\"+Essentiel+Ryzen+5"
+    },
+    {
+      "sku": "DEMO-NB-003",
+      "name": "Portable 13\" Ultra reconditionné",
+      "category": "Ordinateurs portables",
+      "base_price": "99000",
+      "cost_amount": "60000",
+      "weight": 1.2,
+      "manufacturer": "Dell",
+      "ean": "0196801234581",
+      "description": "Ultraportable reconditionné grade A, batterie 92 %, garantie 12 mois.",
+      "long_description": "<p>Reconditionné en atelier : testé, nettoyé, batterie contrôlée. Garantie 12 mois.</p>",
+      "features": [
+        "Intel Core i7 11e gén.",
+        "16 Go",
+        "SSD 512 Go",
+        "Grade A"
+      ],
+      "quantity": 3,
+      "image_url": "https://placehold.co/1200x1200/e8eef5/1a3c5e/png?text=Portable+13\"+Ultra+reconditionné",
+      "condition": "refurbished",
+      "condition_grade": "A",
+      "battery_health_pct": 92,
+      "warranty_months": 12,
+      "is_featured": true
+    },
+    {
+      "sku": "DEMO-MON-001",
+      "name": "Écran 27\" QHD IPS",
+      "category": "Écrans",
+      "base_price": "54900",
+      "cost_amount": "36000",
+      "weight": 6.5,
+      "manufacturer": "Dell",
+      "ean": "0196801234598",
+      "description": "Moniteur 27 pouces QHD 2560×1440, dalle IPS, 75 Hz.",
+      "long_description": "<p>Un écran confortable pour la bureautique et la retouche : couleurs justes, pied réglable en hauteur.</p>",
+      "features": [
+        "27\" IPS",
+        "2560×1440",
+        "75 Hz",
+        "HDMI, DisplayPort, USB-C"
+      ],
+      "quantity": 8,
+      "image_url": "https://placehold.co/1200x1200/e8eef5/1a3c5e/png?text=Écran+27\"+QHD+IPS",
+      "is_featured": true
+    },
+    {
+      "sku": "DEMO-MON-002",
+      "name": "Écran 24\" FHD bureautique",
+      "category": "Écrans",
+      "base_price": "29900",
+      "cost_amount": "19000",
+      "weight": 4.2,
+      "manufacturer": "Philips",
+      "ean": "0196801234604",
+      "description": "Moniteur 24 pouces Full HD, pied inclinable.",
+      "long_description": "<p>Le format bureau classique, sans fatigue visuelle (Flicker-free, LowBlue).</p>",
+      "features": [
+        "24\" IPS",
+        "1920×1080",
+        "HDMI, VGA"
+      ],
+      "quantity": 8,
+      "image_url": "https://placehold.co/1200x1200/e8eef5/1a3c5e/png?text=Écran+24\"+FHD+bureautique"
+    },
+    {
+      "sku": "DEMO-MON-003",
+      "name": "Écran 34\" incurvé UWQHD",
+      "category": "Écrans",
+      "base_price": "109000",
+      "cost_amount": "74000",
+      "weight": 9.8,
+      "manufacturer": "LG",
+      "ean": "0196801234611",
+      "description": "Moniteur ultra-large 34 pouces 3440×1440 pour le multitâche.",
+      "long_description": "<p>Deux fenêtres côte à côte sans second écran ; USB-C 65 W pour alimenter le portable.</p>",
+      "features": [
+        "34\" incurvé",
+        "3440×1440",
+        "USB-C 65 W"
+      ],
+      "quantity": 0,
+      "image_url": "https://placehold.co/1200x1200/e8eef5/1a3c5e/png?text=Écran+34\"+incurvé+UWQHD",
+      "availability_mode": "on_demand"
+    },
+    {
+      "sku": "DEMO-PER-001",
+      "name": "Clavier mécanique sans fil",
+      "category": "Périphériques",
+      "base_price": "14900",
+      "cost_amount": "8500",
+      "weight": 0.9,
+      "manufacturer": "Logitech",
+      "ean": "0196801234628",
+      "description": "Clavier mécanique compact, Bluetooth et récepteur, rétroéclairé.",
+      "long_description": "<p>Frappe précise, trois appareils appairés, autonomie de plusieurs mois.</p>",
+      "features": [
+        "Switches tactiles",
+        "Bluetooth + récepteur USB",
+        "Rétroéclairage"
+      ],
+      "quantity": 15,
+      "image_url": "https://placehold.co/1200x1200/e8eef5/1a3c5e/png?text=Clavier+mécanique+sans+fil"
+    },
+    {
+      "sku": "DEMO-PER-002",
+      "name": "Souris ergonomique verticale",
+      "category": "Périphériques",
+      "base_price": "7900",
+      "cost_amount": "4200",
+      "weight": 0.3,
+      "manufacturer": "Logitech",
+      "ean": "0196801234635",
+      "description": "Souris verticale sans fil, poignet en position naturelle.",
+      "long_description": "<p>Réduit la torsion du poignet ; capteur 4000 dpi, 4 mois d'autonomie.</p>",
+      "features": [
+        "Sans fil",
+        "4000 dpi",
+        "Ergonomie verticale"
+      ],
+      "quantity": 20,
+      "image_url": "https://placehold.co/1200x1200/e8eef5/1a3c5e/png?text=Souris+ergonomique+verticale"
+    },
+    {
+      "sku": "DEMO-PER-003",
+      "name": "Casque micro USB antibruit",
+      "category": "Périphériques",
+      "base_price": "11900",
+      "cost_amount": "6800",
+      "weight": 0.4,
+      "manufacturer": "Jabra",
+      "ean": "0196801234642",
+      "description": "Casque filaire USB avec micro antibruit, certifié visio.",
+      "long_description": "<p>Pour les réunions à distance : micro directionnel, commandes sur le fil.</p>",
+      "features": [
+        "USB-A / USB-C",
+        "Micro antibruit",
+        "Certifié Teams"
+      ],
+      "quantity": 12,
+      "image_url": "https://placehold.co/1200x1200/e8eef5/1a3c5e/png?text=Casque+micro+USB+antibruit"
+    },
+    {
+      "sku": "DEMO-PER-004",
+      "name": "Webcam 1080p",
+      "category": "Périphériques",
+      "base_price": "8900",
+      "cost_amount": "5000",
+      "weight": 0.2,
+      "manufacturer": "Logitech",
+      "ean": "0196801234659",
+      "description": "Webcam Full HD 30 ips, correction de lumière, micro stéréo.",
+      "long_description": "<p>Image nette même à contre-jour ; clip universel, protège-objectif.</p>",
+      "features": [
+        "1080p 30 ips",
+        "Autofocus",
+        "Micro stéréo"
+      ],
+      "quantity": 10,
+      "image_url": "https://placehold.co/1200x1200/e8eef5/1a3c5e/png?text=Webcam+1080p"
+    },
+    {
+      "sku": "DEMO-NET-001",
+      "name": "Routeur Wi-Fi 6 mesh (pack de 2)",
+      "category": "Réseau et stockage",
+      "base_price": "32900",
+      "cost_amount": "20500",
+      "weight": 1.4,
+      "manufacturer": "TP-Link",
+      "ean": "0196801234666",
+      "description": "Couvrez toute la maison en Wi-Fi 6 avec deux bornes mesh.",
+      "long_description": "<p>Installation en cinq minutes depuis l'application ; itinérance transparente.</p>",
+      "features": [
+        "Wi-Fi 6 AX3000",
+        "2 bornes",
+        "Jusqu'à 200 m²"
+      ],
+      "quantity": 6,
+      "image_url": "https://placehold.co/1200x1200/e8eef5/1a3c5e/png?text=Routeur+Wi-Fi+6+mesh+(pack+de+2)"
+    },
+    {
+      "sku": "DEMO-NET-002",
+      "name": "SSD externe 1 To USB-C",
+      "category": "Réseau et stockage",
+      "base_price": "15900",
+      "cost_amount": "9800",
+      "weight": 0.1,
+      "manufacturer": "Samsung",
+      "ean": "0196801234673",
+      "description": "SSD portable 1 To, 1050 Mo/s, câbles USB-C et USB-A.",
+      "long_description": "<p>Sauvegardes et transferts rapides ; boîtier compact résistant aux chocs.</p>",
+      "features": [
+        "1 To",
+        "1050 Mo/s",
+        "USB 3.2 Gen 2"
+      ],
+      "quantity": 25,
+      "image_url": "https://placehold.co/1200x1200/e8eef5/1a3c5e/png?text=SSD+externe+1+To+USB-C"
+    },
+    {
+      "sku": "DEMO-NB-010",
+      "name": "Portable 16\" Créateur",
+      "category": "Ordinateurs portables",
+      "base_price": "249000",
+      "cost_amount": "165000",
+      "weight": 2.1,
+      "manufacturer": "ASUS",
+      "ean": "0196801234680",
+      "description": "Portable 16 pouces pour la création : écran OLED, carte graphique dédiée.",
+      "long_description": "<p>Écran OLED 16\" 2,5K, GPU dédié, deux déclinaisons de stockage.</p>",
+      "features": [
+        "Intel Core i7",
+        "32 Go",
+        "OLED 16\" 2,5K",
+        "GPU dédié"
+      ],
+      "quantity": 0,
+      "image_url": "https://placehold.co/1200x1200/e8eef5/1a3c5e/png?text=Portable+16\"+Créateur",
+      "has_variants": true
+    },
+    {
+      "sku": "DEMO-NB-011",
+      "name": "Portable 16\" Créateur — 1 To",
+      "category": "Ordinateurs portables",
+      "base_price": "249000",
+      "cost_amount": "165000",
+      "weight": 2.1,
+      "manufacturer": "ASUS",
+      "ean": "0196801234697",
+      "description": "Déclinaison 1 To.",
+      "long_description": "",
+      "features": [],
+      "quantity": 4,
+      "image_url": "https://placehold.co/1200x1200/e8eef5/1a3c5e/png?text=Portable+16\"+Créateur+—+1+To",
+      "parent_sku": "DEMO-NB-010",
+      "variant_options": {
+        "Stockage": "1 To"
+      },
+      "price_extra": "0"
+    },
+    {
+      "sku": "DEMO-NB-012",
+      "name": "Portable 16\" Créateur — 2 To",
+      "category": "Ordinateurs portables",
+      "base_price": "249000",
+      "cost_amount": "165000",
+      "weight": 2.1,
+      "manufacturer": "ASUS",
+      "ean": "0196801234703",
+      "description": "Déclinaison 2 To.",
+      "long_description": "",
+      "features": [],
+      "quantity": 2,
+      "image_url": "https://placehold.co/1200x1200/e8eef5/1a3c5e/png?text=Portable+16\"+Créateur+—+2+To",
+      "parent_sku": "DEMO-NB-010",
+      "variant_options": {
+        "Stockage": "2 To"
+      },
+      "price_extra": "25000"
+    }
+  ],
+  "homepage": [
+    {
+      "kind": "hero",
+      "title": "Le bon matériel, au prix affiché",
+      "subtitle": "Prix, disponibilité et délai sur chaque fiche. Commandez en ligne ou demandez un devis.",
+      "cta_label": "Voir le catalogue",
+      "cta_link": "/catalogue",
+      "image_url": "https://placehold.co/1600x1200/e8eef5/1a3c5e/png?text=Hero+demo",
+      "alt": "Bureau équipé d'un portable et d'un écran",
+      "position": 0,
+      "is_published": true
+    },
+    {
+      "kind": "banner",
+      "title": "Reconditionné garanti 12 mois",
+      "subtitle": "Testé en atelier, batterie contrôlée.",
+      "cta_label": "Découvrir",
+      "cta_link": "/catalogue?condition=refurbished",
+      "image_url": "https://placehold.co/1600x900/f3e9d8/7a4a1a/png?text=Reconditionne",
+      "position": 1,
+      "is_published": true
+    },
+    {
+      "kind": "banner",
+      "title": "Écrans 27\" et plus",
+      "subtitle": "Travaillez à l'aise.",
+      "cta_label": "Voir les écrans",
+      "cta_link": "/catalogue",
+      "image_url": "https://placehold.co/1600x900/e3f0e8/1a5e3c/png?text=Ecrans",
+      "position": 2,
+      "is_published": true
+    }
+  ],
+  "pages": [
+    {
+      "slug": "comment-ca-marche",
+      "title": "Comment ça marche ?",
+      "body_html": "<h2>1. Vous choisissez</h2><p>Chaque fiche affiche le prix tout compris, la disponibilité et le délai.</p><h2>2. Vous commandez ou demandez un devis</h2><p>Paiement par carte, virement ou en boutique ; devis en un clic depuis le panier.</p><h2>3. Nous livrons</h2><p>Retrait en boutique ou livraison, suivi par e-mail à chaque étape.</p>",
+      "is_published": true
+    }
+  ]
+}

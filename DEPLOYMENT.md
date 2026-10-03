@@ -927,6 +927,18 @@ curl -I https://admin.example.com
 
 After the first deploy (migrations + `initial_data` + workers up), verify:
 
+**Demo catalogue (optional)** — a staging or demo environment can be filled
+on purpose with `backend/app/demo/catalogue_demo.json` (4 categories,
+15 products including a refurbished one, an on-demand one and a parent with two
+variants, a hero, two banners, the « Comment ça marche ? » page):
+```bash
+docker compose exec -T api python -m app.scripts.seed_demo          # load / update
+docker compose exec -T api python -m app.scripts.seed_demo --purge  # remove it all
+```
+Never automatic: nothing loads it at start-up, and it is refused in
+`ENVIRONMENT=production` unless `--allow-production` is passed. Every demo row
+carries the `DEMO-` marker, so the purge touches nothing else.
+
 **SEO (R8 / U6)** — served by the storefront's SSR server:
 ```bash
 curl -s https://example.com/robots.txt      # Disallow on private paths + Sitemap line
