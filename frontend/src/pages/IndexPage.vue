@@ -190,6 +190,8 @@ const home = useHomeStore();
 const cartStore = useCartStore();
 const uiStore = useUiStore();
 const cartError = ref<string | null>(null);
+// Déclaré avant `useMeta` : Quasar évalue le callback dès l'appel.
+const heroImage = computed(() => home.hero?.image ?? null);
 
 useMeta(() => {
   const shopName = shopModules.config.shop_name || 'Natimai';
@@ -240,7 +242,6 @@ useMeta(() => {
 // Tant que rien n'est arrivé, des squelettes gardent la place des produits.
 const FALLBACK_LEAD = computed(() => t('home.lead'));
 
-const heroImage = computed(() => home.hero?.image ?? null);
 const heroLead = computed(() => (home.hero ? home.hero.subtitle : FALLBACK_LEAD.value));
 
 /** Lien d'un bloc : chemin du site (routeur) ou adresse https (nouvel onglet). */

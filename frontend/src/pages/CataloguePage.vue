@@ -365,34 +365,6 @@ const shopModules = useShopModulesStore();
 const route = useRoute();
 const router = useRouter();
 
-useMeta(() => {
-  const title = t('catalogue.meta_title', { shop: shopModules.config.shop_name || 'Natimai' });
-  const description = t('catalogue.meta_description');
-  const meta: Record<string, { name?: string; property?: string; content: string }> = {
-    description: { name: 'description', content: description },
-    ogTitle: { property: 'og:title', content: title },
-    ogDescription: { property: 'og:description', content: description },
-    ogType: { property: 'og:type', content: 'website' },
-  };
-  const link: Record<string, { rel: string; href: string }> = {};
-  const script: Record<string, Record<string, string>> = {};
-  // Filters and pages are facets of one catalogue: a single canonical URL.
-  const canonical = absoluteUrl('/catalogue');
-  if (canonical) {
-    meta['ogUrl'] = { property: 'og:url', content: canonical };
-    link['canonical'] = { rel: 'canonical', href: canonical };
-  }
-  const crumbs = [
-    { name: t('layout.home'), path: '/' },
-    { name: t('layout.catalogue'), path: '/catalogue' },
-  ];
-  const category = categoryOptions.value.find((c) => c.value === selectedCategory.value);
-  if (category) crumbs.push({ name: category.label, path: `/catalogue?cat=${category.value}` });
-  const breadcrumb = breadcrumbList(crumbs);
-  if (breadcrumb) script['ldBreadcrumb'] = jsonLd(breadcrumb);
-  return { title, meta, link, script };
-});
-
 const searchQuery = ref<string>('');
 const selectedManufacturer = ref<string | null>(null);
 const selectedCategory = ref<string | null>(null);
@@ -442,6 +414,36 @@ const showAllManufacturers = ref(false);
 const categoryOptions = computed(() =>
   store.categories.map((c) => ({ label: c.title ?? c.name, value: c.id })),
 );
+
+// Après les refs et `categoryOptions` : Quasar évalue ce callback dès l'appel,
+// une déclaration `const` plus bas serait lue avant son initialisation.
+useMeta(() => {
+  const title = t('catalogue.meta_title', { shop: shopModules.config.shop_name || 'Natimai' });
+  const description = t('catalogue.meta_description');
+  const meta: Record<string, { name?: string; property?: string; content: string }> = {
+    description: { name: 'description', content: description },
+    ogTitle: { property: 'og:title', content: title },
+    ogDescription: { property: 'og:description', content: description },
+    ogType: { property: 'og:type', content: 'website' },
+  };
+  const link: Record<string, { rel: string; href: string }> = {};
+  const script: Record<string, Record<string, string>> = {};
+  // Filters and pages are facets of one catalogue: a single canonical URL.
+  const canonical = absoluteUrl('/catalogue');
+  if (canonical) {
+    meta['ogUrl'] = { property: 'og:url', content: canonical };
+    link['canonical'] = { rel: 'canonical', href: canonical };
+  }
+  const crumbs = [
+    { name: t('layout.home'), path: '/' },
+    { name: t('layout.catalogue'), path: '/catalogue' },
+  ];
+  const category = categoryOptions.value.find((c) => c.value === selectedCategory.value);
+  if (category) crumbs.push({ name: category.label, path: `/catalogue?cat=${category.value}` });
+  const breadcrumb = breadcrumbList(crumbs);
+  if (breadcrumb) script['ldBreadcrumb'] = jsonLd(breadcrumb);
+  return { title, meta, link, script };
+});
 
 const pageTitle = computed(() => {
   if (store.filters.q) return t('catalogue.results_for', { q: store.filters.q });
