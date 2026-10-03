@@ -297,6 +297,30 @@ Hors périmètre, documenté comme feuille de route : contenu multilingue en bas
 - ✅ **U10 — Tests** (02/10/2026) : e2e vitrine `auth.spec.ts` — inscription avec le code OTP (lu dans Redis via `docker compose exec`, `support/stack.ts`), connexion refusée puis acceptée, mot de passe oublié et lien de réinitialisation (lu dans le journal de l'API, environnement `local`), sur un compte neuf à chaque exécution, test ignoré sans Docker ; `data-testid` posés sur le parcours d'inscription ; premiers tests unitaires de l'admin-frontend (`payments`, `modules`, `theme` — 22 fichiers / 106 tests vitest au total) ; `app/tasks/*` retiré de l'exclusion de couverture et mesuré : 83 % au total sur la suite complète (seuil 68 inchangé), par module `enqueue` 100 %, `inventory_tasks` 95 %, `supplier_file_import_tasks` 85 %, `pricing_tasks` 81 %, `stock_alert_tasks` 73 %, `cart_tasks` 69 %, `supplier_tasks` 68 %, `departure_tasks` 60 %, `icecat_tasks` 51 % (seuls `icecat_service.py` et `ingram_micro.py` restent exclus). Reste hors périmètre : CB sandbox PayZen (identifiants de test à obtenir), tests de composants Vue de l'admin.
 - ✅ **U11 — Déploiement reproductible et A19** (02/10/2026) : la chaîne GHCR était déjà en place (`deploy.yml` construit les trois images du commit choisi avec le `VITE_API_URL` de l'environnement GitHub, tag `<env>-<sha>`, `deploy.sh` les consomme via `docker-compose.images.yml` en `--no-build`, environnements `staging` / `production` avec approbation) ; ajout de la trace de mise en service : tag horodaté `deployed-<env>-<horodatage>` et tag mobile `deployed-<env>` posés par le workflow après le contrôle de santé, **rollback par tag** = relancer *Deploy* avec le tag précédent (DEPLOYMENT.md §8.1). **A19** : `GET /admin/payments` (liste générale, plus récent d'abord, filtres `q` n° de commande / référence / client, `status`, `provider_code`, `date_from` / `date_to`, pagination `skip` / `limit`, valeurs de filtre renvoyées), écran admin « Paiements » (menu Ventes) avec recherche, filtres, statut, moyen de paiement, client, lien vers la commande, montant déjà reçu ; test `test_admin_payments_list.py`.
 - ✅ **Confort — dette et DX** (02/10/2026) : garde de longueur sur `SECRET_KEY` (32 caractères au moins, fatal hors `local`, avertissement en local) ; comparaison en temps constant du bearer du webhook Ingram (`hmac.compare_digest`) ; docstrings OAuth remises d'accord avec le cookie HttpOnly (plus aucun jeton dans l'URL) ; bornes Python `>=3.11,<3.15` (ruff `py311`, `datetime.UTC` déjà utilisé) ; `httpx2` en dépendance de dev (le `TestClient` de Starlette l'adopte, fin de l'avertissement de dépréciation) ; `Makefile` (setup, dev, migrate, seed, lint, format, typecheck, test, coverage, gen-types, check-types, e2e, audit), `.pre-commit-config.yaml` (ruff, prettier, eslint, gitleaks, outils du dépôt), `.editorconfig`, README de la vitrine réécrit. **Restent dans « confort », à arbitrer** : avis clients avec modération et notifications internes, newsletter double opt-in, analytics sans cookie (Plausible ou Matomo ?), vouchers / cartes cadeaux / cross-sell / comparateur / fidélité, auto-capture à l'expédition et void d'autorisation, seed « démo », sort d'`infra/k8s` (réhabiliter ou supprimer : décision à prendre).
+
+**Décisions du propriétaire (03/10/2026) sur les restes de R8 et R6**
+
+| Sujet | Décision |
+|---|---|
+| PR R8 (#131) | ✅ fusionnée le 02/10/2026 ; `SECRET_KEY` ≥ 32 caractères vérifiée en staging et production |
+| Variables GitHub `VITE_PUBLIC_SITE_URL`, `VITE_SENTRY_DSN`, `CODEQL_ENABLED` | 🔲 à faire plus tard |
+| Captcha Turnstile (clés dans Paramètres → Sécurité) | 🔲 à faire plus tard ; sans clés, les limites de fréquence suffisent |
+| CSP en mode observation (`CSP_HEADER=Content-Security-Policy-Report-Only`) sur staging avant de l'imposer | 🔲 à faire plus tard |
+| Sandbox PayZen (paiement, capture différée, remboursement, IPN) | 🔲 à faire plus tard — identifiants de test à fournir |
+| Relecture juridique (CGV, mentions, confidentialité, rétractation) | 🔲 à faire plus tard |
+| Données catalogue (taux de douane par catégorie, frais par déclaration, assurance, rapport de publication) | 🔲 à faire plus tard |
+| Achat Ingram (L3) | ✅ **facturation hors TVA française** confirmée |
+| Newsletter double opt-in | 🔲 à faire plus tard (outil externe ou intégré : à choisir alors) |
+| Analytics sans cookie (Plausible / Matomo) | 🔲 à faire plus tard |
+| Vouchers, cartes cadeaux, cross-sell, comparateur, fidélité | ▶ **à faire maintenant** (voir le lot « Confort — commerce » ci-dessous) |
+| Auto-capture à l'expédition, void d'autorisation | ▶ **à faire maintenant** |
+| Seed « démo » | ▶ **à faire maintenant**, par un import **explicite** (jamais automatique) |
+| `infra/k8s` | ✅ **supprimé** (cible unique : docker compose) |
+| Stripe (P6) | 🔲 reporté, à faire plus tard |
+| Énumérations → `StrEnum` (ruff cible 3.11) | ▶ **à faire** |
+| Panier invité : fusion « plus grande quantité » | à confirmer après explication (voir ci-dessous) |
+| RGPD : suppression bloquée tant qu'une commande est en cours | ✅ confirmé |
+
 ### R9 — Retours de recette du 02/10/2026 (priorité 9) — ✅ livré le 02/10/2026 (T1 à T8)
 
 Recette du premier déploiement. **Corrigé le 02/10/2026** (petits changements) :

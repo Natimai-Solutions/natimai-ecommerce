@@ -71,7 +71,7 @@ PostgreSQL GIN index on `to_tsvector` enables fast full-text product search acro
 │   ├── api-types/         # Types auto-generated from OpenAPI schema
 │   ├── api-client/        # Shared axios client with token refresh
 │   └── utils/             # Shared utilities (currency formatting, pricing…)
-├── infra/                 # Caddy / Kubernetes manifests
+├── infra/                 # Caddy (reverse proxy)
 ├── docker-compose*.yml    # See "Docker Compose files" below
 ├── DEVELOPMENT.md         # Local development guide
 └── DEPLOYMENT.md          # Deployment & environment variables reference

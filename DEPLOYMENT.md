@@ -806,10 +806,9 @@ By default the docker‑compose deployment only exposes "raw" ports
 point on `80`/`443`, **automatic Let's Encrypt TLS termination** and per‑subdomain
 routing.
 
-> ⚠️ The Kubernetes manifests (`infra/k8s/`, [`infra/DEPLOY.md`](infra/DEPLOY.md))
-> are **unmaintained and currently broken** (their secrets do not match
-> `config.py` and `FIRST_SUPERUSER` is missing, which crash‑loops the pods) —
-> docker‑compose (section 8) is the only supported deployment path.
+> The former Kubernetes manifests (`infra/k8s/`) were removed on 03/10/2026:
+> docker‑compose (section 8) is the only deployment path. `infra/` now holds
+> the Caddy configuration alone.
 
 ### Routing
 
