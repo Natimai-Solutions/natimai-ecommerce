@@ -185,3 +185,15 @@ export async function getRelatedToProducts(
   });
   return data;
 }
+
+export type CompareRow = components['schemas']['CompareRow'];
+export type ProductCompareResponse = components['schemas']['ProductCompareResponse'];
+
+/** Side-by-side specs of the shortlist (R8 / confort); stale ids are ignored. */
+export async function compareProducts(ids: string[]): Promise<ProductCompareResponse> {
+  const { data } = await api.get<ProductCompareResponse>('/product/compare', {
+    params: { ids },
+    paramsSerializer: { indexes: null },
+  });
+  return data;
+}

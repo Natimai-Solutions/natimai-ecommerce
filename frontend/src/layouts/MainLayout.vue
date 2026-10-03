@@ -210,6 +210,7 @@
     </q-drawer>
 
     <CartDrawer />
+    <CompareBar />
 
     <q-page-container>
       <NextDepartureBanner />
@@ -236,6 +237,7 @@
 import { computed, onBeforeUnmount, onMounted, onServerPrefetch, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import CartDrawer from '@/components/CartDrawer.vue';
+import CompareBar from '@/components/CompareBar.vue';
 import { useCartStore } from '@/stores/cart';
 import { useAuthStore } from '@/stores/auth';
 import { useCurrencyStore } from '@/stores/currency';

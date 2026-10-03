@@ -21,6 +21,11 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/pages/ProductPage.vue'),
       },
       {
+        path: 'comparer',
+        name: 'compare',
+        component: () => import('@/pages/ComparePage.vue'),
+      },
+      {
         path: 'panier',
         name: 'cart',
         component: () => import('@/pages/CartPage.vue'),

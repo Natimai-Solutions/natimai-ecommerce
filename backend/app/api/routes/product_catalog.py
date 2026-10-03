@@ -1,6 +1,7 @@
 import datetime
 import uuid
 from decimal import Decimal
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Response
 from sqlmodel import Field, SQLModel, col, func, select
@@ -34,6 +35,11 @@ from app.features.product.models.product_spec import (
     ProductSpec,
     SpecFacet,
     SpecFacetValue,
+)
+from app.features.product.services.compare import (
+    MAX_COMPARE,
+    ProductCompareResponse,
+    compare_rows,
 )
 from app.features.product.services.group_pricing import (
     GroupPricing,
@@ -351,6 +357,39 @@ async def get_product_offers(
         identity_key=product_identity_key(product),
         offers=offers,
         cheapest_product_id=cheapest.product_id if cheapest is not None else None,
+    )
+
+
+@router.get("/compare", response_model=ProductCompareResponse)
+async def compare_products(
+    session: SessionDep,
+    ids: Annotated[list[uuid.UUID], Query(min_length=1, max_length=MAX_COMPARE)],
+    current_user: object = Depends(get_current_user_optional),
+) -> ProductCompareResponse:
+    """Side-by-side comparison of up to four products (R8 / confort).
+
+    Products that no longer exist or are unpublished are left out rather than
+    failing the page: the shortlist lives in the visitor's browser and may be
+    stale.
+    """
+    products: list[Product] = []
+    seen: set[uuid.UUID] = set()
+    for product_id in ids:
+        if product_id in seen:
+            continue
+        seen.add(product_id)
+        try:
+            products.append(
+                await _load_published_product(session, product_id, current_user)
+            )
+        except AppError as exc:
+            if exc.status_code != 404:
+                raise
+    return ProductCompareResponse(
+        products=await publish_with_availability(
+            session, products, customer=current_user
+        ),
+        rows=await compare_rows(session, products),
     )
 
 

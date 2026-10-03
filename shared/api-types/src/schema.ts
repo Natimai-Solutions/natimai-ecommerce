@@ -3582,6 +3582,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/product/compare": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Compare Products
+         * @description Side-by-side comparison of up to four products (R8 / confort).
+         *
+         *     Products that no longer exist or are unpublished are left out rather than
+         *     failing the page: the shortlist lives in the visitor's browser and may be
+         *     stale.
+         */
+        get: operations["product-compare_products"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/product/{product_id}/key-specs": {
         parameters: {
             query?: never;
@@ -11046,6 +11070,21 @@ export interface components {
             payments_last_24h: number;
         };
         /**
+         * CompareRow
+         * @description One spec across the compared products (``values`` keyed by product id,
+         *     None when a product has no value for it).
+         */
+        CompareRow: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Values */
+            values?: {
+                [key: string]: string | null;
+            };
+        };
+        /**
          * CompleteSignupRequest
          * @description Finalise account creation.
          */
@@ -17465,6 +17504,16 @@ export interface components {
          * @enum {string}
          */
         PricingMode: "import" | "domestic" | "fixed";
+        /**
+         * ProductCompareResponse
+         * @description Response for GET /product/compare.
+         */
+        ProductCompareResponse: {
+            /** Products */
+            products: components["schemas"]["ProductPublic"][];
+            /** Rows */
+            rows: components["schemas"]["CompareRow"][];
+        };
         /**
          * ProductCondition
          * @description New goods or a refurbished item (graded, with its own warranty).
@@ -29474,6 +29523,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProductOffersResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "product-compare_products": {
+        parameters: {
+            query: {
+                ids: string[];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductCompareResponse"];
                 };
             };
             /** @description Validation Error */

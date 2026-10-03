@@ -129,6 +129,7 @@
           :key="product.id"
           :product="product"
           @add-to-cart="onAddToCart"
+          @compare-full="compareFull"
         />
       </div>
     </section>
@@ -148,6 +149,7 @@
           :key="product.id"
           :product="product"
           @add-to-cart="onAddToCart"
+          @compare-full="compareFull"
         />
       </div>
     </section>
@@ -177,6 +179,7 @@ import ProductCard from '@/components/ProductCard.vue';
 import { useCartStore } from '@/stores/cart';
 import { categoryTitle, useHomeStore } from '@/stores/home';
 import { useUiStore } from '@/stores/ui';
+import { COMPARE_MAX } from '@/stores/compare';
 
 const { t, locale } = useI18n({ useScope: 'global' });
 const shopModules = useShopModulesStore();
@@ -257,6 +260,10 @@ function linkProps(link: string): Record<string, string> {
 }
 
 const showSkeleton = computed(() => !home.loaded && !home.featured.length && !home.popular.length);
+
+function compareFull() {
+  cartError.value = t('compare.full', { max: COMPARE_MAX });
+}
 
 async function onAddToCart(product: ProductPublic) {
   cartError.value = null;
