@@ -266,7 +266,8 @@ const en: MessageSchema = {
     sync_safe: 'These fields are never overwritten by the sync.',
     target: 'Target category *',
     tile: 'Shop tile image',
-    tile_hint: 'Shown on the home page; media library or URL',
+    tile_hint:
+      'Shown on the home page; media library or URL. Recommended: 800 × 600 px (4:3), plain background, cropped to 4:3 in the tile.',
     title: 'Categories',
     title_hint: 'Empty = “{name}” (supplier name)',
     vat: 'Default VAT rate',
@@ -726,8 +727,10 @@ const en: MessageSchema = {
     from_date: 'from {date}',
     hero: 'Hero',
     image: 'Image',
+    hero_conflict:
+      '{n} heroes are published at the same time: only "{shown}" is shown (the first by position). Unpublish the others or schedule dates that do not overlap.',
     intro:
-      'The <strong>hero</strong> is the large banner at the top of the home page (the first published one is shown, otherwise a default text). The <strong>banners</strong> follow, in the given order. A scheduled block only appears between its start and end dates.',
+      'The <strong>hero</strong> is the large banner at the top of the home page: a single one is published at a time for a given period (otherwise a default text). The <strong>banners</strong> follow, in the given order. A scheduled block only appears between its start and end dates.',
     kind_banner: 'Banner',
     kind_hero: 'Hero (large top banner)',
     link: 'Link',
@@ -992,6 +995,20 @@ const en: MessageSchema = {
     vat: 'VAT {pct}',
   },
   media: {
+    recommended: 'Recommended format:',
+    format_hero:
+      'Hero: 1600 × 1200 px (4:3), JPEG or WebP, 8 MB max. Cropped to 4:3: keep the subject centred and the text out of the picture.',
+    format_banner:
+      'Banner: 1600 × 900 px (16:9), JPEG or WebP, 8 MB max. Cropped to 16:9, title and text are laid over it.',
+    format_category:
+      'Category: 800 × 600 px (4:3), JPEG or WebP, plain background. Cropped to 4:3 in the tile.',
+    format_product:
+      'Product: 1200 × 1200 px (square), PNG or WebP, white background. Shown whole, never cropped.',
+    format_page: 'Page: 1600 px wide at most, JPEG or WebP. Shown at the text width.',
+    format_logo: 'Logo: SVG or transparent PNG, about 400 × 100 px (shown 40 px high).',
+    format_icon:
+      'Site icon: square PNG 512 × 512 px, solid background, simple motif (favicon and mobile home screen).',
+    format_other: 'JPEG, PNG or WebP, 8 MB max; 1600 px wide is enough.',
     all: 'All',
     alt: 'Alternative text (what the image shows)',
     close: 'Close',
@@ -1397,7 +1414,8 @@ const en: MessageSchema = {
     height: 'Height (cm)',
     identification: 'Identification',
     image: 'Image',
-    image_hint: 'Pick an image from the media library or paste a URL',
+    image_hint:
+      'Media library or URL. Recommended: 1200 × 1200 px (square), PNG or WebP, white background; shown whole, never cropped.',
     length: 'Length (cm)',
     link_accessory: 'Accessory',
     link_add: 'Add a related item',

@@ -34,6 +34,7 @@ EN: dict[str, str] = {
     "carrier.code.invalid": "The carrier code is required.",
     "cart.cgv.not_accepted": "The terms and conditions of sale must be accepted.",
     "checkout.rate_limited": "Too many orders in a short time: wait a minute.",
+    "homepage.hero.conflict": "Another published hero already covers this period: only one hero is shown. Unpublish it, or give them dates that do not overlap.",
     "guest_cart.rate_limited": "Too many cart updates in a short time: wait a minute.",
     "guest_quote.rate_limited": "Too many quote requests: try again in a few minutes.",
     "quote_request.rate_limited": "Too many quote requests: try again in a few minutes.",

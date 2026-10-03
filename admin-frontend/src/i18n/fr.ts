@@ -264,7 +264,8 @@ const fr = {
     sync_safe: 'Ces champs ne sont jamais réécrits par la synchronisation.',
     target: 'Catégorie cible *',
     tile: 'Image de la tuile vitrine',
-    tile_hint: "Affichée sur l'accueil ; médiathèque ou URL",
+    tile_hint:
+      "Affichée sur l'accueil ; médiathèque ou URL. Format conseillé : 800 × 600 px (4:3), fond uni, recadrée en 4:3 dans la tuile.",
     title: 'Catégories',
     title_hint: 'Vide = « {name} » (nom fournisseur)',
     vat: 'Taux de TVA par défaut',
@@ -728,8 +729,10 @@ const fr = {
     from_date: 'du {date}',
     hero: 'Hero',
     image: 'Image',
+    hero_conflict:
+      "{n} heros sont publiés en même temps : seul « {shown} » s'affiche (le premier par position). Dépubliez les autres ou programmez des dates qui ne se chevauchent pas.",
     intro:
-      "Le <strong>hero</strong> est le grand bandeau en haut de l'accueil (le premier publié s'affiche, sinon un texte par défaut). Les <strong>bannières</strong> suivent, dans l'ordre indiqué. Un bloc programmé n'apparaît qu'entre ses dates de début et de fin.",
+      "Le <strong>hero</strong> est le grand bandeau en haut de l'accueil : un seul est publié à la fois sur une même période (sinon un texte par défaut). Les <strong>bannières</strong> suivent, dans l'ordre indiqué. Un bloc programmé n'apparaît qu'entre ses dates de début et de fin.",
     kind_banner: 'Bannière',
     kind_hero: 'Hero (grand bandeau du haut)',
     link: 'Lien',
@@ -1003,6 +1006,20 @@ const fr = {
     new: 'Nouvelle image (JPEG, PNG, WebP, 8 Mo max)',
     none: 'Aucune image',
     none_hint: 'Téléversez-en une ci-dessus.',
+    recommended: 'Format conseillé :',
+    format_hero:
+      "Hero : 1600 × 1200 px (4:3), JPEG ou WebP, 8 Mo max. L'image est recadrée en 4:3 : gardez le sujet au centre et le texte hors de l'image.",
+    format_banner:
+      'Bannière : 1600 × 900 px (16:9), JPEG ou WebP, 8 Mo max. Recadrée en 16:9, titre et texte sont posés par-dessus.',
+    format_category:
+      'Catégorie : 800 × 600 px (4:3), JPEG ou WebP, fond uni. Recadrée en 4:3 dans la tuile.',
+    format_product:
+      'Produit : 1200 × 1200 px (carré), PNG ou WebP, fond blanc. Affichée entière, jamais recadrée.',
+    format_page: 'Page : 1600 px de large au plus, JPEG ou WebP. Affichée à la largeur du texte.',
+    format_logo: 'Logo : SVG ou PNG transparent, environ 400 × 100 px (affiché sur 40 px de haut).',
+    format_icon:
+      "Icône du site : PNG carré 512 × 512 px, fond plein, motif simple (favicon et écran d'accueil mobile).",
+    format_other: 'JPEG, PNG ou WebP, 8 Mo max ; 1600 px de large suffisent.',
     this_image: 'cette image',
     title: 'Médiathèque',
     upload: 'Téléverser',
@@ -1405,7 +1422,8 @@ const fr = {
     height: 'Haut. (cm)',
     identification: 'Identification',
     image: 'Image',
-    image_hint: 'Choisissez une image de la médiathèque ou collez une URL',
+    image_hint:
+      'Médiathèque ou URL. Format conseillé : 1200 × 1200 px (carré), PNG ou WebP, fond blanc ; affichée entière, jamais recadrée.',
     length: 'Long. (cm)',
     link_accessory: 'Accessoire',
     link_add: 'Ajouter un article lié',

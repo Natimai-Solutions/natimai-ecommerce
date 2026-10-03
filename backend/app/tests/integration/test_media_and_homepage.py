@@ -26,7 +26,7 @@ from app.api.routes.media import delete_media, list_media, serve_media, upload_m
 from app.core.config import settings
 from app.core.errors import AppError
 from app.features.attachment.storage.factory import reset_file_storage_cache
-from app.features.content.models import HomepageBlockWrite
+from app.features.content.models import HomepageBlockPublic, HomepageBlockWrite
 from app.features.product.models.category import Category
 from app.features.user.models.user import User
 
@@ -259,3 +259,60 @@ async def test_media_in_use_cannot_be_deleted(
     assert list(local_storage.rglob("*.webp")) == []
     with pytest.raises(AppError):
         await serve_media(image.id, "800.webp", db_session)
+
+
+@pytest.mark.asyncio
+async def test_a_second_live_hero_is_refused(db_session: AsyncSession) -> None:
+    """03/10/2026: one published hero per period; a scheduled one may follow."""
+    admin = await _admin(db_session)
+    now = datetime.datetime.now(datetime.UTC)
+    day = datetime.timedelta(days=1)
+
+    async def block(**fields: object) -> HomepageBlockPublic:
+        return await create_block(
+            HomepageBlockWrite.model_validate(fields),
+            _request(),
+            db_session,
+            await _fresh(db_session, admin),
+        )
+
+    first = await block(kind="hero", title="Rentrée", is_published=True)
+    with pytest.raises(AppError) as refused:
+        await block(kind="hero", title="Soldes", is_published=True)
+    assert refused.value.code == "homepage.hero.conflict"
+    assert refused.value.details["other_title"] == "Rentrée"
+    # A draft is fine, so is a hero scheduled after the first one ends.
+    draft = await block(kind="hero", title="Brouillon", is_published=False)
+    await replace_block(
+        first.id,
+        HomepageBlockWrite(
+            kind="hero", title="Rentrée", is_published=True, ends_at=now + day
+        ),
+        _request(),
+        db_session,
+        await _fresh(db_session, admin),
+    )
+    await block(kind="hero", title="Noël", is_published=True, starts_at=now + 2 * day)
+    with pytest.raises(AppError):
+        await block(
+            kind="hero", title="Chevauche", is_published=True, starts_at=now + day / 2
+        )
+    # Publishing the draft while the first is live is refused too; the first
+    # may be re-saved as it is (it does not conflict with itself).
+    with pytest.raises(AppError):
+        await replace_block(
+            draft.id,
+            HomepageBlockWrite(kind="hero", title="Brouillon", is_published=True),
+            _request(),
+            db_session,
+            await _fresh(db_session, admin),
+        )
+    await replace_block(
+        first.id,
+        HomepageBlockWrite(
+            kind="hero", title="Rentrée bis", is_published=True, ends_at=now + day
+        ),
+        _request(),
+        db_session,
+        await _fresh(db_session, admin),
+    )
