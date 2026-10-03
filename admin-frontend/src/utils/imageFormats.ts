@@ -25,6 +25,8 @@ export function formatForKind(kind: MediaKind): ImageFormatKey {
       return 'category';
     case 'page':
       return 'page';
+    case 'branding':
+      return 'logo';
     default:
       return 'other';
   }

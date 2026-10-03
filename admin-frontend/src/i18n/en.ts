@@ -95,6 +95,7 @@ const en: MessageSchema = {
     media_kind: {
       category: 'Categories',
       homepage: 'Home page',
+      branding: 'Branding',
       other: 'Others',
       page: 'Pages',
       product: 'Products',
@@ -192,6 +193,21 @@ const en: MessageSchema = {
     path_contains: 'Address contains',
     title: 'Audit log',
     type: 'Type',
+  },
+  branding: {
+    change: 'Change the image',
+    hint: 'The logo shows in the storefront header, the e-mails and the PDFs (quotes, invoices); the icon is the favicon and the home-screen icon. Without a setting the storefront shows the shop name and its default icons. The admin keeps its own icon.',
+    icon: 'Site icon',
+    icon_hint:
+      'Square, simple motif: the 16, 32, 180, 192 and 512 px sizes are derived automatically.',
+    icon_sizes: 'Sizes served: 16, 32 (favicon), 180 (Apple), 192 and 512 px (manifest).',
+    logo: 'Logo',
+    logo_hint: 'Shown 40 px high in the header; prefer a transparent background.',
+    pick: 'Pick from the media library',
+    remove: 'Remove (back to the default)',
+    save_failed: 'Saving failed.',
+    saved: 'Branding saved: the storefront picks it up within a minute.',
+    title: 'Branding',
   },
   carriers: {
     code: 'Code *',
@@ -818,6 +834,7 @@ const en: MessageSchema = {
       inventory: 'Inventory',
       invoices: 'Invoices',
       logistics: 'Logistics',
+      branding: 'Branding',
       modules: 'Modules',
       orders: 'Orders',
       pages: 'Site pages',

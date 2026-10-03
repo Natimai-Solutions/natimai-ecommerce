@@ -27,6 +27,7 @@
         margin: 0 0 2mm 0;
       }
 
+      .header img.logo { display: block; max-height: 14mm; max-width: 60mm; margin-bottom: 3mm; }
       .header {
         display: flex;
         justify-content: space-between;
@@ -146,6 +147,7 @@
   <body>
     <div class="header">
       <div>
+        {% if shop_logo_url %}<img class="logo" src="{{ shop_logo_url }}" alt="{{ shop_name or '' }}">{% endif %}
         <h1>Facture</h1>
         <div>{{ invoice_number }}</div>
       </div>

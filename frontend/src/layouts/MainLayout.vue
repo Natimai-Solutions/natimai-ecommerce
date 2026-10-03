@@ -12,7 +12,18 @@
           @click="toggleDrawer"
         />
 
-        <router-link to="/" class="app-header__logo">Natimai</router-link>
+        <router-link to="/" class="app-header__logo" :aria-label="ownerName">
+          <img
+            v-if="logo"
+            :src="logo.src"
+            :srcset="logo.srcset ?? undefined"
+            :width="logo.width"
+            :height="logo.height"
+            :alt="ownerName"
+            class="app-header__logo-img"
+          />
+          <template v-else>{{ ownerName }}</template>
+        </router-link>
 
         <nav class="gt-sm app-header__nav" :aria-label="$t('layout.main_nav')">
           <router-link
@@ -222,7 +233,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, onServerPrefetch, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import CartDrawer from '@/components/CartDrawer.vue';
 import { useCartStore } from '@/stores/cart';
@@ -245,6 +256,11 @@ const cartCount = computed(() => cartStore.totalItems);
 const currentYear = new Date().getFullYear();
 const shop = useShopModulesStore();
 const ownerName = computed(() => shop.config.shop_name || 'Natimai');
+// The logo chosen in the back-office (R9 / T9); the shop name in text otherwise.
+const logo = computed(() => shop.config.branding?.logo ?? null);
+// The shop configuration is read during the server render too: the header
+// (logo, name) and the icon links are right on the first paint.
+onServerPrefetch(() => shop.load());
 const { current: currentLocale, options: localeOptions, setLocale } = useLocale();
 
 function onLocaleChange(event: Event) {
@@ -338,6 +354,14 @@ onBeforeUnmount(() => {
     flex-grow: 1;
     font-size: 18px;
   }
+}
+
+.app-header__logo-img {
+  display: block;
+  height: 40px;
+  width: auto;
+  max-width: 200px;
+  object-fit: contain;
 }
 
 .app-header__nav {

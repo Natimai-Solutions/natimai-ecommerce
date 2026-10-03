@@ -10030,6 +10030,32 @@ export interface components {
             image_url?: string | null;
         };
         /**
+         * BrandingIcon
+         * @description Where the icon sizes live: ``{base}/icon-{size}.png`` and the manifest.
+         */
+        BrandingIcon: {
+            /** Base */
+            base: string;
+            /** Sizes */
+            sizes: number[];
+            /** Manifest */
+            manifest: string;
+        };
+        /**
+         * BrandingImage
+         * @description An image of the brand: the logo as the storefront shows it.
+         */
+        BrandingImage: {
+            /** Src */
+            src: string;
+            /** Srcset */
+            srcset?: string | null;
+            /** Width */
+            width: number;
+            /** Height */
+            height: number;
+        };
+        /**
          * BrandsPublic
          * @description Represents brands public.
          */
@@ -20527,6 +20553,14 @@ export interface components {
             pricing_effective: boolean;
         };
         /**
+         * ShopBranding
+         * @description Logo and icon of the shop, for ``GET /system/config``.
+         */
+        ShopBranding: {
+            logo?: components["schemas"]["BrandingImage"] | null;
+            icon?: components["schemas"]["BrandingIcon"] | null;
+        };
+        /**
          * ShopConfigPublic
          * @description What every client may know about this deployment (no secrets).
          */
@@ -20577,6 +20611,7 @@ export interface components {
             default_display_currency: string;
             /** Captcha Site Key */
             captcha_site_key?: string | null;
+            branding?: components["schemas"]["ShopBranding"];
         };
         /**
          * Shortage

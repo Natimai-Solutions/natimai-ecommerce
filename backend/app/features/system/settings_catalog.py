@@ -98,6 +98,32 @@ register(
         order=10,
     ),
     SettingSpec(
+        "shop_logo_media_id",
+        "str",
+        "shop",
+        "Logo",
+        "Image de la médiathèque (usage « Identité visuelle ») affichée dans "
+        "l'en-tête de la vitrine, les e-mails et les PDF. Vide = le nom de la "
+        "boutique en texte. Se règle depuis Système → Identité visuelle.",
+        default="",
+        public=True,
+        max_length=36,
+        order=12,
+    ),
+    SettingSpec(
+        "shop_icon_media_id",
+        "str",
+        "shop",
+        "Icône du site",
+        "Image carrée de la médiathèque : favicon et icône d'écran d'accueil de la "
+        "vitrine (tailles dérivées automatiquement). Vide = icône par défaut. Se "
+        "règle depuis Système → Identité visuelle.",
+        default="",
+        public=True,
+        max_length=36,
+        order=13,
+    ),
+    SettingSpec(
         "email_support",
         "str",
         "shop",

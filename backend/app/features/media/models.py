@@ -19,7 +19,14 @@ from sqlmodel import Field, SQLModel
 from app.features.base.models import Base
 
 #: What the image is for; drives the picker's filter in the admin.
-MEDIA_KINDS: tuple[str, ...] = ("homepage", "product", "category", "page", "other")
+MEDIA_KINDS: tuple[str, ...] = (
+    "homepage",
+    "product",
+    "category",
+    "page",
+    "branding",
+    "other",
+)
 
 
 class MediaAssetBase(Base):

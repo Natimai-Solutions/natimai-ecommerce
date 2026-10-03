@@ -33,6 +33,13 @@ from app.features.system.settings_service import MASK
 from app.features.user.models.user import User
 
 
+def _cfg_request() -> Any:
+    """Request stub: get_shop_config only reads the origin for the media URLs."""
+    from types import SimpleNamespace
+
+    return SimpleNamespace(url=SimpleNamespace(scheme="http", netloc="testserver"))
+
+
 async def _admin(session: AsyncSession) -> User:
     user = User(
         email=f"admin-{uuid.uuid4().hex[:6]}@example.com",
@@ -174,7 +181,9 @@ async def test_lists_every_declared_setting_and_public_ones_without_auth(
     assert public["legal_trading_name"] == "Ma Boutique SARL"
     assert "social_webhook_url" not in public
     assert "stock_reservation_ttl_hours" not in public
-    assert (await get_shop_config(db_session)).shop_name == "Ma Boutique"
+    assert (
+        await get_shop_config(_cfg_request(), db_session)
+    ).shop_name == "Ma Boutique"
 
 
 @pytest.mark.asyncio

@@ -42,6 +42,13 @@ from app.services.suppliers.ingram_micro import IngramMicroAdapter
 ADMIN = cast(User, SimpleNamespace(id=uuid.uuid4(), is_superuser=True))
 
 
+def _cfg_request() -> Any:
+    """Request stub: get_shop_config only reads the origin for the media URLs."""
+    from types import SimpleNamespace
+
+    return SimpleNamespace(url=SimpleNamespace(scheme="http", netloc="testserver"))
+
+
 @pytest.mark.asyncio
 async def test_preset_follows_shop_mode_until_a_value_is_stored(
     db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
@@ -81,7 +88,7 @@ async def test_admin_switch_is_visible_in_the_public_config(
     state = await switch_module("icecat", ModuleWrite(enabled=False), db_session, ADMIN)
     assert state.switched_on is False and state.enabled is False
 
-    config = await get_shop_config(db_session)
+    config = await get_shop_config(_cfg_request(), db_session)
     assert config.modules["icecat"] is False
 
     stored = (

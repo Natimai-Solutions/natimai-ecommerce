@@ -93,6 +93,7 @@ const fr = {
     media_kind: {
       category: 'Catégories',
       homepage: 'Accueil',
+      branding: 'Identité visuelle',
       other: 'Autres',
       page: 'Pages',
       product: 'Produits',
@@ -190,6 +191,21 @@ const fr = {
     path_contains: 'Adresse contient',
     title: "Journal d'audit",
     type: 'Type',
+  },
+  branding: {
+    change: "Changer l'image",
+    hint: "Le logo s'affiche dans l'en-tête de la vitrine, les e-mails et les PDF (devis, factures) ; l'icône sert de favicon et d'icône d'écran d'accueil. Sans réglage, la vitrine affiche le nom de la boutique et ses icônes par défaut. L'admin garde sa propre icône.",
+    icon: 'Icône du site',
+    icon_hint:
+      'Carrée, motif simple : les tailles 16, 32, 180, 192 et 512 px sont dérivées automatiquement.',
+    icon_sizes: 'Tailles servies : 16, 32 (favicon), 180 (Apple), 192 et 512 px (manifeste).',
+    logo: 'Logo',
+    logo_hint: "Affiché sur 40 px de haut dans l'en-tête ; privilégiez un fond transparent.",
+    pick: 'Choisir dans la médiathèque',
+    remove: 'Retirer (revenir au défaut)',
+    save_failed: "L'enregistrement a échoué.",
+    saved: 'Identité visuelle enregistrée : la vitrine la prend en compte dans la minute.',
+    title: 'Identité visuelle',
   },
   carriers: {
     code: 'Code *',
@@ -820,6 +836,7 @@ const fr = {
       inventory: 'Inventaire',
       invoices: 'Factures',
       logistics: 'Logistique',
+      branding: 'Identité visuelle',
       modules: 'Modules',
       orders: 'Commandes',
       pages: 'Pages du site',

@@ -6,7 +6,7 @@ import uuid
 from datetime import date
 from decimal import Decimal
 from types import SimpleNamespace
-from typing import cast
+from typing import Any, cast
 
 import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -22,11 +22,18 @@ from app.features.user.models.user import User
 from app.features.user.models.user_preference import UserPreferenceUpdate
 
 
+def _cfg_request() -> Any:
+    """Request stub: get_shop_config only reads the origin for the media URLs."""
+    from types import SimpleNamespace
+
+    return SimpleNamespace(url=SimpleNamespace(scheme="http", netloc="testserver"))
+
+
 @pytest.mark.asyncio
 async def test_shop_config_exposes_languages_and_time_zone(
     db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    config = await get_shop_config(db_session)
+    config = await get_shop_config(_cfg_request(), db_session)
     assert config.default_locale == settings.shop_locales[0]
     assert "en" in config.available_locales
     assert config.timezone == settings.SHOP_TIMEZONE
@@ -34,7 +41,7 @@ async def test_shop_config_exposes_languages_and_time_zone(
 
     monkeypatch.setattr(settings, "SHOP_DEFAULT_LOCALE", "en")
     monkeypatch.setattr(settings, "SHOP_TIMEZONE", "Europe/Paris")
-    config = await get_shop_config(db_session)
+    config = await get_shop_config(_cfg_request(), db_session)
     assert config.available_locales[0] == "en"
     assert config.timezone == "Europe/Paris"
 
@@ -101,7 +108,7 @@ async def test_languages_are_settings_of_the_base(db_session: AsyncSession) -> N
 
     await write_setting(db_session, "shop_default_locale", "en")
     await write_setting(db_session, "shop_locales", "fr")
-    config = await get_shop_config(db_session)
+    config = await get_shop_config(_cfg_request(), db_session)
     # The default is always offered, first.
     assert config.default_locale == "en"
     assert config.available_locales == ["en", "fr"]
@@ -113,7 +120,7 @@ async def test_languages_are_settings_of_the_base(db_session: AsyncSession) -> N
 
     await write_setting(db_session, "shop_default_locale", "")
     await write_setting(db_session, "shop_locales", "")
-    config = await get_shop_config(db_session)
+    config = await get_shop_config(_cfg_request(), db_session)
     assert config.available_locales == settings.shop_locales
 
 
@@ -178,7 +185,9 @@ async def test_display_currencies_are_added_offered_hidden_and_defaulted(
         CurrencyDisplayDefaultRequest(currency_code="gbp"), db_session, admin
     )
     assert display.default_display_currency == "GBP"
-    assert (await get_shop_config(db_session)).default_display_currency == "GBP"
+    assert (
+        await get_shop_config(_cfg_request(), db_session)
+    ).default_display_currency == "GBP"
 
     # Hidden: the storefront no longer proposes it, the rate stays, the default
     # falls back to the reference currency.
