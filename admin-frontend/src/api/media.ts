@@ -40,6 +40,11 @@ export async function uploadMedia(
   return data;
 }
 
+export async function getMedia(id: string): Promise<MediaAsset> {
+  const { data } = await api.get<MediaAsset>(`/admin/media/${id}`);
+  return data;
+}
+
 export async function updateMedia(
   id: string,
   payload: { alt?: string | null; kind?: MediaKind },

@@ -186,6 +186,16 @@
                 />
               </template>
             </q-input>
+            <q-input
+              v-if="imageMediaId"
+              v-model="editForm.image_alt"
+              :label="$t('categories.image_alt')"
+              :hint="$t('categories.image_alt_hint')"
+              outlined
+              dense
+              bottom-slots
+              data-testid="category-image-alt"
+            />
             <q-select
               v-model="editForm.default_tax_rate_id"
               :options="taxRateOptions"
@@ -312,7 +322,8 @@
     <MediaPicker
       v-model="mediaPickerOpen"
       kind="category"
-      @select="(asset) => (editForm.image_url = asset.url)"
+      @select="onPickImage"
+      @updated="onMediaUpdated"
     />
   </q-page>
 </template>
@@ -325,6 +336,8 @@ import type { QTableColumn } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
 import MediaPicker from '@/components/MediaPicker.vue';
+import { getMedia, updateMedia, type MediaAsset } from '@/api/media';
+import { mediaIdFromUrl } from '@/utils/media';
 import ContentLanguageTabs from '@/components/ContentLanguageTabs.vue';
 import { useDialogGuard, useFormSnapshot } from '@/composables/useUnsavedGuard';
 import {
@@ -460,6 +473,8 @@ const editForm = reactive<{
   display_name: string;
   description: string;
   image_url: string;
+  /** Alt text of the media-library image behind image_url (03/10/2026). */
+  image_alt: string;
   default_margin_rate_pct: string;
   default_tax_rate_id: string | null;
   translations: Translations;
@@ -468,6 +483,7 @@ const editForm = reactive<{
   display_name: '',
   description: '',
   image_url: '',
+  image_alt: '',
   default_margin_rate_pct: '',
   default_tax_rate_id: null,
   translations: {},
@@ -517,12 +533,46 @@ async function loadTaxRates() {
   }
 }
 
+// The tile image's alt text lives on the media asset: shown and edited here
+// when image_url comes from the library, saved with the category.
+const imageMediaId = computed(() => mediaIdFromUrl(editForm.image_url));
+const loadedImageAlt = ref('');
+
+async function loadImageAlt(url: string | null | undefined) {
+  const id = mediaIdFromUrl(url);
+  if (!id) return;
+  try {
+    const asset = await getMedia(id);
+    if (mediaIdFromUrl(editForm.image_url) !== id) return;
+    editForm.image_alt = asset.alt ?? '';
+    loadedImageAlt.value = asset.alt ?? '';
+    snapshot.take();
+  } catch {
+    // An image deleted from the library: the URL stays editable as is.
+  }
+}
+
+function onPickImage(asset: MediaAsset) {
+  editForm.image_url = asset.url;
+  editForm.image_alt = asset.alt ?? '';
+  loadedImageAlt.value = asset.alt ?? '';
+}
+
+function onMediaUpdated(asset: MediaAsset) {
+  if (mediaIdFromUrl(editForm.image_url) !== asset.id) return;
+  editForm.image_alt = asset.alt ?? '';
+  loadedImageAlt.value = asset.alt ?? '';
+}
+
 function openEdit(category: AdminCategory) {
   dialogError.value = null;
   editing.value = category;
   editForm.display_name = category.display_name ?? '';
   editForm.description = category.description ?? '';
   editForm.image_url = category.image_url ?? '';
+  editForm.image_alt = '';
+  loadedImageAlt.value = '';
+  void loadImageAlt(category.image_url);
   editForm.default_margin_rate_pct = category.default_margin_rate_pct ?? '';
   editForm.default_tax_rate_id = category.default_tax_rate_id ?? null;
   editForm.translations = cloneTranslations(category.translations);
@@ -547,6 +597,10 @@ async function submitEdit() {
     });
     if ((editing.value.default_tax_rate_id ?? null) !== editForm.default_tax_rate_id) {
       await setCategoryTaxRate(editing.value.id, editForm.default_tax_rate_id);
+    }
+    const mediaId = imageMediaId.value;
+    if (mediaId && editForm.image_alt.trim() !== loadedImageAlt.value) {
+      await updateMedia(mediaId, { alt: editForm.image_alt.trim() || null });
     }
     editDialog.value = false;
     await load();

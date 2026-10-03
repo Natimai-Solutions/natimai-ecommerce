@@ -316,3 +316,46 @@ async def test_a_second_live_hero_is_refused(db_session: AsyncSession) -> None:
         db_session,
         await _fresh(db_session, admin),
     )
+
+
+@pytest.mark.asyncio
+async def test_alt_text_is_edited_after_upload_and_reaches_the_category(
+    db_session: AsyncSession,
+) -> None:
+    """03/10/2026: the alt of an image is changed in the media library once it
+    is stored; a category tile using that image shows the new alt."""
+    from app.api.routes.media import get_media, update_media
+    from app.features.media.models import MediaAssetUpdate
+    from app.features.media.service import alts_for_urls, asset_id_from_url
+
+    admin = await _admin(db_session)
+    image = await upload_media(
+        _request(),
+        db_session,
+        await _fresh(db_session, admin),
+        file=_jpeg((800, 600)),
+        kind="category",
+        alt="Écran",
+    )
+    assert asset_id_from_url(image.url) == image.id
+    assert asset_id_from_url("https://cdn.exemple.pf/photo.jpg") is None
+    assert asset_id_from_url(None) is None
+
+    updated = await update_media(
+        image.id,
+        MediaAssetUpdate(alt="Écran PC 27 pouces"),
+        _request(),
+        db_session,
+        await _fresh(db_session, admin),
+    )
+    assert updated.alt == "Écran PC 27 pouces"
+    assert (
+        await get_media(
+            image.id, _request(), db_session, await _fresh(db_session, admin)
+        )
+    ).alt == "Écran PC 27 pouces"
+
+    alts = await alts_for_urls(
+        db_session, [image.url, "https://cdn.exemple.pf/photo.jpg", None]
+    )
+    assert alts == {image.url: "Écran PC 27 pouces"}

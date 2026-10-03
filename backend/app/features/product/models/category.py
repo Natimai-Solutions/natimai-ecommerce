@@ -119,6 +119,9 @@ class CategoryPublic(CategoryBase, BasePublic):
 
     id: uuid.UUID
     merged_into_id: uuid.UUID | None = None
+    #: Alternative text of ``image_url`` when it is a media-library image
+    #: (edited there after the upload); filled by the storefront routes.
+    image_alt: str | None = None
 
     @computed_field
     @property
