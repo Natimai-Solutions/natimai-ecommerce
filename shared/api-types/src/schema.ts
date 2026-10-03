@@ -6451,7 +6451,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * Get Media
+         * @description One image, by id (the admin forms read the alt text of an image_url).
+         */
+        get: operations["media-get_media"];
         put?: never;
         post?: never;
         /**
@@ -10598,6 +10602,8 @@ export interface components {
             id: string;
             /** Merged Into Id */
             merged_into_id?: string | null;
+            /** Image Alt */
+            image_alt?: string | null;
             /**
              * Title
              * @description What the storefront shows: the admin's display_name, else name.
@@ -35749,6 +35755,37 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MediaAssetPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "media-get_media": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                asset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };

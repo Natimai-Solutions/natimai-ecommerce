@@ -91,6 +91,33 @@
         </div>
       </q-card-section>
 
+      <q-card-section v-if="selected" class="media-picker__edit" data-testid="media-edit">
+        <q-input
+          v-model="editAlt"
+          :label="$t('media.alt_edit')"
+          :hint="$t('media.alt_edit_hint')"
+          outlined
+          dense
+          bottom-slots
+          class="col"
+          data-testid="media-edit-alt"
+          @keyup.enter="saveAlt"
+        >
+          <template #append>
+            <q-btn
+              flat
+              dense
+              no-caps
+              :label="$t('media.alt_save')"
+              :disable="editAlt.trim() === (selected.alt ?? '')"
+              :loading="savingAlt"
+              data-testid="media-edit-save"
+              @click="saveAlt"
+            />
+          </template>
+        </q-input>
+      </q-card-section>
+
       <q-card-actions align="right" class="app-dialog__actions">
         <q-btn
           v-if="selected"
@@ -130,6 +157,7 @@ import {
   deleteMedia,
   listMedia,
   MEDIA_KIND_LABELS,
+  updateMedia,
   uploadMedia,
   type MediaAsset,
   type MediaKind,
@@ -152,6 +180,8 @@ const format = computed<ImageFormatKey>(() => props.format ?? formatForKind(prop
 const emit = defineEmits<{
   'update:modelValue': [value: boolean];
   select: [asset: MediaAsset];
+  /** The alt text (or kind) of an image was changed in the library. */
+  updated: [asset: MediaAsset];
 }>();
 
 const assets = ref<MediaAsset[]>([]);
@@ -162,6 +192,12 @@ const error = ref<string | null>(null);
 const file = ref<File | null>(null);
 const alt = ref('');
 const selected = ref<MediaAsset | null>(null);
+// The selected image's alt text, editable after the upload (03/10/2026).
+const editAlt = ref('');
+const savingAlt = ref(false);
+watch(selected, (asset) => {
+  editAlt.value = asset?.alt ?? '';
+});
 const filter = ref<MediaKind | null>(props.kind);
 
 const kindOptions = computed<{ label: string; value: MediaKind | null }[]>(() => [
@@ -226,6 +262,23 @@ async function remove(asset: MediaAsset) {
   }
 }
 
+async function saveAlt() {
+  const asset = selected.value;
+  if (!asset || savingAlt.value) return;
+  savingAlt.value = true;
+  error.value = null;
+  try {
+    const updated = await updateMedia(asset.id, { alt: editAlt.value.trim() || null });
+    assets.value = assets.value.map((a) => (a.id === updated.id ? updated : a));
+    selected.value = updated;
+    emit('updated', updated);
+  } catch (err) {
+    error.value = extractApiError(err) ?? t('common.save_failed');
+  } finally {
+    savingAlt.value = false;
+  }
+}
+
 function confirm(asset: MediaAsset) {
   emit('select', asset);
   emit('update:modelValue', false);
@@ -246,6 +299,10 @@ watch(
 .media-picker__grid-wrap {
   max-height: 55vh;
   overflow-y: auto;
+}
+
+.media-picker__edit {
+  padding-top: 0;
 }
 
 .media-picker__grid {

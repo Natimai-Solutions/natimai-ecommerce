@@ -135,6 +135,17 @@ async def list_media(
     return [to_public(a, base) for a in (await session.exec(statement)).all()]
 
 
+@router.get("/admin/media/{asset_id}", response_model=MediaAssetPublic)
+async def get_media(
+    asset_id: uuid.UUID, request: Request, session: SessionDep, _admin: CurrentSuperUser
+) -> MediaAssetPublic:
+    """One image, by id (the admin forms read the alt text of an image_url)."""
+    asset = await session.get(MediaAsset, asset_id)
+    if asset is None or not asset.is_active:
+        raise _not_found(asset_id)
+    return to_public(asset, public_base_url(request_origin(request)))
+
+
 @router.patch("/admin/media/{asset_id}", response_model=MediaAssetPublic)
 async def update_media(
     asset_id: uuid.UUID,

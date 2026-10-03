@@ -102,7 +102,7 @@
               <img
                 v-if="category.image_url"
                 :src="category.image_url"
-                :alt="''"
+                :alt="category.image_alt ?? ''"
                 loading="lazy"
                 decoding="async"
                 class="category-tile__img"

@@ -15,11 +15,15 @@ Every upload goes through the same steps, all server side:
 from __future__ import annotations
 
 import io
+import re
 import uuid
+from collections.abc import Iterable
 from dataclasses import dataclass
+from typing import Any
 
 import anyio
 from PIL import Image, ImageOps, UnidentifiedImageError
+from sqlmodel import col, select
 
 from app.core.config import settings
 from app.core.errors import AppError
@@ -131,6 +135,45 @@ def public_base_url(request_base_url: str | None = None) -> str:
 def variant_url(base_url: str, key: str) -> str:
     """Absolute URL of a stored variant."""
     return f"{base_url}{settings.API_V1_STR}/{key}"
+
+
+_ASSET_ID_IN_URL = re.compile(
+    r"/media/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/"
+)
+
+
+def asset_id_from_url(url: str | None) -> uuid.UUID | None:
+    """The media asset an ``image_url`` points at, or None for an external
+    URL (a category or product image typed by hand)."""
+    if not url:
+        return None
+    match = _ASSET_ID_IN_URL.search(url)
+    return uuid.UUID(match.group(1)) if match else None
+
+
+async def alts_for_urls(
+    session: Any, urls: Iterable[str | None]
+) -> dict[str, str | None]:
+    """``{image_url: alt}`` for the URLs that point at a media asset: what
+    the storefront puts on ``<img alt>`` for a category tile, editable in the
+    media library after the upload (03/10/2026)."""
+    by_id: dict[uuid.UUID, list[str]] = {}
+    for url in urls:
+        asset_id = asset_id_from_url(url)
+        if asset_id is not None and url:
+            by_id.setdefault(asset_id, []).append(url)
+    if not by_id:
+        return {}
+    rows = (
+        await session.exec(
+            select(MediaAsset.id, MediaAsset.alt).where(col(MediaAsset.id).in_(by_id))
+        )
+    ).all()
+    alts: dict[str, str | None] = {}
+    for asset_id, alt in rows:
+        for url in by_id.get(asset_id, []):
+            alts[url] = alt
+    return alts
 
 
 def to_public(asset: MediaAsset, base_url: str) -> MediaAssetPublic:

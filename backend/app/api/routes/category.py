@@ -9,6 +9,7 @@ from app.api.deps import CurrentUser, SessionDep, get_current_user_optional
 from app.core.content_i18n import CATEGORY_FIELDS, localize_all
 from app.core.errors import AppError
 from app.features.base.crud import RecordNotFoundError
+from app.features.media.service import alts_for_urls
 from app.features.product.crud.category import CategoryCrud, crud_category
 from app.features.product.models.category import (
     CategoriesPublic,
@@ -17,6 +18,14 @@ from app.features.product.models.category import (
     CategoryPublic,
     CategoryUpdate,
 )
+
+
+async def _fill_image_alts(session: SessionDep, publics: list[CategoryPublic]) -> None:
+    """The alt text of each tile image taken from the media library."""
+    alts = await alts_for_urls(session, (p.image_url for p in publics))
+    for public in publics:
+        if public.image_url:
+            public.image_alt = alts.get(public.image_url)
 
 
 class CategoryRouter(
@@ -55,6 +64,7 @@ class CategoryRouter(
             publics = [CategoryPublic.model_validate(c) for c in result["data"]]
             if current_user is None or not current_user.is_superuser:
                 localize_all(publics, CATEGORY_FIELDS)
+            await _fill_image_alts(session, publics)
             return CategoriesPublic(data=publics, count=result["count"])
 
         read_multi.__name__ = "get_multiple_categorys"
@@ -81,6 +91,7 @@ class CategoryRouter(
             public = CategoryPublic.model_validate(record)
             if current_user is None or not current_user.is_superuser:
                 localize_all([public], CATEGORY_FIELDS)
+            await _fill_image_alts(session, [public])
             return public
 
         read.__name__ = "get_one_category"

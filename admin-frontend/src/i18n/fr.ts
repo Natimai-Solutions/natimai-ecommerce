@@ -272,6 +272,9 @@ const fr = {
     key_hint: 'Clé de rapprochement : ne se modifie plus ensuite (le titre vitrine, si)',
     margin: 'Marge par défaut (%)',
     margin_hint: 'Vide = marge du groupe tarifaire du client ; un article peut la surcharger',
+    image_alt: "Texte alternatif de l'image",
+    image_alt_hint:
+      "Ce que montre l'image, pour les lecteurs d'écran et le référencement ; enregistré dans la médiathèque avec la catégorie.",
     media: 'Médiathèque',
     merge: 'Fusionner',
     merge_failed: 'Fusion impossible.',
@@ -1070,6 +1073,10 @@ const fr = {
   media: {
     all: 'Toutes',
     alt: "Texte alternatif (ce que montre l'image)",
+    alt_edit: "Texte alternatif de l'image sélectionnée",
+    alt_edit_hint:
+      'Modifiable après le téléversement ; repris partout où cette image est utilisée.',
+    alt_save: 'Enregistrer',
     close: 'Fermer',
     load_failed: 'Chargement de la médiathèque impossible.',
     new: 'Nouvelle image (JPEG, PNG, WebP, 8 Mo max)',
