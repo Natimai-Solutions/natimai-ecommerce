@@ -4,7 +4,7 @@
     :persistent="guard.persistent.value"
     @update:model-value="guard.onToggle"
   >
-    <q-card class="app-dialog app-dialog--xl">
+    <q-card class="app-dialog app-dialog--xl product-form">
       <q-form @submit="onSubmit">
         <q-card-section class="app-dialog__head">
           <div class="product-form__head">
@@ -20,7 +20,7 @@
           </div>
         </q-card-section>
 
-        <q-card-section>
+        <q-card-section class="product-form__body">
           <div v-if="error || (isEdit && product?.is_supplier_managed)" class="admin-notices">
             <AppNotice v-if="error" tone="error" dense>{{ error }}</AppNotice>
             <AppNotice v-if="isEdit && product?.is_supplier_managed" tone="info" dense>
@@ -28,7 +28,7 @@
             </AppNotice>
           </div>
 
-          <div v-if="isEdit && lockedFields.length" class="q-mb-md">
+          <div v-if="isEdit && lockedFields.length" class="product-form__locks">
             <p class="admin-hint q-mb-xs">
               {{ $t('product_form.locked') }}
             </p>
@@ -44,399 +44,707 @@
             />
           </div>
 
-          <ContentLanguageTabs
-            v-model="content.lang.value"
-            :source="content.source.value"
-            :locales="content.locales.value"
-            :status-of="content.statusOf"
-            :reviewed="content.reviewed.value"
-            @review="content.markReviewed"
-          />
-          <q-input
-            v-model="texts.name"
-            :label="$t('product_form.name')"
-            outlined
-            dense
-            bottom-slots
-            :rules="content.isSource.value ? req : []"
-            data-testid="product-name"
-          />
-          <q-input
-            v-model="texts.description"
-            :label="$t('product_form.short')"
-            outlined
-            dense
-            bottom-slots
-          />
-          <RichTextEditor
-            v-model="texts.long_description"
-            :label="$t('product_form.long')"
-            media-kind="product"
-          />
+          <!-- 1. Fiche : textes affichés sur la vitrine, par langue -->
+          <section class="product-form__section" data-testid="product-section-content">
+            <header class="product-form__section-head">
+              <q-icon name="ph:text-aa" class="product-form__section-icon" />
+              <h3 class="product-form__section-title">{{ $t('product_form.sec_content') }}</h3>
+              <p class="product-form__section-hint">{{ $t('product_form.sec_content_hint') }}</p>
+            </header>
+            <div class="product-form__fields">
+              <ContentLanguageTabs
+                v-model="content.lang.value"
+                :source="content.source.value"
+                :locales="content.locales.value"
+                :status-of="content.statusOf"
+                :reviewed="content.reviewed.value"
+                @review="content.markReviewed"
+              />
+              <q-input
+                v-model="texts.name"
+                :label="$t('product_form.name')"
+                outlined
+                dense
+                hide-bottom-space
+                :rules="content.isSource.value ? req : []"
+                data-testid="product-name"
+              />
+              <q-input
+                v-model="texts.description"
+                :label="$t('product_form.short')"
+                outlined
+                dense
+                hide-bottom-space
+              />
+              <RichTextEditor
+                v-model="texts.long_description"
+                :label="$t('product_form.long')"
+                media-kind="product"
+              />
+            </div>
+          </section>
 
-          <!-- Identification : toujours saisissable, article manuel compris.
+          <!-- 2. Identification : toujours saisissable, article manuel compris.
                La référence (SKU) est dans « Approvisionnement » quand les
                fournisseurs sont activés. -->
-          <h3 class="admin-subtitle q-mt-md">{{ $t('product_form.identification') }}</h3>
-          <div class="product-form__ids">
-            <q-input
-              v-if="!suppliersOn"
-              v-model="form.supplier_sku"
-              :label="$t('product_form.sku')"
-              outlined
-              dense
-            />
-            <q-input
-              v-model="form.manufacturer"
-              :label="$t('product_form.manufacturer')"
-              outlined
-              dense
-            />
-            <q-input
-              v-model="form.vendor_part_number"
-              :label="$t('product_form.mpn')"
-              :hint="$t('product_form.mpn_hint')"
-              outlined
-              dense
-            />
-            <q-input v-model="form.ean" :label="$t('product_form.ean')" outlined dense />
-          </div>
+          <section class="product-form__section" data-testid="product-section-identification">
+            <header class="product-form__section-head">
+              <q-icon name="ph:barcode" class="product-form__section-icon" />
+              <h3 class="product-form__section-title">
+                {{ $t('product_form.identification') }}
+              </h3>
+              <p class="product-form__section-hint">
+                {{ $t('product_form.identification_hint') }}
+              </p>
+            </header>
+            <div class="product-form__row product-form__row--ids">
+              <q-input
+                v-if="!suppliersOn"
+                v-model="form.supplier_sku"
+                :label="$t('product_form.sku')"
+                outlined
+                dense
+                hide-bottom-space
+              />
+              <q-input
+                v-model="form.manufacturer"
+                :label="$t('product_form.manufacturer')"
+                outlined
+                dense
+                hide-bottom-space
+              />
+              <q-input
+                v-model="form.vendor_part_number"
+                :label="$t('product_form.mpn')"
+                :hint="$t('product_form.mpn_hint')"
+                outlined
+                dense
+                hide-bottom-space
+              />
+              <q-input
+                v-model="form.ean"
+                :label="$t('product_form.ean')"
+                outlined
+                dense
+                hide-bottom-space
+              />
+            </div>
+          </section>
 
           <div class="product-form__grid">
-            <div>
-              <h3 v-if="suppliersOn" class="admin-subtitle">{{ $t('product_form.supply') }}</h3>
-              <div v-if="suppliersOn" class="row" style="gap: 8px">
-                <q-select
-                  v-model="form.supplier_name"
-                  :options="supplierOptions"
-                  :label="$t('product_form.supplier')"
-                  :hint="$t('product_form.supplier_hint')"
+            <!-- 3. Approvisionnement et stock -->
+            <section class="product-form__section" data-testid="product-section-supply">
+              <header class="product-form__section-head">
+                <q-icon name="ph:truck" class="product-form__section-icon" />
+                <h3 class="product-form__section-title">
+                  {{ suppliersOn ? $t('product_form.supply') : $t('product_form.sec_stock') }}
+                </h3>
+                <p class="product-form__section-hint">
+                  {{
+                    suppliersOn ? $t('product_form.supply_hint') : $t('product_form.sec_stock_hint')
+                  }}
+                </p>
+              </header>
+              <div class="product-form__fields">
+                <div v-if="suppliersOn" class="product-form__row">
+                  <q-select
+                    v-model="form.supplier_name"
+                    :options="supplierOptions"
+                    :label="$t('product_form.supplier')"
+                    :hint="$t('product_form.supplier_hint')"
+                    outlined
+                    dense
+                    hide-bottom-space
+                    emit-value
+                    map-options
+                    clearable
+                    :disable="isEdit && linkedManaged"
+                    @update:model-value="onSupplierChange"
+                  />
+                  <q-input
+                    v-model="form.supplier_sku"
+                    :label="$t('product_form.supplier_ref')"
+                    outlined
+                    dense
+                    hide-bottom-space
+                  />
+                </div>
+                <div
+                  v-if="suppliersOn && isEdit && product && !product.has_variants"
+                  class="product-form__inline"
+                >
+                  <q-btn
+                    v-if="!linkedManaged"
+                    outline
+                    dense
+                    no-caps
+                    icon="ph:link"
+                    :label="$t('product_form.attach')"
+                    :disable="!form.supplier_name || !form.supplier_sku.trim()"
+                    :loading="linking === 'attach'"
+                    data-testid="product-attach-supplier"
+                    @click="onAttach"
+                  >
+                    <q-tooltip>
+                      {{ $t('product_form.attach_tip') }}
+                    </q-tooltip>
+                  </q-btn>
+                  <q-btn
+                    v-if="linkedManaged || (managedAfterLink === null && product.supplier_name)"
+                    flat
+                    dense
+                    no-caps
+                    icon="ph:link-break"
+                    :label="$t('product_form.detach')"
+                    :loading="linking === 'detach'"
+                    data-testid="product-detach-supplier"
+                    @click="onDetach"
+                  >
+                    <q-tooltip>
+                      {{ $t('product_form.detach_tip') }}
+                    </q-tooltip>
+                  </q-btn>
+                </div>
+                <AppNotice v-if="linkNotice" tone="success" dense>
+                  {{ linkNotice }}
+                </AppNotice>
+                <q-input
+                  v-if="suppliersOn && form.supplier_name && !product?.is_supplier_managed"
+                  v-model="form.supplier_quantity"
+                  :label="$t('product_form.supplier_stock')"
+                  :hint="$t('product_form.supplier_stock_hint')"
+                  type="number"
+                  step="1"
+                  min="0"
                   outlined
                   dense
-                  bottom-slots
-                  emit-value
-                  map-options
-                  clearable
-                  class="col"
-                  :disable="isEdit && linkedManaged"
-                  @update:model-value="onSupplierChange"
+                  hide-bottom-space
                 />
                 <q-input
-                  v-model="form.supplier_sku"
-                  :label="$t('product_form.supplier_ref')"
+                  v-model="form.local_quantity"
+                  :label="$t('product_form.local_stock')"
+                  :hint="localStockHint"
+                  type="number"
+                  step="1"
+                  min="0"
                   outlined
                   dense
-                  bottom-slots
-                  class="col"
+                  hide-bottom-space
                 />
               </div>
-              <div
-                v-if="suppliersOn && isEdit && product && !product.has_variants"
-                class="row items-center q-mb-sm"
-                style="gap: 8px"
+            </section>
+
+            <!-- 4. État et disponibilité -->
+            <section class="product-form__section" data-testid="product-section-condition">
+              <header class="product-form__section-head">
+                <q-icon name="ph:arrows-counter-clockwise" class="product-form__section-icon" />
+                <h3 class="product-form__section-title">
+                  {{ $t('product_form.sec_condition') }}
+                </h3>
+                <p class="product-form__section-hint">{{ $t('product_form.condition_hint') }}</p>
+              </header>
+              <div class="product-form__fields">
+                <div class="product-form__choice">
+                  <span class="product-form__choice-label">{{ $t('product_form.condition') }}</span>
+                  <q-option-group
+                    v-model="form.condition"
+                    :options="conditionOptions"
+                    inline
+                    dense
+                  />
+                </div>
+                <div v-if="form.condition === 'refurbished'" class="product-form__row">
+                  <q-input
+                    v-model="form.condition_grade"
+                    :label="$t('product_form.grade')"
+                    hint="A, B, C…"
+                    outlined
+                    dense
+                    hide-bottom-space
+                    maxlength="5"
+                  />
+                  <q-input
+                    v-model="form.battery_health_pct"
+                    type="number"
+                    min="0"
+                    max="100"
+                    :label="$t('product_form.battery')"
+                    outlined
+                    dense
+                    hide-bottom-space
+                  />
+                  <q-input
+                    v-model="form.os_licence"
+                    :label="$t('product_form.os')"
+                    outlined
+                    dense
+                    hide-bottom-space
+                  />
+                  <q-input
+                    v-model="form.warranty_months"
+                    type="number"
+                    min="0"
+                    :label="$t('product_form.warranty')"
+                    outlined
+                    dense
+                    hide-bottom-space
+                  />
+                </div>
+
+                <div class="product-form__choice">
+                  <span class="product-form__choice-label">
+                    {{ $t('product_form.availability') }}
+                  </span>
+                  <q-option-group
+                    v-model="form.availability_mode"
+                    :options="availabilityModeOptions"
+                    inline
+                    dense
+                  />
+                  <p class="product-form__help">{{ availabilityModeHint }}</p>
+                </div>
+              </div>
+            </section>
+
+            <!-- 5. Prix et taxes -->
+            <section class="product-form__section" data-testid="product-section-pricing">
+              <header class="product-form__section-head">
+                <q-icon name="ph:tag" class="product-form__section-icon" />
+                <h3 class="product-form__section-title">{{ $t('product_form.pricing') }}</h3>
+                <p class="product-form__section-hint">{{ $t('product_form.pricing_hint') }}</p>
+              </header>
+              <div class="product-form__fields">
+                <div class="product-form__choice">
+                  <q-option-group
+                    v-model="form.pricing_mode"
+                    :options="pricingModeOptions"
+                    inline
+                    dense
+                  />
+                  <p class="product-form__help">{{ pricingModeHint }}</p>
+                </div>
+
+                <q-input
+                  v-if="form.pricing_mode === 'fixed'"
+                  v-model="form.base_price"
+                  :label="$t('product_form.price')"
+                  :hint="$t('product_form.price_hint')"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  outlined
+                  dense
+                  hide-bottom-space
+                  data-testid="product-base-price"
+                />
+                <div class="product-form__row">
+                  <q-input
+                    v-model="form.cost_amount"
+                    :label="
+                      form.pricing_mode === 'fixed'
+                        ? $t('product_form.cost_ht')
+                        : $t('product_form.cost')
+                    "
+                    :hint="form.pricing_mode === 'fixed' ? $t('product_form.cost_hint') : ''"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    outlined
+                    dense
+                    hide-bottom-space
+                    data-testid="product-cost"
+                  />
+                  <q-select
+                    v-model="form.cost_currency"
+                    :options="currencyOptions"
+                    :label="$t('product_form.cost_currency')"
+                    outlined
+                    dense
+                    hide-bottom-space
+                    emit-value
+                    map-options
+                  />
+                </div>
+                <div v-if="form.pricing_mode !== 'fixed'" class="product-form__row">
+                  <q-input
+                    v-if="form.pricing_mode === 'import'"
+                    v-model="form.customs_rate_pct"
+                    :label="$t('product_form.customs')"
+                    :hint="$t('product_form.customs_hint')"
+                    type="number"
+                    step="0.01"
+                    outlined
+                    dense
+                    hide-bottom-space
+                  />
+                  <q-input
+                    v-model="form.margin_rate_pct"
+                    :label="$t('product_form.margin')"
+                    :hint="marginHint"
+                    type="number"
+                    step="0.01"
+                    outlined
+                    dense
+                    hide-bottom-space
+                  />
+                </div>
+                <div class="product-form__row">
+                  <q-select
+                    v-model="form.category_id"
+                    :options="categoryOptions"
+                    :label="$t('product_form.category')"
+                    outlined
+                    dense
+                    hide-bottom-space
+                    emit-value
+                    map-options
+                    clearable
+                  />
+                  <q-select
+                    v-model="form.tax_rate_id"
+                    :options="taxRateOptions"
+                    :label="$t('product_form.vat')"
+                    :hint="$t('product_form.vat_hint')"
+                    outlined
+                    dense
+                    hide-bottom-space
+                    emit-value
+                    map-options
+                    clearable
+                  />
+                </div>
+                <div class="product-form__inline">
+                  <q-toggle
+                    :model-value="form.gift_card_amount !== ''"
+                    :label="$t('product_form.gift_card')"
+                    dense
+                    data-testid="product-gift-card"
+                    @update:model-value="
+                      (on: boolean) => (form.gift_card_amount = on ? form.base_price || '1' : '')
+                    "
+                  />
+                  <q-input
+                    v-if="form.gift_card_amount !== ''"
+                    v-model="form.gift_card_amount"
+                    :label="$t('product_form.gift_card_amount', { currency: shopConfig.currency })"
+                    :hint="$t('product_form.gift_card_hint')"
+                    type="number"
+                    step="1"
+                    min="1"
+                    outlined
+                    dense
+                    hide-bottom-space
+                    class="product-form__inline-field"
+                    data-testid="product-gift-card-amount"
+                  />
+                </div>
+                <MarginPreviewPanel
+                  v-if="modelValue"
+                  v-model:group-prices="groupPrices"
+                  :input="marginInput"
+                />
+              </div>
+            </section>
+
+            <!-- 6. Logistique, puis mise en avant -->
+            <div class="product-form__stack">
+              <section class="product-form__section" data-testid="product-section-logistics">
+                <header class="product-form__section-head">
+                  <q-icon name="ph:package" class="product-form__section-icon" />
+                  <h3 class="product-form__section-title">{{ $t('product_form.logistics') }}</h3>
+                  <p class="product-form__section-hint">
+                    {{ $t('product_form.logistics_hint') }}
+                  </p>
+                </header>
+                <div class="product-form__fields">
+                  <q-select
+                    v-model="form.supplier_place_id"
+                    :options="placeOptions"
+                    :label="$t('product_form.origin')"
+                    outlined
+                    dense
+                    hide-bottom-space
+                    emit-value
+                    map-options
+                    clearable
+                  />
+                  <div class="product-form__row product-form__row--dims">
+                    <q-input
+                      v-model.number="form.weight"
+                      :label="$t('product_form.weight')"
+                      type="number"
+                      step="0.001"
+                      outlined
+                      dense
+                      hide-bottom-space
+                    />
+                    <q-input
+                      v-model.number="form.dimensions_length"
+                      :label="$t('product_form.length')"
+                      type="number"
+                      outlined
+                      dense
+                      hide-bottom-space
+                    />
+                    <q-input
+                      v-model.number="form.dimensions_width"
+                      :label="$t('product_form.width')"
+                      type="number"
+                      outlined
+                      dense
+                      hide-bottom-space
+                    />
+                    <q-input
+                      v-model.number="form.dimensions_height"
+                      :label="$t('product_form.height')"
+                      type="number"
+                      outlined
+                      dense
+                      hide-bottom-space
+                    />
+                  </div>
+                </div>
+              </section>
+
+              <section class="product-form__section" data-testid="product-section-display">
+                <header class="product-form__section-head">
+                  <q-icon name="ph:star" class="product-form__section-icon" />
+                  <h3 class="product-form__section-title">{{ $t('product_form.display') }}</h3>
+                  <p class="product-form__section-hint">{{ $t('product_form.display_hint') }}</p>
+                </header>
+                <div class="product-form__inline">
+                  <q-toggle v-model="form.is_featured" :label="$t('product_form.featured')" />
+                  <q-input
+                    v-if="form.is_featured"
+                    v-model.number="form.featured_position"
+                    :label="$t('product_form.featured_pos')"
+                    type="number"
+                    outlined
+                    dense
+                    hide-bottom-space
+                    class="product-form__inline-field"
+                  />
+                </div>
+              </section>
+            </div>
+          </div>
+
+          <!-- 7. Images : la principale (cartes, panier, commandes) et la galerie -->
+          <section class="product-form__section" data-testid="product-section-images">
+            <header class="product-form__section-head">
+              <q-icon name="ph:images" class="product-form__section-icon" />
+              <h3 class="product-form__section-title">{{ $t('product_form.sec_images') }}</h3>
+              <p class="product-form__section-hint">{{ $t('product_form.image_hint') }}</p>
+            </header>
+            <div class="product-form__images">
+              <div class="product-form__image-main">
+                <div class="product-form__frame product-form__frame--main">
+                  <img v-if="form.image_url" :src="form.image_url" alt="" />
+                  <q-icon v-else name="ph:image" size="40px" class="product-form__frame-glyph" />
+                  <span class="product-form__frame-tag">{{ $t('product_form.image_main') }}</span>
+                </div>
+                <q-input
+                  v-model="form.image_url"
+                  :label="$t('product_form.image')"
+                  outlined
+                  dense
+                  hide-bottom-space
+                  clearable
+                  data-testid="product-image-url"
+                >
+                  <template #append>
+                    <q-btn
+                      flat
+                      dense
+                      no-caps
+                      icon="ph:images"
+                      :label="$t('product_form.media')"
+                      data-testid="product-image-pick"
+                      @click="openPicker('main')"
+                    />
+                  </template>
+                </q-input>
+              </div>
+
+              <div class="product-form__gallery" data-testid="product-gallery">
+                <p class="product-form__gallery-title">
+                  {{ $t('product_form.gallery') }}
+                  <span class="text-subtle">{{
+                    $t('product_form.gallery_count', { n: form.gallery_urls.length })
+                  }}</span>
+                </p>
+                <div class="product-form__thumbs">
+                  <div
+                    v-for="(url, index) in form.gallery_urls"
+                    :key="url"
+                    class="product-form__thumb"
+                    :data-testid="`product-gallery-item-${index}`"
+                  >
+                    <div class="product-form__frame">
+                      <img :src="url" alt="" />
+                    </div>
+                    <div class="product-form__thumb-actions">
+                      <q-btn
+                        flat
+                        round
+                        dense
+                        size="sm"
+                        icon="ph:arrow-left"
+                        :disable="index === 0"
+                        :aria-label="$t('product_form.gallery_left')"
+                        @click="moveGallery(index, -1)"
+                      />
+                      <q-btn
+                        flat
+                        round
+                        dense
+                        size="sm"
+                        icon="ph:arrow-right"
+                        :disable="index === form.gallery_urls.length - 1"
+                        :aria-label="$t('product_form.gallery_right')"
+                        @click="moveGallery(index, 1)"
+                      />
+                      <q-btn
+                        flat
+                        round
+                        dense
+                        size="sm"
+                        icon="ph:star"
+                        :aria-label="$t('product_form.gallery_make_main')"
+                        @click="makeMain(index)"
+                      >
+                        <q-tooltip>{{ $t('product_form.gallery_make_main') }}</q-tooltip>
+                      </q-btn>
+                      <q-btn
+                        flat
+                        round
+                        dense
+                        size="sm"
+                        icon="ph:x"
+                        color="negative"
+                        :aria-label="$t('product_form.gallery_remove')"
+                        @click="form.gallery_urls.splice(index, 1)"
+                      />
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    class="product-form__thumb product-form__thumb--add"
+                    :disable="form.gallery_urls.length >= GALLERY_MAX"
+                    data-testid="product-gallery-add"
+                    @click="openPicker('gallery')"
+                  >
+                    <q-icon name="ph:plus" size="22px" />
+                    <span>{{ $t('product_form.gallery_add') }}</span>
+                  </button>
+                </div>
+                <q-input
+                  v-model="galleryUrlDraft"
+                  :label="$t('product_form.gallery_url')"
+                  :hint="$t('product_form.gallery_hint', { max: GALLERY_MAX })"
+                  outlined
+                  dense
+                  hide-bottom-space
+                  class="product-form__gallery-url"
+                  data-testid="product-gallery-url"
+                  @keydown.enter.prevent="addGalleryUrl"
+                >
+                  <template #append>
+                    <q-btn
+                      flat
+                      dense
+                      round
+                      icon="ph:plus"
+                      :disable="!galleryUrlDraft.trim()"
+                      :aria-label="$t('product_form.gallery_add')"
+                      @click="addGalleryUrl"
+                    />
+                  </template>
+                </q-input>
+              </div>
+            </div>
+          </section>
+
+          <!-- 8. Caractéristiques (filtres de la vitrine) -->
+          <section
+            v-if="specsOn"
+            class="product-form__section"
+            data-testid="product-specs"
+          >
+            <header class="product-form__section-head">
+              <q-icon name="ph:sliders-horizontal" class="product-form__section-icon" />
+              <h3 class="product-form__section-title">{{ $t('product_form.specs') }}</h3>
+              <p class="product-form__section-hint">{{ $t('product_form.specs_hint') }}</p>
+            </header>
+            <p v-if="specRows.length === 0 && !form.category_id" class="text-subtle q-mb-none">
+              {{ $t('product_form.specs_no_category') }}
+            </p>
+            <p v-else-if="specRows.length === 0" class="text-subtle q-mb-none">
+              {{ $t('product_form.specs_none') }}
+              <a
+                :href="specDefinitionsHref"
+                target="_blank"
+                rel="noopener"
+                class="product-form__spec-link"
+                >{{ $t('product_form.specs_define') }}</a
               >
-                <q-btn
-                  v-if="!linkedManaged"
-                  outline
-                  dense
-                  no-caps
-                  icon="ph:link"
-                  :label="$t('product_form.attach')"
-                  :disable="!form.supplier_name || !form.supplier_sku.trim()"
-                  :loading="linking === 'attach'"
-                  data-testid="product-attach-supplier"
-                  @click="onAttach"
-                >
-                  <q-tooltip>
-                    {{ $t('product_form.attach_tip') }}
-                  </q-tooltip>
-                </q-btn>
-                <q-btn
-                  v-if="linkedManaged || (managedAfterLink === null && product.supplier_name)"
-                  flat
-                  dense
-                  no-caps
-                  icon="ph:link-break"
-                  :label="$t('product_form.detach')"
-                  :loading="linking === 'detach'"
-                  data-testid="product-detach-supplier"
-                  @click="onDetach"
-                >
-                  <q-tooltip>
-                    {{ $t('product_form.detach_tip') }}
-                  </q-tooltip>
-                </q-btn>
-              </div>
-              <AppNotice v-if="linkNotice" tone="success" dense class="q-mb-sm">
-                {{ linkNotice }}
-              </AppNotice>
-              <q-input
-                v-if="suppliersOn && form.supplier_name && !product?.is_supplier_managed"
-                v-model="form.supplier_quantity"
-                :label="$t('product_form.supplier_stock')"
-                :hint="$t('product_form.supplier_stock_hint')"
-                type="number"
-                step="1"
-                min="0"
-                outlined
-                dense
-                bottom-slots
-              />
-              <q-input
-                v-model="form.local_quantity"
-                :label="$t('product_form.local_stock')"
-                :hint="localStockHint"
-                type="number"
-                step="1"
-                min="0"
-                outlined
-                dense
-                bottom-slots
-              />
-            </div>
-
-            <div>
-              <h3 class="admin-subtitle">{{ $t('product_form.condition') }}</h3>
-              <q-option-group v-model="form.condition" :options="conditionOptions" inline dense />
-              <div v-if="form.condition === 'refurbished'" class="row q-col-gutter-sm q-mb-sm">
+            </p>
+            <div v-else class="product-form__row product-form__row--specs">
+              <div v-for="row in specRows" :key="row.key" class="product-form__spec">
                 <q-input
-                  v-model="form.condition_grade"
-                  class="col-6"
-                  :label="$t('product_form.grade')"
-                  hint="A, B, C…"
+                  v-if="row.type === 'numeric'"
+                  v-model="specValues[row.key]"
+                  :label="row.label"
+                  :suffix="row.unit ?? undefined"
+                  inputmode="decimal"
                   outlined
                   dense
-                  maxlength="5"
+                  hide-bottom-space
+                  clearable
+                  :data-testid="`product-spec-${row.key}`"
                 />
-                <q-input
-                  v-model="form.battery_health_pct"
-                  class="col-6"
-                  type="number"
-                  min="0"
-                  max="100"
-                  :label="$t('product_form.battery')"
+                <q-select
+                  v-else
+                  :model-value="specValues[row.key] || null"
+                  :options="specOptions(row)"
+                  :label="row.label"
+                  use-input
+                  fill-input
+                  hide-selected
+                  input-debounce="0"
+                  new-value-mode="add-unique"
                   outlined
                   dense
-                />
-                <q-input
-                  v-model="form.os_licence"
-                  class="col-6"
-                  :label="$t('product_form.os')"
-                  outlined
-                  dense
-                />
-                <q-input
-                  v-model="form.warranty_months"
-                  class="col-6"
-                  type="number"
-                  min="0"
-                  :label="$t('product_form.warranty')"
-                  outlined
-                  dense
-                />
-              </div>
-
-              <h3 class="admin-subtitle q-mt-md">{{ $t('product_form.availability') }}</h3>
-              <q-option-group
-                v-model="form.availability_mode"
-                :options="availabilityModeOptions"
-                inline
-                dense
-              />
-              <p class="product-form__help">{{ availabilityModeHint }}</p>
-            </div>
-
-            <div>
-              <h3 class="admin-subtitle">{{ $t('product_form.pricing') }}</h3>
-              <q-option-group
-                v-model="form.pricing_mode"
-                :options="pricingModeOptions"
-                inline
-                dense
-              />
-              <p class="product-form__help">{{ pricingModeHint }}</p>
-
-              <q-input
-                v-if="form.pricing_mode === 'fixed'"
-                v-model="form.base_price"
-                :label="$t('product_form.price')"
-                :hint="$t('product_form.price_hint')"
-                type="number"
-                step="0.01"
-                min="0"
-                outlined
-                dense
-                bottom-slots
-                data-testid="product-base-price"
-              />
-              <q-toggle
-                :model-value="form.gift_card_amount !== ''"
-                :label="$t('product_form.gift_card')"
-                dense
-                data-testid="product-gift-card"
-                @update:model-value="
-                  (on: boolean) => (form.gift_card_amount = on ? form.base_price || '1' : '')
-                "
-              />
-              <q-input
-                v-if="form.gift_card_amount !== ''"
-                v-model="form.gift_card_amount"
-                :label="$t('product_form.gift_card_amount', { currency: shopConfig.currency })"
-                :hint="$t('product_form.gift_card_hint')"
-                type="number"
-                step="1"
-                min="1"
-                outlined
-                dense
-                bottom-slots
-                data-testid="product-gift-card-amount"
-              />
-              <div class="row" style="gap: 8px">
-                <q-input
-                  v-model="form.cost_amount"
-                  :label="
-                    form.pricing_mode === 'fixed'
-                      ? $t('product_form.cost_ht')
-                      : $t('product_form.cost')
+                  hide-bottom-space
+                  clearable
+                  :data-testid="`product-spec-${row.key}`"
+                  @filter="
+                    (needle: string, update: (fn: () => void) => void) =>
+                      update(() => (specFilter[row.key] = needle))
                   "
-                  :hint="form.pricing_mode === 'fixed' ? $t('product_form.cost_hint') : ''"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  outlined
-                  dense
-                  bottom-slots
-                  class="col"
-                  data-testid="product-cost"
+                  @input-value="(value: string) => (specValues[row.key] = value)"
+                  @update:model-value="
+                    (value: string | null) => (specValues[row.key] = value ?? '')
+                  "
                 />
-                <q-select
-                  v-model="form.cost_currency"
-                  :options="currencyOptions"
-                  :label="$t('product_form.cost_currency')"
-                  outlined
-                  dense
-                  bottom-slots
-                  emit-value
-                  map-options
-                  class="col"
-                />
-              </div>
-              <div v-if="form.pricing_mode !== 'fixed'" class="row" style="gap: 8px">
-                <q-input
-                  v-if="form.pricing_mode === 'import'"
-                  v-model="form.customs_rate_pct"
-                  :label="$t('product_form.customs')"
-                  :hint="$t('product_form.customs_hint')"
-                  type="number"
-                  step="0.01"
-                  outlined
-                  dense
-                  bottom-slots
-                  class="col"
-                />
-                <q-input
-                  v-model="form.margin_rate_pct"
-                  :label="$t('product_form.margin')"
-                  :hint="marginHint"
-                  type="number"
-                  step="0.01"
-                  outlined
-                  dense
-                  bottom-slots
-                  class="col"
-                />
-              </div>
-              <div class="row" style="gap: 8px">
-                <q-select
-                  v-model="form.category_id"
-                  :options="categoryOptions"
-                  :label="$t('product_form.category')"
-                  outlined
-                  dense
-                  bottom-slots
-                  emit-value
-                  map-options
-                  clearable
-                  class="col"
-                />
-                <q-select
-                  v-model="form.tax_rate_id"
-                  :options="taxRateOptions"
-                  :label="$t('product_form.vat')"
-                  :hint="$t('product_form.vat_hint')"
-                  outlined
-                  dense
-                  bottom-slots
-                  emit-value
-                  map-options
-                  clearable
-                  class="col"
-                />
-              </div>
-              <MarginPreviewPanel
-                v-if="modelValue"
-                v-model:group-prices="groupPrices"
-                :input="marginInput"
-              />
-            </div>
-
-            <div>
-              <h3 class="admin-subtitle">{{ $t('product_form.logistics') }}</h3>
-              <q-select
-                v-model="form.supplier_place_id"
-                :options="placeOptions"
-                :label="$t('product_form.origin')"
-                outlined
-                dense
-                bottom-slots
-                emit-value
-                map-options
-                clearable
-              />
-              <div class="row" style="gap: 8px">
-                <q-input
-                  v-model.number="form.weight"
-                  :label="$t('product_form.weight')"
-                  type="number"
-                  step="0.001"
-                  outlined
-                  dense
-                  bottom-slots
-                  class="col"
-                />
-                <q-input
-                  v-model.number="form.dimensions_length"
-                  :label="$t('product_form.length')"
-                  type="number"
-                  outlined
-                  dense
-                  bottom-slots
-                  class="col"
-                />
-                <q-input
-                  v-model.number="form.dimensions_width"
-                  :label="$t('product_form.width')"
-                  type="number"
-                  outlined
-                  dense
-                  bottom-slots
-                  class="col"
-                />
-                <q-input
-                  v-model.number="form.dimensions_height"
-                  :label="$t('product_form.height')"
-                  type="number"
-                  outlined
-                  dense
-                  bottom-slots
-                  class="col"
+                <StatusTag
+                  v-if="row.source === 'icecat' && specValues[row.key] === specOriginal[row.key]"
+                  :label="$t('product_form.spec_icecat')"
+                  tone="neutral"
+                  class="product-form__spec-source"
                 />
               </div>
             </div>
+          </section>
 
-            <div v-if="isEdit" data-testid="product-links">
-              <h3 class="admin-subtitle">{{ $t('product_form.links') }}</h3>
-              <p class="admin-hint">{{ $t('product_form.links_hint') }}</p>
+          <!-- 9. Articles liés -->
+          <section v-if="isEdit" class="product-form__section" data-testid="product-links">
+            <header class="product-form__section-head">
+              <q-icon name="ph:link-simple" class="product-form__section-icon" />
+              <h3 class="product-form__section-title">{{ $t('product_form.links') }}</h3>
+              <p class="product-form__section-hint">{{ $t('product_form.links_hint') }}</p>
+            </header>
+            <div class="product-form__fields">
               <div
                 v-for="(link, index) in links"
                 :key="link.linked_product_id"
@@ -499,6 +807,7 @@
                 input-debounce="300"
                 outlined
                 dense
+                hide-bottom-space
                 hide-selected
                 data-testid="product-link-search"
                 @filter="filterLinkCandidates"
@@ -513,104 +822,20 @@
                 </template>
               </q-select>
             </div>
+          </section>
 
-            <div v-if="specsOn" data-testid="product-specs">
-              <h3 class="admin-subtitle">{{ $t('product_form.specs') }}</h3>
-              <p class="admin-hint">{{ $t('product_form.specs_hint') }}</p>
-              <p v-if="specRows.length === 0" class="text-subtle">
-                {{ $t('product_form.specs_none') }}
-              </p>
-              <div v-for="row in specRows" :key="row.key" class="product-form__spec">
-                <q-input
-                  v-if="row.type === 'numeric'"
-                  v-model="specValues[row.key]"
-                  :label="row.label"
-                  :suffix="row.unit ?? undefined"
-                  inputmode="decimal"
-                  outlined
-                  dense
-                  clearable
-                  :data-testid="`product-spec-${row.key}`"
-                />
-                <q-select
-                  v-else
-                  :model-value="specValues[row.key] || null"
-                  :options="specOptions(row)"
-                  :label="row.label"
-                  use-input
-                  fill-input
-                  hide-selected
-                  input-debounce="0"
-                  new-value-mode="add-unique"
-                  outlined
-                  dense
-                  clearable
-                  :data-testid="`product-spec-${row.key}`"
-                  @filter="
-                    (needle: string, update: (fn: () => void) => void) =>
-                      update(() => (specFilter[row.key] = needle))
-                  "
-                  @input-value="(value: string) => (specValues[row.key] = value)"
-                  @update:model-value="
-                    (value: string | null) => (specValues[row.key] = value ?? '')
-                  "
-                />
-                <StatusTag
-                  v-if="row.source === 'icecat' && specValues[row.key] === specOriginal[row.key]"
-                  :label="$t('product_form.spec_icecat')"
-                  tone="neutral"
-                  class="product-form__spec-source"
-                />
-              </div>
-            </div>
-
-            <div>
-              <h3 class="admin-subtitle">{{ $t('product_form.display') }}</h3>
-              <q-input
-                v-model="form.image_url"
-                :label="$t('product_form.image')"
-                :hint="$t('product_form.image_hint')"
-                outlined
-                dense
-                bottom-slots
-              >
-                <template v-if="form.image_url" #prepend>
-                  <img :src="form.image_url" alt="" class="image-field__thumb" />
-                </template>
-                <template #append>
-                  <q-btn
-                    flat
-                    dense
-                    no-caps
-                    icon="ph:images"
-                    :label="$t('product_form.media')"
-                    @click="mediaPickerOpen = true"
-                  />
-                </template>
-              </q-input>
-              <div class="row items-center" style="gap: 16px">
-                <q-toggle v-model="form.is_featured" :label="$t('product_form.featured')" />
-                <q-input
-                  v-if="form.is_featured"
-                  v-model.number="form.featured_position"
-                  :label="$t('product_form.featured_pos')"
-                  type="number"
-                  outlined
-                  dense
-                  style="max-width: 160px"
-                />
-              </div>
-            </div>
-          </div>
-
-          <template v-if="isEdit && product && !product.parent_product_id">
-            <q-separator class="q-my-lg" />
+          <!-- 10. Variantes -->
+          <section
+            v-if="isEdit && product && !product.parent_product_id"
+            class="product-form__section"
+            data-testid="product-section-variants"
+          >
             <ProductVariantsPanel
               :product-id="product.id"
               :parent-price="form.pricing_mode === 'fixed' ? form.base_price : null"
               @changed="emit('saved')"
             />
-          </template>
+          </section>
           <p v-else-if="isEdit && product?.parent_product_id" class="admin-hint q-mt-md q-mb-none">
             {{ $t('product_form.variant_of') }}
             <span v-if="product.variant_options">
@@ -644,11 +869,7 @@
         </q-card-actions>
       </q-form>
     </q-card>
-    <MediaPicker
-      v-model="mediaPickerOpen"
-      kind="product"
-      @select="(asset) => (form.image_url = asset.url)"
-    />
+    <MediaPicker v-model="mediaPickerOpen" kind="product" @select="onMediaPicked" />
   </q-dialog>
 </template>
 
@@ -657,6 +878,7 @@ import { useI18n } from 'vue-i18n';
 import { labels } from '@/i18n/global';
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useQuasar } from 'quasar';
+import { useRouter } from 'vue-router';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
 import {
@@ -703,6 +925,46 @@ const { t } = useI18n();
 
 const props = defineProps<{ modelValue: boolean; product: ProductPublic | null }>();
 const mediaPickerOpen = ref(false);
+/** Where the next picked image goes: the main image or the gallery. */
+const pickerTarget = ref<'main' | 'gallery'>('main');
+/** Same cap as the API (``GALLERY_MAX_IMAGES``). */
+const GALLERY_MAX = 20;
+const galleryUrlDraft = ref('');
+function openPicker(target: 'main' | 'gallery') {
+  pickerTarget.value = target;
+  mediaPickerOpen.value = true;
+}
+function addGalleryImage(url: string) {
+  const clean = url.trim();
+  if (!clean || form.gallery_urls.includes(clean)) return;
+  if (form.gallery_urls.length >= GALLERY_MAX) return;
+  form.gallery_urls.push(clean);
+}
+function onMediaPicked(asset: { url: string }) {
+  if (pickerTarget.value === 'main') form.image_url = asset.url;
+  else addGalleryImage(asset.url);
+}
+function addGalleryUrl() {
+  addGalleryImage(galleryUrlDraft.value);
+  galleryUrlDraft.value = '';
+}
+function moveGallery(index: number, delta: number) {
+  const target = index + delta;
+  if (target < 0 || target >= form.gallery_urls.length) return;
+  const [item] = form.gallery_urls.splice(index, 1);
+  if (item !== undefined) form.gallery_urls.splice(target, 0, item);
+}
+/** The clicked gallery picture becomes the main one; the old main joins the gallery. */
+function makeMain(index: number) {
+  const next = form.gallery_urls[index];
+  if (next === undefined) return;
+  const previous = form.image_url.trim();
+  form.gallery_urls.splice(index, 1);
+  if (previous && previous !== next && !form.gallery_urls.includes(previous)) {
+    form.gallery_urls.splice(index, 0, previous);
+  }
+  form.image_url = next;
+}
 const emit = defineEmits<{
   'update:modelValue': [value: boolean];
   saved: [];
@@ -757,6 +1019,8 @@ interface FormState {
   dimensions_width: number | null;
   dimensions_height: number | null;
   image_url: string;
+  /** Extra pictures, after the main one (several images per product). */
+  gallery_urls: string[];
   is_featured: boolean;
   featured_position: number | null;
 }
@@ -808,6 +1072,7 @@ function emptyForm(): FormState {
     dimensions_width: null,
     dimensions_height: null,
     image_url: '',
+    gallery_urls: [],
     is_featured: false,
     featured_position: null,
   };
@@ -1154,6 +1419,7 @@ const FIELD_LABELS: Record<string, string> = labels({
   dimensions_width: 'product_form.f_dimensions_width',
   dimensions_height: 'product_form.f_dimensions_height',
   image_url: 'product_form.f_image_url',
+  gallery_urls: 'product_form.f_gallery_urls',
   is_featured: 'product_form.f_is_featured',
   featured_position: 'product_form.f_featured_position',
 });
@@ -1165,6 +1431,15 @@ const lockedFields = ref<string[]>([]);
 const releasing = ref<string | null>(null);
 
 const $q = useQuasar();
+const router = useRouter();
+/** Catalogue → Caractéristiques, pre-filtered on the product's category. */
+const specDefinitionsHref = computed(
+  () =>
+    router.resolve({
+      path: '/spec-definitions',
+      query: form.category_id ? { category: form.category_id } : {},
+    }).href,
+);
 const linking = ref<'attach' | 'detach' | null>(null);
 const linkNotice = ref<string | null>(null);
 /** Supplier state after an attach / detach in this dialog (the prop is stale). */
@@ -1295,11 +1570,15 @@ function loadFromProduct(p: ProductPublic | null) {
     base.dimensions_width = num(rec.dimensions_width);
     base.dimensions_height = num(rec.dimensions_height);
     base.image_url = str(rec.image_url);
+    base.gallery_urls = Array.isArray(rec.gallery_urls)
+      ? (rec.gallery_urls as unknown[]).map((u) => str(u)).filter(Boolean)
+      : [];
     base.is_featured = Boolean(rec.is_featured);
     base.featured_position = num(rec.featured_position);
   }
   Object.assign(form, base);
-  original = { ...base };
+  // Deep copy: the gallery is an array the form mutates in place.
+  original = { ...base, gallery_urls: [...base.gallery_urls] };
   content.reset();
 }
 
@@ -1310,7 +1589,7 @@ function buildPayload(): Record<string, unknown> {
   for (const key of keys) {
     if (key === 'local_quantity') continue; // inventory adjustment, not a product field
     const value = form[key];
-    if (isEdit.value && value === original[key]) continue;
+    if (isEdit.value && JSON.stringify(value) === JSON.stringify(original[key])) continue;
     if (MONEY_FIELDS.includes(key as (typeof MONEY_FIELDS)[number])) {
       out[key] = str(value).trim() || '0.00';
     } else if (QUANTITY_FIELDS.includes(key as (typeof QUANTITY_FIELDS)[number])) {
@@ -1438,46 +1717,262 @@ onMounted(() => {
   gap: 8px 12px;
 }
 
-.product-form__ids {
+.product-form__body {
+  padding-top: 12px !important;
+}
+
+.product-form__locks {
+  margin-bottom: 16px;
+}
+
+/* Une section = un bloc bordé, titré, avec son aide : le formulaire se lit
+   bloc par bloc au lieu d'une seule colonne de champs. */
+.product-form__section {
+  padding: 16px 18px 18px;
+  border: 1px solid var(--n-line);
+  border-radius: 10px;
+  background: var(--n-surface);
+  min-width: 0;
+}
+
+.product-form__section + .product-form__section,
+.product-form__grid,
+.product-form__grid + .product-form__section,
+.product-form__stack > .product-form__section + .product-form__section {
+  margin-top: 16px;
+}
+
+.product-form__section-head {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 8px;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 8px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.product-form__section-icon {
+  font-size: 18px;
+  color: var(--n-ink-3);
+}
+
+.product-form__section-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--n-ink);
+}
+
+.product-form__section-hint {
+  grid-column: 2;
+  margin: 2px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--n-ink-2);
+}
+
+/* Les champs d'une section : une pile à écart constant. `hide-bottom-space`
+   sur les champs évite la réserve de 20 px sous chacun ; une aide ou une
+   erreur pousse simplement le champ suivant. */
+.product-form__fields {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.product-form__row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 14px 12px;
   align-items: start;
+  min-width: 0;
+
+  &--ids {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  }
+
+  &--dims {
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  }
+
+  &--specs {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  }
+}
+
+.product-form__inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+
+.product-form__inline-field {
+  flex: 0 1 220px;
+}
+
+.product-form__choice {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.product-form__choice-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--n-ink-2);
 }
 
 .product-form__grid {
-  margin-top: 8px;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 20px 32px;
+  gap: 16px;
+  /* Les deux blocs d'une rangée ont la même hauteur : pas de « trou » sous
+     le plus court. */
+  align-items: stretch;
 
   @media (max-width: 899px) {
     grid-template-columns: minmax(0, 1fr);
   }
 }
 
+.product-form__stack {
+  min-width: 0;
+}
+
 .product-form__help {
-  margin: 4px 0 12px;
+  margin: 6px 0 0;
   font-size: 13px;
   line-height: 1.5;
   color: var(--n-ink-2);
 }
 
-.image-field__thumb {
-  width: 32px;
-  height: 32px;
-  object-fit: cover;
-  border-radius: 4px;
+/* Images : la principale à gauche, la galerie à droite. */
+.product-form__images {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+
+  @media (max-width: 899px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.product-form__image-main {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.product-form__frame {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border: 1px solid var(--n-line);
+  border-radius: 8px;
+  background: var(--n-photo);
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    padding: 6%;
+  }
+}
+
+.product-form__frame-glyph {
+  color: var(--n-photo-glyph);
+}
+
+.product-form__frame-tag {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--n-on-ink);
+  background: var(--n-ink);
+}
+
+.product-form__gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.product-form__gallery-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--n-ink-2);
+}
+
+.product-form__thumbs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 10px;
+}
+
+.product-form__thumb {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+
+  &--add {
+    aspect-ratio: 1;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 8px;
+    border: 1px dashed var(--n-line-2);
+    border-radius: 8px;
+    background: none;
+    font: inherit;
+    font-size: 12px;
+    color: var(--n-ink-2);
+    cursor: pointer;
+    text-align: center;
+
+    &:hover {
+      border-color: var(--n-ink);
+      color: var(--n-ink);
+    }
+
+    &[disable] {
+      opacity: 0.5;
+      cursor: default;
+    }
+  }
+}
+
+.product-form__thumb-actions {
+  display: flex;
+  justify-content: center;
+  gap: 0;
+}
+
+.product-form__gallery-url {
+  max-width: 520px;
 }
 
 .product-form__spec {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 8px;
+  min-width: 0;
 
   > :first-child {
     flex: 1;
+    min-width: 0;
   }
 }
 
@@ -1485,11 +1980,15 @@ onMounted(() => {
   flex: none;
 }
 
+.product-form__spec-link {
+  margin-left: 4px;
+  color: var(--n-ink);
+}
+
 .product-form__link {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 6px;
 }
 
 .product-form__link-kind {

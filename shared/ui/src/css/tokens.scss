@@ -19,6 +19,9 @@ body:not(.body--dark) {
   --n-accent: #c2410c;
   --n-on-accent: #ffffff;
   --n-accent-soft: #fdede3;
+  // Reconditionné : une teinte à part (ni promo, ni stock) pour le badge.
+  --n-refurb: #0f766e;
+  --n-refurb-soft: #d9f3ef;
   --n-ok: #15803d;
   --n-warn: #a16207;
   --n-danger: #b91c1c;
@@ -44,6 +47,8 @@ body.body--dark {
   --n-accent: #f2742f;
   --n-on-accent: #0b0b0d;
   --n-accent-soft: rgb(242 116 47 / 14%);
+  --n-refurb: #5eead4;
+  --n-refurb-soft: rgb(94 234 212 / 16%);
   --n-ok: #4ade80;
   --n-warn: #facc15;
   --n-danger: #f87171;

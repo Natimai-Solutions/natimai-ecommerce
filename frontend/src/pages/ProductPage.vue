@@ -73,6 +73,14 @@
           >
             {{ product.manufacturer }}
           </router-link>
+          <span
+            v-if="isRefurbished(product)"
+            class="product__refurb-badge"
+            data-testid="product-condition-badge"
+          >
+            <q-icon name="ph:arrows-counter-clockwise" size="14px" />
+            {{ conditionLabel(product, tr) }}
+          </span>
           <h1 class="product__title">{{ product.name }}</h1>
           <p v-if="shortDescription" class="product__lead" data-testid="product-lead">
             {{ shortDescription }}
@@ -499,7 +507,12 @@ import { COMPARE_MAX, useCompareStore } from '@/stores/compare';
 import { useCurrencyStore } from '@/stores/currency';
 import { useDepartureStore } from '@/stores/departure';
 import { subscribeStockAlert } from '@/api/stockAlerts';
-import { conditionLabel, productAvailability, refurbishedDetails } from '@/utils/availability';
+import {
+  conditionLabel,
+  isRefurbished,
+  productAvailability,
+  refurbishedDetails,
+} from '@/utils/availability';
 import { useI18n } from 'vue-i18n';
 import { formatDate } from '@app/utils';
 import { useDepartureLabels } from '@/composables/useDepartureLabels';
@@ -836,6 +849,10 @@ const gallery = computed<string[]>(() => {
   if (variantImage) urls.push(variantImage);
   const main = product.value?.image_url ?? product.value?.supplier_image_url;
   if (main && !urls.includes(main)) urls.push(main);
+  // The admin's extra pictures come before the Icecat ones.
+  for (const url of product.value?.gallery_urls ?? []) {
+    if (url && !urls.includes(url)) urls.push(url);
+  }
   for (const raw of product.value?.icecat_images ?? []) {
     const url =
       pickUrl(raw['medium']) ??
@@ -1389,6 +1406,22 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.product__refurb-badge {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 10px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--n-refurb);
+  background: var(--n-refurb-soft);
 }
 
 .alert-dialog {

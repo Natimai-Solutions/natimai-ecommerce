@@ -270,6 +270,10 @@ const en: MessageSchema = {
     plan_deposit_caption: 'Balance due when your items arrive.',
     discount_hint: '{label}: -{amount}',
     methods_failed: 'Payment methods could not be loaded.',
+    currency_unsupported:
+      '{method} does not accept payments in {display}. The payment will be made in {charge}: {amount} (about {approx}).',
+    currency_charged:
+      'The payment will be made in {charge}, the shop currency: {amount} (about {approx}).',
     free: 'Free',
     eta: 'Estimated delivery in about {n} days',
     validate: 'Place the order',

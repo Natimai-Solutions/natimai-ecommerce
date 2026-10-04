@@ -273,6 +273,10 @@ const fr = {
     plan_deposit_caption: 'Solde à régler à la réception de vos articles.',
     discount_hint: '{label} : -{amount}',
     methods_failed: 'Impossible de charger les moyens de paiement.',
+    currency_unsupported:
+      "{method} n'accepte pas les paiements en {display}. Le paiement sera effectué en {charge} : {amount} (soit environ {approx}).",
+    currency_charged:
+      'Le paiement sera effectué en {charge}, la devise de la boutique : {amount} (soit environ {approx}).',
     free: 'Offert',
     eta: 'Livraison estimée sous {n} jours environ',
     validate: 'Valider la commande',

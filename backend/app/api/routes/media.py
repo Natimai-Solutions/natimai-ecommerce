@@ -13,6 +13,7 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, File, Form, Request, Response, UploadFile
+from sqlalchemy import Text, cast
 from sqlmodel import col, func, or_, select
 
 from app.api.deps import CurrentSuperUser, SessionDep
@@ -190,7 +191,12 @@ async def media_usages(session: SessionDep, asset_id: uuid.UUID) -> list[str]:
         await session.exec(
             select(func.count())
             .select_from(Product)
-            .where(col(Product.image_url).like(pattern))
+            .where(
+                or_(
+                    col(Product.image_url).like(pattern),
+                    cast(col(Product.gallery_urls), Text).like(pattern),
+                )
+            )
         )
     ).one()
     if products:

@@ -28,6 +28,7 @@ from app.core.errors import AppError
 from app.features.attachment.storage.factory import reset_file_storage_cache
 from app.features.content.models import HomepageBlockPublic, HomepageBlockWrite
 from app.features.product.models.category import Category
+from app.features.product.models.product import Product
 from app.features.user.models.user import User
 
 
@@ -234,7 +235,9 @@ async def test_media_in_use_cannot_be_deleted(
         await _fresh(db_session, admin),
     )
     category = Category(name=f"Écrans {uuid.uuid4().hex[:4]}", image_url=image.url)
-    db_session.add(category)
+    # An image used only in a product's gallery (not its main image) counts too.
+    product = Product(name="Galerie", gallery_urls=[image.url])
+    db_session.add_all([category, product])
     await db_session.commit()
 
     with pytest.raises(AppError) as in_use:
@@ -242,6 +245,10 @@ async def test_media_in_use_cannot_be_deleted(
     assert in_use.value.status_code == 409
     usages = in_use.value.details["usages"]
     assert "Accueil : Hero" in usages and any(u.startswith("Catégorie") for u in usages)
+    assert "1 produit(s)" in usages
+    product.gallery_urls = []
+    db_session.add(product)
+    await db_session.commit()
 
     await replace_block(
         hero.id,

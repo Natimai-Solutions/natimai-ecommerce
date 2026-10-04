@@ -289,9 +289,18 @@ const promoBadge = computed(() => {
 .product-card__condition {
   color: var(--n-ink-3);
 
+  // Un reconditionné se repère d'un coup d'œil : pastille colorée, à part de
+  // la promo (accent) et du stock (points).
   &--refurbished {
-    color: var(--n-ink);
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 11px;
     font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--n-refurb);
+    background: var(--n-refurb-soft);
   }
 }
 

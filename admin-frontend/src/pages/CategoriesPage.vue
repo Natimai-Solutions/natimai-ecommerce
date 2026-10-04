@@ -71,6 +71,21 @@
           />
         </q-td>
       </template>
+      <template #body-cell-sources="props">
+        <q-td :props="props">
+          <div v-if="props.row.supplier_sources.length" class="category-sources">
+            <q-chip
+              v-for="source in props.row.supplier_sources"
+              :key="source"
+              dense
+              size="sm"
+              icon="ph:storefront"
+              :label="source"
+            />
+          </div>
+          <span v-else class="text-subtle">—</span>
+        </q-td>
+      </template>
       <template #body-cell-customs="props">
         <q-td :props="props">
           <span v-if="props.row.default_customs_rate_pct" class="font-mono"
@@ -378,6 +393,7 @@ const columns = computed<QTableColumn[]>(() => [
     align: 'right',
     classes: 'font-mono',
   },
+  { name: 'sources', label: t('categories.col_sources'), field: 'supplier_sources', align: 'left' },
   {
     name: 'customs',
     label: t('categories.col_customs'),
@@ -667,6 +683,13 @@ const mediaPickerOpen = ref(false);
 </script>
 
 <style scoped lang="scss">
+.category-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 4px;
+  max-width: 320px;
+}
+
 .image-field__thumb {
   width: 32px;
   height: 32px;

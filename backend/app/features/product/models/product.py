@@ -468,6 +468,14 @@ class ProductBase(Base):
         max_length=500,
         description="Main image URL of the product",
     )
+    gallery_urls: list[str] = Field(
+        default_factory=list,
+        sa_column=Column(JSON, nullable=False, server_default="[]"),
+        description=(
+            "Additional image URLs (gallery), shown after the main image and "
+            "before the Icecat pictures; media-library URLs or external"
+        ),
+    )
     release_date: str | None = Field(
         default=None, description="Release date of the product"
     )
@@ -572,6 +580,7 @@ class ProductUpdate(ProductBase, BaseUpdate):
     technical_specifications: list[dict[str, Any]] | None = None
     features: list[str] | None = None
     icecat_images: list[dict[str, Any]] | None = None
+    gallery_urls: list[str] | None = None
 
 
 class Product(ProductBase, table=True):

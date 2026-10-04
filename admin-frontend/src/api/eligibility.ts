@@ -22,6 +22,8 @@ export interface PaymentMethod {
   deposit_allowed: boolean;
   /** Its own instructions (null = those of its type). */
   instructions: string | null;
+  /** ISO codes of the currencies it can collect in (empty = any). */
+  currencies: string[];
   /** Payments made with it: a used method cannot be deleted. */
   payments_count: number;
 }
@@ -45,6 +47,7 @@ export interface PaymentMethodWrite {
   is_admin_active?: boolean;
   deposit_allowed?: boolean;
   instructions?: string | null;
+  currencies?: string[];
 }
 
 export async function listPaymentMethodTypes(): Promise<PaymentMethodType[]> {
