@@ -11,7 +11,8 @@ import { useShopModulesStore } from '@/stores/shopModules';
 // <html lang> follows the interface language, server render included.
 const { locale } = useI18n({ useScope: 'global' });
 // The site icon chosen in the back-office (R9 / T9) replaces the bundled
-// favicons; without one, index.html's static links stay.
+// favicons. Only one set of <link rel="icon"> exists at a time: index.html
+// declares none, so the browser cannot pick a bundled icon over the chosen one.
 const shop = useShopModulesStore();
 useMeta(() => {
   const icon = shop.config.branding?.icon;
@@ -35,6 +36,17 @@ useMeta(() => {
       href: `${icon.base}/icon-180.png`,
     };
     link['manifest'] = { rel: 'manifest', href: icon.manifest };
+  } else {
+    // Nothing chosen yet: the bundled icons, with absolute paths so nested
+    // routes (/produit/…) resolve them too.
+    for (const size of [16, 32, 96, 128]) {
+      link[`icon${size}`] = {
+        rel: 'icon',
+        type: 'image/png',
+        sizes: `${size}x${size}`,
+        href: `/icons/favicon-${size}x${size}.png`,
+      };
+    }
   }
   return { htmlAttr: { lang: locale.value }, link };
 });
