@@ -24,7 +24,7 @@ dependencies = [
     # tombe avec lui.
     "bcrypt>=4.0.1,<6.0.0",
     "pydantic-settings<3.0.0,>=2.2.1",
-    "sentry-sdk[fastapi]>=2.68.1",
+    "sentry-sdk[fastapi]>=2.71.0",
     "pyjwt>=2.15.1,<3.0.0",
     "arq>=0.28.0",
     # Borne haute alignée sur ce qu'arq autorise réellement : toutes ses
