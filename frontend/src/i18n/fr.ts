@@ -27,6 +27,7 @@ const fr = {
     catalogue: 'Catalogue',
     search_label: 'Rechercher dans le catalogue',
     search_placeholder: 'Produit, référence ou EAN',
+    search_shortcut: 'Raccourci : appuyez sur la touche / pour rechercher',
     theme_light: 'Passer en mode clair',
     theme_dark: 'Passer en mode sombre',
     account: 'Mon compte',

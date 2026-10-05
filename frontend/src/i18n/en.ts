@@ -29,6 +29,7 @@ const en: MessageSchema = {
     catalogue: 'Catalogue',
     search_label: 'Search the catalogue',
     search_placeholder: 'Product, reference or EAN',
+    search_shortcut: 'Shortcut: press the / key to search',
     theme_light: 'Switch to light mode',
     theme_dark: 'Switch to dark mode',
     account: 'My account',
