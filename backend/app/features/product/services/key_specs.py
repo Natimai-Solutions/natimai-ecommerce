@@ -123,6 +123,7 @@ async def compute_key_specs(
     for spec_def, raw in iter_matched_specs(
         product.technical_specifications or [],
         supplier_category=product.supplier_category or None,
+        category_id=product.category_id,
         alias_index=build_alias_index_from_defs(defs),
     ):
         raw_values.setdefault(spec_def["key"], raw)

@@ -29,6 +29,7 @@ const en: MessageSchema = {
     catalogue: 'Catalogue',
     search_label: 'Search the catalogue',
     search_placeholder: 'Product, reference or EAN',
+    search_shortcut: 'Shortcut: press the / key to search',
     theme_light: 'Switch to light mode',
     theme_dark: 'Switch to dark mode',
     account: 'My account',
@@ -270,6 +271,10 @@ const en: MessageSchema = {
     plan_deposit_caption: 'Balance due when your items arrive.',
     discount_hint: '{label}: -{amount}',
     methods_failed: 'Payment methods could not be loaded.',
+    currency_unsupported:
+      '{method} does not accept payments in {display}. The payment will be made in {charge}: {amount} (about {approx}).',
+    currency_charged:
+      'The payment will be made in {charge}, the shop currency: {amount} (about {approx}).',
     free: 'Free',
     eta: 'Estimated delivery in about {n} days',
     validate: 'Place the order',

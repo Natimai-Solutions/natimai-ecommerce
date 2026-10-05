@@ -3,7 +3,7 @@
 import uuid
 from decimal import Decimal
 
-from sqlmodel import Field, SQLModel
+from sqlmodel import JSON, Column, Field, SQLModel
 
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
@@ -64,6 +64,17 @@ class PaymentMethodBase(Base):
             "(IBAN, office address…). NULL = the instructions of its type"
         ),
     )
+    currencies: list[str] = Field(
+        default_factory=list,
+        sa_column=Column(JSON, nullable=False, server_default="[]"),
+        description=(
+            "ISO codes of the currencies this method can collect in. Empty = "
+            "any (the order is charged in the shop's reference currency). A "
+            "customer whose display currency is not listed is warned at "
+            "checkout that the payment is made in another currency, with "
+            "the converted amount."
+        ),
+    )
 
 
 class PaymentMethodCreate(PaymentMethodBase, BaseCreate):
@@ -85,6 +96,7 @@ class PaymentMethodUpdate(PaymentMethodBase, BaseUpdate):
     max_amount: Decimal | None = None
     deposit_allowed: bool | None = None
     instructions: str | None = None
+    currencies: list[str] | None = None
 
 
 class PaymentMethod(PaymentMethodBase, table=True):

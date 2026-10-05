@@ -64,7 +64,11 @@ from app.features.product.services.manual_specs import (
     apply_manual_specs,
     spec_form_rows,
 )
-from app.features.product.services.overrides import merge_locks, release_lock
+from app.features.product.services.overrides import (
+    clean_gallery_urls,
+    merge_locks,
+    release_lock,
+)
 from app.features.product.services.pricing import CurrencyRateMissing, PricingContext
 from app.features.product.services.related import replace_product_links
 from app.features.product.services.variants import (
@@ -307,6 +311,8 @@ async def admin_create_product(
 ) -> ProductPublic:
     """Create a manually-managed product (never overwritten by the supplier sync)."""
     data = payload.model_dump(exclude_unset=True)
+    if "gallery_urls" in data:
+        data["gallery_urls"] = clean_gallery_urls(data["gallery_urls"])
     supplier = await _resolve_supplier(session, data.get("supplier_name"))
     _apply_supplier_defaults(data, supplier)
     if "translations" in data:
@@ -679,6 +685,16 @@ async def admin_update_product(
         ) from exc
 
     changed = payload.model_dump(exclude_unset=True)
+    if "gallery_urls" in changed:
+        try:
+            changed["gallery_urls"] = clean_gallery_urls(changed["gallery_urls"])
+        except ValueError as exc:
+            raise AppError(
+                code="product.gallery.invalid",
+                status_code=400,
+                message=f"Galerie invalide : {exc}",
+                details={"field": "gallery_urls"},
+            ) from exc
     if "translations" in changed:
         source = {f: changed.get(f, getattr(product, f, None)) for f in PRODUCT_FIELDS}
         changed["translations"] = _product_translations(

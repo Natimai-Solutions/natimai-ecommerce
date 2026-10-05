@@ -368,6 +368,8 @@ function methodSummary(m: PaymentMethod): string {
   if (m.max_amount !== null)
     parts.push(t('eligibility.up_to', { amount: formatMoney(m.max_amount, shopConfig.currency) }));
   if (m.instructions) parts.push(t('eligibility.own_instructions'));
+  if (m.currencies.length)
+    parts.push(t('eligibility.currencies', { list: m.currencies.join(', ') }));
   return parts.join(' · ');
 }
 

@@ -11,6 +11,13 @@ export interface PaymentMethod {
   sort_order: number;
   /** false = cannot pay a deposit (the balance stays open to every method). */
   deposit_allowed?: boolean;
+  /** ISO codes of the currencies the method collects in (empty = any). */
+  currencies?: string[];
+  /** The currency a payment with this method is made in (the shop's reference
+   * unless the method does not list it). */
+  charge_currency?: string;
+  /** 1 unit of `charge_currency` in reference currency; null = no rate known. */
+  charge_rate_to_reference?: string | number | null;
 }
 
 export interface PaymentMethodsResponse {

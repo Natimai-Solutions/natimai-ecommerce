@@ -51,6 +51,8 @@ export interface AdminCategory {
   translation_status: Record<string, string>;
   /** Categories suggested from this one's products (R9 / T7), in order. */
   suggested_category_ids: string[];
+  /** Supplier couples mapped to this category (« Ingram : Computers / Notebooks »). */
+  supplier_sources: string[];
 }
 
 export interface AdminCategoryUpdate {

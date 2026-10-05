@@ -228,6 +228,15 @@
             <AppNotice v-else tone="success" data-testid="checkout-credit-covers">
               {{ $t('checkout.credit_covers') }}
             </AppNotice>
+            <AppNotice
+              v-if="currencyNotice"
+              :tone="currencyNotice.tone"
+              dense
+              class="checkout__currency"
+              data-testid="checkout-currency-notice"
+            >
+              {{ currencyNotice.text }}
+            </AppNotice>
           </section>
 
           <div class="checkout__confirm">
@@ -428,7 +437,7 @@ import { NOINDEX } from '@/utils/seo';
 import { useI18n } from 'vue-i18n';
 import { useDepartureLabels } from '@/composables/useDepartureLabels';
 import { useRoute } from 'vue-router';
-import { countryLabel, orderRef } from '@app/utils';
+import { countryLabel, formatMoney as formatInCurrency, orderRef } from '@app/utils';
 
 import AppNotice from '@app/ui/AppNotice.vue';
 import ChoiceList, { type ChoiceOption } from '@/components/ChoiceList.vue';
@@ -705,6 +714,35 @@ const needsUpload = computed(
 function formatMoney(raw: string): string {
   return orderMoney(raw, quote.value?.currency, currencyStore.reference);
 }
+
+/**
+ * The visitor browses in a display currency, but a payment is made in the
+ * currency the method collects in (the shop's reference unless the method
+ * does not accept it). When the two differ, say so with the amount actually
+ * charged — a warning when the method does not accept the display currency.
+ */
+const currencyNotice = computed<{ tone: 'info' | 'warning'; text: string } | null>(() => {
+  const m = selectedMethod.value;
+  const q = quote.value;
+  if (!m || !q || creditCoversEverything.value) return null;
+  const display = currencyStore.currency.toUpperCase();
+  const charge = (m.charge_currency ?? q.currency ?? currencyStore.reference).toUpperCase();
+  if (display === charge) return null;
+  const due = Number.parseFloat(q.amount_due_now);
+  if (!Number.isFinite(due) || due <= 0) return null;
+  const rate = Number.parseFloat(String(m.charge_rate_to_reference ?? '1')) || 1;
+  const accepted = !m.currencies?.length || m.currencies.includes(display);
+  const params = {
+    method: m.name,
+    display,
+    charge,
+    amount: formatInCurrency(due / rate, charge),
+    approx: currencyStore.format(due),
+  };
+  return accepted
+    ? { tone: 'info', text: t('checkout.currency_charged', params) }
+    : { tone: 'warning', text: t('checkout.currency_unsupported', params) };
+});
 
 function hasFee(fee: string): boolean {
   return Number.parseFloat(fee) > 0;
@@ -1083,6 +1121,10 @@ async function uploadDocument() {
 
 .checkout__notice {
   margin-bottom: 20px;
+}
+
+.checkout__currency {
+  margin-top: 12px;
 }
 
 .checkout__skeleton {

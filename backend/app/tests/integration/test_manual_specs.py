@@ -6,7 +6,7 @@ import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
 from types import SimpleNamespace
-from typing import cast
+from typing import Any, cast
 
 import pytest
 from sqlmodel import select
@@ -152,3 +152,109 @@ async def test_manual_specs_follow_the_category_and_survive_the_projection(
         db_session, admin, manual_id, [SpecValueWrite(key="color", value="")]
     )
     assert next(r for r in cleared.specs if r.key == "color").source is None
+
+
+@pytest.mark.asyncio
+async def test_definitions_scoped_by_shop_category_id(
+    db_session: AsyncSession,
+) -> None:
+    """A definition attached to a shop category (``category_ids``) applies to
+    that category's products — form and Icecat projection alike — whatever
+    the supplier category says, and follows a category merge."""
+    from app.api.routes.admin_categories import MergeBody, merge_category
+    from app.features.product.services.spec_projection import (
+        _spec_applies_to_category,
+    )
+
+    admin = cast(User, SimpleNamespace(id=uuid.uuid4(), is_superuser=True))
+    screens = Category(name="Écrans")
+    monitors = Category(name="Moniteurs")
+    laptops = Category(name="Ordinateurs portables")
+    db_session.add_all([screens, monitors, laptops])
+    await db_session.flush()
+    screens_id, monitors_id, laptops_id = screens.id, monitors.id, laptops.id
+    scoped = _definition("screen_size_inch", "Taille (pouces)", "numeric", "inch", [])
+    scoped.category_ids = [str(screens_id)]
+    db_session.add_all(
+        [
+            scoped,
+            _definition("memory_gb", "Mémoire (Go)", "numeric", "GB", ["ordinateur"]),
+            _definition("color", "Couleur", "enum", None, []),
+        ]
+    )
+    screen = Product(
+        name="Écran 27",
+        pricing_mode=PricingMode.FIXED,
+        base_price=Decimal("50000"),
+        category_id=screens_id,
+        supplier_category="Displays",  # no keyword matches it
+        technical_specifications=[
+            {"name": "Taille (pouces)", "value": '27"'},
+            {"name": "Mémoire (Go)", "value": "8 GB"},
+        ],
+    )
+    db_session.add(screen)
+    await db_session.flush()
+    screen_id = screen.id
+    await db_session.commit()
+
+    # Pure matching rules.
+    assert _spec_applies_to_category(
+        {"category_ids": [str(screens_id)]}, "", screens_id
+    )
+    assert not _spec_applies_to_category(
+        {"category_ids": [str(screens_id)]}, "", laptops_id
+    )
+    assert not _spec_applies_to_category(
+        {"category_ids": [str(screens_id)], "categories": ["ordinateur"]},
+        "Displays",
+        laptops_id,
+    )
+    assert _spec_applies_to_category(
+        {"category_ids": [str(screens_id)], "categories": ["ordinateur"]},
+        "Ordinateur portable",
+        laptops_id,
+    )
+    assert _spec_applies_to_category({}, "", None)
+
+    # The form offers the scoped spec for the screen (by id), not the laptop one.
+    form = await admin_product_specs_form(db_session, admin, product_id=screen_id)
+    assert {r.key for r in form.specs} == {"screen_size_inch", "color"}
+    # The laptop category still gets « memory_gb » through its keyword.
+    draft = await admin_product_specs_form(db_session, admin, category_id=laptops_id)
+    assert {r.key for r in draft.specs} == {"memory_gb", "color"}
+
+    # The Icecat projection keeps the scoped spec and drops the foreign one.
+    screen = cast(Product, await db_session.get(Product, screen_id))
+    await upsert_product_specs(db_session, screen)
+    await db_session.commit()
+    keys = {
+        r.spec_key
+        for r in (
+            await db_session.exec(
+                select(ProductSpec).where(ProductSpec.product_id == screen_id)
+            )
+        ).all()
+    }
+    assert keys == {"screen_size_inch"}
+
+    # Merging « Écrans » into « Moniteurs » moves the definition along.
+    admin_row = User(
+        email=f"admin+{uuid.uuid4().hex[:8]}@test.local",
+        is_superuser=True,
+        is_active=True,
+        hashed_password="x",
+    )
+    db_session.add(admin_row)
+    await db_session.flush()
+    await merge_category(
+        screens_id, MergeBody(target_id=monitors_id), db_session, cast(Any, admin_row)
+    )
+    moved = (
+        await db_session.exec(
+            select(SpecDefinition).where(SpecDefinition.key == "screen_size_inch")
+        )
+    ).one()
+    assert moved.category_ids == [str(monitors_id)]
+    form = await admin_product_specs_form(db_session, admin, category_id=monitors_id)
+    assert {r.key for r in form.specs} == {"screen_size_inch", "color"}

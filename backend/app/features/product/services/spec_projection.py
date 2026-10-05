@@ -64,6 +64,7 @@ async def _load_defs_from_db(session: AsyncSession) -> list[dict[str, Any]] | No
                 "label_fr": r.label_fr,
                 "type": r.type,
                 "unit": r.unit,
+                "category_ids": [str(c) for c in (r.category_ids or [])],
                 "categories": list(r.categories or []),
                 "aliases": list(r.aliases or []),
                 "highlight_rank": r.highlight_rank,
@@ -75,17 +76,28 @@ async def _load_defs_from_db(session: AsyncSession) -> list[dict[str, Any]] | No
         return None
 
 
-def _spec_applies_to_category(spec_def: dict[str, Any], supplier_category: str) -> bool:
-    """Return True if spec_def applies to the given supplier category keyword.
+def _spec_applies_to_category(
+    spec_def: dict[str, Any],
+    supplier_category: str,
+    category_id: uuid.UUID | str | None = None,
+) -> bool:
+    """Return True if spec_def applies to the product's category.
 
-    Matching is partial and case-insensitive: "Ordinateur/Serveur" matches
-    both "ordinateur" and "serveur" entries in the YAML categories list.
+    A definition is scoped by shop categories (``category_ids``) and / or by
+    supplier category keywords (``categories``); with neither it applies to
+    every product. Keyword matching is partial and case-insensitive:
+    "Ordinateur/Serveur" matches both "ordinateur" and "serveur".
     """
-    categories = spec_def.get("categories")
-    if not categories:
+    ids = spec_def.get("category_ids") or []
+    categories = spec_def.get("categories") or []
+    if not ids and not categories:
         return True
-    category_lower = supplier_category.lower()
-    return any(kw in category_lower for kw in categories)
+    if category_id is not None and str(category_id) in ids:
+        return True
+    if categories and supplier_category:
+        category_lower = supplier_category.lower()
+        return any(kw in category_lower for kw in categories)
+    return False
 
 
 def _extract_first_decimal(text: str) -> Decimal | None:
@@ -144,6 +156,7 @@ def iter_matched_specs(
     technical_specifications: list[dict[str, Any]],
     *,
     supplier_category: str | None = None,
+    category_id: uuid.UUID | None = None,
     alias_index: dict[str, dict[str, Any]] | None = None,
 ) -> Iterator[tuple[dict[str, Any], str]]:
     """Yield (spec_def, raw_value) for each Icecat entry matching a definition.
@@ -178,8 +191,10 @@ def iter_matched_specs(
             continue
 
         # Skip specs that don't apply to this product's category
-        if supplier_category and not _spec_applies_to_category(
-            spec_def, supplier_category
+        if (supplier_category or category_id is not None) and (
+            not _spec_applies_to_category(
+                spec_def, supplier_category or "", category_id
+            )
         ):
             continue
 
@@ -190,6 +205,7 @@ def project_specs_from_payload(
     technical_specifications: list[dict[str, Any]],
     *,
     supplier_category: str | None = None,
+    category_id: uuid.UUID | None = None,
     alias_index: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, tuple[str | None, Decimal | None, str | None]]:
     """Return {spec_key → (value_text, value_numeric, unit)} from raw Icecat payload.
@@ -201,6 +217,7 @@ def project_specs_from_payload(
     for spec_def, value_str in iter_matched_specs(
         technical_specifications,
         supplier_category=supplier_category,
+        category_id=category_id,
         alias_index=alias_index,
     ):
         key = spec_def["key"]
@@ -222,6 +239,7 @@ async def upsert_product_specs(
     """Project Icecat payload into product_spec rows. Returns count of upserted rows."""
     specs_payload = product.technical_specifications or []
     supplier_category = getattr(product, "supplier_category", None) or ""
+    category_id = getattr(product, "category_id", None)
 
     # Prefer DB definitions (editable via admin); fall back to YAML on error.
     db_defs = await _load_defs_from_db(session)
@@ -230,12 +248,14 @@ async def upsert_product_specs(
         projected = project_specs_from_payload(
             specs_payload,
             supplier_category=supplier_category or None,
+            category_id=category_id,
             alias_index=alias_index,
         )
     else:
         projected = project_specs_from_payload(
             specs_payload,
             supplier_category=supplier_category or None,
+            category_id=category_id,
         )
 
     if not projected:
@@ -283,20 +303,48 @@ async def get_effective_spec_definitions(
     session: AsyncSession,
     *,
     category_keyword: str | None = None,
+    category_id: uuid.UUID | None = None,
 ) -> list[dict[str, Any]]:
     """Return the active spec definitions, DB-first with YAML fallback.
 
     Used by facet endpoints so that admin edits (label, activation, category
     scoping) are reflected. Inactive specs are already excluded by the DB query.
-    When ``category_keyword`` is provided, only specs applicable to that
-    category are returned (specs with no category restriction always apply).
+    When ``category_keyword`` or ``category_id`` is provided, only specs
+    applicable to that category are returned (specs with no category
+    restriction always apply).
     """
     defs = await _load_defs_from_db(session)
     if not defs:
         defs = _RAW_DEFS
-    if category_keyword:
-        defs = [d for d in defs if _spec_applies_to_category(d, category_keyword)]
+    if category_keyword or category_id is not None:
+        defs = [
+            d
+            for d in defs
+            if _spec_applies_to_category(d, category_keyword or "", category_id)
+        ]
     return [_localized_def(d) for d in defs]
+
+
+async def retarget_spec_definitions(
+    session: AsyncSession, source_id: uuid.UUID, target_id: uuid.UUID
+) -> int:
+    """A category merged into another: the definitions scoped to the source
+    now point at the target. Returns how many definitions changed."""
+    from app.features.product.models.spec_definition import SpecDefinition
+
+    source, target = str(source_id), str(target_id)
+    changed = 0
+    for spec in (await session.exec(select(SpecDefinition))).all():
+        ids = [str(c) for c in (spec.category_ids or [])]
+        if source not in ids:
+            continue
+        ids = [c for c in ids if c != source]
+        if target not in ids:
+            ids.append(target)
+        spec.category_ids = ids
+        session.add(spec)
+        changed += 1
+    return changed
 
 
 def _localized_def(definition: dict[str, Any]) -> dict[str, Any]:
