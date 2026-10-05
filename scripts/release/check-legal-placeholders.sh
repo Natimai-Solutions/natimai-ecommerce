@@ -79,7 +79,7 @@ if other:
 
 print(
     "\nÉCHEC — compléter depuis le back-office (Réglages système) "
-    "ou via PUT /admin/system-settings/{key}. Voir DEPLOYMENT.md §13.",
+    "ou via PUT /admin/system-settings/{key}. Voir docs/DEPLOYMENT.md §13.",
     file=sys.stderr,
 )
 raise SystemExit(1)

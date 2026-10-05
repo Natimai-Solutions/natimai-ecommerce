@@ -1,0 +1,72 @@
+# Image de l'API publiée en continu sur GHCR, pour travailler sur un frontend
+# sans installer Python : `make dev-front` (docker-compose.frontend-dev.yml)
+# démarre l'API depuis cette image. Voir CONTRIBUTING.md.
+#
+# Contrairement aux images des frontends (VITE_API_URL figée au build), l'image
+# de l'API n'embarque aucune valeur propre à un déploiement : la même image
+# sert à tous. Elle est publiée sous le même nom que celle du déploiement
+# (deploy.yml, tags `<env>-<sha>`), avec les tags `main` et `sha-<commit>`.
+#
+# Première publication : le paquet GHCR est créé privé. Pour que les
+# contributeurs le tirent sans compte, le passer en public une fois :
+# github.com/orgs/<org>/packages → api → Package settings → Change visibility.
+name: Publish API image
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/publish-api-image.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-api-image
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    name: ghcr.io/…/api:main
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Nom de l'image
+        id: image
+        run: |
+          # GHCR n'accepte que des noms en minuscules.
+          echo "name=ghcr.io/${GITHUB_REPOSITORY,,}/api" >> "$GITHUB_OUTPUT"
+          echo "short=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          # --pull : l'image de base est un tag flottant.
+          pull: true
+          tags: |
+            ${{ steps.image.outputs.name }}:main
+            ${{ steps.image.outputs.name }}:sha-${{ steps.image.outputs.short }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.licenses=AGPL-3.0-or-later
+          # Même cache que la construction de l'image api en CI (security.yml)
+          # et au déploiement : rien n'est reconstruit deux fois.
+          cache-from: type=gha,scope=ci-api
+          cache-to: type=gha,mode=max,scope=ci-api

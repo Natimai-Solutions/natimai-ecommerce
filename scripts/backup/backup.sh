@@ -8,7 +8,7 @@
 # ne protège ni d'une panne disque ni d'un ransomware. Renseigner
 # OFFSITE_RCLONE_REMOTE pour l'activer — tant qu'elle ne l'est pas, la rotation
 # est DÉSACTIVÉE (on ne supprime pas des archives qui n'existent qu'ici).
-# Voir DEPLOYMENT.md §12 (procédure de restauration incluse — à TESTER avant
+# Voir docs/DEPLOYMENT.md §12 (procédure de restauration incluse — à TESTER avant
 # d'accepter la moindre commande réelle).
 #
 # Variables surchargeables par l'environnement :

@@ -1,0 +1,41 @@
+name: Bug report
+description: Something does not work as documented
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - API (backend/)
+        - Storefront (frontend/)
+        - Admin (admin-frontend/)
+        - Shared packages (shared/)
+        - Docker / deployment / CI
+        - Documentation
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, what you got. Logs or screenshots help.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. make dev (or the commands you ran)
+        2. ...
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Git tag or commit (`git describe --always`), and how you run it (docker compose, host, image tag).
+  - type: textarea
+    id: env
+    attributes:
+      label: Relevant configuration
+      description: Non-secret `.env` values that matter (`TERRITORY_PROFILE`, `SHOP_MODE`, `ENVIRONMENT`…). Never paste secrets.

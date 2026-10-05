@@ -718,9 +718,9 @@ there; both run the same migrations and the same compose files.
    built with the environment's `VITE_API_URL`, hence the environment in the
    tag: a staging image never lands in production;
 3. connects over SSH, checks the repository out at that commit and runs
-   [`scripts/release/deploy.sh`](scripts/release/deploy.sh): `pull` → `run
+   [`scripts/release/deploy.sh`](../scripts/release/deploy.sh): `pull` → `run
    --rm migrate` → `up -d --no-build` with
-   [`docker-compose.images.yml`](docker-compose.images.yml) on top of the
+   [`docker-compose.images.yml`](../docker-compose.images.yml) on top of the
    production files, then waits for `/api/v1/healthz/ready` (fails after
    5 minutes, printing the API logs).
 
@@ -803,8 +803,8 @@ Then run the [post‑deployment checks](#10-postdeployment-checks).
 
 By default the docker‑compose deployment only exposes "raw" ports
 (`8000`, `3000`, `3001`) without TLS. For production, a **Caddy** reverse proxy
-([`infra/caddy/Caddyfile`](infra/caddy/Caddyfile) +
-[`docker-compose.proxy.yml`](docker-compose.proxy.yml)) provides a single entry
+([`infra/caddy/Caddyfile`](../infra/caddy/Caddyfile) +
+[`docker-compose.proxy.yml`](../docker-compose.proxy.yml)) provides a single entry
 point on `80`/`443`, **automatic Let's Encrypt TLS termination** and per‑subdomain
 routing.
 
@@ -1053,7 +1053,7 @@ backup.
 
 ### Schedule
 
-[`scripts/backup/backup.sh`](scripts/backup/backup.sh) dumps the database
+[`scripts/backup/backup.sh`](../scripts/backup/backup.sh) dumps the database
 (custom format), archives the uploads volume, verifies **both** artefacts
 (`PGDMP` magic for the dump, `tar tzf` for the archive), pushes them offsite,
 and only then rotates old files (14 days by default). Each artefact is written
@@ -1076,8 +1076,8 @@ the backups elsewhere by another means (`scp`, object storage, snapshots).
 Any failure exits non-zero and, when `ALERT_WEBHOOK_URL` is set, posts to the
 alerting webhook — a backup that fails silently is worse than none, because you
 believe you are covered. A ready-to-install crontab lives at
-[`scripts/backup/ecommerce-backup.cron`](scripts/backup/ecommerce-backup.cron),
-and [`scripts/backup/restore.sh`](scripts/backup/restore.sh) automates the
+[`scripts/backup/ecommerce-backup.cron`](../scripts/backup/ecommerce-backup.cron),
+and [`scripts/backup/restore.sh`](../scripts/backup/restore.sh) automates the
 restore rehearsal described below.
 
 ### Restore procedure (test it BEFORE go‑live)
@@ -1106,7 +1106,7 @@ curl -fsS https://api.<DOMAIN>/api/v1/healthz/ready
 
 ### Rehearsal — do this before the first order
 
-[`scripts/backup/restore.sh`](scripts/backup/restore.sh) automates both the
+[`scripts/backup/restore.sh`](../scripts/backup/restore.sh) automates both the
 rehearsal and the real restore. **The default mode is the rehearsal**: it spins
 up a throwaway PostgreSQL container, restores the dump into it, prints the row
 counts of the tables you would most regret losing (`orders`, `order_lines`,

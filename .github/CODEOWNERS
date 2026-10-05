@@ -1,0 +1,5 @@
+# Relecteurs demandés automatiquement sur chaque PR. Une ligne par dossier
+# suffit pour confier une partie du dépôt à quelqu'un d'autre, par exemple :
+#   /frontend/        @quelquun
+#   /backend/         @quelquun-dautre
+* @jburckel
