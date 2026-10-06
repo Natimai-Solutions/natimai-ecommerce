@@ -546,7 +546,8 @@ class Settings(BaseSettings):
     INVOICE_LEGAL_FOOTER: str = ""  # mentions de pied de facture
     # Taux appliqué aux frais (livraison, paiement) pour la ventilation de
     # taxe. Code de TaxRate résolu sur le territoire de référence.
-    # ⚠️ À faire confirmer par le comptable (cf. PLAN_DE_TRAVAIL, écart F3).
+    # ⚠️ À faire confirmer par le comptable (cf. écart F3 dans
+    # docs/internal/PLAN_DE_TRAVAIL.md).
     INVOICE_FEES_TAX_CODE: str = "TVA_NORMALE"
     PAYZEN_CURRENCY: str = "XPF"  # Default currency for French Polynesia
     PAYZEN_IPN_URL: str | None = None  # Will be computed based on backend URL

@@ -11,9 +11,70 @@ env:
   GIST_SECRET: ${{ secrets.GIST_SECRET }}
 
 jobs:
+  # Périmètre d'une PR : chaque job ci-dessous ne tourne que si des fichiers de
+  # son périmètre ont changé (une PR qui ne touche que l'admin n'attend ni
+  # pytest ni Playwright). Sur `main`, tout tourne toujours : les badges de
+  # couverture et la vérification « CI verte » de deploy.yml le supposent.
+  # Un job sauté compte comme réussi pour les vérifications requises de la
+  # branche (`if:` posé sur le job, pas sur ses étapes). Si ce job échoue, les
+  # autres sont sautés et la CI est rouge : jamais un vert par défaut.
+  changes:
+    name: Périmètre des changements
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      api_types: ${{ steps.filter.outputs.api_types }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      stack: ${{ steps.filter.outputs.stack }}
+    steps:
+      # Sur un push, l'action compare par git local ; sur une PR, par l'API.
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+              - '.github/workflows/ci.yml'
+            api_types:
+              - 'backend/**'
+              - 'shared/api-types/**'
+              - 'scripts/gen-api-types.sh'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - '.github/workflows/ci.yml'
+            frontend:
+              - 'frontend/**'
+              - 'admin-frontend/**'
+              - 'shared/**'
+              - 'package.json'
+              - 'pnpm-workspace.yaml'
+              - 'pnpm-lock.yaml'
+              - 'tsconfig.base.json'
+              - 'vitest.config.ts'
+              - '.github/workflows/ci.yml'
+            stack:
+              - 'backend/**'
+              - 'frontend/**'
+              - 'admin-frontend/**'
+              - 'shared/**'
+              - 'e2e/**'
+              - 'docker-compose*.yml'
+              - 'infra/**'
+              - 'package.json'
+              - 'pnpm-workspace.yaml'
+              - 'pnpm-lock.yaml'
+              - '.env.example'
+              - '.github/workflows/ci.yml'
+
   backend:
     name: Backend — lint, typecheck, tests & coverage
     runs-on: ubuntu-latest
+    needs: changes
+    if: github.event_name == 'push' || needs.changes.outputs.backend == 'true'
     # Point the app settings (engine, alembic, initial_data) at the CI services:
     # the defaults ("db", "redis") are docker-compose hostnames that do not
     # resolve on the runner. The app uses its own database so the integration
@@ -162,6 +223,8 @@ jobs:
   api-types:
     name: Types de l'API — dérive de shared/api-types
     runs-on: ubuntu-latest
+    needs: changes
+    if: github.event_name == 'push' || needs.changes.outputs.api_types == 'true'
     # Le schéma TypeScript commité est regénéré depuis l'application (sans
     # serveur ni base) et comparé : une route ou un schéma modifié côté
     # backend sans `pnpm gen:types` fait échouer la CI au lieu de laisser les
@@ -195,6 +258,8 @@ jobs:
   frontend:
     name: Frontend — lint, typecheck & shared tests
     runs-on: ubuntu-latest
+    needs: changes
+    if: github.event_name == 'push' || needs.changes.outputs.frontend == 'true'
     steps:
       - uses: actions/checkout@v4
 
@@ -252,6 +317,8 @@ jobs:
   e2e:
     name: E2E — vitrine et admin (Playwright)
     runs-on: ubuntu-latest
+    needs: changes
+    if: github.event_name == 'push' || needs.changes.outputs.stack == 'true'
     # Vitrine : catalogue → panier → checkout → commande, puis l'espace client.
     # Admin : accès, tableau de bord, chaque écran du menu, validation d'un
     # virement jusqu'à la commande payée, bannière d'accueil publiée sur la

@@ -404,7 +404,7 @@ const en: MessageSchema = {
     col_products: 'Products',
     col_rate: 'Customs',
     help: 'Enter the <strong>effective rate</strong>: all import duties and taxes (customs duty, TDL and the other levies of the tariff heading) brought down to a single percentage of the CIF value — not the customs duty alone. Derive it from the <a href="https://simulateur-douane-polynesie.com/" target="_blank" rel="noopener" class="admin-link">French Polynesia customs simulator</a> by simulating a representative value, EU origin for the France → Papeete corridor.',
-    hint: 'Effective rate of all import duties and taxes, applied to the CIF value (see DEPLOYMENT.md §15). A product whose rate resolves neither on itself nor on its category is hidden from the shop.',
+    hint: 'Effective rate of all import duties and taxes, applied to the CIF value (see docs/DEPLOYMENT.md §15). A product whose rate resolves neither on itself nor on its category is hidden from the shop.',
     kpi_no_rate: 'Without customs rate',
     kpi_no_rate_hint: 'to handle below',
     kpi_no_weight: 'Without weight',
@@ -415,7 +415,7 @@ const en: MessageSchema = {
     no_category_hint: 'These products have no category: their rate cannot be inherited.',
     none: 'No categories.',
     procedure:
-      'Full procedure, rule for multiple tariff headings and tracking table: <code>DEPLOYMENT.md</code> §15.',
+      'Full procedure, rule for multiple tariff headings and tracking table: <code>docs/DEPLOYMENT.md</code> §15.',
     rate: 'Customs rate (%)',
     rate_hint: 'Empty = no rate: products of this category stay hidden',
     set_rate: 'Set the customs rate',

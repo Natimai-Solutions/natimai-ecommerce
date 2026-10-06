@@ -5,7 +5,9 @@ is applied automatically on top of `docker-compose.yml` when you run `docker com
 enabling hot reload, source-mounted volumes and verbose logging.
 
 > 🐍 **Prefer running the apps on your host** (native debuggers, faster reload)?
-> See the **"Run the apps outside Docker"** section of [`README.md`](README.md).
+> See [Run the apps outside Docker](#run-the-apps-outside-docker) below.
+> Working on **one part only** (API without Node, a frontend without Python)?
+> See [`CONTRIBUTING.md`](../CONTRIBUTING.md).
 >
 > 🚀 **Deployment & environment variables**: see [`DEPLOYMENT.md`](DEPLOYMENT.md)
 > for the full list of environment variables and the first-deployment steps.
@@ -221,3 +223,121 @@ templates so it stays translatable. **Add a language**: copy the `fr/` folder to
 3. **Performance**: development mode is not optimized for production.
 4. **Data**: volumes persist across restarts.
 5. **Migration files** are generated directly on your local filesystem.
+
+## Run the apps outside Docker
+
+Run only the infrastructure in Docker and the apps on your host:
+
+```bash
+# 1. Infrastructure only
+docker compose up -d postgres redis clamav
+
+# 2. Backend API (from backend/)
+cd backend
+uv sync
+uv run alembic upgrade head
+uv run python app/initial_data.py      # seed reference data (first run)
+uv run uvicorn app.main:app --reload   # http://localhost:8000  (docs at /docs)
+
+# 3. Background workers (separate terminals, from backend/)
+uv run arq app.core.arq_worker.WorkerSettings                              # ARQ worker
+uv run python app/scripts/outbox_poller.py --mode continuous --interval 5  # outbox poller
+
+# 4. Frontends (from the repo root)
+pnpm install
+pnpm dev:front    # storefront — Quasar dev server, http://localhost:9000
+pnpm dev:admin    # admin      — next free port, http://localhost:9001 when the storefront runs
+```
+
+When running outside Docker, point the backend at the host-mapped services
+(`POSTGRES_SERVER=localhost`, `REDIS_SERVER=localhost`); see
+[`DEPLOYMENT.md`](DEPLOYMENT.md). To regenerate the frontends' API types after
+a backend change: `pnpm gen:types` (no server needed).
+
+## Docker Compose files
+
+| File | Purpose |
+|---|---|
+| `docker-compose.yml` | Base stack: PostgreSQL, Redis, ClamAV, API, ARQ worker, outbox poller, migrate, frontends. |
+| `docker-compose.override.yml` | **Auto-applied in development** by `docker compose up` (no `-f`). `--reload`, source mounted for hot reload, dev dependencies, DEBUG logging, tolerant healthchecks. |
+| `docker-compose.frontend-dev.yml` | **Frontend work without Python**: the Python services run from the GHCR image published from `main`, ClamAV is off. `make dev-front`. |
+| `docker-compose.prod.yml` | Production overrides: `ENVIRONMENT=production`, no reload, restart policies, isolated DB network, resource limits, health checker. |
+| `docker-compose.proxy.yml` | Caddy reverse proxy: Let's Encrypt TLS and subdomain routing (bare domain → storefront, `api.` → API, `admin.` → admin). |
+| `docker-compose.images.yml` | Production from the images built by the Deploy workflow instead of building on the server. |
+| `docker-compose.health.yml` | Dedicated outbox health checker. |
+
+```bash
+# Development (base + override, automatic)
+docker compose up -d
+
+# Frontend only (API from the published image)
+docker compose -f docker-compose.yml -f docker-compose.frontend-dev.yml up -d --wait --no-build postgres redis api
+
+# Production (compose files are layered explicitly; scripts/release/deploy.sh does this)
+docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.proxy.yml -f docker-compose.images.yml up -d
+```
+
+## Environment variables
+
+The backend reads the repository-root `.env` (see [`.env.example`](../.env.example));
+the two frontends read a build-time `VITE_API_URL` from their own `.env`. In
+Docker, PostgreSQL and Redis are wired by the compose files; outside Docker you
+set their connection details yourself.
+
+The most important variables; [`DEPLOYMENT.md`](DEPLOYMENT.md) has the
+**complete** list:
+
+| Variable | Description |
+|---|---|
+| `SECRET_KEY` | JWT signing secret (`openssl rand -base64 32`) |
+| `ENVIRONMENT` | `local` \| `staging` \| `production` (controls cookie `Secure`, the safety guards, etc.) |
+| `TERRITORY_PROFILE` / `SHOP_MODE` | `FR` or `PF`; `simple` hides suppliers, customs, exchange rates and multi-leg logistics |
+| `DOMAIN` | Root domain (used by the Caddy proxy for subdomain routing) |
+| `BACKEND_CORS_ORIGINS` | Allowed CORS origins, JSON array |
+| `FIRST_SUPERUSER` / `FIRST_SUPERUSER_PASSWORD` | **Required**: bootstrap admin account |
+| `POSTGRES_SERVER` / `POSTGRES_PORT` / `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | Database connection (set in compose for Docker) |
+| `REDIS_*` | Redis / ARQ broker connection |
+| `CLAMAV_ENABLED` / `CLAMAV_HOST` / `CLAMAV_PORT` | Antivirus for uploads; `false` is only accepted in `local` |
+| `PAYMENT_NOTIFICATIONS_EMAIL_PROVIDER` | `mailgun` \| `noop` |
+| `MAILGUN_API_KEY` / `MAILGUN_DOMAIN` / `MAILGUN_FROM_EMAIL` | Transactional email (when provider is `mailgun`) |
+| `PAYZEN_SITE_ID` / `PAYZEN_API_PASSWORD_TEST` / `PAYZEN_API_PASSWORD_PROD` / `PAYZEN_PUBLIC_KEY_*` | PayZen / Lyra card payments |
+| `PAYZEN_MODE` | `TEST` \| `PRODUCTION` |
+| `PAYZEN_MANUAL_VALIDATION` | `true` → authorise card at checkout, capture later (deferred debit) |
+| `INGRAM_CLIENT_ID` / `INGRAM_CLIENT_SECRET` / `INGRAM_CUSTOMER_NUMBER` | Ingram Micro supplier API |
+| `INGRAM_ENVIRONMENT` | `sandbox` \| `production` |
+| `INGRAM_ORDER_CREATION_ENABLED` | Auto-create supplier purchase orders on payment capture |
+| `ICECAT_USERNAME` / `ICECAT_API_KEY` | Icecat product enrichment |
+| `STOCK_RESERVATION_TTL_HOURS` | Release stock held by orders that never reached a payment outcome (0 disables) |
+| `SUPPLIER_DELISTING_GRACE_HOURS` | Grace period before deactivating a SKU the supplier stopped returning |
+| `CHECKOUT_SUPPLIER_AVAILABILITY_CHECK` | Re-check supplier stock at checkout instead of trusting the last sync |
+| `VITE_API_URL` (frontends) | Backend origin; the client appends `/api/v1` |
+
+> ⚠️ **Required secrets are enforced.** `SECRET_KEY`, `POSTGRES_PASSWORD`,
+> `FIRST_SUPERUSER` and `FIRST_SUPERUSER_PASSWORD` ship with placeholder defaults
+> for local development only. If they are left at their placeholder value, the
+> backend **refuses to start** when `ENVIRONMENT` is not `local` (and warns in
+> `local`). Set real values in your `.env` before any staging/production deploy.
+
+## Tests & coverage
+
+CI ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) runs on every
+pull request (only the jobs whose files changed) and on every push to `main`
+(everything):
+
+- **backend**: `ruff` (lint + format), `mypy`, a single Alembic head, `pytest`
+  **under coverage** against a throwaway PostgreSQL service. Coverage config
+  lives in [`backend/pyproject.toml`](../backend/pyproject.toml); `fail_under`
+  gates the build.
+- **api-types**: the committed `shared/api-types/src/schema.ts` is regenerated
+  from the application and compared.
+- **frontend**: `lint` + `typecheck` for both apps, unit tests of the shared
+  engine (`@app/utils`) via **vitest**, under coverage.
+- **e2e**: the storefront and admin Playwright journeys against the compose stack.
+
+```bash
+# Backend (from backend/) — integration tests need a reachable test DB (TEST_DATABASE_URL)
+uv run coverage run -m pytest && uv run coverage report
+
+# Frontend — shared engine (from the repo root)
+pnpm test:coverage
+```

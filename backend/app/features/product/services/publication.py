@@ -22,7 +22,8 @@ The gate depends on the product's ``pricing_mode``:
 Dimensions are deliberately **not** required: without them the billable weight
 falls back to the real weight, which under-bills bulky-but-light items but never
 invents a number. That fallback is the documented behaviour (see the risk table
-in PLAN_DE_TRAVAIL.md); only the silent zeros are blocking.
+in docs/internal/PLAN_DE_TRAVAIL.md); only the silent zeros are
+blocking.
 
 Use ``publication_conditions()`` to filter storefront queries, and
 ``publication_blockers()`` to explain a single product (cart guard, admin).
