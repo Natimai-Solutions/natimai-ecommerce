@@ -1031,13 +1031,27 @@ async def list_my_payment_methods(
     as a payment_id UUID (422).
     """
     from app.features.payment.models.payment_method import PaymentMethodPublic
+    from app.features.payment.services.payment_currencies import (
+        charge_currency_for,
+        rate_from_reference,
+    )
 
     methods = await get_eligible_payment_methods(
         session,
         price_group_id=current_user.price_group_id,
         cart_total=cart_total,
     )
-    return [PaymentMethodPublic.model_validate(m).model_dump() for m in methods]
+    out: list[dict[str, Any]] = []
+    for m in methods:
+        data = PaymentMethodPublic.model_validate(m).model_dump()
+        # The currency the payment is made in, and how to convert the order
+        # amount (reference currency) into it: the checkout warns a customer
+        # whose display currency is not the one charged.
+        charge = charge_currency_for(m, reference_currency())
+        data["charge_currency"] = charge
+        data["charge_rate_to_reference"] = await rate_from_reference(session, charge)
+        out.append(data)
+    return out
 
 
 @router.get("/me/{payment_id}", response_model=PaymentStatusResponse)

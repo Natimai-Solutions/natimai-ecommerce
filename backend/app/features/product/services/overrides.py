@@ -34,6 +34,26 @@ LOCK_EXEMPT_FIELDS = frozenset(
 )
 
 
+#: How many gallery images a product may carry.
+GALLERY_MAX_IMAGES = 20
+
+
+def clean_gallery_urls(urls: Iterable[str] | None) -> list[str]:
+    """The gallery as stored: trimmed, non-empty, deduplicated, capped
+    (``GALLERY_MAX_IMAGES``), each URL at most 500 characters."""
+    out: list[str] = []
+    for raw in urls or ():
+        url = str(raw or "").strip()
+        if not url or url in out:
+            continue
+        if len(url) > 500:
+            raise ValueError("une URL d'image dépasse 500 caractères")
+        out.append(url)
+        if len(out) == GALLERY_MAX_IMAGES:
+            break
+    return out
+
+
 def merge_locks(existing: Iterable[str] | None, edited: Iterable[str]) -> list[str]:
     """Ajouter les champs édités aux verrous existants (trié, sans doublon)."""
     locks = set(existing or ()) | {f for f in edited if f not in LOCK_EXEMPT_FIELDS}

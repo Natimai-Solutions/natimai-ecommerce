@@ -20,10 +20,21 @@ class SpecDefinitionBase(SQLModel):
     unit: str | None = Field(
         default=None, max_length=20, description="Unit for numeric specs"
     )
+    category_ids: list[str] = Field(
+        default_factory=list,
+        sa_column=Column(JSON, nullable=False, server_default="[]"),
+        description=(
+            "Shop categories (ids) this spec applies to. Empty, together with "
+            "an empty ``categories`` keyword list, means every category."
+        ),
+    )
     categories: list[str] = Field(
         default_factory=list,
         sa_column=Column(JSON),
-        description="Category slugs/keywords this spec applies to",
+        description=(
+            "Supplier category keywords (Ingram, Icecat) this spec also applies "
+            "to, matched case-insensitively in the product's supplier category"
+        ),
     )
     aliases: list[str] = Field(
         default_factory=list,
@@ -56,6 +67,7 @@ class SpecDefinitionUpdate(SQLModel):
     label_fr: str | None = None
     type: str | None = None
     unit: str | None = None
+    category_ids: list[str] | None = None
     categories: list[str] | None = None
     aliases: list[str] | None = None
     is_active: bool | None = None

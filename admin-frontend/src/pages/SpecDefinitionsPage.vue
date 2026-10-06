@@ -8,7 +8,7 @@
           no-caps
           icon="ph:plus"
           :label="$t('specs.new')"
-          @click="openCreate"
+          @click="openCreate()"
         />
       </template>
     </PageHeader>
@@ -27,8 +27,28 @@
     >
       <template #body-cell-categories="props">
         <q-td :props="props">
-          <q-chip v-for="c in props.row.categories" :key="c" dense :label="c" />
-          <span v-if="props.row.categories.length === 0" class="text-subtle">—</span>
+          <q-chip
+            v-for="id in props.row.category_ids"
+            :key="id"
+            dense
+            icon="ph:folders"
+            :label="categoryName(id)"
+          />
+          <q-chip
+            v-for="c in props.row.categories"
+            :key="`kw-${c}`"
+            dense
+            outline
+            icon="ph:storefront"
+            :label="c"
+          >
+            <q-tooltip>{{ $t('specs.keyword_tip') }}</q-tooltip>
+          </q-chip>
+          <span
+            v-if="props.row.categories.length === 0 && props.row.category_ids.length === 0"
+            class="text-subtle"
+            >{{ $t('specs.all_categories') }}</span
+          >
         </q-td>
       </template>
       <template #body-cell-aliases="props">
@@ -122,8 +142,23 @@
             />
             <q-input v-model="form.unit" :label="$t('specs.unit')" outlined dense bottom-slots />
             <q-select
+              v-model="form.category_ids"
+              :options="categoryOptions"
+              :label="$t('specs.category_ids')"
+              :hint="$t('specs.category_ids_hint')"
+              outlined
+              dense
+              multiple
+              use-chips
+              emit-value
+              map-options
+              bottom-slots
+              data-testid="spec-categories"
+            />
+            <q-select
               v-model="form.categories"
               :label="$t('specs.categories')"
+              :hint="$t('specs.categories_hint')"
               outlined
               dense
               multiple
@@ -192,6 +227,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import { computed, onMounted, reactive, ref } from 'vue';
+import { useRoute } from 'vue-router';
 import type { QTableColumn } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
@@ -211,10 +247,22 @@ import {
   type SpecDefinition,
 } from '@/api/specDefinitions';
 import { extractApiError } from '@/api/errors';
+import { listAdminCategories, type AdminCategory } from '@/api/categories';
 
 const { t } = useI18n();
+const route = useRoute();
 
 const rows = ref<SpecDefinition[]>([]);
+/** Shop categories a definition can be attached to (active, not merged). */
+const categories = ref<AdminCategory[]>([]);
+const categoryOptions = computed(() =>
+  categories.value
+    .filter((c) => !c.merged_into_id)
+    .map((c) => ({ label: c.title, value: c.id })),
+);
+function categoryName(id: string): string {
+  return categories.value.find((c) => c.id === id)?.title ?? '?';
+}
 const loading = ref(false);
 const error = ref<string | null>(null);
 
@@ -242,7 +290,9 @@ async function load() {
   loading.value = true;
   error.value = null;
   try {
-    rows.value = await listSpecDefinitions();
+    const [specs, cats] = await Promise.all([listSpecDefinitions(), listAdminCategories()]);
+    rows.value = specs;
+    categories.value = cats;
   } catch (err) {
     error.value = extractApiError(err) ?? t('common.load_failed');
   } finally {
@@ -259,6 +309,7 @@ const form = reactive<{
   label_fr: string;
   type: string;
   unit: string;
+  category_ids: string[];
   categories: string[];
   aliases: string[];
   is_active: boolean;
@@ -268,6 +319,7 @@ const form = reactive<{
   label_fr: '',
   type: 'numeric',
   unit: '',
+  category_ids: [],
   categories: [],
   aliases: [],
   is_active: true,
@@ -287,13 +339,14 @@ const guard = useDialogGuard({
   isDirty: snapshot.isDirty,
 });
 
-function openCreate() {
+function openCreate(categoryId: string | null = null) {
   dialogError.value = null;
   editingKey.value = null;
   form.key = '';
   form.label_fr = '';
   form.type = 'numeric';
   form.unit = '';
+  form.category_ids = categoryId ? [categoryId] : [];
   form.categories = [];
   form.aliases = [];
   form.is_active = true;
@@ -310,6 +363,7 @@ function openEdit(spec: SpecDefinition) {
   form.label_fr = spec.label_fr;
   form.type = spec.type;
   form.unit = spec.unit ?? '';
+  form.category_ids = [...(spec.category_ids ?? [])];
   form.categories = [...spec.categories];
   form.aliases = [...spec.aliases];
   form.is_active = spec.is_active;
@@ -328,6 +382,7 @@ async function submit() {
         label_fr: form.label_fr,
         type: form.type,
         unit: form.unit || null,
+        category_ids: form.category_ids,
         categories: form.categories,
         aliases: form.aliases,
         is_active: form.is_active,
@@ -339,6 +394,7 @@ async function submit() {
         label_fr: form.label_fr,
         type: form.type,
         unit: form.unit || null,
+        category_ids: form.category_ids,
         categories: form.categories,
         aliases: form.aliases,
         translations: form.translations,
@@ -378,5 +434,11 @@ async function performDelete() {
   }
 }
 
-onMounted(load);
+onMounted(async () => {
+  await load();
+  // Opened from the product form (« Définir les caractéristiques de cette
+  // catégorie ») : the new definition is pre-attached to that category.
+  const wanted = typeof route.query.category === 'string' ? route.query.category : null;
+  if (wanted && categories.value.some((c) => c.id === wanted)) openCreate(wanted);
+});
 </script>

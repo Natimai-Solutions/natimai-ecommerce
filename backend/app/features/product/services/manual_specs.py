@@ -114,10 +114,12 @@ async def spec_form_rows(
 ) -> SpecFormResponse:
     """The rows of the « Caractéristiques » section of the product form."""
     keyword = await _category_keyword(session, product, category_id)
+    cat_id = category_id or (product.category_id if product is not None else None)
     definitions = [
         d
         for d in await get_effective_spec_definitions(session)
-        if not keyword or _spec_applies_to_category(d, keyword)
+        if (not keyword and cat_id is None)
+        or _spec_applies_to_category(d, keyword, cat_id)
     ]
     current: dict[str, ProductSpec] = {}
     if product is not None:

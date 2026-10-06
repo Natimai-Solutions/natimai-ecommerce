@@ -48,7 +48,16 @@
               autocomplete="off"
               class="search-field__input"
             />
-            <kbd class="search-field__kbd font-mono" aria-hidden="true">/</kbd>
+            <!-- Rappel du raccourci clavier « / » : infobulle au survol,
+                 masqué sur les écrans tactiles ou étroits où il n'a pas de sens. -->
+            <kbd
+              class="search-field__kbd font-mono"
+              :title="$t('layout.search_shortcut')"
+              aria-hidden="true"
+              >/<q-tooltip anchor="bottom middle" self="top middle" :offset="[0, 8]">
+                {{ $t('layout.search_shortcut') }}
+              </q-tooltip></kbd
+            >
           </div>
         </form>
 
@@ -447,6 +456,12 @@ onBeforeUnmount(() => {
   border-radius: 4px;
   font-size: 11px;
   color: var(--n-ink-3);
+  cursor: help;
+
+  // Pas de clavier physique (tactile) ou pas la place : le rappel disparaît.
+  @media (hover: none), (max-width: 1023px) {
+    display: none;
+  }
 }
 
 .app-header__actions {

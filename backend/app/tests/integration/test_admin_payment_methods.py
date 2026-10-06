@@ -271,3 +271,83 @@ async def test_only_an_unused_method_can_be_deleted(db_session: AsyncSession) ->
         await delete_payment_method(used.id, _s(db_session), admin)
     assert in_use.value.code == "payment.method.in_use"
     assert in_use.value.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_accepted_currencies_and_charge_currency(
+    db_session: AsyncSession,
+) -> None:
+    """A method lists the currencies it collects in; the storefront learns the
+    currency a payment is made in and the rate to convert the order amount."""
+    from datetime import date
+
+    from pydantic import ValidationError
+
+    from app.api.routes.payments import list_my_payment_methods
+    from app.features.payment.services.payment_currencies import (
+        accepts_currency,
+        charge_currency_for,
+    )
+    from app.features.product.models.currency_rate import CurrencyRate
+
+    admin = await _admin(db_session)
+    user = await _customer(db_session)
+    db_session.add(
+        CurrencyRate(
+            currency_code="EUR",
+            rate_to_reference=Decimal("119.332"),
+            valid_from=date.today(),
+        )
+    )
+    await db_session.commit()
+
+    wallet = await create_payment_method(
+        AdminPaymentMethodCreate(
+            provider_code="manual_transfer",
+            name="Virement en euros",
+            currencies=[" eur ", "EUR", "usd"],
+        ),
+        _s(db_session),
+        admin,
+    )
+    assert wallet.currencies == ["EUR", "USD"]
+    cash = await create_payment_method(
+        AdminPaymentMethodCreate(provider_code="manual_cash", name="Espèces"),
+        _s(db_session),
+        admin,
+    )
+    assert cash.currencies == []
+
+    with pytest.raises(ValidationError):
+        AdminPaymentMethodWrite(currencies=["euro"])
+
+    # Empty list: any currency, charged in the reference. A list without the
+    # reference: charged in the first listed currency.
+    cash_row = cast(PaymentMethod, await db_session.get(PaymentMethod, cash.id))
+    wallet_row = cast(PaymentMethod, await db_session.get(PaymentMethod, wallet.id))
+    assert charge_currency_for(cash_row, "XPF") == "XPF"
+    assert accepts_currency(cash_row, "EUR") is True
+    assert charge_currency_for(wallet_row, "XPF") == "EUR"
+    assert accepts_currency(wallet_row, "XPF") is False
+    assert accepts_currency(wallet_row, "usd") is True
+    wallet_row.currencies = ["EUR", "XPF"]
+    assert charge_currency_for(wallet_row, "XPF") == "XPF"
+    wallet_row.currencies = ["EUR", "USD"]
+
+    listed = {
+        m["name"]: m
+        for m in await list_my_payment_methods(
+            _s(db_session), user, cart_total=Decimal("11933.2")
+        )
+    }
+    assert listed["Espèces"]["charge_currency"] == "XPF"
+    assert listed["Espèces"]["charge_rate_to_reference"] == Decimal("1")
+    assert listed["Virement en euros"]["currencies"] == ["EUR", "USD"]
+    assert listed["Virement en euros"]["charge_currency"] == "EUR"
+    assert listed["Virement en euros"]["charge_rate_to_reference"] == Decimal("119.332")
+
+    # Clearing the list goes back to « any currency ».
+    cleared = await update_payment_method(
+        wallet.id, AdminPaymentMethodWrite(currencies=[]), _s(db_session), admin
+    )
+    assert cleared.currencies == []

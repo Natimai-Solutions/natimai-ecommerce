@@ -99,6 +99,23 @@
             <q-toggle v-model="form.depositAllowed" :label="$t('method.deposit')" />
           </div>
 
+          <q-select
+            v-model="form.currencies"
+            :options="currencyOptions"
+            :label="$t('method.currencies')"
+            :hint="$t('method.currencies_hint', { currency })"
+            outlined
+            dense
+            multiple
+            use-chips
+            use-input
+            new-value-mode="add-unique"
+            input-debounce="0"
+            bottom-slots
+            data-testid="method-currencies"
+            @new-value="addCurrency"
+          />
+
           <template v-if="selectedType?.supports_instructions">
             <q-input
               v-model="form.instructions"
@@ -175,6 +192,7 @@ import {
   type PaymentMethodWrite,
 } from '@/api/eligibility';
 import { useDialogGuard, useFormSnapshot } from '@/composables/useUnsavedGuard';
+import { listCurrencyRates } from '@/api/currencyRates';
 
 const { t } = useI18n();
 
@@ -206,7 +224,28 @@ const form = reactive({
   active: true,
   depositAllowed: true,
   instructions: '',
+  currencies: [] as string[],
 });
+
+/** Currencies with a rate (Pricing → Exchange rates) plus the reference; any
+ * other ISO code can still be typed. */
+const knownCurrencies = ref<string[]>([]);
+const currencyOptions = computed(() =>
+  Array.from(new Set([props.currency, ...knownCurrencies.value, ...form.currencies])),
+);
+async function loadCurrencies() {
+  try {
+    const rates = await listCurrencyRates();
+    knownCurrencies.value = rates.data.map((r) => r.currency_code);
+  } catch {
+    knownCurrencies.value = []; // module off or no rate yet: the reference only
+  }
+}
+function addCurrency(value: string, done: (item?: string, mode?: 'add-unique') => void) {
+  const code = value.trim().toUpperCase();
+  if (/^[A-Z]{3}$/.test(code)) done(code, 'add-unique');
+  else done();
+}
 // Unsaved edits are not lost on Escape, backdrop or navigation (R9 / T5).
 const snapshot = useFormSnapshot(() => form);
 const guard = useDialogGuard({
@@ -242,9 +281,11 @@ watch(
       active: m?.is_admin_active ?? true,
       depositAllowed: m?.deposit_allowed ?? true,
       instructions: m?.instructions ?? '',
+      currencies: [...(m?.currencies ?? [])],
     });
     snapshot.take();
     error.value = null;
+    void loadCurrencies();
   },
 );
 
@@ -256,6 +297,7 @@ function payload(): PaymentMethodWrite {
     max_amount: String(form.maxAmount).trim() === '' ? null : String(Number(form.maxAmount)),
     is_admin_active: form.active,
     deposit_allowed: form.depositAllowed,
+    currencies: form.currencies.map((c) => c.toUpperCase()),
   };
   if (form.sortOrder !== null && String(form.sortOrder) !== '') data.sort_order = form.sortOrder;
   if (selectedType.value?.supports_instructions) {

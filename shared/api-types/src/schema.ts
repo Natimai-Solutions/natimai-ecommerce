@@ -8688,6 +8688,8 @@ export interface components {
             };
             /** Suggested Category Ids */
             suggested_category_ids?: string[];
+            /** Supplier Sources */
+            supplier_sources?: string[];
         };
         /**
          * AdminCategoryUpdate
@@ -9073,6 +9075,8 @@ export interface components {
             deposit_allowed: boolean;
             /** Instructions */
             instructions: string | null;
+            /** Currencies */
+            currencies: string[];
             /** Payments Count */
             payments_count: number;
         };
@@ -9094,6 +9098,8 @@ export interface components {
             deposit_allowed?: boolean | null;
             /** Instructions */
             instructions?: string | null;
+            /** Currencies */
+            currencies?: string[] | null;
             /** Provider Code */
             provider_code: string;
         };
@@ -9115,6 +9121,8 @@ export interface components {
             deposit_allowed?: boolean | null;
             /** Instructions */
             instructions?: string | null;
+            /** Currencies */
+            currencies?: string[] | null;
         };
         /**
          * AdminPendingTrackingItem
@@ -16455,6 +16463,11 @@ export interface components {
              * @description Instructions shown and e-mailed to the customer for this method (IBAN, office address…). NULL = the instructions of its type
              */
             instructions?: string | null;
+            /**
+             * Currencies
+             * @description ISO codes of the currencies this method can collect in. Empty = any (the order is charged in the shop's reference currency). A customer whose display currency is not listed is warned at checkout that the payment is made in another currency, with the converted amount.
+             */
+            currencies?: string[];
         };
         /**
          * PaymentMethodPublic
@@ -16536,6 +16549,11 @@ export interface components {
              */
             instructions?: string | null;
             /**
+             * Currencies
+             * @description ISO codes of the currencies this method can collect in. Empty = any (the order is charged in the shop's reference currency). A customer whose display currency is not listed is warned at checkout that the payment is made in another currency, with the converted amount.
+             */
+            currencies?: string[];
+            /**
              * Id
              * Format: uuid
              */
@@ -16597,6 +16615,8 @@ export interface components {
             deposit_allowed?: boolean | null;
             /** Instructions */
             instructions?: string | null;
+            /** Currencies */
+            currencies?: string[] | null;
         };
         /**
          * PaymentMethodsPublic
@@ -18023,6 +18043,11 @@ export interface components {
              */
             image_url?: string | null;
             /**
+             * Gallery Urls
+             * @description Additional image URLs (gallery), shown after the main image and before the Icecat pictures; media-library URLs or external
+             */
+            gallery_urls?: string[];
+            /**
              * Release Date
              * @description Release date of the product
              */
@@ -18526,6 +18551,11 @@ export interface components {
              */
             image_url?: string | null;
             /**
+             * Gallery Urls
+             * @description Additional image URLs (gallery), shown after the main image and before the Icecat pictures; media-library URLs or external
+             */
+            gallery_urls?: string[];
+            /**
              * Release Date
              * @description Release date of the product
              */
@@ -18918,6 +18948,8 @@ export interface components {
              * @description Main image URL of the product
              */
             image_url?: string | null;
+            /** Gallery Urls */
+            gallery_urls?: string[] | null;
             /**
              * Release Date
              * @description Release date of the product
@@ -21170,8 +21202,13 @@ export interface components {
              */
             unit?: string | null;
             /**
+             * Category Ids
+             * @description Shop categories (ids) this spec applies to. Empty, together with an empty ``categories`` keyword list, means every category.
+             */
+            category_ids?: string[];
+            /**
              * Categories
-             * @description Category slugs/keywords this spec applies to
+             * @description Supplier category keywords (Ingram, Icecat) this spec also applies to, matched case-insensitively in the product's supplier category
              */
             categories?: string[];
             /**
@@ -21222,8 +21259,13 @@ export interface components {
              */
             unit?: string | null;
             /**
+             * Category Ids
+             * @description Shop categories (ids) this spec applies to. Empty, together with an empty ``categories`` keyword list, means every category.
+             */
+            category_ids?: string[];
+            /**
              * Categories
-             * @description Category slugs/keywords this spec applies to
+             * @description Supplier category keywords (Ingram, Icecat) this spec also applies to, matched case-insensitively in the product's supplier category
              */
             categories?: string[];
             /**
@@ -21281,6 +21323,8 @@ export interface components {
             type?: string | null;
             /** Unit */
             unit?: string | null;
+            /** Category Ids */
+            category_ids?: string[] | null;
             /** Categories */
             categories?: string[] | null;
             /** Aliases */

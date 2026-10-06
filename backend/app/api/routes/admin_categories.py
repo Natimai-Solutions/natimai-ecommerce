@@ -36,6 +36,10 @@ from app.core.content_i18n import (
 )
 from app.core.errors import AppError
 from app.features.discount.models import Discount
+from app.features.integrations.models.supplier import Supplier
+from app.features.integrations.models.supplier_category_mapping import (
+    SupplierCategoryMapping,
+)
 from app.features.integrations.services.category_mapping import retarget_after_merge
 from app.features.product.crud.category import crud_category
 from app.features.product.models.category import Category
@@ -44,6 +48,7 @@ from app.features.product.services.related import (
     replace_category_links,
     suggested_categories_map,
 )
+from app.features.product.services.spec_projection import retarget_spec_definitions
 from app.tasks.pricing_tasks import schedule_price_refresh
 
 logger = logging.getLogger(__name__)
@@ -77,6 +82,9 @@ class AdminCategoryItem(BaseModel):
     translation_status: dict[str, str] = Field(default_factory=dict)
     #: Categories suggested from this one's products (R9 / T7), in order.
     suggested_category_ids: list[uuid.UUID] = Field(default_factory=list)
+    #: Supplier categories mapped to this one (« Ingram : Computers / Notebooks »),
+    #: from the per-supplier mapping rules (Suppliers → Categories).
+    supplier_sources: list[str] = Field(default_factory=list)
 
 
 class AdminCategoriesPublic(BaseModel):
@@ -124,6 +132,7 @@ def _to_item(
     product_count: int,
     merged_into_name: str | None,
     suggested: list[uuid.UUID] | None = None,
+    supplier_sources: list[str] | None = None,
 ) -> AdminCategoryItem:
     return AdminCategoryItem(
         id=category.id,
@@ -146,7 +155,42 @@ def _to_item(
             CATEGORY_FIELDS,
         ),
         suggested_category_ids=list(suggested or []),
+        supplier_sources=list(supplier_sources or []),
     )
+
+
+async def supplier_sources_map(
+    session: SessionDep, category_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, list[str]]:
+    """Per category, the supplier couples whose mapping rule targets it."""
+    if not category_ids:
+        return {}
+    rows = (
+        await session.exec(
+            select(
+                col(SupplierCategoryMapping.category_id),
+                col(Supplier.name),
+                col(SupplierCategoryMapping.source_category),
+                col(SupplierCategoryMapping.source_subcategory),
+            )
+            .join(
+                Supplier, col(Supplier.id) == col(SupplierCategoryMapping.supplier_id)
+            )
+            .where(col(SupplierCategoryMapping.category_id).in_(category_ids))
+            .order_by(
+                col(Supplier.name),
+                col(SupplierCategoryMapping.source_category),
+                col(SupplierCategoryMapping.source_subcategory),
+            )
+        )
+    ).all()
+    out: dict[uuid.UUID, list[str]] = {}
+    for category_id, supplier_name, source_category, source_subcategory in rows:
+        if category_id is None:
+            continue
+        couple = " / ".join(p for p in (source_category, source_subcategory) if p)
+        out.setdefault(category_id, []).append(f"{supplier_name} : {couple}")
+    return out
 
 
 async def _load(session: SessionDep, category_id: uuid.UUID) -> Category:
@@ -176,11 +220,13 @@ async def _item_for(session: SessionDep, category: Category) -> AdminCategoryIte
         target = await session.get(Category, category.merged_into_id)
         merged_name = target.name if target is not None else None
     suggested = await suggested_categories_map(session, [category.id])
+    sources = await supplier_sources_map(session, [category.id])
     return _to_item(
         category,
         product_count=await _product_count(session, category.id),
         merged_into_name=merged_name,
         suggested=suggested.get(category.id),
+        supplier_sources=sources.get(category.id),
     )
 
 
@@ -198,6 +244,7 @@ async def list_categories(
     counts = {row[0]: int(row[1]) for row in await session.exec(counts_stmt)}
     names = {c.id: c.name for c in categories}
     suggested = await suggested_categories_map(session, [c.id for c in categories])
+    sources = await supplier_sources_map(session, [c.id for c in categories])
 
     data = [
         _to_item(
@@ -205,6 +252,7 @@ async def list_categories(
             product_count=counts.get(c.id, 0),
             merged_into_name=names.get(c.merged_into_id) if c.merged_into_id else None,
             suggested=suggested.get(c.id),
+            supplier_sources=sources.get(c.id),
         )
         for c in categories
     ]
@@ -399,8 +447,10 @@ async def merge_category(
         )
     ).rowcount
 
-    # Supplier category rules aiming at the source now aim at the target.
+    # Supplier category rules aiming at the source now aim at the target,
+    # and so do the characteristics scoped to it.
     await retarget_after_merge(session, source_id, target_id)
+    await retarget_spec_definitions(session, source_id, target_id)
     source.is_active = False
     source.merged_into_id = target_id
     source.modify_by_id = admin_id

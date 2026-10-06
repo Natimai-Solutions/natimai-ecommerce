@@ -86,3 +86,45 @@ async def test_admin_update_accumulates_overrides(db_session: AsyncSession) -> N
     refreshed = await db_session.get(Product, product_id)
     assert refreshed is not None
     assert set(refreshed.overridden_fields or []) == {"name", "description"}
+
+
+@pytest.mark.asyncio
+async def test_admin_gallery_is_cleaned_and_locked(db_session: AsyncSession) -> None:
+    """Several images per product: the gallery is stored trimmed and
+    deduplicated, locked against the supplier sync like the main image, and
+    ``None`` / blank entries empty it."""
+    from types import SimpleNamespace
+    from typing import cast
+
+    seeded = await _seed_admin(db_session)
+    # The routes commit: a detached snapshot avoids lazy reloads of the user.
+    admin = cast(User, SimpleNamespace(id=seeded.id, is_superuser=True))
+    created = await admin_create_product(
+        session=db_session,
+        current_user=admin,
+        payload=ProductCreate(
+            name="Galerie",
+            image_url="https://img.test/main.jpg",
+            gallery_urls=[" https://img.test/a.jpg ", "", "https://img.test/a.jpg"],
+        ),
+    )
+    assert created.gallery_urls == ["https://img.test/a.jpg"]
+
+    updated = await admin_update_product(
+        session=db_session,
+        current_user=admin,
+        product_id=created.id,
+        payload=ProductUpdate(
+            gallery_urls=["https://img.test/b.jpg", "https://img.test/c.jpg"]
+        ),
+    )
+    assert updated.gallery_urls == ["https://img.test/b.jpg", "https://img.test/c.jpg"]
+    assert "gallery_urls" in (updated.overridden_fields or [])
+
+    emptied = await admin_update_product(
+        session=db_session,
+        current_user=admin,
+        product_id=created.id,
+        payload=ProductUpdate(gallery_urls=None),
+    )
+    assert emptied.gallery_urls == []

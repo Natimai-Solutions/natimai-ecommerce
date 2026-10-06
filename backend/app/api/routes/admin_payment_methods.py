@@ -12,7 +12,7 @@ import uuid
 from decimal import Decimal
 
 from fastapi import APIRouter, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlmodel import col, func, select
 
 from app.api.deps import CurrentSuperUser, SessionDep
@@ -22,6 +22,7 @@ from app.features.payment.models.payment_method import PaymentMethod
 from app.features.payment.models.payment_method_eligibility import (
     PaymentMethodEligibility,
 )
+from app.features.payment.services.payment_currencies import normalize_currencies
 from app.features.payment.services.payment_method_types import (
     PaymentMethodType,
     clean_text,
@@ -58,6 +59,8 @@ class AdminPaymentMethod(BaseModel):
     is_admin_active: bool
     deposit_allowed: bool
     instructions: str | None
+    #: Currencies the method can collect in (empty = any).
+    currencies: list[str]
     #: Payments made with this method: a used method cannot be deleted.
     payments_count: int
 
@@ -73,6 +76,18 @@ class AdminPaymentMethodWrite(BaseModel):
     is_admin_active: bool | None = None
     deposit_allowed: bool | None = None
     instructions: str | None = Field(default=None, max_length=2000)
+    #: ISO 4217 codes, upper-cased and deduplicated; empty = any currency.
+    currencies: list[str] | None = Field(default=None, max_length=50)
+
+    @field_validator("currencies")
+    @classmethod
+    def _clean_currencies(cls, value: list[str] | None) -> list[str] | None:
+        if value is None:
+            return None
+        try:
+            return normalize_currencies(value)
+        except ValueError as exc:
+            raise ValueError(str(exc)) from exc
 
 
 class AdminPaymentMethodCreate(AdminPaymentMethodWrite):
@@ -122,6 +137,7 @@ def _public(method: PaymentMethod, payments_count: int) -> AdminPaymentMethod:
         is_admin_active=method.is_admin_active,
         deposit_allowed=method.deposit_allowed,
         instructions=method.instructions,
+        currencies=list(method.currencies or []),
         payments_count=payments_count,
     )
 
@@ -173,6 +189,8 @@ def _apply(method: PaymentMethod, payload: AdminPaymentMethodWrite) -> None:
         method.deposit_allowed = payload.deposit_allowed
     if "instructions" in fields:
         method.instructions = clean_text(payload.instructions)
+    if "currencies" in fields:
+        method.currencies = list(payload.currencies or [])
 
 
 @router.get("/types", response_model=list[PaymentMethodTypePublic])

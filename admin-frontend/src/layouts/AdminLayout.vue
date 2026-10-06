@@ -236,6 +236,7 @@ const allNav: NavSection[] = [
       { label: 'layout.nav.homepage', icon: 'ph:house', to: '/homepage' },
       { label: 'layout.nav.pages', icon: 'ph:article', to: '/pages' },
       { label: 'layout.nav.branding', icon: 'ph:paint-brush', to: '/branding' },
+      { label: 'layout.nav.languages', icon: 'ph:translate', to: '/languages' },
       { label: 'layout.nav.modules', icon: 'ph:toggle-right', to: '/modules' },
       { label: 'layout.nav.audit', icon: 'ph:clipboard-text', to: '/audit-log' },
       { label: 'layout.nav.settings', icon: 'ph:gear', to: '/system-settings' },

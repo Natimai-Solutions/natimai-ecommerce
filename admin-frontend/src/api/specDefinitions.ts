@@ -6,6 +6,9 @@ export interface SpecDefinition {
   label_fr: string;
   type: string;
   unit: string | null;
+  /** Shop categories (ids) the spec applies to. */
+  category_ids: string[];
+  /** Supplier category keywords (Ingram, Icecat) it also applies to. */
   categories: string[];
   aliases: string[];
   is_active: boolean;
@@ -21,6 +24,7 @@ export interface SpecDefinitionCreate {
   label_fr: string;
   type: string;
   unit?: string | null;
+  category_ids: string[];
   categories: string[];
   aliases: string[];
   is_active?: boolean;
