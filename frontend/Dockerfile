@@ -84,6 +84,13 @@ WORKDIR /app
 COPY --from=builder /workspace/frontend/dist/ssr ./
 COPY --from=prod-deps /workspace/node_modules ./node_modules
 
+# Only `node index.js` runs here: npm and corepack (and npm's bundled
+# dependencies, which Trivy flags in security.yml) have no business in the
+# image. `apk upgrade` picks up the Alpine security fixes the base image lags.
+RUN apk upgrade --no-cache \
+    && rm -rf /usr/local/lib/node_modules /usr/local/bin/npm /usr/local/bin/npx \
+              /usr/local/bin/corepack /usr/local/bin/yarn /usr/local/bin/yarnpkg /opt/yarn*
+
 # The image's unprivileged user: the SSR server needs no write access.
 USER node
 

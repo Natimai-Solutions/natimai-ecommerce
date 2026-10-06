@@ -35,7 +35,9 @@ takes a tag as its `ref`.
   pinned to an existing tag (`v0.36.0`), gitleaks run from its released binary
   (the GitHub action requires a paid licence for organisations), and two
   `pnpm audit` advisories closed with `pnpm.overrides` (`proxy-addr`,
-  `source-map-js`).
+  `source-map-js`). The three images now pass Trivy: Debian and Alpine
+  security updates applied at build time, pip removed from the API image,
+  npm and corepack removed from the storefront image.
 
 ## [0.0.1] - 2026-07-07
 
