@@ -67,12 +67,17 @@ def _parse(raw: str | None, default: bool) -> bool:
     return default
 
 
-async def switches(session: AsyncSession) -> dict[str, bool]:
-    """The on/off state of every provider with a switch, in one query."""
+async def switches(session: AsyncSession, *, fresh: bool = False) -> dict[str, bool]:
+    """The on/off state of every provider with a switch, in one query.
+
+    ``fresh=True`` bypasses this process's settings snapshot (the back-office
+    re-reading what it just saved, possibly through another API worker); the
+    checkout keeps the snapshot.
+    """
     from app.core import runtime_settings
 
     values = await runtime_settings.get_many(
-        [setting_key(code) for code in PSP_DEFAULTS], session
+        [setting_key(code) for code in PSP_DEFAULTS], session, fresh=fresh
     )
     return {code: bool(values[setting_key(code)]) for code in PSP_DEFAULTS}
 
@@ -114,8 +119,10 @@ class ProviderState:
         return self.enabled and self.implemented and self.credentials_present
 
 
-async def provider_states(session: AsyncSession) -> list[ProviderState]:
-    state = await switches(session)
+async def provider_states(
+    session: AsyncSession, *, fresh: bool = False
+) -> list[ProviderState]:
+    state = await switches(session, fresh=fresh)
     return [
         ProviderState(
             code=code,

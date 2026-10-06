@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 import uuid
 from decimal import Decimal
 from types import SimpleNamespace
@@ -25,6 +26,8 @@ from app.features.payment.services.payment_initiation import (
 from app.features.payment.services.provider_settings import (
     provider_available,
     set_provider_enabled,
+    setting_key,
+    switches,
 )
 from app.features.user.models.user import User
 
@@ -157,3 +160,31 @@ async def _customer(session: AsyncSession) -> Any:
     )
     await session.commit()
     return snapshot
+
+
+@pytest.mark.asyncio
+async def test_the_admin_sees_the_switch_it_just_flipped_whatever_the_worker(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The settings snapshot of another API worker may predate the PUT for up
+    to VERSION_CHECK_SECONDS: the admin list reads the base, the checkout
+    keeps the snapshot."""
+    from app.core import runtime_settings as rs
+
+    await update_payment_provider(
+        "paypal", PaymentProviderUpdate(enabled=True), db_session, ADMIN
+    )
+
+    monkeypatch.setattr(rs, "CACHE_TTL_SECONDS", 60.0)
+    monkeypatch.setattr(rs, "VERSION_CHECK_SECONDS", 60.0)
+    stale = {setting_key("paypal"): "false"}
+    monkeypatch.setattr(
+        rs, "_snapshot", rs._Snapshot(rows=stale, loaded_at=time.monotonic(), version=0)
+    )
+    monkeypatch.setattr(rs, "_version_checked_at", time.monotonic())
+
+    assert (await switches(db_session))["paypal"] is False  # the cached read
+    states = {
+        p.code: p.enabled for p in await list_payment_providers(db_session, ADMIN)
+    }
+    assert states["paypal"] is True
