@@ -215,6 +215,51 @@
                 class="col-4"
               />
             </div>
+
+            <!-- Ce que la variante change (ex. processeur : i7) : des lignes
+                 product_specs à elle, qui font trouver la fiche parente. -->
+            <template v-if="specsOn && specRows.length">
+              <div class="text-caption text-muted q-mt-sm">{{ $t('variants.specs') }}</div>
+              <p class="admin-hint q-mb-xs">{{ $t('variants.specs_hint') }}</p>
+              <div class="row q-col-gutter-sm" data-testid="variant-specs">
+                <div v-for="row in specRows" :key="row.key" class="col-6">
+                  <q-input
+                    v-if="row.type === 'numeric'"
+                    v-model="specValues[row.key]"
+                    :label="row.label"
+                    :suffix="row.unit ?? undefined"
+                    :hint="specHint(row)"
+                    inputmode="decimal"
+                    outlined
+                    dense
+                    clearable
+                  />
+                  <q-select
+                    v-else
+                    :model-value="specValues[row.key] || null"
+                    :options="specOptions(row)"
+                    :label="row.label"
+                    :hint="specHint(row)"
+                    use-input
+                    fill-input
+                    hide-selected
+                    input-debounce="0"
+                    new-value-mode="add-unique"
+                    outlined
+                    dense
+                    clearable
+                    @filter="
+                      (needle: string, update: (fn: () => void) => void) =>
+                        update(() => (specFilter[row.key] = needle))
+                    "
+                    @input-value="(value: string) => (specValues[row.key] = value)"
+                    @update:model-value="
+                      (value: string | null) => (specValues[row.key] = value ?? '')
+                    "
+                  />
+                </div>
+              </div>
+            </template>
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
             <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
@@ -241,6 +286,7 @@ import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
 import { createVariant, deactivateVariant, listVariants, updateVariant } from '@/api/variants';
 import { adjustInventory } from '@/api/inventory';
+import { getSpecForm, setProductSpecs, type SpecFormRow } from '@/api/productSpecs';
 import { extractApiError } from '@/api/errors';
 import { useConfirm } from '@/composables/useConfirm';
 import type { ProductPublic } from '@/stores/products';
@@ -306,6 +352,66 @@ const form = reactive({
 });
 let originalLocal = '0';
 
+// --- characteristics the variant changes ---------------------------------
+// One row per spec definition of the parent's category; the parent's value
+// is the hint, the variant's own value (product_specs, source « manual ») is
+// what the search and the storefront filters read for the parent.
+const specsOn = computed(() => shopConfig.moduleOn('specs'));
+const specRows = ref<SpecFormRow[]>([]);
+const specValues = reactive<Record<string, string>>({});
+const specFilter = reactive<Record<string, string>>({});
+const parentSpecValues = reactive<Record<string, string>>({});
+let specOriginal: Record<string, string> = {};
+
+function specValueOf(row: SpecFormRow): string {
+  if (row.value_numeric != null) return String(Number(row.value_numeric));
+  return row.value_text ?? '';
+}
+
+function specOptions(row: SpecFormRow): string[] {
+  const needle = (specFilter[row.key] ?? '').toLowerCase();
+  return row.suggestions.filter((s) => !needle || s.toLowerCase().includes(needle));
+}
+
+function specHint(row: SpecFormRow): string {
+  const inherited = parentSpecValues[row.key];
+  return inherited ? t('variants.spec_parent', { value: inherited }) : t('variants.spec_empty');
+}
+
+function resetSpecs() {
+  specRows.value = [];
+  for (const key of Object.keys(specValues)) delete specValues[key];
+  for (const key of Object.keys(parentSpecValues)) delete parentSpecValues[key];
+  specOriginal = {};
+}
+
+async function loadSpecs(variant: ProductPublic | null) {
+  resetSpecs();
+  if (!specsOn.value) return;
+  try {
+    const parent = await getSpecForm({ productId: props.productId });
+    for (const row of parent.specs) parentSpecValues[row.key] = specValueOf(row);
+    const own = variant ? await getSpecForm({ productId: variant.id }) : parent;
+    specRows.value = own.specs;
+    for (const row of own.specs) {
+      const value = variant ? specValueOf(row) : '';
+      specOriginal[row.key] = value;
+      specValues[row.key] = value;
+    }
+  } catch {
+    resetSpecs();
+  }
+}
+
+async function saveSpecs(variantId: string) {
+  if (!specsOn.value) return;
+  const changed = specRows.value
+    .filter((row) => (specValues[row.key] ?? '') !== (specOriginal[row.key] ?? ''))
+    .map((row) => ({ key: row.key, value: (specValues[row.key] ?? '').trim() || null }));
+  if (changed.length === 0) return;
+  await setProductSpecs(variantId, changed);
+}
+
 /** Supplement typed (R9 / T6): the price is parent + supplement, read-only. */
 const hasExtra = computed(() => props.parentPrice != null && form.price_extra.trim() !== '');
 const derivedPrice = computed(() => {
@@ -341,6 +447,7 @@ function openCreate() {
   });
   originalLocal = '0';
   dialog.value = true;
+  void loadSpecs(null);
 }
 
 function openEdit(variant: ProductPublic) {
@@ -365,6 +472,7 @@ function openEdit(variant: ProductPublic) {
   });
   originalLocal = form.local_quantity;
   dialog.value = true;
+  void loadSpecs(variant);
 }
 
 function optionsPayload(): Record<string, string> {
@@ -427,6 +535,7 @@ async function submit() {
       });
     }
     await saveLocalStock(saved.id);
+    await saveSpecs(saved.id);
     dialog.value = false;
     await load();
     emit('changed');

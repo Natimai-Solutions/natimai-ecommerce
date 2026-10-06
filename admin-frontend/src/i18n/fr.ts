@@ -210,7 +210,7 @@ const fr = {
   },
   branding: {
     change: "Changer l'image",
-    hint: "Le logo s'affiche dans l'en-tête de la vitrine, les e-mails et les PDF (devis, factures) ; l'icône sert de favicon et d'icône d'écran d'accueil. Sans réglage, la vitrine affiche le nom de la boutique et ses icônes par défaut. L'admin garde sa propre icône.",
+    hint: "Le logo s'affiche dans l'en-tête de la vitrine, les e-mails et les PDF (devis, factures) ; l'icône sert de favicon et d'icône d'écran d'accueil. Sans réglage, la vitrine affiche le nom de la boutique et ses icônes par défaut. L'admin reprend la même icône dans son onglet.",
     icon: 'Icône du site',
     icon_hint:
       'Carrée, motif simple : les tailles 16, 32, 180, 192 et 512 px sont dérivées automatiquement.',
@@ -1127,7 +1127,7 @@ const fr = {
     create: 'Créer le moyen',
     currencies: 'Devises acceptées',
     currencies_hint:
-      'Devises dans lesquelles ce moyen peut encaisser (code ISO, Entrée pour ajouter). Vide = toutes. Un client dont la devise d\'affichage n\'en fait pas partie est prévenu que le paiement sera effectué en {currency}, avec le montant converti.',
+      "Devises dans lesquelles ce moyen peut encaisser (code ISO, Entrée pour ajouter). Vide = toutes. Un client dont la devise d'affichage n'en fait pas partie est prévenu que le paiement sera effectué en {currency}, avec le montant converti.",
     delete_msg: '« {name} » disparaîtra du checkout et de cette liste. Continuer ?',
     delete_title: 'Supprimer le moyen de paiement',
     deposit: 'Peut régler un acompte',
@@ -1467,7 +1467,7 @@ const fr = {
     attach_tip:
       'Interroge le fournisseur sur cette référence et reprend coût et stock tout de suite ; vos textes restent verrouillés',
     availability: 'Disponibilité',
-    availability_hint: 'Quand l\'article est commandable sur la vitrine.',
+    availability_hint: "Quand l'article est commandable sur la vitrine.",
     battery: 'Batterie (%)',
     c_new: 'Neuf',
     c_refurbished: 'Reconditionné',
@@ -1490,7 +1490,7 @@ const fr = {
     detach_tip: "L'article redevient manuel : plus de synchronisation, stock fournisseur à zéro",
     detached: 'Article détaché : il est désormais géré à la main.',
     display: 'Affichage',
-    display_hint: 'Mise en avant sur la page d\'accueil et en tête des listes.',
+    display_hint: "Mise en avant sur la page d'accueil et en tête des listes.",
     ean: 'Code-barres EAN',
     edit_title: 'Modifier le produit',
     f_availability_mode: 'Disponibilité',
@@ -1534,7 +1534,7 @@ const fr = {
     gallery_add: 'Ajouter depuis la médiathèque',
     gallery_count: '{n} image(s)',
     gallery_hint:
-      'Jusqu\'à {max} images, affichées après l\'image principale sur la fiche produit, avant les photos Icecat. Glissez l\'ordre avec les flèches ; l\'étoile en fait l\'image principale.',
+      "Jusqu'à {max} images, affichées après l'image principale sur la fiche produit, avant les photos Icecat. Glissez l'ordre avec les flèches ; l'étoile en fait l'image principale.",
     gallery_left: 'Avancer',
     gallery_make_main: 'Définir comme image principale',
     gallery_remove: 'Retirer de la galerie',
@@ -1542,10 +1542,10 @@ const fr = {
     gallery_url: 'Ou ajouter une image par son URL (Entrée)',
     identification: 'Identification',
     identification_hint:
-      'Marque, référence fabricant et code-barres : ils servent à la recherche, au rapprochement fournisseur et à l\'enrichissement Icecat.',
+      "Marque, référence fabricant et code-barres : ils servent à la recherche, au rapprochement fournisseur et à l'enrichissement Icecat.",
     image: 'Image principale (URL)',
     image_hint:
-      'L\'image principale apparaît sur les cartes, le panier et les commandes ; la galerie complète la fiche produit. Format conseillé : 1200 × 1200 px (carré), PNG ou WebP, fond blanc ; affichée entière, jamais recadrée.',
+      "L'image principale apparaît sur les cartes, le panier et les commandes ; la galerie complète la fiche produit. Format conseillé : 1200 × 1200 px (carré), PNG ou WebP, fond blanc ; affichée entière, jamais recadrée.",
     image_main: 'Principale',
     length: 'Long. (cm)',
     link_accessory: 'Accessoire',
@@ -1600,7 +1600,7 @@ const fr = {
     price_hint: 'Prix affiché tel quel, taxes comprises',
     pricing: 'Prix & taxes',
     pricing_hint:
-      'Comment le prix de vente est obtenu, la catégorie (douane, TVA et marge par défaut) et l\'aperçu des prix par groupe tarifaire.',
+      "Comment le prix de vente est obtenu, la catégorie (douane, TVA et marge par défaut) et l'aperçu des prix par groupe tarifaire.",
     reason_edit: 'Modification depuis la fiche produit',
     reason_initial: 'Stock initial saisi à la création',
     release_failed: 'Libération impossible.',
@@ -1620,7 +1620,7 @@ const fr = {
       "Filtres de la vitrine (processeur, mémoire…) : une ligne par caractéristique de la catégorie. Une valeur saisie ici n'est jamais réécrite par Icecat ; vide = pas de valeur.",
     specs_none: 'Aucune caractéristique définie pour cette catégorie.',
     specs_define: 'Définir les caractéristiques de cette catégorie',
-    specs_no_category: 'Choisissez d\'abord une catégorie pour voir ses caractéristiques.',
+    specs_no_category: "Choisissez d'abord une catégorie pour voir ses caractéristiques.",
     supplier: 'Fournisseur',
     supplier_hint: 'Vide = article de votre entrepôt, sans fournisseur',
     supplier_ref: 'Référence chez le fournisseur',
@@ -1632,6 +1632,9 @@ const fr = {
       "Produit synchronisé depuis un fournisseur. Les champs que vous modifiez ici seront verrouillés : ni la synchronisation ni l'enrichissement Icecat ne les réécriront.",
     variant_hint: '— les options se modifient depuis la fiche parente.',
     variant_of: "Variante d'un autre article",
+    variants_optional: 'Le produit de base reste commandable tel quel',
+    variants_optional_hint:
+      "Coché : les variantes sont des options en plus du produit de base (ex. processeur i7 : + 3 000), qui garde son prix et son stock propres ; la vitrine propose « Standard » et les options. Décoché : la fiche parente n'est qu'une entrée boutique, le client doit choisir une variante.",
     vat: 'Taux de TVA',
     vat_hint: 'Vide = taux de la catégorie, sinon taux par défaut',
     warranty: 'Garantie (mois)',
@@ -1960,7 +1963,7 @@ const fr = {
     all_categories: 'Toutes les catégories',
     categories: 'Mots-clés de catégorie fournisseur (optionnel)',
     categories_hint:
-      'Pour les articles synchronisés : la caractéristique s\'applique aussi quand la catégorie fournisseur (Ingram, fichier) contient l\'un de ces mots. Entrée pour ajouter.',
+      "Pour les articles synchronisés : la caractéristique s'applique aussi quand la catégorie fournisseur (Ingram, fichier) contient l'un de ces mots. Entrée pour ajouter.",
     category_ids: 'Catégories de la boutique',
     category_ids_hint:
       'Catégories dont les articles proposent cette caractéristique (fiche produit et filtres). Vide, sans mot-clé : toutes les catégories.',
@@ -2325,7 +2328,7 @@ const fr = {
     image: 'URL image',
     inactive: 'Inactive',
     intro:
-      "Chaque variante (taille, couleur…) est un article à part entière : référence, prix, coût, stock, image. La fiche parente est l'entrée boutique et affiche le prix le plus bas ; elle n'est jamais vendue telle quelle.",
+      "Chaque variante (taille, couleur…) est un article à part entière : référence, prix, coût, stock, image. Par défaut, la fiche parente est l'entrée boutique et affiche le prix le plus bas ; elle n'est pas vendue telle quelle — sauf si ses variantes sont déclarées optionnelles ci-dessous.",
     load_failed: 'Chargement des variantes impossible.',
     local_hint: "Enregistré par un ajustement d'inventaire tracé",
     local_stock: 'Stock entrepôt',
@@ -2342,6 +2345,11 @@ const fr = {
     remove_failed: 'Retrait impossible.',
     remove_option: "Retirer l'option",
     save: 'Enregistrer',
+    spec_empty: 'Vide = comme la fiche parente',
+    spec_parent: 'Fiche parente : {value}',
+    specs: 'Caractéristiques modifiées par la variante',
+    specs_hint:
+      'Ne renseignez que ce que la variante change (ex. processeur : i7). La recherche et les filtres de la vitrine trouvent alors la fiche parente avec cette valeur.',
     size: 'Taille',
     stock_split: '(entrepôt {local} · fourn. {supplier})',
     supplier_stock: 'Stock fournisseur',

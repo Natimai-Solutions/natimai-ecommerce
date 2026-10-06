@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import String, and_, case, cast, func, literal, null, or_
+from sqlalchemy import String, Text, and_, case, cast, func, literal, null, or_
 from sqlalchemy import update as sa_update
 from sqlalchemy.orm.attributes import set_committed_value
 from sqlmodel import col, select
@@ -41,6 +41,9 @@ from app.features.product.services.pricing import (
 from app.features.product.services.publication import (
     content_ready_condition,
     publication_conditions,
+)
+from app.features.product.services.variants import (
+    active_variants_of_enclosing_product,
 )
 
 logger = logging.getLogger(__name__)
@@ -121,9 +124,13 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
         """
         if record is None:
             return
-        if getattr(record, "has_variants", False):
+        if getattr(record, "has_variants", False) and not getattr(
+            record, "variants_optional", False
+        ):
             # The parent is never sold: its price and margin are the cheapest
             # variant's (« à partir de »), never computed from its own row.
+            # (With optional variants the parent is the base configuration,
+            # priced like any product.)
             from app.features.product.services.variants import (
                 refresh_parent_from_variants,
             )
@@ -566,12 +573,24 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
         )
 
     @staticmethod
-    def _spec_condition(key: str, expected: Any) -> Any | None:
+    def _spec_owner_condition() -> Any:
+        """SQL: a ``product_specs`` row of the enclosing product — or of one of
+        its active variants, whose changed characteristic (« i7 » on an i5
+        machine) must find the listed parent."""
+        _child, variant_ids = active_variants_of_enclosing_product()
+        return or_(
+            col(ProductSpec.product_id) == col(Product.id),
+            col(ProductSpec.product_id).in_(variant_ids),
+        )
+
+    @classmethod
+    def _spec_condition(cls, key: str, expected: Any) -> Any | None:
         """SQL for one ``specs`` filter, against the ``product_specs`` projection.
 
         ``<key>_min`` → ``value_numeric >= n``; ``<key>`` with a list or a
         scalar → ``value_text IN (...)`` (values are stored lowercased), or
-        ``value_numeric ==`` when the value parses as a number.
+        ``value_numeric ==`` when the value parses as a number. The rows of
+        the product's active variants count as its own.
         """
         key_text = str(key).strip().lower()
         if not key_text:
@@ -586,7 +605,7 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
             return (
                 select(ProductSpec.id)
                 .where(
-                    col(ProductSpec.product_id) == col(Product.id),
+                    cls._spec_owner_condition(),
                     col(ProductSpec.spec_key) == spec_key,
                     col(ProductSpec.value_numeric) >= minimum,
                 )
@@ -611,11 +630,33 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
         return (
             select(ProductSpec.id)
             .where(
-                col(ProductSpec.product_id) == col(Product.id),
+                cls._spec_owner_condition(),
                 col(ProductSpec.spec_key) == key_text,
                 value_match,
             )
             .exists()
+        )
+
+    @staticmethod
+    def _search_text(table: Any) -> Any:
+        """The text the full-text search reads on a ``products`` row (or an
+        alias of it). Matches ``ix_products_search_fts`` exactly: `||`
+        (IMMUTABLE) instead of concat_ws (STABLE) so the same expression can
+        be used in the index definition. The English translation is indexed
+        too (R9 / T3) — the only other shipped language."""
+        english = table.c.translations.op("->")(literal("en"))
+        return (
+            func.coalesce(table.c.name, "")
+            .op("||")(" ")
+            .op("||")(func.coalesce(table.c.description, ""))
+            .op("||")(" ")
+            .op("||")(func.coalesce(table.c.manufacturer, ""))
+            .op("||")(" ")
+            .op("||")(func.coalesce(table.c.vendor_part_number, ""))
+            .op("||")(" ")
+            .op("||")(func.coalesce(english.op("->>")(literal("name")), ""))
+            .op("||")(" ")
+            .op("||")(func.coalesce(english.op("->>")(literal("description")), ""))
         )
 
     async def search_products(
@@ -655,31 +696,31 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
         rank_expr: Any = null()
         if query_text:
             # GIN FTS path — expression matches ix_products_search_fts exactly.
-            # Uses `||` (IMMUTABLE) instead of concat_ws (STABLE) so the same
-            # expression can also be used in the index definition.
-            # The English translation is indexed too (R9 / T3) — the only
-            # other shipped language; the index expression names it as well.
-            translations = col(Product.translations)
-            english = translations.op("->")(literal("en"))
-            search_text = (
-                func.coalesce(col(Product.name), "")
-                .op("||")(" ")
-                .op("||")(func.coalesce(col(Product.description), ""))
-                .op("||")(" ")
-                .op("||")(func.coalesce(col(Product.manufacturer), ""))
-                .op("||")(" ")
-                .op("||")(func.coalesce(col(Product.vendor_part_number), ""))
-                .op("||")(" ")
-                .op("||")(func.coalesce(english.op("->>")(literal("name")), ""))
-                .op("||")(" ")
-                .op("||")(func.coalesce(english.op("->>")(literal("description")), ""))
+            search_doc = func.to_tsvector(
+                "simple",
+                self._search_text(Product.__table__),  # type: ignore[attr-defined]
             )
-            search_doc = func.to_tsvector("simple", search_text)
             # Every word is matched as a prefix (« 242 » finds 242S9, « EliteD »
             # EliteDesk): plainto_tsquery only matched whole lexemes, which read
             # like an exact-match search on references and model names.
             ts_q = func.to_tsquery("simple", query_text)
-            conditions.append(search_doc.op("@@")(ts_q))
+            # A variant that changes a characteristic of its parent (« i7 »
+            # on an i5 machine) finds the parent, the listed entry: its name,
+            # its texts and its option values are searched too (a correlated
+            # lookup on the few variants of each row, not on the index).
+            child, variant_ids = active_variants_of_enclosing_product()
+            variant_text = (
+                self._search_text(child)
+                .op("||")(" ")
+                .op("||")(func.coalesce(cast(child.c.variant_options, Text), ""))
+            )
+            variant_doc = func.to_tsvector("simple", variant_text)
+            conditions.append(
+                or_(
+                    search_doc.op("@@")(ts_q),
+                    variant_ids.where(variant_doc.op("@@")(ts_q)).exists(),
+                )
+            )
             rank_expr = func.ts_rank(search_doc, ts_q)
 
         if category_id is not None:

@@ -106,12 +106,25 @@
                 dense
                 hide-bottom-space
               />
-              <q-input
-                v-model="form.manufacturer"
+              <!-- Marques déjà connues : une seule orthographe par marque.
+                   Une marque nouvelle se tape quand même. -->
+              <q-select
+                :model-value="form.manufacturer || null"
+                :options="manufacturerOptions"
                 :label="$t('product_form.manufacturer')"
+                use-input
+                fill-input
+                hide-selected
+                input-debounce="0"
+                new-value-mode="add-unique"
                 outlined
                 dense
                 hide-bottom-space
+                clearable
+                data-testid="product-manufacturer"
+                @filter="filterManufacturers"
+                @input-value="(value: string) => (form.manufacturer = value)"
+                @update:model-value="(value: string | null) => (form.manufacturer = value ?? '')"
               />
               <q-input
                 v-model="form.vendor_part_number"
@@ -666,11 +679,7 @@
           </section>
 
           <!-- 8. Caractéristiques (filtres de la vitrine) -->
-          <section
-            v-if="specsOn"
-            class="product-form__section"
-            data-testid="product-specs"
-          >
+          <section v-if="specsOn" class="product-form__section" data-testid="product-specs">
             <header class="product-form__section-head">
               <q-icon name="ph:sliders-horizontal" class="product-form__section-icon" />
               <h3 class="product-form__section-title">{{ $t('product_form.specs') }}</h3>
@@ -835,6 +844,15 @@
               :parent-price="form.pricing_mode === 'fixed' ? form.base_price : null"
               @changed="emit('saved')"
             />
+            <div class="product-form__inline q-mt-sm">
+              <q-toggle
+                v-model="form.variants_optional"
+                :label="$t('product_form.variants_optional')"
+                dense
+                data-testid="product-variants-optional"
+              />
+            </div>
+            <p class="admin-hint q-mb-none">{{ $t('product_form.variants_optional_hint') }}</p>
           </section>
           <p v-else-if="isEdit && product?.parent_product_id" class="admin-hint q-mt-md q-mb-none">
             {{ $t('product_form.variant_of') }}
@@ -909,6 +927,7 @@ import {
 import { intlLocale } from '@app/utils';
 import { getGroupPrices, setGroupPrices, type MarginPreviewRequest } from '@/api/margin';
 import { getSpecForm, setProductSpecs, type SpecFormRow } from '@/api/productSpecs';
+import { listManufacturers } from '@/api/manufacturers';
 import {
   listProductLinks,
   searchProductsForLink,
@@ -1011,6 +1030,8 @@ interface FormState {
   base_price: string;
   /** Set: each unit sold issues a gift card of this amount (R8 / confort). */
   gift_card_amount: string;
+  /** The variants are options over the base product, which stays sellable as is. */
+  variants_optional: boolean;
   category_id: string | null;
   tax_rate_id: string | null;
   supplier_place_id: string | null;
@@ -1064,6 +1085,7 @@ function emptyForm(): FormState {
     customs_rate_pct: '',
     base_price: '0.00',
     gift_card_amount: '',
+    variants_optional: false,
     category_id: null,
     tax_rate_id: null,
     supplier_place_id: null,
@@ -1177,6 +1199,16 @@ function onSupplierChange(code: string | null) {
   if (supplier.price_currency) form.cost_currency = supplier.price_currency;
 }
 const categoryOptions = ref<{ label: string; value: string }[]>([]);
+// Marques connues (fabricants des produits + marques du catalogue).
+const manufacturers = ref<string[]>([]);
+const manufacturerFilter = ref('');
+const manufacturerOptions = computed(() => {
+  const needle = manufacturerFilter.value.trim().toLowerCase();
+  return manufacturers.value.filter((m) => !needle || m.toLowerCase().includes(needle));
+});
+function filterManufacturers(needle: string, update: (fn: () => void) => void) {
+  update(() => (manufacturerFilter.value = needle));
+}
 const taxRateOptions = ref<{ label: string; value: string }[]>([]);
 
 // Caractéristiques (R9 / T4) : une ligne par définition de la catégorie ;
@@ -1411,6 +1443,7 @@ const FIELD_LABELS: Record<string, string> = labels({
   customs_rate_pct: 'product_form.f_customs_rate_pct',
   base_price: 'product_form.f_base_price',
   gift_card_amount: 'product_form.f_gift_card_amount',
+  variants_optional: 'product_form.variants_optional',
   category_id: 'product_form.f_category_id',
   tax_rate_id: 'product_form.f_tax_rate_id',
   supplier_place_id: 'product_form.f_supplier_place_id',
@@ -1558,6 +1591,7 @@ function loadFromProduct(p: ProductPublic | null) {
     base.warranty_months = str(rec.warranty_months);
     base.margin_rate_pct = str(rec.margin_rate_pct);
     base.gift_card_amount = str(rec.gift_card_amount);
+    base.variants_optional = rec.variants_optional === true;
     base.cost_amount = str(rec.cost_amount) || '0.00';
     base.cost_currency = str(rec.cost_currency) || shopConfig.currency;
     base.customs_rate_pct = str(rec.customs_rate_pct);
@@ -1666,6 +1700,9 @@ async function loadLookups() {
         value: s.code,
       }));
     categoryOptions.value = categories.value.map((c) => ({ label: categoryLabel(c), value: c.id }));
+    void listManufacturers()
+      .then((rows) => (manufacturers.value = rows))
+      .catch(() => undefined);
     void listAdminCategories()
       .then((rows) => {
         categoryMargins.value = Object.fromEntries(

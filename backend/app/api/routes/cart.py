@@ -1401,8 +1401,12 @@ async def _get_active_product_or_404(
             details={"product_id": str(product_id)},
         )
 
-    if getattr(product, "has_variants", False):
-        # The parent is the storefront entry; only a chosen variant is sold.
+    if getattr(product, "has_variants", False) and not getattr(
+        product, "variants_optional", False
+    ):
+        # The parent is the storefront entry; only a chosen variant is sold —
+        # unless its variants are options over the base product, which is
+        # then sold as is.
         raise AppError(
             code="cart.product.has_variants",
             status_code=409,

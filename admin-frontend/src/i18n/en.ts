@@ -212,7 +212,7 @@ const en: MessageSchema = {
   },
   branding: {
     change: 'Change the image',
-    hint: 'The logo shows in the storefront header, the e-mails and the PDFs (quotes, invoices); the icon is the favicon and the home-screen icon. Without a setting the storefront shows the shop name and its default icons. The admin keeps its own icon.',
+    hint: 'The logo shows in the storefront header, the e-mails and the PDFs (quotes, invoices); the icon is the favicon and the home-screen icon. Without a setting the storefront shows the shop name and its default icons. The admin tab shows the same icon.',
     icon: 'Site icon',
     icon_hint:
       'Square, simple motif: the 16, 32, 180, 192 and 512 px sizes are derived automatically.',
@@ -1623,6 +1623,9 @@ const en: MessageSchema = {
       'Product synced from a supplier. The fields you change here will be locked: neither the sync nor Icecat enrichment will overwrite them.',
     variant_hint: '— options are edited from the parent page.',
     variant_of: 'Variant of another item',
+    variants_optional: 'The base product stays orderable as is',
+    variants_optional_hint:
+      'On: the variants are options over the base product (e.g. i7 processor: + 3 000), which keeps its own price and stock; the storefront offers “Standard” and the options. Off: the parent page is only a shop entry, the customer must pick a variant.',
     vat: 'VAT rate',
     vat_hint: 'Empty = the category rate, else the default rate',
     warranty: 'Warranty (months)',
@@ -2313,7 +2316,7 @@ const en: MessageSchema = {
     image: 'Image URL',
     inactive: 'Inactive',
     intro:
-      'Each variant (size, colour…) is an item in its own right: reference, price, cost, stock, image. The parent page is the shop entry and shows the lowest price; it is never sold as is.',
+      'Each variant (size, colour…) is an item in its own right: reference, price, cost, stock, image. By default the parent page is the shop entry and shows the lowest price; it is not sold as is — unless its variants are declared optional below.',
     load_failed: 'Could not load the variants.',
     local_hint: 'Recorded through a tracked inventory adjustment',
     local_stock: 'Warehouse stock',
@@ -2330,6 +2333,11 @@ const en: MessageSchema = {
     remove_failed: 'Removal failed.',
     remove_option: 'Remove the option',
     save: 'Save',
+    spec_empty: 'Blank = same as the parent page',
+    spec_parent: 'Parent page: {value}',
+    specs: 'Characteristics the variant changes',
+    specs_hint:
+      'Only fill in what the variant changes (e.g. processor: i7). The storefront search and filters then find the parent page with that value.',
     size: 'Size',
     stock_split: '(warehouse {local} · supplier {supplier})',
     supplier_stock: 'Supplier stock',

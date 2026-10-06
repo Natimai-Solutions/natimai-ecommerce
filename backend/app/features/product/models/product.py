@@ -7,8 +7,9 @@ from enum import StrEnum
 from typing import Any
 
 from pydantic import SerializerFunctionWrapHandler, computed_field, model_serializer
-from sqlalchemy import JSON, Column, event
+from sqlalchemy import JSON, Boolean, Column, event
 from sqlalchemy import Enum as SAEnum
+from sqlalchemy import text as sa_text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, Relationship, SQLModel
 
@@ -235,6 +236,16 @@ class ProductBase(Base):
     has_variants: bool = Field(
         default=False,
         description="Indicates if the product has variants",
+    )
+    variants_optional: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default=sa_text("false")),
+        description=(
+            "The variants are options over the base product: the parent stays "
+            "sellable as is (its own price and stock), a variant replaces it "
+            "when the customer picks one. False (default): the parent is only "
+            "the storefront entry, a variant must be chosen."
+        ),
     )
     price_extra: Decimal | None = Field(
         default=None,
@@ -545,6 +556,7 @@ class ProductUpdate(ProductBase, BaseUpdate):
     cost_currency: str | None = None
     customs_rate_pct: Decimal | None = None
     has_variants: bool | None = None
+    variants_optional: bool | None = None
     parent_product_id: uuid.UUID | None = None
     variant_options: dict[str, str] | None = None
     price_extra: Decimal | None = None

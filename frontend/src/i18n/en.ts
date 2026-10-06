@@ -167,6 +167,11 @@ const en: MessageSchema = {
     departure: 'Grouped departure “{name}”. {cutoff}.',
     condition: 'Condition',
     choose_variant_hint: 'Choose a variant to see its price and availability.',
+    variant_base: 'Standard',
+    variant_base_hint:
+      'Standard: the product as described on this page. Pick an option to replace it.',
+    variant_combo_missing:
+      'No variant matches these options: complete your choice or go back to standard.',
     quantity: 'Quantity',
     qty_less: 'Decrease quantity',
     qty_more: 'Increase quantity',

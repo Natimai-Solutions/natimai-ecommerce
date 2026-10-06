@@ -2282,6 +2282,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/products/manufacturers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Admin List Manufacturers
+         * @description The brands the product form proposes: every manufacturer already on a
+         *     product (one spelling per brand — the most frequent — so « HP » and
+         *     « hp » stop coexisting) and the brands of the catalogue, sorted.
+         */
+        get: operations["admin-product-admin_list_manufacturers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/products/specs-form": {
         parameters: {
             query?: never;
@@ -17857,6 +17879,12 @@ export interface components {
              */
             has_variants: boolean;
             /**
+             * Variants Optional
+             * @description The variants are options over the base product: the parent stays sellable as is (its own price and stock), a variant replaces it when the customer picks one. False (default): the parent is only the storefront entry, a variant must be chosen.
+             * @default false
+             */
+            variants_optional: boolean;
+            /**
              * Price Extra
              * @description Variant only (R9 / T6): supplement over the parent's fixed price (« i7 : + 10 000 »). When set, base_price = parent.base_price + price_extra, recomputed whenever the parent price changes; the storefront shows « + 10 000 » in the selector. None: the variant has a price of its own.
              */
@@ -18408,6 +18436,12 @@ export interface components {
              */
             has_variants: boolean;
             /**
+             * Variants Optional
+             * @description The variants are options over the base product: the parent stays sellable as is (its own price and stock), a variant replaces it when the customer picks one. False (default): the parent is only the storefront entry, a variant must be chosen.
+             * @default false
+             */
+            variants_optional: boolean;
+            /**
              * Price Extra
              * @description Variant only (R9 / T6): supplement over the parent's fixed price (« i7 : + 10 000 »). When set, base_price = parent.base_price + price_extra, recomputed whenever the parent price changes; the storefront shows « + 10 000 » in the selector. None: the variant has a price of its own.
              */
@@ -18835,6 +18869,8 @@ export interface components {
             } | null;
             /** Has Variants */
             has_variants?: boolean | null;
+            /** Variants Optional */
+            variants_optional?: boolean | null;
             /** Price Extra */
             price_extra?: number | string | null;
             /** Gift Card Amount */
@@ -27373,6 +27409,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-product-admin_list_manufacturers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string[];
                 };
             };
         };
