@@ -29,6 +29,14 @@ takes a tag as its `ref`.
 - Root `package.json` is named `natimai-ecommerce` and carries the repository
   metadata.
 
+### Fixed
+
+- The Security workflow, red on `main` since its creation: `trivy-action`
+  pinned to an existing tag (`v0.36.0`), gitleaks run from its released binary
+  (the GitHub action requires a paid licence for organisations), and two
+  `pnpm audit` advisories closed with `pnpm.overrides` (`proxy-addr`,
+  `source-map-js`).
+
 ## [0.0.1] - 2026-07-07
 
 First tagged state of the platform: FastAPI API with ARQ workers and

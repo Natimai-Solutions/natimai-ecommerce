@@ -25,4 +25,6 @@ regexes = [
   # Valeurs CI explicitement factices.
   '''ci-only-not-a-secret''',
   '''ci-only-password''',
+  # Exemple de clé d'idempotence dans backend/app/features/shipping/README.md.
+  '''order-123-route-456''',
 ]
