@@ -17,6 +17,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.product.models.product import Product
 from app.features.product.models.product_spec import ProductKeySpec, ProductSpec
+from app.features.product.services.category_tree import category_lineage
 from app.features.product.services.spec_projection import (
     build_alias_index_from_defs,
     get_effective_spec_definitions,
@@ -123,7 +124,7 @@ async def compute_key_specs(
     for spec_def, raw in iter_matched_specs(
         product.technical_specifications or [],
         supplier_category=product.supplier_category or None,
-        category_id=product.category_id,
+        category_id=await category_lineage(session, product.category_id) or None,
         alias_index=build_alias_index_from_defs(defs),
     ):
         raw_values.setdefault(spec_def["key"], raw)

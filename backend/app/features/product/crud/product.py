@@ -29,6 +29,9 @@ from app.features.product.models.product import (
     ProductUpdate,
 )
 from app.features.product.models.product_spec import ProductSpec
+from app.features.product.services.category_tree import (
+    product_in_category_condition,
+)
 from app.features.product.services.identity import (
     gtin_variants,
     normalize_text_key,
@@ -724,7 +727,8 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
             rank_expr = func.ts_rank(search_doc, ts_q)
 
         if category_id is not None:
-            conditions.append(col(Product.category_id) == category_id)
+            # « Réseau » lists WiFi and its access points too.
+            conditions.append(product_in_category_condition(category_id))
         if manufacturer:
             conditions.append(
                 col(Product.manufacturer).ilike(f"%{manufacturer.strip()}%")

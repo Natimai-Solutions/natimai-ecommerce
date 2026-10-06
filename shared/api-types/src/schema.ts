@@ -8660,6 +8660,8 @@ export interface components {
             display_name?: string | null;
             /** Description */
             description?: string | null;
+            /** Parent Id */
+            parent_id?: string | null;
         };
         /**
          * AdminCategoryItem
@@ -8698,6 +8700,34 @@ export interface components {
              * @default 0
              */
             product_count: number;
+            /** Parent Id */
+            parent_id?: string | null;
+            /** Parent Name */
+            parent_name?: string | null;
+            /** Path */
+            path?: string[];
+            /**
+             * Depth
+             * @default 0
+             */
+            depth: number;
+            /**
+             * Children Count
+             * @default 0
+             */
+            children_count: number;
+            /** Inherited Tax Rate Id */
+            inherited_tax_rate_id?: string | null;
+            /** Inherited Tax Rate From */
+            inherited_tax_rate_from?: string | null;
+            /** Inherited Customs Rate Pct */
+            inherited_customs_rate_pct?: string | null;
+            /** Inherited Customs Rate From */
+            inherited_customs_rate_from?: string | null;
+            /** Inherited Margin Rate Pct */
+            inherited_margin_rate_pct?: string | null;
+            /** Inherited Margin Rate From */
+            inherited_margin_rate_from?: string | null;
             /** Translations */
             translations?: {
                 [key: string]: {
@@ -8729,6 +8759,8 @@ export interface components {
             is_active?: boolean | null;
             /** Default Margin Rate Pct */
             default_margin_rate_pct?: number | string | null;
+            /** Parent Id */
+            parent_id?: string | null;
             /** Translations */
             translations?: {
                 [key: string]: {
@@ -10501,8 +10533,13 @@ export interface components {
                 };
             };
             /**
+             * Parent Id
+             * @description Parent category (« Réseau > WiFi > Point d'accès WiFi »). None = a top-level category. A child inherits the defaults its chain leaves unset (tax rate, customs rate, margin) and is listed under its ancestors in the storefront.
+             */
+            parent_id?: string | null;
+            /**
              * Default Tax Rate Id
-             * @description Default tax rate applied to products in this category
+             * @description Default tax rate applied to products in this category; None → the parent category's, else the shop default
              */
             default_tax_rate_id?: string | null;
             /**
@@ -10611,8 +10648,13 @@ export interface components {
                 };
             };
             /**
+             * Parent Id
+             * @description Parent category (« Réseau > WiFi > Point d'accès WiFi »). None = a top-level category. A child inherits the defaults its chain leaves unset (tax rate, customs rate, margin) and is listed under its ancestors in the storefront.
+             */
+            parent_id?: string | null;
+            /**
              * Default Tax Rate Id
-             * @description Default tax rate applied to products in this category
+             * @description Default tax rate applied to products in this category; None → the parent category's, else the shop default
              */
             default_tax_rate_id?: string | null;
             /**
@@ -10736,6 +10778,8 @@ export interface components {
                     [key: string]: unknown;
                 };
             };
+            /** Parent Id */
+            parent_id?: string | null;
             /** Default Tax Rate Id */
             default_tax_rate_id?: string | null;
             /** Default Customs Rate Pct */

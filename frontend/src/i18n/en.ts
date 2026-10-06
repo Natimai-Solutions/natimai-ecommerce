@@ -329,6 +329,7 @@ const en: MessageSchema = {
   },
   catalogue: {
     categories: 'Categories',
+    back_to: 'Back to {name}',
     all: 'Whole catalogue',
     filters: 'Filters',
     filters_n: 'Filters ({n})',

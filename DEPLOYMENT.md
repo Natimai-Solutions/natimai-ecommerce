@@ -855,6 +855,10 @@ Caddy sets a CSP on the storefront and on the admin (the API sets its own,
 | `CSP_EXTRA_SOURCES` | — | Extra `connect-src` / `img-src` origins: the Sentry ingest host (`https://o123.ingest.sentry.io`), a public S3 bucket of product images… |
 | `CSP_REPORT` | — | A whole report directive, e.g. `report-uri https://o123.ingest.sentry.io/api/…/security/?sentry_key=…`. |
 
+The storefront's `manifest-src` allows the API origin: the web app manifest
+of the site icon chosen in the back-office (`/branding/{id}/site.webmanifest`)
+is served by the API, not by the storefront.
+
 The storefront policy keeps `'unsafe-inline'` on scripts and styles: Quasar's
 server rendering inlines the Pinia state in a `<script>` and Vue sets inline
 styles; a nonce cannot be injected from the proxy. The admin (a plain SPA with

@@ -37,8 +37,10 @@ from sqlmodel import and_, col, or_, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.place.models import Place
-from app.features.product.models.category import Category
 from app.features.product.models.product import PricingMode, Product
+from app.features.product.services.category_tree import (
+    inherited_customs_rate_subquery,
+)
 from app.features.shipping.services.origin import CUSTOMS_REGIME_DOMESTIC
 
 CUSTOMS_RATE_UNRESOLVED = "customs_rate_unresolved"
@@ -51,14 +53,11 @@ DRAFT = "draft"
 def customs_rate_condition() -> Any:
     """SQL: the product's customs rate resolves, on itself or on its category.
 
-    The category default is read through a correlated subquery so callers do
-    not have to add a join to their existing statement.
+    The category default — its own, else the nearest ancestor's — is read
+    through a correlated subquery so callers do not have to add a join to
+    their existing statement.
     """
-    category_default_customs = (
-        select(col(Category.default_customs_rate_pct))
-        .where(col(Category.id) == col(Product.category_id))
-        .scalar_subquery()
-    )
+    category_default_customs = inherited_customs_rate_subquery()
     # A domestic origin clears no border: the rate is not needed. Domestic =
     # explicit 'domestic' regime on the supplier place, or same country as
     # the main warehouse. (The customs-free countries setting is a runtime

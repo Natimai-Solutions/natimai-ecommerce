@@ -36,6 +36,9 @@ from app.features.product.models.product_spec import (
     SpecFacet,
     SpecFacetValue,
 )
+from app.features.product.services.category_tree import (
+    product_in_category_condition,
+)
 from app.features.product.services.compare import (
     MAX_COMPARE,
     ProductCompareResponse,
@@ -714,7 +717,7 @@ async def get_category_spec_facets(
         .where(
             col(ProductSpec.spec_key).in_(all_keys),
             col(ProductSpec.value_text).is_not(None),
-            col(Product.category_id) == category_id,
+            product_in_category_condition(category_id),
             col(Product.is_active).is_(True),
             content_ready_condition(),
         )
@@ -736,7 +739,7 @@ async def get_category_spec_facets(
         .where(
             col(ProductSpec.spec_key).in_(all_keys),
             col(ProductSpec.value_numeric).is_not(None),
-            col(Product.category_id) == category_id,
+            product_in_category_condition(category_id),
             col(Product.is_active).is_(True),
             content_ready_condition(),
         )

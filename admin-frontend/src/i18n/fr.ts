@@ -268,7 +268,7 @@ const fr = {
     edit: 'Titre vitrine, description, image',
     edit_failed: 'Modification impossible.',
     enable: 'Réactiver',
-    hint: "Les catégories viennent de la synchronisation fournisseur ou sont créées ici : leur nom d'origine sert de clé de rapprochement et ne se modifie pas. Personnalisez le titre vitrine, la description, l'image, la marge et le taux de TVA par défaut ; fusionnez les doublons. Pour ranger les catégories d'un fournisseur dans les vôtres : Fournisseurs → icône « Catégories ».",
+    hint: "Les catégories viennent de la synchronisation fournisseur ou sont créées ici : leur nom d'origine sert de clé de rapprochement et ne se modifie pas. Personnalisez le titre vitrine, la description, l'image, la catégorie parente (Réseau > WiFi > Point d'accès), la marge, la TVA et la douane par défaut — une sous-catégorie hérite de ce que sa branche ne fixe pas ; fusionnez les doublons. Pour ranger les catégories d'un fournisseur dans les vôtres : Fournisseurs → icône « Catégories ».",
     inactive: 'Inactive',
     key_hint: 'Clé de rapprochement : ne se modifie plus ensuite (le titre vitrine, si)',
     margin: 'Marge par défaut (%)',
@@ -306,6 +306,15 @@ const fr = {
     title_hint: 'Vide = « {name} » (nom fournisseur)',
     vat: 'Taux de TVA par défaut',
     vat_hint: 'Vide = taux par défaut de la boutique ; un article peut le surcharger',
+    children_n: '{n} sous-catégorie(s)',
+    customs: 'Taux de douane par défaut (%)',
+    customs_hint:
+      'Vide = taux de la catégorie parente, sinon aucun (produits masqués) ; un article peut le surcharger',
+    inherited_from: 'Héritée de « {name} »',
+    inherited_value: 'Vide : héritée de « {name} » ({value})',
+    parent: 'Catégorie parente',
+    parent_hint:
+      'Vide = premier niveau. Une sous-catégorie hérite de la TVA, de la douane et de la marge que sa branche ne fixe pas ; la vitrine liste le parent avec les produits de ses sous-catégories.',
   },
   common: {
     action_failed: 'Action impossible.',
@@ -423,6 +432,7 @@ const fr = {
     undefined: 'Non défini',
     vat_warning:
       "<strong>Retirer la TVA du total du simulateur.</strong> Elle est déjà appliquée séparément via le taux de TVA du produit : l'inclure ici la compterait deux fois sur chaque prix.",
+    inherited_from: '(héritée de « {name} »)',
   },
   dashboard: {
     activity: 'Activité',

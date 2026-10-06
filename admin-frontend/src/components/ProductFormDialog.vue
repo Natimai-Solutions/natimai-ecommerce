@@ -901,6 +901,7 @@ import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
 import {
   categoryLabel,
+  categoryPathOptions,
   listAdminCategories,
   listCategories,
   type Category,
@@ -1699,7 +1700,9 @@ async function loadLookups() {
         label: `${s.name}${s.is_domestic ? t('product_form.local') : ''} — ${s.code}`,
         value: s.code,
       }));
-    categoryOptions.value = categories.value.map((c) => ({ label: categoryLabel(c), value: c.id }));
+    // « Réseau › WiFi › Point d'accès » : le chemin complet lève l'ambiguïté
+    // entre deux sous-catégories de même nom.
+    categoryOptions.value = categoryPathOptions(categories.value);
     void listManufacturers()
       .then((rows) => (manufacturers.value = rows))
       .catch(() => undefined);

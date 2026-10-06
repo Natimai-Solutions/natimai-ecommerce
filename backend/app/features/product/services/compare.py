@@ -19,6 +19,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.product.models.product import Product, ProductPublic
 from app.features.product.models.product_spec import ProductSpec
+from app.features.product.services.category_tree import lineage_ids, load_tree
 from app.features.product.services.key_specs import (
     format_numeric,
     format_text,
@@ -78,13 +79,14 @@ async def compare_rows(
 
     # The projection lowercases text values; go back to the supplier's wording.
     alias_index = build_alias_index_from_defs(defs)
+    tree = await load_tree(session)
     raw_values: dict[uuid.UUID, dict[str, str]] = {}
     for product in products:
         values: dict[str, str] = {}
         for spec_def, raw in iter_matched_specs(
             product.technical_specifications or [],
             supplier_category=product.supplier_category or None,
-            category_id=product.category_id,
+            category_id=lineage_ids(tree, product.category_id) or None,
             alias_index=alias_index,
         ):
             values.setdefault(spec_def["key"], raw)

@@ -333,6 +333,7 @@ const fr = {
   catalogue: {
     categories: 'Catégories',
     all: 'Tout le catalogue',
+    back_to: 'Revenir à {name}',
     filters: 'Filtres',
     filters_n: 'Filtres ({n})',
     close_filters: 'Fermer les filtres',

@@ -255,13 +255,15 @@ const route = useRoute();
 const rows = ref<SpecDefinition[]>([]);
 /** Shop categories a definition can be attached to (active, not merged). */
 const categories = ref<AdminCategory[]>([]);
+// « Réseau › WiFi » : the full path tells two same-named sub-categories apart.
 const categoryOptions = computed(() =>
   categories.value
     .filter((c) => !c.merged_into_id)
-    .map((c) => ({ label: c.title, value: c.id })),
+    .map((c) => ({ label: c.path.join(' › '), value: c.id }))
+    .sort((a, b) => a.label.localeCompare(b.label, 'fr')),
 );
 function categoryName(id: string): string {
-  return categories.value.find((c) => c.id === id)?.title ?? '?';
+  return categories.value.find((c) => c.id === id)?.path.join(' › ') ?? '?';
 }
 const loading = ref(false);
 const error = ref<string | null>(null);

@@ -270,7 +270,7 @@ const en: MessageSchema = {
     edit: 'Shop title, description, image',
     edit_failed: 'Edit failed.',
     enable: 'Reactivate',
-    hint: "Categories come from the supplier sync or are created here: their original name is the matching key and does not change. Customise the shop title, description, image, margin and default VAT rate; merge duplicates. To file a supplier's categories into yours: Suppliers → “Categories” icon.",
+    hint: "Categories come from the supplier sync or are created here: their original name is the matching key and does not change. Customise the shop title, description, image, parent category (Network > WiFi > Access point), default margin, VAT and customs rate — a sub-category inherits what its branch leaves unset; merge duplicates. To file a supplier's categories into yours: Suppliers → “Categories” icon.",
     inactive: 'Inactive',
     key_hint: 'Matching key: cannot be changed afterwards (the shop title can)',
     margin: 'Default margin (%)',
@@ -308,6 +308,15 @@ const en: MessageSchema = {
     title_hint: 'Empty = “{name}” (supplier name)',
     vat: 'Default VAT rate',
     vat_hint: 'Empty = the shop default rate; an item can override it',
+    children_n: '{n} sub-category(ies)',
+    customs: 'Default customs rate (%)',
+    customs_hint:
+      "Blank = the parent category's rate, else none (products hidden); a product can override it",
+    inherited_from: 'Inherited from “{name}”',
+    inherited_value: 'Blank: inherited from “{name}” ({value})',
+    parent: 'Parent category',
+    parent_hint:
+      "Blank = top level. A sub-category inherits the VAT, customs and margin its branch leaves unset; the storefront lists the parent with its sub-categories' products.",
   },
   common: {
     action_failed: 'Action failed.',
@@ -423,6 +432,7 @@ const en: MessageSchema = {
     undefined: 'Not set',
     vat_warning:
       "<strong>Remove VAT from the simulator's total.</strong> It is already applied separately through the product's VAT rate: including it here would count it twice on every price.",
+    inherited_from: '(inherited from “{name}”)',
   },
   dashboard: {
     activity: 'Activity',

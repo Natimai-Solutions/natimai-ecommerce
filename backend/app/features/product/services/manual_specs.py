@@ -25,6 +25,7 @@ from app.features.product.models.product_spec import (
     SPEC_SOURCE_MANUAL,
     ProductSpec,
 )
+from app.features.product.services.category_tree import category_lineage
 from app.features.product.services.spec_projection import (
     _project_spec_value,
     _spec_applies_to_category,
@@ -115,11 +116,13 @@ async def spec_form_rows(
     """The rows of the « Caractéristiques » section of the product form."""
     keyword = await _category_keyword(session, product, category_id)
     cat_id = category_id or (product.category_id if product is not None else None)
+    # The category and its ancestors: definitions scoped higher up apply.
+    lineage = await category_lineage(session, cat_id)
     definitions = [
         d
         for d in await get_effective_spec_definitions(session)
         if (not keyword and cat_id is None)
-        or _spec_applies_to_category(d, keyword, cat_id)
+        or _spec_applies_to_category(d, keyword, lineage or cat_id)
     ]
     current: dict[str, ProductSpec] = {}
     if product is not None:

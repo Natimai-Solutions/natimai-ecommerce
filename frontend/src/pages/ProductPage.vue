@@ -2,10 +2,10 @@
   <q-page class="product page-container">
     <nav class="product__crumbs" :aria-label="$t('product.crumbs')">
       <router-link :to="{ name: 'catalogue' }">{{ $t('layout.catalogue') }}</router-link>
-      <template v-if="categoryLabel && product?.category_id">
+      <template v-for="crumb in categoryCrumbs" :key="crumb.id">
         <q-icon name="ph:caret-right" size="12px" />
-        <router-link :to="{ name: 'catalogue', query: { cat: product.category_id } }">
-          {{ categoryLabel }}
+        <router-link :to="{ name: 'catalogue', query: { cat: crumb.id } }">
+          {{ crumb.label }}
         </router-link>
       </template>
       <template v-if="product">
@@ -538,6 +538,7 @@ import { useDepartureLabels } from '@/composables/useDepartureLabels';
 import { useTranslate } from '@/composables/useTranslate';
 import { useTurnstile } from '@/composables/useTurnstile';
 import { absoluteUrl, breadcrumbList, jsonLd } from '@/utils/seo';
+import { categoryLineage } from '@/utils/categories';
 import { useShopModulesStore } from '@/stores/shopModules';
 import { getProductRouteByIdAndName, slugifyProductName } from '@/utils/productRoute';
 
@@ -826,10 +827,16 @@ const promotionEnds = computed(() => {
   return raw ? formatDate(raw) : null;
 });
 
+// « Catalogue › Réseau › WiFi › Point d'accès » : the category's lineage.
+const categoryCrumbs = computed(() =>
+  categoryLineage(productsStore.categories, product.value?.category_id ?? null).map((c) => ({
+    id: c.id,
+    label: c.title ?? c.name,
+  })),
+);
 const categoryLabel = computed(() => {
-  const id = product.value?.category_id;
-  const cat = id ? productsStore.categories.find((c) => c.id === id) : undefined;
-  return cat ? (cat.title ?? cat.name) : null;
+  const chain = categoryCrumbs.value;
+  return chain.length ? (chain[chain.length - 1]?.label ?? null) : null;
 });
 
 /** HTML → one line of text. */
@@ -1021,11 +1028,8 @@ useMeta(() => {
       { name: t('layout.home'), path: '/' },
       { name: t('layout.catalogue'), path: '/catalogue' },
     ];
-    if (categoryLabel.value && product.value.category_id) {
-      crumbs.push({
-        name: categoryLabel.value,
-        path: `/catalogue?cat=${product.value.category_id}`,
-      });
+    for (const crumb of categoryCrumbs.value) {
+      crumbs.push({ name: crumb.label, path: `/catalogue?cat=${crumb.id}` });
     }
     crumbs.push({ name: product.value.name, path: route.path });
     const breadcrumb = breadcrumbList(crumbs);

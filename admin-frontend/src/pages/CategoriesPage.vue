@@ -43,9 +43,32 @@
     >
       <template #body-cell-title="props">
         <q-td :props="props">
-          <div class="text-body2">{{ props.row.title }}</div>
-          <div v-if="props.row.display_name" class="text-caption text-muted">
-            {{ $t('categories.supplier_name', { name: props.row.name }) }}
+          <!-- Arbre : une sous-catégorie est décalée sous son parent. -->
+          <div
+            class="category-row"
+            :style="{ paddingLeft: `${Math.min(props.row.depth, 6) * 20}px` }"
+            :data-depth="props.row.depth"
+          >
+            <q-icon
+              v-if="props.row.depth > 0"
+              name="ph:arrow-elbow-down-right"
+              size="14px"
+              class="text-subtle q-mr-xs"
+            />
+            <div>
+              <div class="text-body2">
+                {{ props.row.title }}
+                <span v-if="props.row.children_count" class="text-caption text-muted">
+                  · {{ $t('categories.children_n', { n: props.row.children_count }) }}
+                </span>
+              </div>
+              <div v-if="props.row.display_name" class="text-caption text-muted">
+                {{ $t('categories.supplier_name', { name: props.row.name }) }}
+              </div>
+              <div v-if="props.row.depth > 0" class="text-caption text-subtle">
+                {{ props.row.path.slice(0, -1).join(' › ') }}
+              </div>
+            </div>
           </div>
         </q-td>
       </template>
@@ -91,6 +114,45 @@
           <span v-if="props.row.default_customs_rate_pct" class="font-mono"
             >{{ props.row.default_customs_rate_pct }} %</span
           >
+          <span
+            v-else-if="props.row.inherited_customs_rate_pct"
+            class="font-mono text-muted"
+            :title="
+              $t('categories.inherited_from', { name: props.row.inherited_customs_rate_from })
+            "
+            >{{ props.row.inherited_customs_rate_pct }} %
+            <q-icon name="ph:arrow-bend-left-up" size="12px"
+          /></span>
+          <span v-else class="text-subtle">—</span>
+        </q-td>
+      </template>
+      <template #body-cell-tax="props">
+        <q-td :props="props">
+          <span v-if="props.row.default_tax_rate_id">{{
+            taxLabel(props.row.default_tax_rate_id)
+          }}</span>
+          <span
+            v-else-if="props.row.inherited_tax_rate_id"
+            class="text-muted"
+            :title="$t('categories.inherited_from', { name: props.row.inherited_tax_rate_from })"
+            >{{ taxLabel(props.row.inherited_tax_rate_id) }}
+            <q-icon name="ph:arrow-bend-left-up" size="12px"
+          /></span>
+          <span v-else class="text-subtle">—</span>
+        </q-td>
+      </template>
+      <template #body-cell-margin="props">
+        <q-td :props="props">
+          <span v-if="props.row.default_margin_rate_pct" class="font-mono"
+            >{{ props.row.default_margin_rate_pct }} %</span
+          >
+          <span
+            v-else-if="props.row.inherited_margin_rate_pct"
+            class="font-mono text-muted"
+            :title="$t('categories.inherited_from', { name: props.row.inherited_margin_rate_from })"
+            >{{ props.row.inherited_margin_rate_pct }} %
+            <q-icon name="ph:arrow-bend-left-up" size="12px"
+          /></span>
           <span v-else class="text-subtle">—</span>
         </q-td>
       </template>
@@ -167,6 +229,21 @@
               dense
             />
             <q-select
+              v-model="editForm.parent_id"
+              :options="parentOptions"
+              :label="$t('categories.parent')"
+              :hint="$t('categories.parent_hint')"
+              emit-value
+              map-options
+              outlined
+              dense
+              clearable
+              use-input
+              input-debounce="0"
+              data-testid="category-parent"
+              @filter="filterParents"
+            />
+            <q-select
               v-model="editForm.suggested_category_ids"
               :options="suggestionOptions"
               :label="$t('categories.suggested')"
@@ -215,7 +292,7 @@
               v-model="editForm.default_tax_rate_id"
               :options="taxRateOptions"
               :label="$t('categories.vat')"
-              :hint="$t('categories.vat_hint')"
+              :hint="inheritedHint('tax') ?? $t('categories.vat_hint')"
               outlined
               dense
               emit-value
@@ -224,9 +301,22 @@
               data-testid="category-tax-rate"
             />
             <q-input
+              v-if="customsOn"
+              v-model="editForm.default_customs_rate_pct"
+              :label="$t('categories.customs')"
+              :hint="inheritedHint('customs') ?? $t('categories.customs_hint')"
+              type="number"
+              step="0.01"
+              min="0"
+              outlined
+              dense
+              clearable
+              data-testid="category-customs-rate"
+            />
+            <q-input
               v-model="editForm.default_margin_rate_pct"
               :label="$t('categories.margin')"
-              :hint="$t('categories.margin_hint')"
+              :hint="inheritedHint('margin') ?? $t('categories.margin_hint')"
               type="number"
               step="0.01"
               min="0"
@@ -319,6 +409,21 @@
               outlined
               dense
             />
+            <q-select
+              v-model="createForm.parent_id"
+              :options="parentOptions"
+              :label="$t('categories.parent')"
+              :hint="$t('categories.parent_hint')"
+              emit-value
+              map-options
+              outlined
+              dense
+              clearable
+              use-input
+              input-debounce="0"
+              data-testid="category-create-parent"
+              @filter="filterParents"
+            />
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
             <q-btn v-close-popup flat no-caps :label="$t('common.cancel')" />
@@ -369,9 +474,18 @@ import {
   type AdminCategory,
 } from '@/api/categories';
 import { extractApiError } from '@/api/errors';
-import { listTaxRates, setCategoryTaxRate, type TaxRate } from '@/api/taxRates';
+import {
+  listTaxRates,
+  setCategoryCustomsRate,
+  setCategoryTaxRate,
+  type TaxRate,
+} from '@/api/taxRates';
+import { useShopConfigStore } from '@/stores/shopConfig';
 
 const { t } = useI18n();
+const shopConfig = useShopConfigStore();
+/** The customs module decides whether a customs rate is asked here. */
+const customsOn = computed(() => shopConfig.moduleOn('customs'));
 
 const rows = ref<AdminCategory[]>([]);
 const loading = ref(false);
@@ -418,13 +532,81 @@ const columns = computed<QTableColumn[]>(() => [
 const createDialog = ref(false);
 const creating = ref(false);
 const createError = ref<string | null>(null);
-const createForm = reactive({ name: '', display_name: '' });
+const createForm = reactive<{ name: string; display_name: string; parent_id: string | null }>({
+  name: '',
+  display_name: '',
+  parent_id: null,
+});
 
 function openCreate() {
   createForm.name = '';
   createForm.display_name = '';
+  createForm.parent_id = null;
   createError.value = null;
+  parentOptions.value = allParents();
   createDialog.value = true;
+}
+
+// --- Hiérarchie : parents proposés (actives, non fusionnées, hors la
+// catégorie éditée et ses sous-catégories, qui boucleraient).
+const parentOptions = ref<{ label: string; value: string }[]>([]);
+
+function descendantsOf(id: string): Set<string> {
+  const out = new Set<string>();
+  let frontier = [id];
+  while (frontier.length) {
+    const next: string[] = [];
+    for (const row of rows.value) {
+      if (row.parent_id && frontier.includes(row.parent_id) && !out.has(row.id)) {
+        out.add(row.id);
+        next.push(row.id);
+      }
+    }
+    frontier = next;
+  }
+  return out;
+}
+
+function allParents(exclude?: string): { label: string; value: string }[] {
+  const below = exclude ? descendantsOf(exclude) : new Set<string>();
+  return rows.value
+    .filter((c) => c.is_active && !c.merged_into_id && c.id !== exclude && !below.has(c.id))
+    .map((c) => ({ label: c.path.join(' › '), value: c.id }))
+    .sort((a, b) => a.label.localeCompare(b.label, 'fr'));
+}
+
+function filterParents(needle: string, update: (fn: () => void) => void) {
+  update(() => {
+    const q = needle.trim().toLowerCase();
+    parentOptions.value = allParents(editing.value?.id).filter(
+      (o) => !q || o.label.toLowerCase().includes(q),
+    );
+  });
+}
+
+/** « Vide : héritée de Réseau (12,5 %) » — shown under a field left blank. */
+function inheritedHint(kind: 'tax' | 'customs' | 'margin'): string | null {
+  const row = editing.value;
+  if (!row) return null;
+  if (kind === 'tax' && !editForm.default_tax_rate_id && row.inherited_tax_rate_from) {
+    return t('categories.inherited_value', {
+      name: row.inherited_tax_rate_from,
+      value: taxLabel(row.inherited_tax_rate_id),
+    });
+  }
+  if (kind === 'customs' && !editForm.default_customs_rate_pct && row.inherited_customs_rate_from) {
+    return t('categories.inherited_value', {
+      name: row.inherited_customs_rate_from,
+      value: `${row.inherited_customs_rate_pct} %`,
+    });
+  }
+  if (kind === 'margin' && !editForm.default_margin_rate_pct && row.inherited_margin_rate_from) {
+    return t('categories.inherited_value', {
+      name: row.inherited_margin_rate_from,
+      value: `${row.inherited_margin_rate_pct} %`,
+    });
+  }
+  return null;
 }
 
 async function submitCreate() {
@@ -434,6 +616,7 @@ async function submitCreate() {
     const created = await createAdminCategory({
       name: createForm.name.trim(),
       display_name: createForm.display_name.trim() || null,
+      parent_id: createForm.parent_id,
     });
     createDialog.value = false;
     notice.value = t('categories.created', { title: created.title });
@@ -492,18 +675,22 @@ const editForm = reactive<{
   /** Alt text of the media-library image behind image_url (03/10/2026). */
   image_alt: string;
   default_margin_rate_pct: string;
+  default_customs_rate_pct: string;
   default_tax_rate_id: string | null;
   translations: Translations;
   suggested_category_ids: string[];
+  parent_id: string | null;
 }>({
   display_name: '',
   description: '',
   image_url: '',
   image_alt: '',
   default_margin_rate_pct: '',
+  default_customs_rate_pct: '',
   default_tax_rate_id: null,
   translations: {},
   suggested_category_ids: [],
+  parent_id: null,
 });
 
 /** Categories a product of the edited one may suggest (R9 / T7): the live ones, itself excluded. */
@@ -590,7 +777,10 @@ function openEdit(category: AdminCategory) {
   loadedImageAlt.value = '';
   void loadImageAlt(category.image_url);
   editForm.default_margin_rate_pct = category.default_margin_rate_pct ?? '';
+  editForm.default_customs_rate_pct = category.default_customs_rate_pct ?? '';
   editForm.default_tax_rate_id = category.default_tax_rate_id ?? null;
+  editForm.parent_id = category.parent_id ?? null;
+  parentOptions.value = allParents(category.id);
   editForm.translations = cloneTranslations(category.translations);
   editForm.suggested_category_ids = [...(category.suggested_category_ids ?? [])];
   content.reset();
@@ -610,9 +800,14 @@ async function submitEdit() {
       suggested_category_ids: editForm.suggested_category_ids,
       image_url: editForm.image_url.trim() || null,
       default_margin_rate_pct: String(editForm.default_margin_rate_pct ?? '').trim() || null,
+      parent_id: editForm.parent_id,
     });
     if ((editing.value.default_tax_rate_id ?? null) !== editForm.default_tax_rate_id) {
       await setCategoryTaxRate(editing.value.id, editForm.default_tax_rate_id);
+    }
+    const customs = String(editForm.default_customs_rate_pct ?? '').trim() || null;
+    if (customsOn.value && (editing.value.default_customs_rate_pct ?? null) !== customs) {
+      await setCategoryCustomsRate(editing.value.id, customs);
     }
     const mediaId = imageMediaId.value;
     if (mediaId && editForm.image_alt.trim() !== loadedImageAlt.value) {
@@ -678,11 +873,17 @@ async function submitMerge() {
 onMounted(() => {
   void load();
   void loadTaxRates();
+  void shopConfig.load();
 });
 const mediaPickerOpen = ref(false);
 </script>
 
 <style scoped lang="scss">
+.category-row {
+  display: flex;
+  align-items: flex-start;
+}
+
 .category-sources {
   display: flex;
   flex-wrap: wrap;

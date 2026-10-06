@@ -36,6 +36,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.features.discount.models import Discount, DiscountTarget, DiscountType
 from app.features.product.models.price_group import PriceGroup
 from app.features.product.models.product_group_price import ProductGroupPrice
+from app.features.product.services.category_tree import category_ancestors_map
 from app.features.user.models.user import User
 
 _CENT = Decimal("0.01")
@@ -69,10 +70,17 @@ class ActivePromotion:
         product_id: uuid.UUID,
         parent_id: uuid.UUID | None = None,
         category_id: uuid.UUID | None = None,
+        category_lineage: Iterable[uuid.UUID] | None = None,
     ) -> bool:
+        """``category_lineage``: the product's category and its ancestors —
+        a promotion on « Réseau » covers the WiFi access points."""
         if self.product_id is not None:
             return self.product_id in (product_id, parent_id)
-        return self.category_id is not None and self.category_id == category_id
+        if self.category_id is None:
+            return False
+        if category_lineage is not None:
+            return self.category_id in set(category_lineage)
+        return self.category_id == category_id
 
     def apply(self, reference: Decimal) -> Decimal:
         if self.percentage is not None:
@@ -101,6 +109,17 @@ class GroupPricing:
     discount_pct: Decimal = Decimal("0")
     prices: dict[uuid.UUID, Decimal] = field(default_factory=dict)
     promotions: tuple[ActivePromotion, ...] = ()
+    #: Category id → its ancestors, nearest first: a promotion on « Réseau »
+    #: covers the WiFi access points. Filled when a promotion targets a
+    #: category; empty = flat matching.
+    category_ancestors: dict[uuid.UUID, tuple[uuid.UUID, ...]] = field(
+        default_factory=dict
+    )
+
+    def lineage(self, category_id: uuid.UUID | None) -> tuple[uuid.UUID, ...]:
+        if category_id is None:
+            return ()
+        return (category_id, *self.category_ancestors.get(category_id, ()))
 
     @property
     def neutral(self) -> bool:
@@ -122,9 +141,13 @@ class GroupPricing:
         best: ActivePromotion | None = None
         best_price = regular
         if reference > 0:
+            lineage = self.lineage(category_id)
             for promotion in self.promotions:
                 if not promotion.matches(
-                    product_id=product_id, parent_id=parent_id, category_id=category_id
+                    product_id=product_id,
+                    parent_id=parent_id,
+                    category_id=category_id,
+                    category_lineage=lineage,
                 ):
                     continue
                 promo_price = promotion.apply(reference)
@@ -230,8 +253,15 @@ async def load_group_pricing(
     """The group's discount, its typed prices for ``product_ids`` and the
     promotions in force."""
     promotions = await load_active_promotions(session)
+    ancestors = (
+        await category_ancestors_map(session)
+        if any(p.category_id is not None for p in promotions)
+        else {}
+    )
     if group is None:
-        return GroupPricing(group_id=None, promotions=promotions)
+        return GroupPricing(
+            group_id=None, promotions=promotions, category_ancestors=ancestors
+        )
     ids = list({pid for pid in product_ids if pid is not None})
     prices: dict[uuid.UUID, Decimal] = {}
     if ids:
@@ -247,6 +277,7 @@ async def load_group_pricing(
         discount_pct=Decimal(group.discount_pct or 0),
         prices=prices,
         promotions=promotions,
+        category_ancestors=ancestors,
     )
 
 
