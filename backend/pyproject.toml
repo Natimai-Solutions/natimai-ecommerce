@@ -33,7 +33,7 @@ dependencies = [
     # Dependabot échoue en boucle à résoudre le fichier. Ne la retirer que le
     # jour où arq élargira sa propre contrainte.
     "redis>=5.0.0,<6.0.0",
-    "aiohttp>=3.8.0", # Pour les appels API REST Ingram Micro
+    "aiohttp>=3.14.4", # Pour les appels API REST Ingram Micro
     "boto3>=1.43.103", # S3 file storage for payment attachments
     "clamd>=1.0.2", # ClamAV antivirus scanner for uploaded documents
     "pyyaml>=6.0.3", # Lecture de spec_definitions.yaml pour les specs filtrables
