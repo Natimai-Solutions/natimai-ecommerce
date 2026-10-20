@@ -236,6 +236,10 @@ async def test_supplier_order_is_recorded_and_moves_the_departure_to_ordered(
 async def test_reminders_are_scheduled_rendered_and_published(
     db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    # The default reminders are only created while still in the future, against
+    # the real clock: pin it to the fixtures' NOW so the J-7 and J-2 ones do not
+    # vanish once the hard-coded October cutoff is less than a week away.
+    monkeypatch.setattr(services, "utcnow", lambda: NOW)
     seed = await _seed(db_session)
     created = await create_departure(
         GroupedDepartureCreate(
