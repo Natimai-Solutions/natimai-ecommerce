@@ -28,6 +28,7 @@ from app.api.routes.admin_orders import (
 )
 from app.api.routes.grouped_departures import get_departure, next_departure
 from app.core.errors import AppError
+from app.features.departure import crud as departure_crud
 from app.features.departure.crud import crud_grouped_departure
 from app.features.departure.models import (
     GroupedDeparture,
@@ -310,8 +311,11 @@ async def test_filtered_orders_export_and_sku_summary(db_session: AsyncSession) 
 
 @pytest.mark.asyncio
 async def test_public_endpoints_expose_only_published_departures(
-    db_session: AsyncSession,
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    # `/next` reads the real clock: pin it to the fixtures' NOW, or the test
+    # expires by itself once the hard-coded October cutoffs are behind us.
+    monkeypatch.setattr(departure_crud, "utcnow", lambda: NOW)
     visible = _departure("Octobre", 14, estimated_delivery_at=NOW + timedelta(days=40))
     hidden = _departure("Interne", 5, is_published=False)
     db_session.add_all([visible, hidden])
