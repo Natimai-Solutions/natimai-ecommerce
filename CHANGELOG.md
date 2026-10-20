@@ -29,6 +29,21 @@ takes a tag as its `ref`.
 - Root `package.json` is named `natimai-ecommerce` and carries the repository
   metadata.
 
+### Fixed
+
+- The Security workflow, red on `main` since its creation: `trivy-action`
+  pinned to an existing tag (`v0.36.0`), gitleaks run from its released binary
+  (the GitHub action requires a paid licence for organisations), and two
+  `pnpm audit` advisories closed with `pnpm.overrides` (`proxy-addr`,
+  `source-map-js`). The three images now pass Trivy: Debian and Alpine
+  security updates applied at build time, pip removed from the API image,
+  npm and corepack removed from the storefront image.
+- The back-office always reads back the tax settings and payment-provider
+  switches it just saved: with several API workers, the one answering a page
+  reload could still serve its settings snapshot for up to three seconds
+  (the end-to-end suite caught it as a flaky test). Admin reads now bypass the
+  snapshot; the storefront and checkout keep it.
+
 ## [0.0.1] - 2026-07-07
 
 First tagged state of the platform: FastAPI API with ARQ workers and

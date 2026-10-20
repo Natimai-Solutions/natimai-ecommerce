@@ -49,12 +49,20 @@ class TaxCodes:
     fees_code: str
 
 
-async def load_tax_codes(session: AsyncSession) -> TaxCodes:
+async def load_tax_codes(session: AsyncSession, *, fresh: bool = False) -> TaxCodes:
     """The default and fees rate codes: the admin's choice, else the env
-    (runtime registry)."""
+    (runtime registry).
+
+    ``fresh=True`` reads the base instead of this process's snapshot: for the
+    back-office, which must show what it just saved even when another API
+    worker took the write (see :mod:`app.core.runtime_settings`). Pricing and
+    invoicing keep the snapshot.
+    """
     from app.core import runtime_settings
 
-    values = await runtime_settings.get_many([DEFAULT_CODE_KEY, FEES_CODE_KEY], session)
+    values = await runtime_settings.get_many(
+        [DEFAULT_CODE_KEY, FEES_CODE_KEY], session, fresh=fresh
+    )
     return TaxCodes(
         default_code=normalize_code(
             values[DEFAULT_CODE_KEY] or settings.DEFAULT_TAX_CODE

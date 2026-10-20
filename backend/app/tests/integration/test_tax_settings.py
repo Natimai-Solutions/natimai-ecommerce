@@ -6,6 +6,7 @@ which one applies by default and which one taxes the fees — no redeploy.
 
 from __future__ import annotations
 
+import time
 from datetime import date, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
@@ -31,7 +32,11 @@ from app.features.product.services.pricing import (
     calculate_sale_price,
     resolve_tax_rate,
 )
-from app.features.product.services.tax_settings import load_tax_codes
+from app.features.product.services.tax_settings import (
+    DEFAULT_CODE_KEY,
+    FEES_CODE_KEY,
+    load_tax_codes,
+)
 
 TODAY = date.today()
 ADMIN = cast(Any, SimpleNamespace(id=None, is_superuser=True))
@@ -127,3 +132,36 @@ async def test_an_environment_still_naming_tgc_codes_keeps_working(
     monkeypatch.setattr(settings, "INVOICE_FEES_TAX_CODE", "TGC_REDUIT")
     codes = await load_tax_codes(db_session)
     assert (codes.default_code, codes.fees_code) == ("TVA_NORMALE", "TVA_REDUITE")
+
+
+@pytest.mark.asyncio
+async def test_the_admin_reads_what_it_just_saved_whatever_the_worker(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Several API workers each keep a snapshot of the settings and look at
+    the Redis counter at most every VERSION_CHECK_SECONDS: the GET of a page
+    reload can land on a worker that still serves the value from before the
+    PUT. The back-office reads the base; the pricing keeps the snapshot."""
+    from app.core import runtime_settings as rs
+
+    db_session.add_all([_rate("TVA_NORMALE", "16"), _rate("TVA_REDUITE", "13")])
+    await db_session.commit()
+    await update_tax_settings(
+        TaxSettingsUpdate(default_code="TVA_NORMALE", fees_code="TVA_REDUITE"),
+        cast(Any, db_session),
+        ADMIN,
+    )
+
+    # Another worker: a snapshot from before the write, Redis checked just now.
+    monkeypatch.setattr(rs, "CACHE_TTL_SECONDS", 60.0)
+    monkeypatch.setattr(rs, "VERSION_CHECK_SECONDS", 60.0)
+    stale = {DEFAULT_CODE_KEY: "TVA_NORMALE", FEES_CODE_KEY: "TVA_NORMALE"}
+    monkeypatch.setattr(
+        rs, "_snapshot", rs._Snapshot(rows=stale, loaded_at=time.monotonic(), version=0)
+    )
+    monkeypatch.setattr(rs, "_version_checked_at", time.monotonic())
+
+    assert (await load_tax_codes(db_session)).fees_code == "TVA_NORMALE"  # cached
+    seen = await get_tax_settings(cast(Any, db_session), ADMIN)
+    assert seen.fees_code == "TVA_REDUITE"
+    assert seen.fees_rate is not None and seen.fees_rate.rate_pct == Decimal("13.00")

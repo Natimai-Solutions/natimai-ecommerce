@@ -264,7 +264,10 @@ async def _current_rate(session: SessionDep, code: str) -> TaxRate | None:
 
 
 async def _tax_settings(session: SessionDep) -> TaxSettingsPublic:
-    codes = await load_tax_codes(session)
+    # fresh : la réponse suit toujours la base. Avec plusieurs workers, celui
+    # qui répond au GET du rechargement n'est pas celui qui a reçu le PUT et
+    # peut encore servir son instantané (jusqu'à VERSION_CHECK_SECONDS).
+    codes = await load_tax_codes(session, fresh=True)
     default_rate = await _current_rate(session, codes.default_code)
     fees_rate = await _current_rate(session, codes.fees_code)
     return TaxSettingsPublic(
@@ -304,7 +307,7 @@ async def update_tax_settings(
                 message=f"Aucun taux en vigueur sous le code « {code} »",
                 details={"field": field, "code": code},
             )
-    before = await load_tax_codes(session)
+    before = await load_tax_codes(session, fresh=True)
     saved = await save_tax_codes(
         session, default_code=payload.default_code, fees_code=payload.fees_code
     )
