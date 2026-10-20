@@ -297,6 +297,18 @@
           >
             <q-tooltip>{{ $t('common.edit') }}</q-tooltip>
           </q-btn>
+          <q-btn
+            v-if="!props.row.parent_product_id"
+            flat
+            dense
+            round
+            icon="ph:copy"
+            :aria-label="$t('products.duplicate')"
+            data-testid="product-duplicate"
+            @click="openDuplicate(props.row)"
+          >
+            <q-tooltip>{{ $t('products.duplicate_tip') }}</q-tooltip>
+          </q-btn>
         </q-td>
       </template>
 
@@ -349,7 +361,12 @@
       </q-card>
     </q-dialog>
 
-    <ProductFormDialog v-model="formOpen" :product="editingProduct" @saved="store.fetchPage()" />
+    <ProductFormDialog
+      v-model="formOpen"
+      :product="editingProduct"
+      :duplicate-of="duplicateSource"
+      @saved="store.fetchPage()"
+    />
 
     <div class="row justify-end q-mt-md">
       <q-pagination
@@ -390,13 +407,23 @@ const shopConfig = useShopConfigStore();
 
 const formOpen = ref(false);
 const editingProduct = ref<ProductPublic | null>(null);
+/** Article dont « Dupliquer » pré-remplit le formulaire de création. */
+const duplicateSource = ref<ProductPublic | null>(null);
 
 function openCreate() {
   editingProduct.value = null;
+  duplicateSource.value = null;
   formOpen.value = true;
 }
 function openEdit(product: ProductPublic) {
   editingProduct.value = product;
+  duplicateSource.value = null;
+  formOpen.value = true;
+}
+/** Nouveau produit pré-rempli depuis `product` ; l'original n'est pas touché. */
+function openDuplicate(product: ProductPublic) {
+  editingProduct.value = null;
+  duplicateSource.value = product;
   formOpen.value = true;
 }
 const searchInput = ref(store.search);
