@@ -210,8 +210,12 @@ jobs:
           minColorRange: 30
           maxColorRange: 90
 
+      # Les rapports sont une commodité (le badge passe par le gist) : un quota
+      # de stockage d'artefacts atteint ne doit pas rendre la CI rouge, et une
+      # rétention courte évite de l'atteindre (90 jours par défaut).
       - name: Upload backend coverage
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v7
         with:
           name: coverage-backend
@@ -219,6 +223,7 @@ jobs:
             backend/coverage.xml
             backend/coverage.json
           if-no-files-found: ignore
+          retention-days: 7
 
   api-types:
     name: Types de l'API — dérive de shared/api-types
@@ -308,11 +313,13 @@ jobs:
 
       - name: Upload frontend coverage
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v7
         with:
           name: coverage-frontend
           path: coverage
           if-no-files-found: ignore
+          retention-days: 7
 
   e2e:
     name: E2E — vitrine et admin (Playwright)
@@ -396,11 +403,13 @@ jobs:
 
       - name: Upload the report on failure
         if: failure()
+        continue-on-error: true
         uses: actions/upload-artifact@v7
         with:
           name: playwright-report
           path: e2e/playwright-report
           if-no-files-found: ignore
+          retention-days: 14
 
       - name: Stack logs on failure
         if: failure()
