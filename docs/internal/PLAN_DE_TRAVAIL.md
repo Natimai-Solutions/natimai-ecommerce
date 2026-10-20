@@ -70,7 +70,7 @@ Section issue de la revue du 30/09/2026 (état du dépôt, documents de travail,
 
 ### R1 — Refonte graphique « Précision » (priorité 1)
 
-La refonte n'était documentée nulle part ; elle existe dans l'historique git sous quatre commits du 29/09/2026, tous limités à `frontend/` : `28625e9` (lot 1, fondations), `74c4451` (lot 2, en-tête / catalogue), `49a10e6` (lot 3, fiche produit), `f11835a` (lot 4, panier, et « Checkout, Mon compte, Suivi : titres et gouttières **sans recomposition** »). Support de conception : les skills « Taste » de `.agents/skills` (ajoutés le 28/09, `skills-lock.json`).
+La refonte n'était documentée nulle part ; elle existe dans l'historique git sous quatre commits du 29/09/2026, tous limités à `frontend/` : `28625e9` (lot 1, fondations), `74c4451` (lot 2, en-tête / catalogue), `49a10e6` (lot 3, fiche produit), `f11835a` (lot 4, panier, et « Checkout, Mon compte, Suivi : titres et gouttières **sans recomposition** »). Support de conception : les skills « Taste » (Leonxlnx/taste-skill), ajoutés le 28/09 dans `.agents/skills` et `.aider-desk/skills` (commit `69c9c0d`) et retirés du dépôt depuis — ils ne servaient qu'à l'assistant pendant la refonte.
 
 **Fondations livrées (lot 1)** : palette zinc, encre `#18181b`, accent orange `#C2410C`, mode sombre persistant en cookie (SSR), polices Geist / Geist Mono auto-hébergées, icônes Phosphor via `iconMapFn`, rayon 8 px, focus visible, `AppNotice` (remplace 35 `q-banner`), `StatusTag`. Jetons : [quasar.variables.scss](frontend/src/css/quasar.variables.scss), variables `--n-*` dans [app.scss](frontend/src/css/app.scss) (dont une règle transitoire qui ramène `.text-grey-*` sur l'échelle zinc — « les pages passent progressivement aux classes sémantiques »).
 
