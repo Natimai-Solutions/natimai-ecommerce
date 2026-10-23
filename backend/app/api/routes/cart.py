@@ -71,6 +71,7 @@ from app.features.inventory.models.stock_movement import (
     ReferenceType,
 )
 from app.features.inventory.services.availability import supplier_available_quantity
+from app.features.inventory.services.stock_release import lock_stock_rows
 from app.features.notification.email_renderer import render_email
 from app.features.notification.providers import (
     NotificationMessage,
@@ -3141,6 +3142,9 @@ async def checkout_my_cart(
         # Keyed by (segment, origin place) so each distinct origin (own warehouse,
         # supplier A, supplier B…) gets its own tracking with its own first leg.
         segment_totals: dict[tuple[FulfillmentSegment, uuid.UUID | None], Decimal] = {}
+
+        # Reserve on quantities no concurrent checkout is changing.
+        await lock_stock_rows(session, products_by_id)
 
         for item in items:
             product = products_by_id[item.product_id]

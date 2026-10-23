@@ -220,6 +220,7 @@ async def revoke_for_refund(
     else:
         share = min(Decimal(1), Decimal(refunded) / Decimal(order.total_amount))
     to_revoke = int((Decimal(earned) * share).to_integral_value(ROUND_DOWN))
+    await store_credit.lock_wallet(session, order.user_id)
     to_revoke = min(to_revoke, max(0, await balance(session, order.user_id)))
     if to_revoke <= 0:
         return 0
@@ -254,6 +255,7 @@ async def convert(
             message=f"Conversion possible à partir de {current.min_points_to_convert} points",
             details={"min_points": current.min_points_to_convert},
         )
+    await store_credit.lock_wallet(session, user_id)
     available = await balance(session, user_id)
     if points > available:
         raise AppError(
@@ -295,6 +297,7 @@ async def adjust(
 ) -> LoyaltyEntry:
     """Admin adjustment; a negative one cannot take the balance below zero.
     Flushes, no commit."""
+    await store_credit.lock_wallet(session, user_id)
     if points < 0 and await balance(session, user_id) + points < 0:
         raise AppError(
             code="loyalty.insufficient",

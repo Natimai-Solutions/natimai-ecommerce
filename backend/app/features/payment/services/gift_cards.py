@@ -157,11 +157,19 @@ async def redeem(session: AsyncSession, *, code: str, user: User) -> GiftCard:
     """Turn the card into store credit of its holder; flushes, no commit.
 
     The code is looked up in its normalized form; a wrong code and a code of
-    someone else's voucher both answer 404, so a guess learns nothing.
+    someone else's voucher both answer 404, so a guess learns nothing. The card
+    row stays locked until the caller commits.
     """
     normalized = normalize_code(code)
+    # Row lock until the commit: a concurrent redeem of the same code waits,
+    # then reads the card as redeemed instead of crediting it a second time.
     card = (
-        await session.exec(select(GiftCard).where(col(GiftCard.code) == normalized))
+        await session.exec(
+            select(GiftCard)
+            .where(col(GiftCard.code) == normalized)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
     ).first()
     user_email = (user.email or "").strip().lower()
     if card is None or (
