@@ -26,7 +26,7 @@
     "@phosphor-icons/web": "^2.1.2",
     "@quasar/extras": "^2.1.0",
     "@sentry/vue": "^11.4.0",
-    "dompurify": "^3.4.16",
+    "dompurify": "^3.4.17",
     "isomorphic-dompurify": "^3.23.0",
     "pinia": "^4.0.3",
     "quasar": "^2.33.2",
