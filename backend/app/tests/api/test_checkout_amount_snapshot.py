@@ -171,6 +171,8 @@ async def test_checkout_freezes_subtotal_and_fees_into_order_and_payment(
         session=session,
         current_user=current_user,
         payload=CheckoutRequest(
+            # Ignored: no route to price, the delivery is free — a caller does
+            # not get to set its own shipping fee.
             shipping_fee_amount=Decimal("2.50"),
             # Ignored: a caller does not get to price its own payment method.
             payment_fee_amount=Decimal("99.00"),
@@ -185,19 +187,19 @@ async def test_checkout_freezes_subtotal_and_fees_into_order_and_payment(
     payment_create = create_payment_mock.await_args.kwargs["data"]
 
     assert order_create.subtotal_amount == Decimal("20.00")
-    assert order_create.shipping_fee_amount == Decimal("2.50")
+    assert order_create.shipping_fee_amount == Decimal("0.00")
     assert order_create.payment_fee_amount == Decimal("1.25")
-    assert order_create.total_fees_amount == Decimal("3.75")
-    assert order_create.total_amount == Decimal("23.75")
+    assert order_create.total_fees_amount == Decimal("1.25")
+    assert order_create.total_amount == Decimal("21.25")
 
-    assert payment_create.amount == Decimal("23.75")
+    assert payment_create.amount == Decimal("21.25")
     assert payment_create.currency == "EUR"
 
     assert response.subtotal_amount == Decimal("20.00")
-    assert response.shipping_fee_amount == Decimal("2.50")
+    assert response.shipping_fee_amount == Decimal("0.00")
     assert response.payment_fee_amount == Decimal("1.25")
-    assert response.total_fees_amount == Decimal("3.75")
-    assert response.total_amount == Decimal("23.75")
+    assert response.total_fees_amount == Decimal("1.25")
+    assert response.total_amount == Decimal("21.25")
 
 
 @pytest.mark.anyio

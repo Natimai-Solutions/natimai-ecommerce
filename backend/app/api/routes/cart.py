@@ -426,12 +426,26 @@ async def _customs_declaration_fees(
     ]
 
 
+async def _last_legs_serving(
+    session: SessionDep, destination_chain: list[uuid.UUID]
+) -> set[uuid.UUID]:
+    """Ids of the last-leg routes the checkout may bill for this destination:
+    the ones the storefront offers (``resolve_last_leg_candidates``)."""
+    candidates = await resolve_last_leg_candidates(
+        session, destination_chain=destination_chain
+    )
+    return {candidate.route.id for candidate in candidates.values()}
+
+
 async def _resolve_selected_checkout_routes(
     session: SessionDep,
     *,
     shipping_route_ids: list[uuid.UUID],
+    destination_chain: list[uuid.UUID],
 ) -> list[ShippingRoute]:
-    """Execute resolve selected checkout routes."""
+    """The routes an API client names, checked: active, not an import leg, and
+    a last leg only if it serves the shipping address — otherwise a caller
+    could bill itself the cheapest last leg of another island."""
     if not shipping_route_ids:
         return []
 
@@ -477,6 +491,19 @@ async def _resolve_selected_checkout_routes(
             details={"route_ids": sorted(str(rid) for rid in import_route_ids)},
         )
 
+    last_legs = [route for route in routes if route.is_to_customer]
+    if last_legs:
+        serving = await _last_legs_serving(session, destination_chain)
+        foreign = sorted(str(r.id) for r in last_legs if r.id not in serving)
+        if foreign:
+            raise AppError(
+                code="shipping.route.destination_not_served",
+                status_code=400,
+                message="Shipping routes not serving this destination: "
+                + ", ".join(foreign),
+                details={"route_ids": foreign},
+            )
+
     return [route_by_id[route_id] for route_id in ordered_route_ids]
 
 
@@ -487,6 +514,7 @@ async def _select_checkout_routes_by_preference(
     total_weight_kg: Decimal,
     declared_value: Decimal,
     currency: str,
+    destination_chain: list[uuid.UUID],
     include_customer_routes: bool = True,
 ) -> list[ShippingRoute]:
     """Automatic route selection for API clients that send a preference.
@@ -523,7 +551,12 @@ async def _select_checkout_routes_by_preference(
     if not include_customer_routes:
         return selected_routes
 
-    customer_routes = await crud_shipping_route.get_customer_routes(session=session)
+    serving = await _last_legs_serving(session, destination_chain)
+    customer_routes = [
+        route
+        for route in await crud_shipping_route.get_customer_routes(session=session)
+        if route.id in serving
+    ]
     if customer_routes:
         selected_customer_route = min(customer_routes, key=sort_key)
         if not selected_routes or selected_routes[-1].id != selected_customer_route.id:
@@ -2497,7 +2530,6 @@ async def _quote_checkout(
     payment_method_id: uuid.UUID | None,
     shipping_route_ids: list[uuid.UUID] | None = None,
     shipping_preference: CheckoutShippingPreference | None = None,
-    shipping_fee_fallback: Decimal | None = None,
     discount: AppliedDiscount | None = None,
     deposit_policy: DepositPolicy | None = None,
     payment_plan: str | None = None,
@@ -2559,6 +2591,7 @@ async def _quote_checkout(
     selected_routes = await _resolve_selected_checkout_routes(
         session=session,
         shipping_route_ids=list(shipping_route_ids or []),
+        destination_chain=destination_chain or [],
     )
     if not selected_routes:
         selected_routes = await _select_checkout_routes_by_preference(
@@ -2567,6 +2600,7 @@ async def _quote_checkout(
             total_weight_kg=total_weight_kg,
             declared_value=declared_value,
             currency=currency,
+            destination_chain=destination_chain or [],
             include_customer_routes=last_leg_route is None,
         )
 
@@ -2585,7 +2619,9 @@ async def _quote_checkout(
 
     shipping_cost_summary: ShippingCostSummary | None = None
     shipping_cost_breakdown: dict[str, Any] | None = None
-    shipping_fee_input = shipping_fee_fallback or Decimal("0.00")
+    # Nothing to price (no route, no customs): the delivery is free. Never a
+    # fee the caller sends — that would let it set its own shipping price.
+    shipping_fee_input = Decimal("0.00")
     if priced_routes or declaration_fees:
         shipping_cost_summary = calculate_shipping_for_routes(
             routes=priced_routes,
@@ -3030,7 +3066,6 @@ async def checkout_my_cart(
         payment_method_id=payload.payment_method_id,
         shipping_route_ids=payload.shipping_route_ids,
         shipping_preference=payload.shipping_preference,
-        shipping_fee_fallback=payload.shipping_fee_amount,
         discount=applied_discount,
         deposit_policy=await _deposit_policy(session, price_group),
         payment_plan=payload.payment_plan,
