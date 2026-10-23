@@ -160,6 +160,7 @@ class Auth:
     create = True
     update = True
     delete = True
+    read_superuser = False  # scoped to the caller by OrderRouter
     create_superuser = True
     update_superuser = True
     delete_superuser = True

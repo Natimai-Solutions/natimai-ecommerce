@@ -204,6 +204,7 @@ class Auth:
     create: bool = True
     update: bool = True
     delete: bool = True
+    read_superuser = False  # public catalogue
     create_superuser: bool = True
     update_superuser: bool = True
     delete_superuser: bool = True

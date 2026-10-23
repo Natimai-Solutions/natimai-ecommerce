@@ -31,6 +31,7 @@ class Auth:
     create = True  # Création réservée aux admins
     update = True  # Modification réservée aux admins
     delete = True  # Suppression réservée aux admins
+    read_superuser = False  # public catalogue
     create_superuser = True
     update_superuser = True
     delete_superuser = True

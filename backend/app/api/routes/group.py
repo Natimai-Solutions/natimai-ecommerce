@@ -274,6 +274,7 @@ class Auth:
     create = True
     update = True
     delete = True
+    read_superuser = False  # group names, any customer
     create_superuser = True
     update_superuser = True
     delete_superuser = True

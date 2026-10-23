@@ -31,16 +31,20 @@ class Routes:
 
 
 class Auth:
-    """Represents auth."""
+    """Who may call the generated CRUD routes. Closed by default: every
+    route needs a logged-in superuser unless the router opens it explicitly
+    (``read_superuser = False``, and ``read = False`` for anonymous reads).
+    An open route still answers with the whole table: open only reads of
+    public data, or override the endpoint to scope it to the caller."""
 
     read: bool = True
     create: bool = True
     update: bool = True
     delete: bool = True
-    read_superuser: bool = False
-    create_superuser: bool = False
-    update_superuser: bool = False
-    delete_superuser: bool = False
+    read_superuser: bool = True
+    create_superuser: bool = True
+    update_superuser: bool = True
+    delete_superuser: bool = True
 
 
 class AuthConfig(Protocol):
@@ -103,13 +107,13 @@ class BaseRouter(
         if not hasattr(auth_obj, "delete"):
             auth_obj.delete = True
         if not hasattr(auth_obj, "read_superuser"):
-            auth_obj.read_superuser = False
+            auth_obj.read_superuser = True
         if not hasattr(auth_obj, "create_superuser"):
-            auth_obj.create_superuser = False
+            auth_obj.create_superuser = True
         if not hasattr(auth_obj, "update_superuser"):
-            auth_obj.update_superuser = False
+            auth_obj.update_superuser = True
         if not hasattr(auth_obj, "delete_superuser"):
-            auth_obj.delete_superuser = False
+            auth_obj.delete_superuser = True
 
         self.schema_create = schema_create
         self.schema_update = schema_update
