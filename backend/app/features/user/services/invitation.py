@@ -23,6 +23,7 @@ import secrets
 
 from app.core import runtime_settings
 from app.core.config import settings
+from app.core.logging_config import mask_email
 from app.core.security import get_password_hash, hash_reset_token
 from app.features.notification.email_renderer import render_email
 from app.features.notification.providers import (
@@ -109,7 +110,9 @@ async def send_invitation_email(
         )
     )
     if not result.delivered:
-        logger.warning("invitation email not delivered to %s: %s", email, result.error)
+        logger.warning(
+            "invitation email not delivered to %s: %s", mask_email(email), result.error
+        )
     if settings.ENVIRONMENT == "local":
         # Confort de développement : sans mailer, le lien n'existerait nulle
         # part. Jamais journalisé hors local.

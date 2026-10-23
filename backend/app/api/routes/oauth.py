@@ -48,6 +48,7 @@ from app.core import security
 from app.core.auth_cookies import set_refresh_cookie
 from app.core.config import settings
 from app.core.errors import AppError
+from app.core.logging_config import mask_email
 from app.features.user.crud.refresh_token import crud_user_refresh_token
 from app.features.user.crud.user import crud_user, mark_logged_in
 from app.features.user.models.oauth_link import UserOAuthLink
@@ -493,7 +494,7 @@ async def oauth_callback(
         logger.warning(
             "OAuth sign-in refused: provider=%s email=%s reason=%s (%s)",
             provider,
-            email,
+            mask_email(email),
             refused.code,
             refused,
         )

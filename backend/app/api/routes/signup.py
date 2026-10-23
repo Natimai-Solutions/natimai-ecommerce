@@ -20,6 +20,7 @@ from app.core.auth_cookies import set_refresh_cookie
 from app.core.captcha import require_captcha
 from app.core.config import settings
 from app.core.errors import AppError
+from app.core.logging_config import mask_email
 from app.core.rate_limit import rate_limited
 from app.core.security import get_password_hash
 from app.features.notification.email_renderer import render_email
@@ -101,7 +102,9 @@ async def _send_otp_email(email: str, code: str) -> None:
         )
     )
     if not result.delivered:
-        logger.warning("signup OTP email not delivered to %s: %s", email, result.error)
+        logger.warning(
+            "signup OTP email not delivered to %s: %s", mask_email(email), result.error
+        )
     # Local dev affordance: surface the code in logs when no real mailer is set up.
     if settings.ENVIRONMENT == "local":
         logger.info("[DEV] signup OTP for %s = %s", email, code)

@@ -17,7 +17,6 @@ from app.api.routes.cart import (
 from app.core.errors import AppError
 from app.features.place.models import Place
 from app.features.product.models.product import Product
-from app.utils.email import send_email
 
 
 def test_supplier_segment_is_read_from_the_supplier_place() -> None:
@@ -113,14 +112,3 @@ def test_format_fulfillment_segments_note_fractional() -> None:
         ]
     )
     assert note == "fulfillment_segments=local:2.5"
-
-
-@pytest.fixture
-def anyio_backend() -> str:
-    return "asyncio"
-
-
-@pytest.mark.anyio
-async def test_send_email_stub_runs() -> None:
-    # Completes without raising (the stub just logs).
-    await send_email("user-1", "hello")

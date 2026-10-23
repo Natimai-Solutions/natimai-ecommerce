@@ -27,6 +27,7 @@ from sqlmodel import col, or_, select
 
 from app.api.deps import CurrentSuperUser, SessionDep
 from app.core.errors import AppError
+from app.core.logging_config import mask_email
 from app.features.product.models.price_group import PriceGroup
 from app.features.user.crud.refresh_token import crud_user_refresh_token
 from app.features.user.models.user import User
@@ -309,7 +310,7 @@ async def create_user(
     logger.info(
         "Admin created user: user_id=%s email=%s superuser=%s invited=%s admin=%s",
         user.id,
-        email,
+        mask_email(email),
         payload.is_superuser,
         token is not None,
         admin_id,

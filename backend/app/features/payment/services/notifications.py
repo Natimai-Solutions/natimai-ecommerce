@@ -9,6 +9,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import runtime_settings
 from app.core.config import settings
+from app.core.logging_config import mask_email
 from app.features.notification.email_renderer import render_email
 from app.features.notification.providers import (
     NotificationMessage,
@@ -224,7 +225,7 @@ async def _send_email_notifications(
         if not result.delivered:
             logger.warning(
                 "Payment notification email failed for target=%s provider=%s: %s",
-                target,
+                mask_email(target),
                 result.provider_code,
                 result.error,
             )

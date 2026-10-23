@@ -71,6 +71,7 @@ EN: dict[str, str] = {
     "otp.expired": "Code expired or not found. Ask for a new code.",
     "otp.invalid_signup_token": "Sign-up session expired. Start again.",
     "otp.rate_limit": "Too many code requests. Try again in a few minutes.",
+    "rate_limit.unavailable": "Service temporarily unavailable: try again in a moment.",
     "password_reset.rate_limited": "Too many requests. Try again in a few minutes.",
     "password_reset.token.invalid": "Invalid or expired reset link.",
     "payment.confirm.failed": "The provider did not confirm the payment.",

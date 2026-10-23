@@ -132,3 +132,23 @@ def test_public_forms_carry_the_guards() -> None:
         (cart.router, "/cart/checkout"),
     ):
         assert "rate_limited" in limits(router, path), path
+
+
+async def test_rate_limit_fails_closed_when_redis_is_down(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _DownRedis:
+        def pipeline(self, **_kw: Any) -> Any:
+            raise ConnectionError("redis down")
+
+    monkeypatch.setattr(rate_limit, "_get_client", lambda: _DownRedis())
+
+    with pytest.raises(AppError) as exc:
+        await rate_limit.hit_rate_limit("login:ip:10.0.0.1", limit=5, window_seconds=60)
+    assert exc.value.code == "rate_limit.unavailable"
+    assert exc.value.status_code == 503
+
+    dependency = rate_limit.rate_limited("signup", limit=5, window_seconds=600)
+    with pytest.raises(AppError) as refused:
+        await dependency(_request())
+    assert refused.value.status_code == 503

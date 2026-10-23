@@ -4,13 +4,17 @@ Redis is the natural backend here: it is already in the stack (ARQ broker)
 and, unlike an in-memory counter, survives multi-replica deployments (cf. the
 B7 lesson on ``CheckoutMetricsStore``).
 
-Fail-open by design: if Redis is unreachable the request is allowed and a
-warning is logged — an outage must not lock every customer out of login.
+Fail-closed: if Redis is unreachable the protected route answers 503
+(``rate_limit.unavailable``) instead of letting the request through. A login,
+a code check or a gift-card redeem without a limit is worse than a minute of
+unavailability — and Redis can be pushed over on purpose to lift the limits.
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import weakref
 from collections.abc import Awaitable, Callable
 
 import redis.asyncio as redis
@@ -21,38 +25,51 @@ from app.core.errors import AppError
 
 logger = logging.getLogger(__name__)
 
-_client: redis.Redis | None = None
+_clients: weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, redis.Redis] = (
+    weakref.WeakKeyDictionary()
+)
 
 
 def _get_client() -> redis.Redis:
-    """Shared lazy client (its connection pool handles concurrency)."""
-    global _client
-    if _client is None:
-        _client = redis.from_url(  # type: ignore[no-untyped-call]
+    """Shared lazy client of the running event loop (its connection pool
+    handles concurrency). A pool is bound to the loop that opened it: a
+    process running several loops (the test client, a script) gets one each,
+    instead of a client whose every call fails on the wrong loop."""
+    loop = asyncio.get_running_loop()
+    client = _clients.get(loop)
+    if client is None:
+        client = redis.from_url(  # type: ignore[no-untyped-call]
             str(settings.REDIS_URL),
             socket_connect_timeout=1,
             socket_timeout=1,
         )
-    return _client
+        _clients[loop] = client
+    return client
 
 
 async def hit_rate_limit(key: str, *, limit: int, window_seconds: int) -> bool:
     """Register a hit on ``key`` and tell whether the caller is over the limit.
 
-    Fixed-window counter: INCR + EXPIRE on first hit. Returns True when the
-    number of hits within the window exceeds ``limit``; False otherwise or
-    when Redis is unavailable (fail-open).
+    Fixed-window counter: INCR and EXPIRE NX in one transaction (a counter
+    never outlives its window). Returns True when the number of hits within
+    the window exceeds ``limit``. Raises ``rate_limit.unavailable`` (503)
+    when Redis does not answer: no limit means no access (fail-closed).
     """
     redis_key = f"rate:{key}"
     try:
-        client = _get_client()
-        count = await client.incr(redis_key)
-        if count == 1:
-            await client.expire(redis_key, window_seconds)
-        return int(count) > limit
-    except Exception:  # noqa: BLE001 — any Redis failure must fail open
-        logger.warning("rate limiter unavailable, allowing request", exc_info=True)
-        return False
+        async with _get_client().pipeline(transaction=True) as pipe:
+            pipe.incr(redis_key)
+            pipe.expire(redis_key, window_seconds, nx=True)
+            count, _ = await pipe.execute()
+    except Exception as exc:  # noqa: BLE001 — any Redis failure closes the route
+        logger.error("rate limiter unavailable, refusing request", exc_info=True)
+        raise AppError(
+            code="rate_limit.unavailable",
+            status_code=503,
+            message="Service momentanément indisponible : réessayez dans un instant.",
+            details={},
+        ) from exc
+    return int(count) > limit
 
 
 def rate_limited(
@@ -60,7 +77,7 @@ def rate_limited(
 ) -> Callable[[Request], Awaitable[None]]:
     """FastAPI dependency: at most ``limit`` calls per client IP and window
     on the routes that carry it (R8 / U5). Over the limit → ``AppError``
-    ``<scope>.rate_limited`` (429, ``Retry-After``-free, fail-open on Redis).
+    ``<scope>.rate_limited`` (429, ``Retry-After``-free); 503 when Redis is down.
     """
 
     async def dependency(request: Request) -> None:

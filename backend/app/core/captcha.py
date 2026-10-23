@@ -8,7 +8,8 @@ Cloudflare before doing anything. Without a secret, nothing changes: the
 check is a no-op, so a shop can start without a captcha.
 
 Fail-open on a Cloudflare outage (logged): a down verification service must
-not take the sign-up down with it; the rate limits still apply.
+not take the sign-up down with it. The rate limits still apply — they fail
+closed (``core/rate_limit``), so the outage never leaves a form unguarded.
 """
 
 from __future__ import annotations

@@ -32,6 +32,7 @@ from app.api.deps import SessionDep
 from app.core import runtime_settings
 from app.core.config import settings
 from app.core.errors import AppError
+from app.core.logging_config import mask_email
 from app.core.rate_limit import get_client_ip, hit_rate_limit
 from app.core.security import get_password_hash, hash_reset_token
 from app.features.notification.email_renderer import render_email
@@ -112,7 +113,9 @@ async def _send_reset_email(email: str, token: str) -> None:
     )
     if not result.delivered:
         logger.warning(
-            "password reset email not delivered to %s: %s", email, result.error
+            "password reset email not delivered to %s: %s",
+            mask_email(email),
+            result.error,
         )
     if settings.ENVIRONMENT == "local":
         # Confort de développement : sans mailer configuré, le lien n'existerait

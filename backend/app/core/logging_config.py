@@ -9,6 +9,12 @@ Outside ``local`` the lines are JSON (one object per line: ``time``, ``level``,
 ``logger``, ``message``, ``service``, plus the ``extra`` fields and the
 exception), which Docker collects and any log platform indexes. In ``local``
 they stay readable (``LOG_FORMAT=text``); ``LOG_LEVEL`` sets the root level.
+
+No secret or personal data reaches a log line. :class:`SensitiveFieldFilter`
+drops (and reports on stderr) any record whose ``extra`` carries a name of
+:data:`FORBIDDEN_EXTRA_KEYS`: a record it drops is a bug of the caller, not
+a protection to rely on. An e-mail address in a message goes through
+:func:`mask_email`.
 """
 
 from __future__ import annotations
@@ -47,6 +53,50 @@ _STANDARD_ATTRS = frozenset(
         "threadName",
     }
 )
+
+
+#: ``extra`` field names a log record must never carry.
+FORBIDDEN_EXTRA_KEYS = frozenset(
+    {
+        "password",
+        "hashed_password",
+        "token",
+        "access_token",
+        "refresh_token",
+        "secret",
+        "api_key",
+        "authorization",
+        "cookie",
+        "body",
+        "otp",
+        "totp_secret",
+        "card_number",
+        "iban",
+    }
+)
+
+
+class SensitiveFieldFilter(logging.Filter):
+    """Drop a record that carries a sensitive field in ``extra``."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        for key in record.__dict__:
+            if key in FORBIDDEN_EXTRA_KEYS:
+                sys.stderr.write(
+                    f"[logging] record dropped: sensitive field {key!r} "
+                    f"(logger {record.name})\n"
+                )
+                return False
+        return True
+
+
+def mask_email(email: str | None) -> str:
+    """``tea.vahine@example.pf`` → ``t***@example.pf``: enough to tell two
+    addresses apart in a log, not enough to write to the customer."""
+    if not email or "@" not in email:
+        return "***"
+    local, _, domain = email.partition("@")
+    return f"{local[:1]}***@{domain}"
 
 
 class JsonFormatter(logging.Formatter):
@@ -106,6 +156,8 @@ def configure_logging(
             logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
         )
     handlers: list[logging.Handler] = [stream, *(extra_handlers or [])]
+    for handler in handlers:
+        handler.addFilter(SensitiveFieldFilter())
     logging.basicConfig(level=chosen_level, handlers=handlers, force=True)
     # uvicorn ships its own handlers (coloured, text): route them through ours
     # so the API's access and error lines share the format of the app's.
@@ -115,4 +167,10 @@ def configure_logging(
         uvicorn_logger.propagate = True
 
 
-__all__ = ["JsonFormatter", "configure_logging"]
+__all__ = [
+    "FORBIDDEN_EXTRA_KEYS",
+    "JsonFormatter",
+    "SensitiveFieldFilter",
+    "configure_logging",
+    "mask_email",
+]

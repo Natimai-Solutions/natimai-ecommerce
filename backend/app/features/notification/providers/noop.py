@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 
+from app.core.logging_config import mask_email
 from app.features.notification.providers.base import (
     NotificationMessage,
     NotificationProvider,
@@ -21,7 +22,7 @@ class NoopNotificationProvider(NotificationProvider):
         logger.info(
             "Noop notification provider: channel=%s recipient=%s subject=%s",
             message.channel,
-            message.recipient,
+            mask_email(message.recipient),
             message.subject,
         )
         return NotificationResult(
