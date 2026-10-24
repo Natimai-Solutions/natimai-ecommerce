@@ -330,7 +330,7 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
 import type { StatusTone } from '@app/ui/statusTone';
-import { formatDateTime } from '@app/utils';
+import { formatDateTime, fromShopDateTimeInput, toShopDateTimeInput } from '@app/utils';
 import PageHeader from '@/components/PageHeader.vue';
 import MediaPicker from '@/components/MediaPicker.vue';
 import { imageFormatLabelKey } from '@/utils/imageFormats';
@@ -479,18 +479,6 @@ function emptyForm(kind: Kind): BlockForm {
   };
 }
 
-/** ISO (UTC) → valeur d'un champ datetime-local, dans le fuseau du navigateur. */
-function toLocalInput(iso: string | null | undefined): string | null {
-  if (!iso) return null;
-  const date = new Date(iso);
-  const offset = date.getTimezoneOffset() * 60_000;
-  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
-}
-
-function fromLocalInput(value: string | null): string | null {
-  return value ? new Date(value).toISOString() : null;
-}
-
 const previewSrc = computed(() => {
   if (pickedPreview.value) return pickedPreview.value;
   if (form.media_id) {
@@ -524,8 +512,8 @@ function openEdit(block: HomepageBlock) {
     alt: block.alt ?? '',
     position: block.position ?? 0,
     is_published: block.is_published ?? false,
-    starts_at: toLocalInput(block.starts_at),
-    ends_at: toLocalInput(block.ends_at),
+    starts_at: toShopDateTimeInput(block.starts_at),
+    ends_at: toShopDateTimeInput(block.ends_at),
     translations: cloneTranslations(block.translations),
   });
   content.reset();
@@ -560,8 +548,8 @@ function payloadFromForm(): HomepageBlockWrite {
     alt: form.alt.trim() || null,
     position: form.position,
     is_published: form.is_published,
-    starts_at: fromLocalInput(form.starts_at),
-    ends_at: fromLocalInput(form.ends_at),
+    starts_at: fromShopDateTimeInput(form.starts_at),
+    ends_at: fromShopDateTimeInput(form.ends_at),
     translations: form.translations,
   };
 }

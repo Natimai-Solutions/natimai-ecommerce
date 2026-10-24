@@ -204,6 +204,7 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
+import { todayLocal } from '@app/utils';
 import PageHeader from '@/components/PageHeader.vue';
 import {
   listCurrencyRates,
@@ -348,7 +349,7 @@ function openEdit(rate: CurrencyRate) {
   editing.value = rate;
   editForm.currency_code = rate.currency_code;
   editForm.rate_to_reference = rate.rate_to_reference;
-  editForm.valid_from = new Date().toISOString().slice(0, 10);
+  editForm.valid_from = todayLocal();
   snapshot.take();
   editDialog.value = true;
 }
@@ -359,7 +360,7 @@ function openAdd() {
   editing.value = null;
   editForm.currency_code = '';
   editForm.rate_to_reference = '';
-  editForm.valid_from = new Date().toISOString().slice(0, 10);
+  editForm.valid_from = todayLocal();
   snapshot.take();
   editDialog.value = true;
 }

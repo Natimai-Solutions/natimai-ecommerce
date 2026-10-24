@@ -1,6 +1,14 @@
 import { describe, it, expect, vi } from 'vitest'
 
-import { dayBounds, formatDate, formatDateTime, formatRelative, todayLocal } from '../date'
+import {
+  dayBounds,
+  formatDate,
+  formatDateTime,
+  formatRelative,
+  fromShopDateTimeInput,
+  todayLocal,
+  toShopDateTimeInput,
+} from '../date'
 
 describe('formatDate', () => {
   it('formats an ISO date as DD/MM/YYYY in Tahiti time', () => {
@@ -61,5 +69,22 @@ describe('dayBounds', () => {
       start: '2026-10-23T00:00:00-10:00',
       end: '2026-10-23T23:59:59.999-10:00',
     })
+  })
+})
+
+describe('datetime-local fields on the shop clock', () => {
+  it('shows an instant as the Tahiti wall time', () => {
+    expect(toShopDateTimeInput('2026-10-24T01:30:00Z')).toBe('2026-10-23T15:30')
+    expect(toShopDateTimeInput(null)).toBeNull()
+  })
+
+  it('reads a typed wall time as Tahiti time', () => {
+    expect(fromShopDateTimeInput('2026-10-23T15:30')).toBe('2026-10-24T01:30:00.000Z')
+    expect(fromShopDateTimeInput('')).toBeNull()
+  })
+
+  it('round-trips', () => {
+    const iso = '2026-12-31T22:05:00.000Z'
+    expect(fromShopDateTimeInput(toShopDateTimeInput(iso))).toBe(iso)
   })
 })

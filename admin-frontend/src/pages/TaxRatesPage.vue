@@ -256,7 +256,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
-import { intlLocale } from '@app/utils';
+import { intlLocale, todayLocal } from '@app/utils';
 import { computed, onMounted, reactive, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
@@ -395,7 +395,7 @@ function openCreate() {
   form.label = '';
   form.rate_pct = '';
   form.territory_code = shopTerritory.value;
-  form.valid_from = new Date().toISOString().slice(0, 10);
+  form.valid_from = todayLocal();
   form.valid_until = '';
   createDialog.value = true;
 }

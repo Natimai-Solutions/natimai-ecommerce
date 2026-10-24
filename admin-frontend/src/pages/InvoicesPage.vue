@@ -101,7 +101,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
-import { decimalsOf, intlLocale } from '@app/utils';
+import { decimalsOf, formatDate, intlLocale } from '@app/utils';
 import { computed, onMounted, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
@@ -141,11 +141,6 @@ function formatAmount(value: string, currency: string): string {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
   })} ${currency}`;
-}
-
-function formatDate(value: string): string {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString(intlLocale());
 }
 
 const columns = computed<QTableColumn<Invoice>[]>(() => [
