@@ -10,7 +10,7 @@ types et l'écran qui l'utilise dans une seule PR.
 | `@app/api-types` | Types de l'API, produits depuis le schéma OpenAPI du backend | **Oui** : `pnpm gen:types`, jamais édité à la main |
 | `@app/api-client` | Client axios : URL de base (`VITE_API_URL` + `/api/v1`), jeton en mémoire, rafraîchissement par cookie | non |
 | `@app/ui` | Socle visuel « Précision » : jetons `--n-*`, thème clair / sombre, icônes Phosphor, `AppNotice`, `StatusTag` | non |
-| `@app/utils` | Monnaie, tarification, dates, i18n partagée | non |
+| `@app/utils` | Monnaie, dates au fuseau de la boutique (`todayLocal`, `dayBounds`, `formatDate`…), i18n partagée | non |
 
 ```bash
 pnpm gen:types        # regénère api-types depuis le backend (uv sync fait)

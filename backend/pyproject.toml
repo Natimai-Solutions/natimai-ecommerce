@@ -122,10 +122,9 @@ omit = [
     "app/alembic/*",
     "app/scripts/*",
     # External API clients & background tasks: exercised via integration/manual
-    # tests, not unit tests (unit-testing them is just HTTP/LLM mocking).
+    # tests, not unit tests (unit-testing them is just HTTP mocking).
     "app/services/icecat_service.py",
     "app/services/suppliers/ingram_micro.py",
-    "app/services/ia_search_agent.py",
     # app/tasks/* measured since R8 / U10 (the sweeps, syncs and pricing
     # refreshes have integration tests of their own); only the two external
     # clients above stay out.

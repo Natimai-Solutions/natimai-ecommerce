@@ -13,17 +13,63 @@ Ce plan couvre **tout le monorepo**, pas seulement le backend. Trois surfaces so
 | **Backend** | `backend/` (FastAPI) | API, modèles, migrations, tâches |
 | **Vitrine** | `frontend/` (Quasar/Vue) | site public client |
 | **Admin** | `admin-frontend/` (Quasar/Vue) | back-office (édition catalogues, taux, commandes…) |
-| *(transverse)* | `shared/*` | utils partagés (`pricing.ts`…) |
+| *(transverse)* | `shared/*` | utils partagés (monnaie, dates, types de l'API…) |
 
 **Règle** : une phase = une tranche verticale déployable. Chaque phase porte donc (1) une **« Matrice livrables par surface »** — 1 ligne par feature, colonnes Backend / Vitrine / Admin — et (2) au besoin des sous-sections détaillées **Travaux backend**, **Travaux vitrine**, **Travaux admin**.
 
 **Légende statut** : ✅ livré · ⏳ partiel / à confirmer · 🔲 non démarré · — non concerné.
 
-> ⚠️ **État au 08/06/2026 (audit des fronts)** : le **backend est nettement en avance**. La **vitrine** couvre catalogue / fiche / panier / checkout / retour paiement. L'**`admin-frontend` ne contient à ce jour que `LoginPage` + `ProductsPage`** — tous les écrans d'administration livrés côté API (taux TVA, devises, catalogue specs, demandes de groupe, éligibilité paiement, commandes fournisseurs, system-settings, consolidation, remboursement) **restent à construire**. Les matrices par phase rendent ce backlog explicite.
-
 > 🔍 **État au 25/08/2026 (audit de production complet — sécurité, tests/CI, infra, complétude)** : Phases 0–4 **vérifiées livrées** conformes au plan (le code est même en avance : desserte par île, stock/inventaire, devis invité). Le reste à faire avant mise en production est consolidé dans la section **« Chantier pré-production — audit du 25/08/2026 »** (bloquants sécurité S1-S4, légal L1-L3, facturation, exploitation I1-I8, qualité Q1-Q4, fonctionnel F). La fiscalité douanière fine (TDL, positions tarifaires, défauts `customs_rate_pct`) est traitée dans la décision transverse **fret import & assiette douane (CAF)**, sous-section *Vérification implémentation & écarts fiscalité*.
 
 > 🧭 **État au 30/09/2026 (revue complète : dépôt, documents, refonte graphique, questions du propriétaire)** : `main` vert, aucune PR ouverte, aucun gros chantier fonctionnel ouvert. **Priorité 1 : la refonte graphique « Précision » (vitrine, puis admin) et une vraie page d'accueil** — la refonte, livrée en quatre lots le 29/09, n'était documentée nulle part. L'ordre de travail, les décisions du propriétaire et le backlog chiffré sont dans la section **« Feuille de route au 30/09/2026 »** ci-dessous ; les lignes périmées des phases (matrices, backlog admin, dettes) ont été corrigées le même jour.
+
+> 🔎 **État au 24/10/2026 (audit sécurité, design, factorisation et fonctionnel, à la lumière de natimai-paie)** : verrous sur l'argent et le stock, frais de port et routes contrôlés côté serveur, routes CRUD générées fermées par défaut, limites de débit fail-closed, journaux et Sentry sans données personnelles, liste des commandes paginée, fiche produit hydratée sans rechargement, dates au fuseau de la boutique — **livrés le 24/10/2026**. Le reste est dans **« Audit du 23/10/2026 — reste à faire »** ci-dessous.
+
+---
+
+## Audit du 23/10/2026 — reste à faire
+
+Issu de l'audit comparé à natimai-paie (`.claude/skills/natimai-saas-starter` de
+ce dépôt-là). Livré = retiré ; effort S / M / L.
+
+**Sécurité et performance**
+
+- **Authentification** : rotation du refresh token atomique (`UPDATE … WHERE revoked_at IS NULL RETURNING`), `security_stamp` dans le jeton d'accès (fermer les sessions au changement de mot de passe), `type` obligatoire sur les JWT, état OAuth lié au navigateur (cookie + PKCE) et limité en débit. M
+- **IPN PayZen** par `payment_webhook_events` (unicité, statuts terminaux), comme les autres prestataires. S
+- **Fuites** : `validate-coupon` anonyme et sans limite (énumération des codes), `return_url` PayPal non validé (redirection ouverte), type MIME des pièces jointes déclaré par le client, pièce jointe non encore analysée téléchargeable. S
+- **Performance** : plafond de `limit` sur les routes génériques et le catalogue (`?limit=0` rend tout), bcrypt et WeasyPrint hors de la boucle async (`anyio.to_thread`), e-mails transactionnels par la file ARQ (latence et énumération de comptes). M
+- **Faible** : 404 au lieu de 403 sur la ressource d'un autre client (18 contrôles copiés), compteur OTP atomique (`INCR`), secrets Turnstile / Slack et codes de cartes cadeaux chiffrés, lien de suivi invité avec expiration, plus de `str(e)` dans les réponses.
+- **À décider** : captcha refusé (et non accepté) quand Cloudflare ne répond pas.
+
+**Fonctionnel — client**
+
+- Estimation des frais de port vers l'île **avant connexion** (panier et fiche), puis **commande sans compte**. M + M
+- Recherche tolérante : `unaccent` + `pg_trgm`, suggestions sous le champ, tri prix / nouveautés. M
+- **Retours, RMA et formulaire de rétractation** (du code, pas une relecture externe) : demande depuis « Mes commandes », validation admin, remboursement et avoir existants. L
+- Annulation par le client, « Re-commander » ; avis clients avec achat vérifié et modération (la route existe, aucun écran). M
+
+**Fonctionnel — admin**
+
+- Historique des statuts et notes internes de commande (sert aussi d'audit par objet). M
+- Journal des e-mails envoyés avec « renvoyer » (modèle `email_queue` de natimai-paie). M
+- Bons de préparation, étiquettes, changement de statut en masse. M
+- Fiche client (commandes, avoir, points), recherche globale, checklist de mise en route de la boutique, rôles préparateur / comptable.
+- Pagination serveur sur les autres tableaux admin (32 sur 35 masquent encore la pagination), garde « modifications non enregistrées » sur Codes promo, Cartes cadeaux, Fournisseurs, Transporteurs, Taux TVA, Douanes, Routes logistiques, Départs, Utilisateurs.
+
+**Design**
+
+- Garde-fou Vitest des couleurs (`no-fixed-light-backgrounds.test.ts` de natimai-paie), puis retrait des surcharges `!important` et des 29 couleurs Material passées en JS.
+- `quasar.variables.scss` et `theme.ts` dans `shared/ui` ; jetons de rayon et d'espacement, points de rupture Quasar seulement.
+- `docs/GUIDE_INTERFACE.md` et une seule compétence de design (13 dans `.agents/skills`).
+- Densité admin (tables `dense`, squelettes plutôt que spinners, `app-empty`), vrais 404 en SSR (aujourd'hui HTTP 200), 21 champs sans libellé, police d'icônes complète, flash de thème à la première visite, `min-height` de `QPage` à l'hydratation, parité fr / en testée côté vitrine.
+
+**Factorisation**
+
+- `CrudBase` + `BaseRouter` → socle de natimai-paie (`Policy`, `sortable_fields`, `Page[T]`), puis migration des routeurs `admin_*`. L
+- La commande hors de `api/routes/cart.py` (3 400 lignes) → `features/order/services/checkout.py` ; une seule `get_or_create_status`. L
+- Un seul `split_incl_tax(amount, rate, currency)` (facture, avoir, marge) ; côté front `BaseApi` / `verifyResult` et un extracteur d'erreur unique ; `useResource` et `<CrudPage>` pour l'admin ; fabriques de test partagées. M
+
+**Hors code** : la CI de `main` est rouge — le job frontend échoue sur le quota de stockage des artefacts GitHub (purger les artefacts ou réduire la rétention).
 
 ---
 
@@ -253,7 +299,7 @@ Reprend et précise le « Reste à faire (non couvert le 02/09/2026) » et PP-*.
 2. ✅ **Protéger l'admin** (livré le 01/10/2026 : 2FA TOTP des superusers — implémentation RFC 6238 maison, secret chiffré par `SECRETS_ENCRYPTION_KEY`, QR code SVG (`segno`), 10 codes de secours hachés, code accepté une seule fois, échec compté dans le verrouillage ; **obligatoire en production** par défaut (`ADMIN_2FA_REQUIRED`) : sans 2FA, seul l'écran « Sécurité du compte » répond ; démarrage refusé en production sans clé ; réinitialisation par un autre administrateur ; journal d'audit `admin_audit_log` (toute requête qui modifie faite par un superuser, connexions, échecs, changements de 2FA ; sans corps de requête, secrets masqués ; rétention 400 j) et écran « Journal d'audit » ; restriction IP facultative dans Caddy (`ADMIN_ALLOWED_IPS`) sur l'admin et `/api/v1/admin/*`) — énoncé initial : 2FA TOTP pour les superusers, ou au minimum restriction IP / basic-auth sur `admin.{$DOMAIN}` ([Caddyfile](infra/caddy/Caddyfile) l.75) ; journal d'audit des actions admin (inexistant). 2 à 3 j.
 3. **Sauvegardes réelles** : cron, copie hors site, restauration testée, `ALERT_WEBHOOK_URL` renseigné (`.env` et cron). Sur le serveur.
 4. **Sandbox PayZen** : paiement, capture différée, remboursement, IPN `AUTHORISED` (jamais testés).
-5. **Juridique et facturation** : relecture des CGV / mentions / confidentialité, formulaire de rétractation, `INVOICE_SELLER_*` → `legal_*` complets, validation du comptable (facture d'acompte, TVA d'import F7, code taxe des frais). Externe.
+5. **Juridique et facturation** : relecture des CGV / mentions / confidentialité, `INVOICE_SELLER_*` → `legal_*` complets, validation du comptable (facture d'acompte, TVA d'import F7, code taxe des frais). Externe.
 6. ✅ **Durcir les images** (livré le 01/10/2026 : backend en deux étapes — compilateur et en-têtes dans l'étape de build seulement, `uv sync --frozen --no-dev`, `pytest-asyncio` / `pytest-mock` passés dans le groupe dev, uv 0.8.17, utilisateur `app` (uid 10001) avec un entrypoint qui rend le volume de stockage à cet utilisateur puis abandonne ses droits (`setpriv`), `UV_NO_SYNC` ; image de dev avec `INSTALL_DEV=true` ; vitrine : dépendances du serveur SSR installées depuis `pnpm-lock.yaml` (`--frozen-lockfile --prod`, linker hoisted) et exécution sous `node` ; CI sur Python 3.14 (setup-python) et Node 24 comme les images. Vérifié en local : image construite, tests dans l'image sur Python 3.14.7, API et SSR qui répondent. Reste : admin servi par nginx en root — passer à `nginx-unprivileged` demande de changer le port écouté) — énoncé initial : `USER` non-root (backend et runner SSR), `uv sync --frozen --no-dev` (le groupe dev part en prod ; `pytest-asyncio` / `pytest-mock` sont en dépendances runtime), retirer `build-essential`, `uv` 0.4.15 figé, lockfile dans le runner SSR (`npm install --omit=dev` sans lockfile), **aligner CI et prod** (Python 3.12 en CI contre 3.14 en image ; Node 22 contre 24). 1 j.
 7. ✅ **Stockage S3 imposé en prod** (livré le 01/10/2026 : refus de démarrer en `production` sur `local` sauf `FILE_STORAGE_ALLOW_LOCAL=true`, avertissement en staging, compartiment et clés exigés avec `s3`) — énoncé initial : pour `FILE_STORAGE_BACKEND` (garde au démarrage comme ClamAV). 0,5 j.
 8. **Données catalogue** : taux de douane par catégorie, frais par déclaration, assurance, `publication-report` à zéro (PP-F).
@@ -619,7 +665,7 @@ Le backend renvoie, par produit, un tableau indexé par niveau de service :
 "default_mode": "rapide"
 ```
 
-Le dropdown bascule **en local** via `shared/utils/src/pricing.ts` (étendu pour la CAF), **sans refetch**. Le backend reste autoritaire : recalcul + snapshot au panier/checkout.
+Le dropdown affiche les prix par mode que l'API calcule (`GET /product/{id}/shipping-modes`) ; le miroir `shared/utils/src/pricing.ts`, devenu inutilisé et divergent, a été retiré le 24/10/2026. Le backend reste autoritaire : recalcul + snapshot au panier/checkout.
 
 ### Modèle de données
 
@@ -1946,7 +1992,7 @@ Six chantiers demandés par le propriétaire, tous livrés + vérifiés (ruff/my
 | Z1 | Paiement en plusieurs fois | Dépend Phase 4 (tokenisation Payzen) |
 | Z2 ✅ | Avoir comptable | **Livré** : backend (N10), e-mail `credit_note.issued`, écran admin Avoirs, téléchargement client (10/09/2026) |
 | Z3 ✅ | Relance paniers abandonnés | Livré : `remind_abandoned_carts_task` (horaire), `carts.last_activity_at` / `abandonment_reminded_at`, `user_preferences.marketing_email_enabled`, handler `cart.abandoned` |
-| Z4 | Recherche IA | Refonte du draft `ia_search_agent.py` (placeholders à remplacer) ; pgvector recommandé |
+| Z4 | Recherche IA | À concevoir (le brouillon `ia_search_agent.py`, jamais branché, a été retiré le 24/10/2026 : historique git) ; pgvector recommandé |
 | M5 ✅ | Numéro de commande séquentiel | **Livré 25/08/2026** (cf. PP-C). Cf. *Note technique — numéro de commande séquentiel (M5)* ci-dessous |
 
 ### Note technique — génération PDF des factures (M3)
@@ -2227,15 +2273,13 @@ ci-dessous ont été **livrés le 02/09/2026**, un commit par sujet.
 
 ### Reste à faire (non couvert le 02/09/2026)
 
-> Toujours ouvert au 30/09/2026 ; ordre conseillé, chiffrage et compléments (OAuth, images, S3, CI/prod) dans *Feuille de route 30/09*, **R6**.
+> Revu le 24/10/2026 : la 2FA back-office, le panier invité serveur, la CSP, les métriques, les images durcies et le déploiement par image sont livrés (R6, U3, U4, U9, U11). Ordre conseillé dans *Feuille de route 30/09*, **R6**.
 
 - 🔲 **Sauvegardes non branchées** : le script existe, le cron et un restore réel restent à faire **sur le serveur**.
 - 🔲 **`ALERT_WEBHOOK_URL` vide** : sans lui, perte d'un event outbox, health-check en erreur et échec de sauvegarde ne notifient personne. Devenu plus important avec N11, qui alerte sur identité légale incomplète.
-- 🔲 **Pas de 2FA back-office** et `ENABLE_GROUP_PERMISSIONS=False` (tout utilisateur authentifié passe les contrôles ; seul `is_superuser` protège l'admin).
-- 🔲 **Relecture juridique** des CGV / mentions / confidentialité, et formulaire de rétractation côté client.
+- 🔲 `ENABLE_GROUP_PERMISSIONS=False` : seul `is_superuser` protège l'admin (les routes générées sont fermées par défaut depuis le 24/10/2026).
+- 🔲 **Relecture juridique** des CGV / mentions / confidentialité (le formulaire de rétractation, lui, est du code : *Audit du 23/10/2026*).
 - 🔲 **Validation sandbox PayZen** de la capture différée et du refund, toujours jamais testés contre la sandbox.
-- 🔲 **Panier invité serveur** : le panier vitrine reste en `localStorage` (N8 rend sa recopie atomique, mais ne crée pas de panier invité persistant ni de fusion à la connexion).
-- 🔲 Conteneurs en root, pas de CSP, aucune métrique exportée, déploiement manuel sans rollback par image.
 
 ---
 
@@ -2357,16 +2401,7 @@ Annoncer un **départ consolidé hebdomadaire ou bimensuel** : les clients comma
 → **Cadré le 24/09/2026** : devient l'objet unique « Départ groupé » (date en vitrine, rattachement des commandes, rappels réseaux sociaux, statut propagé) — voir la section *Décision transverse : précommande, départs groupés et acompte (24/09/2026)*, qui porte aussi l'état des lieux de la spec précommande et la faisabilité de l'acompte.
 
 ### Déjà présents (à finir / exposer si besoin)
-- **Avis produits** (`Review` + CRUD + route `user_review`) 🟡 — vérifier modération / affichage vitrine.
-- **Wishlist / favoris** (`wishlist` + CRUD + route `user_wishlist`) 🟡 — vérifier l'exposition vitrine.
-
-### Autres pistes classiques (à arbitrer)
-- **Stock / inventaire** réel (aujourd'hui flag `in_stock` ; gestion fine différée — cf. commit « Remove on Stock at this time »), réservation au panier.
-- **Paniers abandonnés** + relance email.
-- **Recommandations / cross-sell / up-sell / produits similaires**.
-- **Cartes cadeaux** (gift cards).
-- **Comparateur de produits**.
-- **Programme de fidélité / points**.
+- **Avis produits** (`Review` + CRUD + route `user_review`) 🟡 — aucun écran, ni modération ni contrôle d'achat (voir *Audit du 23/10/2026*).
 
 ---
 
