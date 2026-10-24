@@ -5,6 +5,7 @@ publish through the webhook, cancellation on a closed departure)."""
 from __future__ import annotations
 
 import uuid
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
@@ -43,6 +44,12 @@ from app.features.system.models.system_setting import SystemSetting
 from app.features.user.models.user import User
 
 NOW = datetime(2026, 10, 1, 12, 0, tzinfo=UTC)
+
+
+@pytest.fixture(autouse=True)
+def _at_now(freeze_departure_clock: Callable[[datetime], None]) -> None:
+    """Every test runs on NOW, the date its cutoffs are written from."""
+    freeze_departure_clock(NOW)
 
 
 async def _seed(session: AsyncSession) -> SimpleNamespace:
