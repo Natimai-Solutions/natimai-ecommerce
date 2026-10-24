@@ -1250,7 +1250,8 @@ export interface paths {
         };
         /**
          * List Orders
-         * @description List customer orders (most recent first) with client and status names.
+         * @description One page of the customer orders with client and status names, and the
+         *     number of orders the filters match (most recent first by default).
          */
         get: operations["admin-order-list_orders"];
         put?: never;
@@ -5205,7 +5206,7 @@ export interface paths {
         };
         /**
          * Calculate Order Total
-         * @description Calculate order total.
+         * @description Total of an order's lines (owner or superuser only).
          */
         get: operations["order-line-calculate_order_total"];
         put?: never;
@@ -9044,6 +9045,16 @@ export interface components {
              */
             accepts_receipts: boolean;
         };
+        /**
+         * AdminOrdersPage
+         * @description One page of the order list and the number of orders the filters match.
+         */
+        AdminOrdersPage: {
+            /** Data */
+            data: components["schemas"]["AdminOrderListItem"][];
+            /** Count */
+            count: number;
+        };
         /** AdminPaymentMethod */
         AdminPaymentMethod: {
             /**
@@ -10898,7 +10909,7 @@ export interface components {
             notes?: string | null;
             /**
              * Shipping Fee Amount
-             * @description Deprecated manual shipping fee override. Used only if no shipping routes are selected
+             * @description Ignored. The shipping fee is priced server-side from the routes serving the address: a caller does not get to set it. Kept optional so existing clients that still send it are not rejected.
              */
             shipping_fee_amount?: number | string | null;
             /**
@@ -25583,6 +25594,10 @@ export interface operations {
                 date_from?: string | null;
                 /** @description Commandes créées jusqu'à cette date */
                 date_to?: string | null;
+                /** @description Numéro de commande, nom ou e-mail du client (contient) */
+                q?: string | null;
+                sort_by?: string;
+                descending?: boolean;
             };
             header?: never;
             path?: never;
@@ -25596,7 +25611,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AdminOrderListItem"][];
+                    "application/json": components["schemas"]["AdminOrdersPage"];
                 };
             };
             /** @description Validation Error */
@@ -25623,6 +25638,8 @@ export interface operations {
                 date_from?: string | null;
                 /** @description Commandes créées jusqu'à cette date */
                 date_to?: string | null;
+                /** @description Numéro de commande, nom ou e-mail du client (contient) */
+                q?: string | null;
             };
             header?: never;
             path?: never;

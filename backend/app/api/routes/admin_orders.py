@@ -17,7 +17,7 @@ from fastapi import APIRouter, Query, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import func
 from sqlalchemy import select as sa_select
-from sqlmodel import col, select
+from sqlmodel import col, or_, select
 
 from app.api.deps import CurrentSuperUser, SessionDep
 from app.api.routes.admin_payments import ReceiptResult, receipt_result
@@ -66,6 +66,21 @@ class AdminOrderListItem(BaseModel):
     total_amount: float
     currency: str | None = None
     grouped_departure_id: uuid.UUID | None = None
+
+
+class AdminOrdersPage(BaseModel):
+    """One page of the order list and the number of orders the filters match."""
+
+    data: list[AdminOrderListItem]
+    count: int
+
+
+#: Columns the list may be sorted on (``sort_by``); anything else is refused.
+ORDER_SORTS: dict[str, Any] = {
+    "created_at": Order.created_at,
+    "order_number": Order.order_number,
+    "total_amount": Order.total_amount,
+}
 
 
 class SkuSummaryRow(BaseModel):
@@ -192,8 +207,11 @@ def _order_filters(
     status: str | None,
     date_from: datetime | None,
     date_to: datetime | None,
+    q: str | None = None,
 ) -> Any:
     """Shared WHERE clause of the list, the CSV export and the SKU summary.
+
+    ``q`` searches the order number and the customer's name or e-mail.
 
     ``departure_id`` and ``unassigned`` are the two ways to work a grouped
     departure (its orders, or the orders still to attach); the dates cover
@@ -213,6 +231,20 @@ def _order_filters(
         statement = statement.where(col(Order.created_at) >= as_utc(date_from))
     if date_to is not None:
         statement = statement.where(col(Order.created_at) <= as_utc(date_to))
+    if q and q.strip():
+        like = f"%{q.strip()}%"
+        statement = statement.where(
+            or_(
+                col(Order.order_number).ilike(like),
+                col(Order.user_id).in_(
+                    select(User.id).where(
+                        or_(
+                            col(User.email).ilike(like), col(User.full_name).ilike(like)
+                        )
+                    )
+                ),
+            )
+        )
     return statement
 
 
@@ -226,7 +258,11 @@ async def _list_order_rows(
     date_to: datetime | None,
     skip: int,
     limit: int | None,
+    q: str | None = None,
+    sort_by: str = "created_at",
+    descending: bool = True,
 ) -> list[AdminOrderListItem]:
+    sort_column = col(ORDER_SORTS[sort_by])
     statement = _order_filters(
         select(Order),
         departure_id=departure_id,
@@ -234,7 +270,11 @@ async def _list_order_rows(
         status=status,
         date_from=date_from,
         date_to=date_to,
-    ).order_by(col(Order.created_at).desc())
+        q=q,
+    ).order_by(
+        sort_column.desc().nulls_last() if descending else sort_column.asc(),
+        col(Order.id),
+    )
     if limit is not None:
         statement = statement.offset(skip).limit(limit)
     orders = list((await session.exec(statement)).all())
@@ -280,31 +320,59 @@ _UnassignedQ = Query(default=False, description="Commandes sans départ groupé"
 _StatusQ = Query(default=None, description="Nom du statut de commande (ex. Paid)")
 _FromQ = Query(default=None, description="Commandes créées à partir de cette date")
 _ToQ = Query(default=None, description="Commandes créées jusqu'à cette date")
+_SearchQ = Query(
+    default=None,
+    max_length=120,
+    description="Numéro de commande, nom ou e-mail du client (contient)",
+)
 
 
-@router.get("", response_model=list[AdminOrderListItem])
+@router.get("", response_model=AdminOrdersPage)
 async def list_orders(
     session: SessionDep,
     _admin: CurrentSuperUser,
-    skip: int = 0,
-    limit: int = 100,
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=200),
     departure_id: uuid.UUID | None = _DepartureQ,
     unassigned: bool = _UnassignedQ,
     status: str | None = _StatusQ,
     date_from: datetime | None = _FromQ,
     date_to: datetime | None = _ToQ,
-) -> list[AdminOrderListItem]:
-    """List customer orders (most recent first) with client and status names."""
-    return await _list_order_rows(
+    q: str | None = _SearchQ,
+    sort_by: str = Query(default="created_at"),
+    descending: bool = Query(default=True),
+) -> AdminOrdersPage:
+    """One page of the customer orders with client and status names, and the
+    number of orders the filters match (most recent first by default)."""
+    if sort_by not in ORDER_SORTS:
+        raise AppError(
+            code="query.order_by_not_allowed",
+            status_code=400,
+            message="Tri non autorisé",
+            details={"sort_by": sort_by, "allowed": sorted(ORDER_SORTS)},
+        )
+    filters: dict[str, Any] = {
+        "departure_id": departure_id,
+        "unassigned": unassigned,
+        "status": status,
+        "date_from": date_from,
+        "date_to": date_to,
+        "q": q,
+    }
+    count = (
+        await session.exec(
+            _order_filters(select(func.count()).select_from(Order), **filters)
+        )
+    ).one()
+    data = await _list_order_rows(
         session,
-        departure_id=departure_id,
-        unassigned=unassigned,
-        status=status,
-        date_from=date_from,
-        date_to=date_to,
+        **filters,
         skip=skip,
         limit=limit,
+        sort_by=sort_by,
+        descending=descending,
     )
+    return AdminOrdersPage(data=data, count=int(count))
 
 
 @router.get("/export.csv")
@@ -316,6 +384,7 @@ async def export_orders_csv(
     status: str | None = _StatusQ,
     date_from: datetime | None = _FromQ,
     date_to: datetime | None = _ToQ,
+    q: str | None = _SearchQ,
 ) -> Response:
     """Raw export of the filtered orders (one row per order)."""
     rows = await _list_order_rows(
@@ -325,6 +394,7 @@ async def export_orders_csv(
         status=status,
         date_from=date_from,
         date_to=date_to,
+        q=q,
         skip=0,
         limit=None,
     )

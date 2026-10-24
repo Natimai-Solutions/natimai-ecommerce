@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 
-import { formatDate, formatDateTime, formatRelative } from '../date'
+import { dayBounds, formatDate, formatDateTime, formatRelative, todayLocal } from '../date'
 
 describe('formatDate', () => {
   it('formats an ISO date as DD/MM/YYYY in Tahiti time', () => {
@@ -44,5 +44,22 @@ describe('formatRelative', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+describe('todayLocal', () => {
+  it('is the Tahiti day, not the UTC one', () => {
+    // 01:00 UTC on the 24th is still 15:00 on the 23rd in Tahiti (UTC-10).
+    expect(todayLocal(new Date('2026-10-24T01:00:00Z'))).toBe('2026-10-23')
+    expect(todayLocal(new Date('2026-10-23T12:00:00Z'))).toBe('2026-10-23')
+  })
+})
+
+describe('dayBounds', () => {
+  it('covers the whole Tahiti day', () => {
+    expect(dayBounds('2026-10-23')).toEqual({
+      start: '2026-10-23T00:00:00-10:00',
+      end: '2026-10-23T23:59:59.999-10:00',
+    })
   })
 })

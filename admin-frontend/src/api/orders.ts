@@ -24,6 +24,24 @@ export interface OrderFilters {
   status?: string | null;
   date_from?: string | null;
   date_to?: string | null;
+  /** Order number, customer name or e-mail (contains). */
+  q?: string | null;
+}
+
+/** Columns the API sorts the order list on (`ORDER_SORTS`). */
+export type OrderSort = 'created_at' | 'order_number' | 'total_amount';
+
+export interface OrderPageQuery extends OrderFilters {
+  skip: number;
+  limit: number;
+  sort_by?: OrderSort;
+  descending?: boolean;
+}
+
+export interface OrdersPage {
+  data: AdminOrderListItem[];
+  /** Orders matching the filters, all pages together. */
+  count: number;
 }
 
 /** One supplier SKU aggregated over the filtered orders (= purchase-order line). */
@@ -145,17 +163,29 @@ export async function requestBalance(
   return data;
 }
 
-function cleanFilters(filters: OrderFilters): Record<string, string | boolean> {
+function cleanFilters(filters: OrderFilters): Record<string, string | number | boolean> {
   return Object.fromEntries(
     Object.entries(filters).filter(([, v]) => v !== null && v !== undefined && v !== ''),
   );
 }
 
-export async function listOrders(filters: OrderFilters = {}): Promise<AdminOrderListItem[]> {
-  const { data } = await api.get<AdminOrderListItem[]>('/admin/orders', {
-    params: cleanFilters(filters),
+/** One page of the filtered orders and their total count. */
+export async function listOrdersPage(query: OrderPageQuery): Promise<OrdersPage> {
+  const { data } = await api.get<OrdersPage>('/admin/orders', {
+    params: cleanFilters(query),
   });
   return data;
+}
+
+/** Every filtered order, page after page (a grouped departure, a selection). */
+export async function listOrders(filters: OrderFilters = {}): Promise<AdminOrderListItem[]> {
+  const limit = 200;
+  const rows: AdminOrderListItem[] = [];
+  for (;;) {
+    const page = await listOrdersPage({ ...filters, skip: rows.length, limit });
+    rows.push(...page.data);
+    if (page.data.length < limit || rows.length >= page.count) return rows;
+  }
 }
 
 export async function skuSummary(filters: OrderFilters = {}): Promise<SkuSummaryRow[]> {
