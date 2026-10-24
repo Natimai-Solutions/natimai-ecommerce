@@ -482,14 +482,11 @@ import { computed, onBeforeUnmount, onMounted, onServerPrefetch, ref, watch } fr
 import { useRoute, useRouter } from 'vue-router';
 import type { components } from '@app/api-types';
 import {
-  getProductById,
   getProductKeySpecs,
   getProductOffers,
   getProductShippingModes,
-  getProductVariants,
   type ProductKeySpec,
   type ProductOffersResponse,
-  type ProductVariantsResponse,
   type ShippingModePricePublic,
   sellableQuantity,
   trackProductView,
@@ -520,6 +517,8 @@ import { useTranslate } from '@/composables/useTranslate';
 import { useTurnstile } from '@/composables/useTurnstile';
 import { absoluteUrl, breadcrumbList, jsonLd } from '@/utils/seo';
 import { useShopModulesStore } from '@/stores/shopModules';
+import { useProductDetailStore } from '@/stores/productDetail';
+import { storeToRefs } from 'pinia';
 import { getProductRouteByIdAndName, slugifyProductName } from '@/utils/productRoute';
 
 type ProductPublic = components['schemas']['ProductPublic'];
@@ -541,9 +540,21 @@ const tr = useTranslate();
 const shopModules = useShopModulesStore();
 const { nextCutoff, nextDelivery } = useDepartureLabels();
 
-const product = ref<ProductPublic | null>(null);
-const loading = ref(true);
-const error = ref<string | null>(null);
+// Product, variants and load state come from the store: the server render
+// hands them to the browser (no second fetch, no hydration mismatch).
+const productDetail = useProductDetailStore();
+const { product, variants } = storeToRefs(productDetail);
+// The store may still hold the previous product (client navigation from one
+// fiche to another): loading until it holds this route's one.
+const loading = computed(
+  () => productDetail.loading || (!productDetail.error && product.value?.id !== route.params.id),
+);
+const error = computed(() => {
+  const raw = productDetail.error;
+  if (!raw) return null;
+  if (raw === 'not_found') return t('product.not_found');
+  return raw === 'unknown' ? t('product.unknown_error') : raw;
+});
 const cartError = ref<string | null>(null);
 const quantity = ref(1);
 const justAdded = ref(false);
@@ -561,7 +572,6 @@ const showKeySpecs = computed(() => keySpecs.value.length >= 2);
 // Variants: the page opens on the parent; the customer picks option values
 // and the matching variant (a product of its own) is what gets priced,
 // stocked and added to the cart.
-const variants = ref<ProductVariantsResponse | null>(null);
 const selectedOptions = ref<Record<string, string>>({});
 const hasVariants = computed(() => Boolean(product.value?.has_variants));
 
@@ -990,8 +1000,6 @@ useMeta(() => {
 });
 
 async function loadProduct() {
-  loading.value = true;
-  error.value = null;
   selectedImage.value = null;
   cartError.value = null;
   alertNotice.value = null;
@@ -1005,61 +1013,33 @@ async function loadProduct() {
 
   const routeId = typeof route.params.id === 'string' ? route.params.id : null;
   if (!routeId) {
-    product.value = null;
-    error.value = t('product.not_found');
-    loading.value = false;
+    productDetail.notFound();
     return;
   }
 
-  try {
-    const data = await getProductById(routeId);
-    product.value = data;
-    variants.value = null;
-    selectedOptions.value = {};
-    if (data.has_variants) {
-      try {
-        variants.value = await getProductVariants(routeId);
-        // One variant only: nothing to choose, select it.
-        if (variants.value.variants.length === 1) {
-          selectedOptions.value = { ...(variants.value.variants[0]?.variant_options ?? {}) };
-        }
-      } catch {
-        variants.value = null;
-      }
-    }
+  await productDetail.load(routeId, locale.value);
+  const data = product.value;
+  selectedOptions.value = {};
+  if (!data || data.id !== routeId) return;
+  // One variant only: nothing to choose, select it.
+  if (variants.value?.variants.length === 1) {
+    selectedOptions.value = { ...(variants.value.variants[0]?.variant_options ?? {}) };
+  }
 
-    // Shipping modes and sibling offers are interactive/client-only — skip on SSR
-    if (typeof window !== 'undefined') {
-      void loadShippingModes(routeId);
-      void loadOffers(routeId);
-      void loadKeySpecs(routeId);
-    }
+  // Shipping modes and sibling offers are interactive/client-only — skip on SSR
+  if (typeof window !== 'undefined') {
+    void loadShippingModes(routeId);
+    void loadOffers(routeId);
+    void loadKeySpecs(routeId);
+  }
 
-    const expectedSlug = slugifyProductName(data.name);
-    const currentSlug = typeof route.params.slug === 'string' ? route.params.slug : '';
-    if (expectedSlug && expectedSlug !== currentSlug) {
-      void router.replace({
-        ...getProductRouteByIdAndName(data.id, data.name),
-        query: route.query,
-      });
-    }
-  } catch (e) {
-    product.value = null;
-    const requestError = e as {
-      response?: { status?: number; data?: { detail?: string; message?: string } };
-      message?: string;
-    };
-    if (requestError.response?.status === 404) {
-      error.value = t('product.not_found');
-    } else {
-      error.value =
-        requestError.response?.data?.message ??
-        requestError.response?.data?.detail ??
-        requestError.message ??
-        t('product.unknown_error');
-    }
-  } finally {
-    loading.value = false;
+  const expectedSlug = slugifyProductName(data.name);
+  const currentSlug = typeof route.params.slug === 'string' ? route.params.slug : '';
+  if (expectedSlug && expectedSlug !== currentSlug) {
+    void router.replace({
+      ...getProductRouteByIdAndName(data.id, data.name),
+      query: route.query,
+    });
   }
 }
 
