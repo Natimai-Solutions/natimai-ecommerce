@@ -77,7 +77,10 @@ async def test_the_estimate_lists_the_modes_serving_the_island(
     await db_session.flush()
     db_session.add(
         CartItem(
-            cart_id=cart.id, product_id=product.id, quantity=1, unit_price=Decimal("25000")
+            cart_id=cart.id,
+            product_id=product.id,
+            quantity=1,
+            unit_price=Decimal("25000"),
         )
     )
     moorea_id, bora_id = moorea.id, bora.id

@@ -17,6 +17,7 @@ from app.features.payment.providers.base import WebhookResult
 def anyio_backend() -> str:
     return "asyncio"
 
+
 @pytest.fixture(autouse=True)
 def _payment_row_lock_is_a_no_op(monkeypatch: pytest.MonkeyPatch) -> None:
     """The session is a stand-in here: the row lock (``FOR UPDATE``) is
@@ -26,7 +27,6 @@ def _payment_row_lock_is_a_no_op(monkeypatch: pytest.MonkeyPatch) -> None:
         return payment
 
     monkeypatch.setattr("app.api.routes.payments.lock_payment", _same)
-
 
 
 def test_validate_ipn_signature_delegates_to_provider(

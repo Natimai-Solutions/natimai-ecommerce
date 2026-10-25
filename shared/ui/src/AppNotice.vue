@@ -4,7 +4,7 @@
     :class="[`app-notice--${tone}`, { 'app-notice--dense': dense }]"
     :role="tone === 'error' || tone === 'warning' ? 'alert' : 'status'"
   >
-    <q-icon :name="icon ?? DEFAULT_ICONS[tone]" class="app-notice__icon" size="20px" />
+    <q-icon :name="icon ?? defaultIcon(tone)" class="app-notice__icon" size="20px" />
     <div class="app-notice__body"><slot /></div>
     <div v-if="$slots.action" class="app-notice__action"><slot name="action" /></div>
   </div>
@@ -24,6 +24,12 @@ const DEFAULT_ICONS: Record<NoticeTone, string> = {
   warning: 'ph:warning',
   error: 'ph:warning-circle',
 };
+
+// A function, not the map itself, in the template: vue-tsc 3.3.13 types a
+// template-read constant as a ref and rejects the indexed access.
+function defaultIcon(tone: NoticeTone): string {
+  return DEFAULT_ICONS[tone];
+}
 </script>
 
 <style scoped>

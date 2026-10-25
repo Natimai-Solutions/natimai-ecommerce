@@ -130,8 +130,8 @@ sur le serveur, chez un tiers ou une décision.
 
 ## 9. Dettes techniques et veille
 
-- **TypeScript 7** : bloqué par `vue-tsc` et `typescript-eslint` ; déclencheur : leur prise en charge annoncée.
-- **express 5** : le serveur SSR tourne en express 4 (Quasar recopie sa propre dépendance) ; `@types/express` en 5 décrit une autre API — à aligner.
+- **TypeScript 7** : bloqué par `vue-tsc` et `typescript-eslint` ; déclencheur : leur prise en charge annoncée. Dependabot n'en propose plus la majeure (`ignore`), à relever le moment venu.
+- **express 5** : le serveur SSR tourne en express 4 (Quasar recopie sa propre dépendance) ; `@types/express` en 5 décrit une autre API — à aligner. Majeure ignorée par Dependabot, comme celles de `@types/node` (aligné sur node 24, la LTS des images).
 - **httpx → httpx2** pour le code applicatif quand l'extra `standard` de FastAPI l'accepte ; vérifier alors `ca-certificates` dans l'image (truststore).
 - **Bornes hautes des dépendances Python** (sentry-sdk, aiohttp, boto3, weasyprint, arq, clamd, pyyaml…) : politique à trancher.
 - **Node 26 LTS** (fin 2026) : Dependabot ne la proposera pas (règle d'exclusion des majeures impaires).
