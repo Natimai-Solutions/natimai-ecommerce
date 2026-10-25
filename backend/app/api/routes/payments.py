@@ -52,7 +52,10 @@ from app.features.payment.services.provider_dispatch import (
     resolve_api_provider,
 )
 from app.features.payment.services.store_credit import settled_by_kind
-from app.features.payment.services.webhook_pipeline import apply_provider_outcome
+from app.features.payment.services.webhook_pipeline import (
+    apply_provider_outcome,
+    lock_payment,
+)
 from app.outbox.registry import outbox_registry
 from app.utils.money import minor_units_to_decimal, parse_minor_units, quantize_amount
 
@@ -359,12 +362,13 @@ async def payzen_ipn(session: SessionDep, request: Request) -> JSONResponse:
             fields.get("amount"),
         )
     except Exception as e:
-        error_message = str(e)
-        logger.error(f"Error processing PayZen IPN: {error_message}")
+        # The detail stays in the log: a public endpoint does not tell a
+        # forger which check failed.
+        logger.error("Error processing PayZen IPN: %s", e)
         raise AppError(
             code="payment.webhook.invalid_signature",
             status_code=400,
-            message=error_message,
+            message="Invalid PayZen IPN",
             details={"provider_code": "payzen"},
         ) from e
 
@@ -404,6 +408,10 @@ async def payzen_ipn(session: SessionDep, request: Request) -> JSONResponse:
                 "provider_reference": provider_order_reference,
             },
         )
+
+    # Serialize concurrent deliveries of the same IPN: the duplicate checks
+    # below then see what the first delivery committed.
+    payment = await lock_payment(session, payment)
 
     try:
         trans_status = _normalize_trans_status(fields.get("trans_status"))
@@ -839,9 +847,9 @@ async def _resolve_owned_document_payment(
 
     if payment.user_id != current_user.id:
         raise AppError(
-            code="payment.not_owned",
-            status_code=403,
-            message="You cannot operate on this payment",
+            code="payment.not_found",
+            status_code=404,
+            message="Paiement introuvable",
             details={"payment_id": str(payment_id)},
         )
 
@@ -1084,9 +1092,9 @@ async def _read_owned_payment(
 
     if payment.user_id != current_user.id:
         raise AppError(
-            code="payment.not_owned",
-            status_code=403,
-            message="You cannot access this payment",
+            code="payment.not_found",
+            status_code=404,
+            message="Paiement introuvable",
             details={"payment_id": str(payment_id)},
         )
     return payment

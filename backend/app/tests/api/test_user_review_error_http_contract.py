@@ -45,11 +45,11 @@ def test_get_user_reviews_not_owned_returns_error_payload(client: TestClient) ->
 
     response = client.get(f"/api/v1/review/users/{owner_user_id}/reviews")
 
-    assert response.status_code == 403
+    assert response.status_code == 404
     assert response.json() == {
         "error": {
-            "code": "review.not_owned",
-            "message": "You cannot access another user's reviews",
+            "code": "review.not_found",
+            "message": "Avis introuvable",
             "details": {"user_id": str(owner_user_id)},
         }
     }

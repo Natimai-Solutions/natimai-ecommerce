@@ -16,7 +16,7 @@ from app.core.auth_cookies import (
 )
 from app.core.config import settings
 from app.core.errors import AppError
-from app.core.rate_limit import get_client_ip, hit_rate_limit
+from app.core.rate_limit import get_client_ip, hit_rate_limit, rate_limited
 from app.features.base.crud import RecordNotFoundError
 from app.features.system import audit
 from app.features.user.crud.refresh_token import crud_user_refresh_token
@@ -51,14 +51,16 @@ def _raise_invalid_refresh_token(
     )
 
 
-def _build_token_bundle(user_id: uuid.UUID) -> tuple[str, str, str, datetime]:
+def _build_token_bundle(
+    user_id: uuid.UUID, stamp: str
+) -> tuple[str, str, str, datetime]:
     """Build token bundle."""
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     refresh_token_expires = timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
 
     refresh_jti = str(uuid.uuid4())
     access_token = security.create_access_token(
-        user_id, expires_delta=access_token_expires
+        user_id, expires_delta=access_token_expires, stamp=stamp
     )
     refresh_token = security.create_refresh_token(
         user_id,
@@ -180,7 +182,7 @@ async def login_access_token(
             )
 
     access_token, refresh_token, refresh_jti, refresh_expires_at = _build_token_bundle(
-        user.id
+        user.id, user.security_stamp
     )
     is_admin = bool(getattr(user, "is_superuser", False))
     admin_id, admin_email = user.id, getattr(user, "email", None)
@@ -235,7 +237,11 @@ async def _audit_failed_admin_login(
         )
 
 
-@router.post("/login/refresh-token")
+@router.post(
+    "/login/refresh-token",
+    # Generous: the SPA refreshes at every page load, behind shared NAT IPs.
+    dependencies=[Depends(rate_limited("refresh", limit=60, window_seconds=60))],
+)
 async def refresh_access_token(
     request: Request,
     response: Response,
@@ -336,16 +342,29 @@ async def refresh_access_token(
         )
 
     access_token, refresh_token, refresh_jti, refresh_expires_at = _build_token_bundle(
-        user.id
+        user.id, user.security_stamp
     )
 
-    await crud_user_refresh_token.rotate_token(
+    rotated = await crud_user_refresh_token.rotate_token(
         session=session,
         current_token=current_refresh_session,
         new_jti=refresh_jti,
         new_expires_at=refresh_expires_at,
         user=user,
     )
+    if rotated is None:
+        # A concurrent refresh used this cookie first: reuse, same as above.
+        await crud_user_refresh_token.revoke_all_active_for_user(
+            session=session,
+            user_id=user_id,
+            reason="reuse_detected",
+        )
+        raise AppError(
+            code="login.refresh_token.revoked",
+            status_code=401,
+            message="Refresh token révoqué",
+            details={"user_id": str(user_id), "jti": token_jti},
+        )
 
     set_refresh_cookie(response, refresh_token)
     return AccessTokenResponse(

@@ -10,6 +10,7 @@ specifics for the clients that need them.
 from __future__ import annotations
 
 EN: dict[str, str] = {
+    "address.not_found": "Address not found.",
     "admin.user.already_activated": "This account is already activated: the invitation is no longer needed.",
     "admin.user.email_taken": "An account already uses this address.",
     "admin.user.inactive": "Disabled account: reactivate it before resending the invitation.",
@@ -34,10 +35,14 @@ EN: dict[str, str] = {
     "carrier.code.invalid": "The carrier code is required.",
     "cart.cgv.not_accepted": "The terms and conditions of sale must be accepted.",
     "checkout.rate_limited": "Too many orders in a short time: wait a minute.",
+    "group.not_found": "Group not found.",
     "homepage.hero.conflict": "Another published hero already covers this period: only one hero is shown. Unpublish it, or give them dates that do not overlap.",
     "guest_cart.rate_limited": "Too many cart updates in a short time: wait a minute.",
     "guest_quote.rate_limited": "Too many quote requests: try again in a few minutes.",
+    "notification.not_found": "Notification not found.",
+    "payment.not_found": "Payment not found.",
     "quote_request.rate_limited": "Too many quote requests: try again in a few minutes.",
+    "review.not_found": "Review not found.",
     "signup.rate_limited": "Too many codes requested: try again in a few minutes.",
     "stock_alert.rate_limited": "Too many alerts in a short time: try again in a minute.",
     "cart.price.changed": "The price of some items changed since they were added to the cart. Check the new total before confirming.",
@@ -144,6 +149,7 @@ EN: dict[str, str] = {
     "user.password.invalid_current": "The current password is incorrect.",
     "user.password.rate_limited": "Too many attempts. Try again in a few minutes.",
     "user.password.unchanged": "The new password must differ from the current one.",
+    "wishlist.not_found": "List not found.",
 }
 
 

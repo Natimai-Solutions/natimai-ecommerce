@@ -198,4 +198,4 @@ async def test_order_detail_is_owned_and_carries_payment_method_and_pictures(
 
     with pytest.raises(AppError) as foreign:
         await get_my_order(order_id, db_session, stranger)
-    assert foreign.value.code == "order.not_owned"
+    assert foreign.value.code == "order.not_found"

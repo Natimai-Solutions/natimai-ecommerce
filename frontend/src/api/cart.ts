@@ -184,12 +184,30 @@ interface LastLegOptionsResponse {
  */
 export async function getLastLegOptions(
   addressId?: string | null,
+  placeId?: string | null,
 ): Promise<LastLegOptionsResponse> {
+  const params: Record<string, string> = {};
+  if (addressId) params.address_id = addressId;
+  else if (placeId) params.place_id = placeId;
   const { data } = await api.get<LastLegOptionsResponse>('/cart/me/last-leg-options', {
-    params: addressId ? { address_id: addressId } : {},
+    params,
   });
   return data;
 }
+
+/** The same priced options for a visitor's cart, to the island they picked. */
+export async function getGuestLastLegOptions(
+  token: string,
+  placeId: string | null,
+): Promise<LastLegOptionsResponse> {
+  const { data } = await api.get<LastLegOptionsResponse>('/cart/guest/last-leg-options', {
+    params: placeId ? { place_id: placeId } : {},
+    headers: guestHeaders(token),
+  });
+  return data;
+}
+
+export type { LastLegOptionsResponse };
 
 /** Deposit part of a quote / checkout response (`DepositTerms`). */
 export interface DepositTerms {

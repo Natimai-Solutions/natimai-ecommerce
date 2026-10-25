@@ -17,9 +17,9 @@ from __future__ import annotations
 import logging
 import uuid
 from decimal import Decimal
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 from sqlmodel import col, select
 
@@ -650,7 +650,7 @@ async def admin_product_price_history(
     session: SessionDep,
     _current_user: CurrentSuperUser,
     product_id: uuid.UUID,
-    limit: int = 50,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
 ) -> list[ProductPriceEntryPublic]:
     """The product's price journal, newest first: every change of the
     storefront price with what caused it."""

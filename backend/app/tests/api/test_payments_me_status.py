@@ -77,7 +77,7 @@ def test_get_my_payment_status_not_found_returns_error_payload(
     assert response.json()["error"]["code"] == "payment.not_found"
 
 
-def test_get_my_payment_status_not_owned_returns_403(
+def test_get_my_payment_status_not_owned_returns_404(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -90,8 +90,8 @@ def test_get_my_payment_status_not_owned_returns_403(
 
     response = client.get(f"/api/v1/payments/me/{uuid.uuid4()}")
 
-    assert response.status_code == 403
-    assert response.json()["error"]["code"] == "payment.not_owned"
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "payment.not_found"
 
 
 def test_get_my_payment_status_terminal_completed(

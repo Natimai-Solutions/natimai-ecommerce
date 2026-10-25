@@ -47,6 +47,11 @@ def _get_client() -> redis.Redis:
     return client
 
 
+def shared_redis() -> redis.Redis:
+    """The Redis client of this event loop, for other small shared counters."""
+    return _get_client()
+
+
 async def hit_rate_limit(key: str, *, limit: int, window_seconds: int) -> bool:
     """Register a hit on ``key`` and tell whether the caller is over the limit.
 

@@ -334,9 +334,9 @@ async def get_user_addresses(
     """Get all addresses for a specific user."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
         raise AppError(
-            code="address.not_owned",
-            status_code=403,
-            message="You cannot access another user's addresses",
+            code="address.not_found",
+            status_code=404,
+            message="Adresse introuvable",
             details={"user_id": str(user_id)},
         )
 
@@ -360,9 +360,9 @@ async def get_user_address(
     """Get a specific address for a user."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
         raise AppError(
-            code="address.not_owned",
-            status_code=403,
-            message="You cannot access another user's addresses",
+            code="address.not_found",
+            status_code=404,
+            message="Adresse introuvable",
             details={"user_id": str(user_id)},
         )
 
@@ -401,9 +401,9 @@ async def create_user_address(
     """Create a new address for a user."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
         raise AppError(
-            code="address.not_owned",
-            status_code=403,
-            message="You cannot access another user's addresses",
+            code="address.not_found",
+            status_code=404,
+            message="Adresse introuvable",
             details={"user_id": str(user_id)},
         )
 
@@ -424,9 +424,9 @@ async def update_user_address(
     """Update a specific address for a user."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
         raise AppError(
-            code="address.not_owned",
-            status_code=403,
-            message="You cannot access another user's addresses",
+            code="address.not_found",
+            status_code=404,
+            message="Adresse introuvable",
             details={"user_id": str(user_id)},
         )
 
@@ -471,9 +471,9 @@ async def delete_user_address(
     """Delete a specific address for a user."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
         raise AppError(
-            code="address.not_owned",
-            status_code=403,
-            message="You cannot access another user's addresses",
+            code="address.not_found",
+            status_code=404,
+            message="Adresse introuvable",
             details={"user_id": str(user_id)},
         )
 
@@ -581,9 +581,9 @@ async def get_user_addresses_by_type(
     """Get addresses for a user filtered by type."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
         raise AppError(
-            code="address.not_owned",
-            status_code=403,
-            message="You cannot access another user's addresses",
+            code="address.not_found",
+            status_code=404,
+            message="Adresse introuvable",
             details={"user_id": str(user_id)},
         )
 

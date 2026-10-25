@@ -28,6 +28,7 @@ from sqlmodel import col, or_, select
 from app.api.deps import CurrentSuperUser, SessionDep
 from app.core.errors import AppError
 from app.core.logging_config import mask_email
+from app.core.security import new_security_stamp
 from app.features.product.models.price_group import PriceGroup
 from app.features.user.crud.refresh_token import crud_user_refresh_token
 from app.features.user.models.user import User
@@ -304,7 +305,7 @@ async def create_user(
     email_sent = False
     if token is not None:
         email_sent = await send_invitation_email(
-            email=email, token=token, full_name=user.full_name
+            session, email=email, token=token, full_name=user.full_name
         )
 
     logger.info(
@@ -357,7 +358,7 @@ async def resend_invitation(
     await session.refresh(user)
 
     email_sent = await send_invitation_email(
-        email=email, token=token, full_name=full_name
+        session, email=email, token=token, full_name=full_name
     )
     logger.info(
         "Invitation resent: user_id=%s sent=%s admin=%s", user_id, email_sent, admin_id
@@ -399,6 +400,8 @@ async def update_user(
 
     for name, value in fields.items():
         setattr(user, name, value)
+    if fields.get("is_active") is False:
+        user.security_stamp = new_security_stamp()
     user.modify_at = _utcnow()
     user.modify_by_id = current_user.id
     session.add(user)

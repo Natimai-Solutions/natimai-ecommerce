@@ -11,8 +11,10 @@ import csv
 import io
 import uuid
 from decimal import Decimal
+from typing import Annotated
 
-from fastapi import APIRouter, Response
+import anyio
+from fastapi import APIRouter, Query, Response
 from sqlmodel import col, select
 
 from app.api.deps import CurrentSuperUser, SessionDep
@@ -83,8 +85,8 @@ async def list_invoices(
     session: SessionDep,
     _current_user: CurrentSuperUser,
     fiscal_year: int | None = None,
-    skip: int = 0,
-    limit: int = 100,
+    skip: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ) -> InvoicesPublic:
     """List issued invoices, most recent first (optionally one fiscal year)."""
     statement = select(Invoice)
@@ -220,7 +222,7 @@ async def download_invoice_pdf(
     """Download an invoice PDF."""
     invoice = await _load_invoice(session, invoice_id)
     try:
-        pdf = render_invoice_pdf(invoice)
+        pdf = await anyio.to_thread.run_sync(render_invoice_pdf, invoice)
     except PdfRenderingUnavailableError as exc:
         raise AppError(
             code="invoice.pdf.unavailable",

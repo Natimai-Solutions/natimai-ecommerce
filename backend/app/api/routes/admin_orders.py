@@ -11,7 +11,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Query, Response
 from pydantic import BaseModel, Field
@@ -331,8 +331,8 @@ _SearchQ = Query(
 async def list_orders(
     session: SessionDep,
     _admin: CurrentSuperUser,
-    skip: int = Query(default=0, ge=0),
-    limit: int = Query(default=50, ge=1, le=200),
+    skip: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
     departure_id: uuid.UUID | None = _DepartureQ,
     unassigned: bool = _UnassignedQ,
     status: str | None = _StatusQ,

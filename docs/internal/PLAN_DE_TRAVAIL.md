@@ -48,19 +48,14 @@ sur le serveur, chez un tiers ou une décision.
 
 ## 2. Sécurité et performance
 
-- **Authentification** — M : rotation du refresh token atomique (`UPDATE … WHERE revoked_at IS NULL RETURNING`) ; `security_stamp` dans le jeton d'accès (un changement de mot de passe ferme les sessions ouvertes) ; `type` obligatoire sur les JWT ; état OAuth lié au navigateur (cookie + PKCE) et limité en débit.
-- **IPN PayZen** par `payment_webhook_events` (unicité, statuts terminaux), comme les autres prestataires — S.
-- **Fuites** — S : `validate-coupon` anonyme et sans limite (énumération des codes) ; `return_url` PayPal non validé (redirection ouverte) ; type MIME des pièces jointes déclaré par le client ; pièce jointe pas encore analysée téléchargeable par l'admin.
-- **Performance** — M : plafond de `limit` sur les routes génériques et le catalogue (`?limit=0` rend tout) ; bcrypt et WeasyPrint hors de la boucle async (`anyio.to_thread`) ; e-mails transactionnels par la file ARQ (latence, énumération de comptes).
-- **Faible** : 404 au lieu de 403 sur la ressource d'un autre client (18 contrôles copiés) ; compteur OTP atomique (`INCR`) ; secrets Turnstile / Slack et codes de cartes cadeaux chiffrés en base ; lien de suivi invité avec expiration ; plus de `str(e)` dans les réponses.
-- **À décider** : refuser (et non accepter) le captcha quand Cloudflare ne répond pas.
-- `CheckoutMetricsStore` en mémoire : incohérent dès plusieurs répliques de l'API — passer par Redis.
+- **IPN PayZen** par `payment_webhook_events` (unicité, statuts terminaux), comme les autres prestataires : les livraisons concurrentes sont déjà sérialisées par un verrou sur le paiement, reste le journal d'événements commun — S.
+- **À décider** : refuser (et non accepter) le captcha quand Cloudflare ne répond pas ; chiffrer les codes de cartes cadeaux en base (ils restent en clair pour pouvoir être réimprimés : un chiffrement réversible ou un hachage + code affiché une seule fois).
 
 ---
 
 ## 3. Fonctionnel — client
 
-- **Frais de port vers l'île avant connexion** (panier et fiche), puis **commande sans compte** (e-mail, compte proposé après paiement, suivi par le lien signé existant) — M + M.
+- **Commande sans compte** (e-mail, compte proposé après paiement, suivi par le lien signé existant) — M ; l'estimation des frais de port sans compte est au panier, pas encore sur la fiche produit.
 - **Recherche tolérante** : `unaccent` + `pg_trgm`, suggestions sous le champ, tri prix / nouveautés — M.
 - **Retours, RMA et formulaire de rétractation** (obligation légale, c'est du code) : demande depuis « Mes commandes », validation admin, enchaînement sur le remboursement et l'avoir existants — L.
 - Annulation par le client, « Re-commander » — S.
@@ -74,7 +69,7 @@ sur le serveur, chez un tiers ou une décision.
 ## 4. Fonctionnel — admin
 
 - **Historique de la commande** (statuts, paiement, expédition, auteur) et notes internes, en chronologie sur la fiche ; sert aussi d'audit par objet — M.
-- **Journal des e-mails envoyés** avec statut et « renvoyer » (modèle `email_queue` de natimai-paie) ; écran des événements outbox en échec — M.
+- **Écran du journal des e-mails** (`email_log`, déjà alimenté : statut, erreur, renvoi possible sauf secrets) avec « renvoyer » ; écran des événements outbox en échec — M.
 - **Bons de préparation, étiquettes**, changement de statut en masse — M.
 - **Fiche client** (commandes, avoir, points), recherche globale (n° de commande, client, SKU) — M.
 - **Rôles fins** (préparateur, comptable) à la place du seul superuser — M.

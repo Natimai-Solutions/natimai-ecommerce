@@ -1,3 +1,4 @@
+import hmac
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from typing import Annotated
 
@@ -50,7 +51,7 @@ async def get_current_user(session: SessionDep, token: TokenDep) -> User:
             message="Could not validate credentials",
             details={"reason": "invalid_or_malformed_token"},
         )
-    if token_data.type not in (None, "access"):
+    if token_data.type != "access":
         raise AppError(
             code="auth.credentials.invalid",
             status_code=401,
@@ -71,6 +72,17 @@ async def get_current_user(session: SessionDep, token: TokenDep) -> User:
             status_code=400,
             message="Inactive user",
             details={"user_id": str(user.id)},
+        )
+    if not token_data.stp or not hmac.compare_digest(
+        token_data.stp, user.security_stamp
+    ):
+        # Password changed, account deactivated, rights changed… since the
+        # token was issued: 401, and the refresh token was revoked with it.
+        raise AppError(
+            code="auth.credentials.invalid",
+            status_code=401,
+            message="Could not validate credentials",
+            details={"reason": "session_revoked"},
         )
     if user.is_superuser:
         # Cost, supplier price and margins serialize for this request only.

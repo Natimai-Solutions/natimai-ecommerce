@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import uuid
 
+import anyio
 from fastapi import APIRouter, Response
 from sqlmodel import col, select
 
@@ -133,7 +134,7 @@ async def download_my_invoice_pdf(
         session, invoice_id=invoice_id, user_id=current_user.id
     )
     try:
-        pdf = render_invoice_pdf(invoice)
+        pdf = await anyio.to_thread.run_sync(render_invoice_pdf, invoice)
     except PdfRenderingUnavailableError as exc:
         raise AppError(
             code="invoice.pdf.unavailable",
@@ -228,7 +229,7 @@ async def download_my_credit_note_pdf(
         session, credit_note_id=credit_note_id, user_id=current_user.id
     )
     try:
-        pdf = render_credit_note_pdf(credit_note)
+        pdf = await anyio.to_thread.run_sync(render_credit_note_pdf, credit_note)
     except PdfRenderingUnavailableError as exc:
         raise AppError(
             code="credit_note.pdf.unavailable",

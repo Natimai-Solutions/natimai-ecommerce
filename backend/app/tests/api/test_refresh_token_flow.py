@@ -40,7 +40,7 @@ async def test_login_access_token_persists_refresh_session(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     user_id = uuid.uuid4()
-    user = SimpleNamespace(id=user_id, is_active=True)
+    user = SimpleNamespace(id=user_id, is_active=True, security_stamp="stamp")
 
     authenticate_mock = AsyncMock(return_value=user)
     persist_refresh_mock = AsyncMock(return_value=SimpleNamespace(id=uuid.uuid4()))
@@ -88,7 +88,7 @@ async def test_refresh_token_rotates_and_returns_new_pair(
         jti=old_jti,
     )
 
-    user = SimpleNamespace(id=user_id, is_active=True)
+    user = SimpleNamespace(id=user_id, is_active=True, security_stamp="stamp")
     refresh_session = SimpleNamespace(
         id=uuid.uuid4(),
         user_id=user_id,
@@ -143,7 +143,7 @@ async def test_refresh_token_expired_is_revoked_and_rejected(
         jti=old_jti,
     )
 
-    user = SimpleNamespace(id=user_id, is_active=True)
+    user = SimpleNamespace(id=user_id, is_active=True, security_stamp="stamp")
     refresh_session = SimpleNamespace(
         id=uuid.uuid4(),
         user_id=user_id,
@@ -198,7 +198,7 @@ async def test_refresh_token_reuse_revokes_all_active_sessions(
         jti=old_jti,
     )
 
-    user = SimpleNamespace(id=user_id, is_active=True)
+    user = SimpleNamespace(id=user_id, is_active=True, security_stamp="stamp")
     refresh_session = SimpleNamespace(
         id=uuid.uuid4(),
         user_id=user_id,

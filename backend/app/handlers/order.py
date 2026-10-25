@@ -29,11 +29,7 @@ from app.features.departure.models import GroupedDeparture
 from app.features.invoice.models.credit_note import CreditNote
 from app.features.invoice.models.invoice import Invoice
 from app.features.notification.email_renderer import render_email
-from app.features.notification.providers import (
-    NotificationMessage,
-    UnknownNotificationProviderError,
-    get_notification_provider,
-)
+from app.features.notification.mailer import send_email
 from app.features.order.models.order import Order
 from app.features.order.services.order_number import resolve_order_ref
 from app.features.order.services.tracking_link import tracking_url_from_payload
@@ -214,28 +210,14 @@ async def _send_order_email(
             return False
         recipient = user.email
 
-    try:
-        provider = get_notification_provider(
-            settings.PAYMENT_NOTIFICATIONS_EMAIL_PROVIDER
-        )
-    except UnknownNotificationProviderError:
-        # Unreachable now that the setting is a Literal validated at startup.
-        # If it ever fires, say so loudly: noop throws the e-mail away.
-        logger.error(
-            "Unknown notification provider '%s' — e-mail discarded",
-            settings.PAYMENT_NOTIFICATIONS_EMAIL_PROVIDER,
-        )
-        return False
-
-    result = await provider.send(
-        NotificationMessage(
-            channel="email",
-            recipient=recipient,
-            subject=subject,
-            text=text,
-            html=html,
-            metadata={"event_type": event_type, "payload": payload},
-        )
+    result = await send_email(
+        session,
+        recipient=recipient,
+        subject=subject,
+        text=text,
+        html=html,
+        event_type=event_type,
+        metadata={"payload": payload},
     )
     if not result.delivered:
         logger.warning(

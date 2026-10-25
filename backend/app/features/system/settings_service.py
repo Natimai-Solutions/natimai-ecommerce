@@ -149,7 +149,7 @@ async def write_setting(
                 message=f"{spec.label} : {exc}",
                 details={"key": key},
             ) from exc
-        stored_text = rs.serialize(spec, value)
+        stored_text = rs.seal(spec, rs.serialize(spec, value))
 
     row = (
         await session.exec(select(SystemSetting).where(SystemSetting.key == key))

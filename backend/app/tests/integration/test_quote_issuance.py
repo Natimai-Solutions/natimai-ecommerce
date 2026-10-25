@@ -25,6 +25,7 @@ from app.features.cart.models.quote_request import QuoteRequest, QuoteRequestSta
 from app.features.cart.services import quote as quote_service
 from app.features.cart.services.quote import QuoteIssueBody, QuoteLine, quoted_prices
 from app.features.invoice.services.pdf import PdfRenderingUnavailableError
+from app.features.notification import mailer
 from app.features.notification.providers import NotificationResult
 from app.features.product.models.product import Product
 from app.features.user.models.user import User
@@ -99,9 +100,7 @@ def sent(monkeypatch: pytest.MonkeyPatch) -> list[Any]:
             messages.append(message)
             return NotificationResult(provider_code="fake", delivered=True)
 
-    monkeypatch.setattr(
-        quote_service, "get_notification_provider", lambda _code: _Provider()
-    )
+    monkeypatch.setattr(mailer, "get_notification_provider", lambda _code: _Provider())
     return messages
 
 

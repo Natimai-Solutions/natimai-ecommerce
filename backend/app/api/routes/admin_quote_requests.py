@@ -15,9 +15,9 @@ from __future__ import annotations
 import datetime
 import uuid
 from decimal import Decimal
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Query, Response
 from pydantic import BaseModel, Field
 from sqlmodel import col, or_, select
 
@@ -161,8 +161,8 @@ async def _read_quote(session: SessionDep, quote_id: uuid.UUID) -> QuoteRequest:
 async def list_quote_requests(
     session: SessionDep,
     _admin: CurrentSuperUser,
-    skip: int = 0,
-    limit: int = 100,
+    skip: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(ge=1, le=500)] = 100,
     status: QuoteRequestStatus | None = None,
     search: str | None = None,
     open_only: bool = False,
@@ -271,7 +271,7 @@ async def issue_quote_request(
     await issue_quote(session, quote, body)
     await session.commit()
     quote = await _read_quote(session, quote_id)
-    sent = await send_quote_email(quote) if body.send_email else False
+    sent = await send_quote_email(session, quote) if body.send_email else False
     return QuoteIssueResponse(**_to_detail(quote).model_dump(), email_sent=sent)
 
 
@@ -281,4 +281,4 @@ async def download_quote_pdf(
 ) -> Response:
     """Le PDF du devis émis."""
     quote = await _read_quote(session, quote_id)
-    return quote_pdf_response(quote)
+    return await quote_pdf_response(quote)

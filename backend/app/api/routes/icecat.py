@@ -3,6 +3,7 @@ API routes for Icecat product enrichment management.
 Provides endpoints for manual enrichment and monitoring.
 """
 
+import logging
 from datetime import UTC, datetime
 from typing import Any
 
@@ -16,6 +17,8 @@ from app.core.errors import AppError
 from app.features.system.modules import module_enabled
 from app.services.icecat_service import icecat_credentials_present, icecat_service
 from app.tasks.icecat_tasks import trigger_batch_enrichment, trigger_product_enrichment
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -106,13 +109,13 @@ async def enrich_product(
         )
 
     except Exception as e:
+        logger.exception("icecat.enrich.queue_failed")
         raise AppError(
             code="icecat.enrich.queue_failed",
             status_code=500,
-            message=f"Failed to queue enrichment job: {e}",
+            message="Failed to queue enrichment job (see the server log)",
             details={
                 "product_id": request.product_id,
-                "reason": str(e),
             },
         ) from e
 
@@ -144,13 +147,13 @@ async def batch_enrich_products(
         )
 
     except Exception as e:
+        logger.exception("icecat.batch.queue_failed")
         raise AppError(
             code="icecat.batch.queue_failed",
             status_code=500,
-            message=f"Failed to queue batch enrichment job: {e}",
+            message="Failed to queue batch enrichment job (see the server log)",
             details={
                 "limit": request.limit,
-                "reason": str(e),
             },
         ) from e
 
@@ -194,16 +197,16 @@ async def test_icecat_enrichment(
         }
 
     except Exception as e:
+        logger.exception("icecat.test.failed")
         raise AppError(
             code="icecat.test.failed",
             status_code=500,
-            message=f"Icecat API test failed: {e}",
+            message="Icecat API test failed (see the server log)",
             details={
                 "vendor_part_number": request.vendor_part_number,
                 "manufacturer": request.manufacturer,
                 "ean": request.ean,
                 "upc": request.upc,
-                "reason": str(e),
             },
         ) from e
 
@@ -274,13 +277,13 @@ async def search_by_upc(
         }
 
     except Exception as e:
+        logger.exception("icecat.search.upc.failed")
         raise AppError(
             code="icecat.search.upc.failed",
             status_code=500,
-            message=f"UPC search failed: {e}",
+            message="UPC search failed (see the server log)",
             details={
                 "upc": upc,
-                "reason": str(e),
             },
         ) from e
 
@@ -328,12 +331,12 @@ async def search_by_ean(
         }
 
     except Exception as e:
+        logger.exception("icecat.search.ean.failed")
         raise AppError(
             code="icecat.search.ean.failed",
             status_code=500,
-            message=f"EAN search failed: {e}",
+            message="EAN search failed (see the server log)",
             details={
                 "ean": ean,
-                "reason": str(e),
             },
         ) from e

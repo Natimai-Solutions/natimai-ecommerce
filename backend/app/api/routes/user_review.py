@@ -81,9 +81,9 @@ async def get_user_reviews(
     """Get all reviews for a specific user."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
         raise AppError(
-            code="review.not_owned",
-            status_code=403,
-            message="You cannot access another user's reviews",
+            code="review.not_found",
+            status_code=404,
+            message="Avis introuvable",
             details={"user_id": str(user_id)},
         )
 
@@ -107,9 +107,9 @@ async def get_user_review(
     """Get a specific review for a user."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
         raise AppError(
-            code="review.not_owned",
-            status_code=403,
-            message="You cannot access another user's reviews",
+            code="review.not_found",
+            status_code=404,
+            message="Avis introuvable",
             details={"user_id": str(user_id)},
         )
 
@@ -148,9 +148,9 @@ async def create_user_review(
     """Create a new review for a user."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
         raise AppError(
-            code="review.not_owned",
-            status_code=403,
-            message="You cannot access another user's reviews",
+            code="review.not_found",
+            status_code=404,
+            message="Avis introuvable",
             details={"user_id": str(user_id)},
         )
 
@@ -186,9 +186,9 @@ async def update_user_review(
     """Update a specific review for a user."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
         raise AppError(
-            code="review.not_owned",
-            status_code=403,
-            message="You cannot access another user's reviews",
+            code="review.not_found",
+            status_code=404,
+            message="Avis introuvable",
             details={"user_id": str(user_id)},
         )
 
@@ -231,9 +231,9 @@ async def delete_user_review(
     """Delete a specific review for a user."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
         raise AppError(
-            code="review.not_owned",
-            status_code=403,
-            message="You cannot access another user's reviews",
+            code="review.not_found",
+            status_code=404,
+            message="Avis introuvable",
             details={"user_id": str(user_id)},
         )
 
@@ -311,9 +311,9 @@ async def get_user_review_for_product(
     """Get a user's review for a specific product."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
         raise AppError(
-            code="review.not_owned",
-            status_code=403,
-            message="You cannot access another user's reviews",
+            code="review.not_found",
+            status_code=404,
+            message="Avis introuvable",
             details={"user_id": str(user_id)},
         )
 

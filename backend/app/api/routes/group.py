@@ -193,9 +193,9 @@ async def get_user_groups(
     # Only allow users to see their own groups unless admin
     if not current_user.is_superuser and current_user.id != user_id:
         raise AppError(
-            code="group.not_owned",
-            status_code=403,
-            message="You cannot access another user's groups",
+            code="group.not_found",
+            status_code=404,
+            message="Groupe introuvable",
             details={"user_id": str(user_id)},
         )
 

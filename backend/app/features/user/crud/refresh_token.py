@@ -1,6 +1,7 @@
 import datetime
 import uuid
 
+from sqlalchemy import update
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -60,39 +61,46 @@ class CrudUserRefreshToken(
         new_jti: str,
         new_expires_at: datetime.datetime,
         user: User | None = None,
-    ) -> UserRefreshToken:
-        """Execute rotate token."""
+    ) -> UserRefreshToken | None:
+        """Replace ``current_token`` by a new one; ``None`` if it was already used.
+
+        The revocation is a conditional ``UPDATE … WHERE revoked_at IS NULL``:
+        of two concurrent refreshes with the same cookie, only one gets the
+        row back. The other one is a reuse — the caller revokes the family —
+        instead of a second live session silently forked off the first.
+        """
         now = datetime.datetime.now(datetime.UTC)
+        token_id = current_token.id
+        user_id = current_token.user_id
+        claimed = (
+            await session.exec(
+                update(UserRefreshToken)
+                .where(
+                    col(UserRefreshToken.id) == token_id,
+                    col(UserRefreshToken.revoked_at).is_(None),
+                )
+                .values(
+                    revoked_at=now,
+                    replaced_by_jti=new_jti,
+                    revoked_reason="rotated",
+                    last_used_at=now,
+                )
+                .returning(col(UserRefreshToken.id))
+            )
+        ).first()
+        if claimed is None:
+            await session.rollback()
+            return None
 
-        revoke_data = UserRefreshTokenUpdate(
-            revoked_at=now,
-            replaced_by_jti=new_jti,
-            revoked_reason="rotated",
-            last_used_at=now,
-        )
-        await self.update_draft(
-            session=session,
-            id=current_token.id,
-            record=current_token,
-            data=revoke_data,
-            user=user,
-        )
-
-        new_token_data = UserRefreshTokenCreate(
-            user_id=current_token.user_id,
-            jti=new_jti,
-            expires_at=new_expires_at,
-        )
         new_token = await self.create_draft(
             session=session,
-            data=new_token_data,
+            data=UserRefreshTokenCreate(
+                user_id=user_id, jti=new_jti, expires_at=new_expires_at
+            ),
             user=user,
         )
-
         await session.commit()
-        await session.refresh(current_token)
         await session.refresh(new_token)
-
         return new_token
 
     async def revoke_token(

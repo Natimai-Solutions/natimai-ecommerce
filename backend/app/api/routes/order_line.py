@@ -1,4 +1,7 @@
 import uuid
+from typing import Annotated
+
+from fastapi import Query
 
 from app.api.base_router import BaseRouter
 from app.api.deps import CurrentUser, SessionDep
@@ -93,8 +96,8 @@ async def get_product_order_lines(
     session: SessionDep,
     current_user: CurrentUser,
     product_id: uuid.UUID,
-    skip: int = 0,
-    limit: int = 100,
+    skip: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ) -> list[OrderLinePublic]:
     """Get product order lines."""
     if not current_user.is_superuser:

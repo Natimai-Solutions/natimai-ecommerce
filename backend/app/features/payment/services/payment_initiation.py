@@ -11,13 +11,16 @@ order + payment atomically in a single transaction).
 
 from __future__ import annotations
 
+import logging
 import uuid
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
+from urllib.parse import urlsplit
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.config import settings
 from app.core.errors import AppError
 from app.features.payment.crud.payment import crud_payment
 from app.features.payment.models.payment import Payment, PaymentCreate
@@ -49,6 +52,8 @@ from app.features.payment.services.provider_dispatch import (
 from app.features.payment.services.provider_settings import provider_available
 from app.utils.money import decimal_to_minor_units
 
+logger = logging.getLogger(__name__)
+
 
 @dataclass
 class PaymentInitiationResult:
@@ -62,6 +67,25 @@ class PaymentInitiationResult:
     public_key: str | None = None
     redirect_url: str | None = None
     instructions: str | None = None
+
+
+def safe_return_url(return_url: str | None) -> str | None:
+    """``return_url`` if it points to one of the shop's own origins, else None
+    (the provider then returns to the default page).
+
+    The URL comes from the client and the provider redirects the customer to
+    it after paying: unchecked, a crafted checkout link sent to a customer
+    would land them, payment done, on any site (open redirect).
+    """
+    if not return_url:
+        return None
+    parsed = urlsplit(return_url)
+    origin = f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
+    allowed = {o.rstrip("/") for o in settings.all_cors_origins}
+    if parsed.scheme in {"http", "https"} and origin in allowed:
+        return return_url
+    logger.warning("Payment return_url outside the shop's origins ignored")
+    return None
 
 
 def _build_initiation_request(
@@ -86,7 +110,7 @@ def _build_initiation_request(
         customer_reference=str(current_user.id),
         customer_first_name=first_name,
         customer_last_name=last_name,
-        return_url=return_url,
+        return_url=safe_return_url(return_url),
         form_action="SILENT",
         metadata=metadata,
     )

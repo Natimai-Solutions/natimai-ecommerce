@@ -73,11 +73,7 @@ from app.features.inventory.models.stock_movement import (
 from app.features.inventory.services.availability import supplier_available_quantity
 from app.features.inventory.services.stock_release import lock_stock_rows
 from app.features.notification.email_renderer import render_email
-from app.features.notification.providers import (
-    NotificationMessage,
-    UnknownNotificationProviderError,
-    get_notification_provider,
-)
+from app.features.notification.mailer import send_email
 from app.features.order.crud.order_crud import crud_order
 from app.features.order.crud.order_line_crud import crud_order_line
 from app.features.order.crud.order_status_crud import crud_order_status
@@ -1969,31 +1965,23 @@ def _format_guest_quote_support_email(
 
 async def _send_quote_support_email(
     *,
+    session: SessionDep,
     recipient: str,
     subject: str,
     text: str,
     html: str | None,
     metadata: dict[str, Any],
 ) -> bool:
-    """Send support email for a quote request."""
-    provider_code = settings.PAYMENT_NOTIFICATIONS_EMAIL_PROVIDER
-    try:
-        provider = get_notification_provider(provider_code)
-    except UnknownNotificationProviderError:
-        provider = get_notification_provider("noop")
-
-    result = await provider.send(
-        NotificationMessage(
-            channel="email",
-            recipient=recipient,
-            subject=subject,
-            text=text,
-            html=html,
-            metadata=metadata,
-        )
+    """Send the quote request to the shop, journaled."""
+    result = await send_email(
+        session,
+        recipient=recipient,
+        subject=subject,
+        text=text,
+        html=html,
+        event_type=str(metadata.get("event_type") or "quote.requested"),
+        metadata=metadata,
     )
-    if not result.delivered:
-        logger.warning("Quote request email delivery failed: %s", result.error)
     return result.delivered
 
 
@@ -2095,6 +2083,7 @@ async def create_quote_request(
     )
 
     email_delivered = await _send_quote_support_email(
+        session=session,
         recipient=support_email,
         subject=subject,
         text=email_body,
@@ -2247,7 +2236,9 @@ async def download_my_quote_pdf(
     quote_id: uuid.UUID, session: SessionDep, current_user: CurrentUser
 ) -> Response:
     """The PDF of one of the customer's issued quotes."""
-    return quote_pdf_response(await _my_quote_or_404(session, quote_id, current_user))
+    return await quote_pdf_response(
+        await _my_quote_or_404(session, quote_id, current_user)
+    )
 
 
 @router.post(
@@ -2383,6 +2374,7 @@ async def create_guest_quote_request(
     await session.commit()
 
     email_delivered = await _send_quote_support_email(
+        session=session,
         recipient=support_email,
         subject=subject,
         text=email_body,
@@ -2864,29 +2856,29 @@ async def get_checkout_quote(
     )
 
 
-@router.get("/me/last-leg-options", response_model=LastLegOptionsResponse)
-async def get_last_leg_options(
-    session: SessionDep,
-    current_user: CurrentUser,
-    address_id: uuid.UUID | None = Query(
-        default=None,
-        description=(
-            "Shipping address whose destination filters the delivery modes "
-            "(must belong to the current user). Without it, only "
-            "destination-independent modes are returned."
-        ),
-    ),
-) -> LastLegOptionsResponse:
-    """Priced last-leg (zone C) delivery options for the current cart.
+async def _destination_chain_for_place(
+    session: SessionDep, place_id: uuid.UUID | None
+) -> list[uuid.UUID]:
+    """Destination chain of a zone picked by a visitor (île → ... → pays)."""
+    if place_id is None:
+        return []
+    chain = await crud_place.get_ancestor_chain(session, place_id=place_id)
+    return [place.id for place in chain]
 
-    Lets the storefront show each delivery mode's price before checkout. Mirrors
-    the pricing applied at ``POST /cart/checkout`` (base_price + price_per_kg ×
-    billable weight). Only delivery modes whose route serves the address'
-    destination appear — plus the always-available ones (in-store pickup...).
+
+async def _priced_last_leg_options(
+    session: SessionDep,
+    *,
+    cart: Cart | None,
+    user: Any,
+    destination_chain: list[uuid.UUID],
+) -> LastLegOptionsResponse:
+    """Each delivery mode serving the destination, priced for ``cart``.
+
+    Mirrors the pricing applied at ``POST /cart/checkout`` (base_price +
+    price_per_kg × billable weight), with the customs charge shown apart
+    (billed once per shipment, F3).
     """
-    cart = await crud_cart.get_active_cart_by_user(
-        session=session, user_id=current_user.id
-    )
     if cart is None:
         return LastLegOptionsResponse(currency=settings.REFERENCE_CURRENCY, options=[])
 
@@ -2895,7 +2887,7 @@ async def get_last_leg_options(
     try:
         for item in items:
             products_by_id[item.product_id] = await _get_active_product_or_404(
-                session, product_id=item.product_id, user=current_user
+                session, product_id=item.product_id, user=user
             )
     except AppError:
         # A cart line is no longer purchasable; no quote to show (checkout will
@@ -2906,20 +2898,11 @@ async def get_last_leg_options(
         items=items,
         products_by_id=products_by_id,
     )
-
-    address = await _load_user_address(
-        session, user_id=current_user.id, address_id=address_id
-    )
-    destination_chain = await _destination_chain_for_address(session, address=address)
-
     # Delivery modes are driven by the admin's configured last-leg routes, not a
     # fixed enum: any mode whose route serves this destination appears.
     candidates = await resolve_last_leg_candidates(
         session, destination_chain=destination_chain
     )
-
-    # Shown next to the delivery modes so the customs charge is not a surprise
-    # discovered on the payment page (it is billed once per shipment, F3).
     declaration_fee_total = sum(
         (
             fee.amount
@@ -2954,6 +2937,71 @@ async def get_last_leg_options(
         currency=cart.currency,
         options=options,
         customs_declaration_fee=quantize_amount(declaration_fee_total, cart.currency),
+    )
+
+
+@router.get("/me/last-leg-options", response_model=LastLegOptionsResponse)
+async def get_last_leg_options(
+    session: SessionDep,
+    current_user: CurrentUser,
+    address_id: uuid.UUID | None = Query(
+        default=None,
+        description=(
+            "Shipping address whose destination filters the delivery modes "
+            "(must belong to the current user). Without it, only "
+            "destination-independent modes are returned."
+        ),
+    ),
+    place_id: uuid.UUID | None = Query(
+        default=None,
+        description="Destination zone (island) when no address is chosen yet",
+    ),
+) -> LastLegOptionsResponse:
+    """Priced last-leg (zone C) delivery options for the current cart.
+
+    Lets the storefront show each delivery mode's price before checkout. Only
+    delivery modes whose route serves the destination appear — plus the
+    always-available ones (in-store pickup...).
+    """
+    cart = await crud_cart.get_active_cart_by_user(
+        session=session, user_id=current_user.id
+    )
+    address = await _load_user_address(
+        session, user_id=current_user.id, address_id=address_id
+    )
+    destination_chain = (
+        await _destination_chain_for_address(session, address=address)
+        if address is not None
+        else await _destination_chain_for_place(
+            session, place_id if isinstance(place_id, uuid.UUID) else None
+        )
+    )
+    return await _priced_last_leg_options(
+        session, cart=cart, user=current_user, destination_chain=destination_chain
+    )
+
+
+@router.get(
+    "/guest/last-leg-options",
+    response_model=LastLegOptionsResponse,
+    dependencies=[_guest_cart_limit],
+)
+async def get_guest_last_leg_options(
+    session: SessionDep,
+    guest_token: GuestCartToken,
+    place_id: uuid.UUID | None = Query(
+        default=None, description="Destination zone (island) picked by the visitor"
+    ),
+) -> LastLegOptionsResponse:
+    """The delivery price to an island before signing in: the visitor picks
+    the island, the delivery modes serving it are priced for their cart —
+    « le prix final rendu, avant de commander »."""
+    cart = await crud_cart.get_active_guest_cart(session, guest_token=guest_token)
+    destination_chain = await _destination_chain_for_place(
+        session, place_id if isinstance(place_id, uuid.UUID) else None
+    )
+    return await _priced_last_leg_options(
+        session, cart=cart, user=None, destination_chain=destination_chain
     )
 
 
@@ -3393,7 +3441,7 @@ async def checkout_my_cart(
         await session.refresh(cart)
 
         checkout_duration_ms = int((perf_counter() - checkout_started) * 1000)
-        observe_checkout_result(
+        await observe_checkout_result(
             success=True,
             duration_ms=checkout_duration_ms,
         )
@@ -3445,7 +3493,7 @@ async def checkout_my_cart(
 
     except AppError as exc:
         checkout_duration_ms = int((perf_counter() - checkout_started) * 1000)
-        observe_checkout_result(
+        await observe_checkout_result(
             success=False,
             duration_ms=checkout_duration_ms,
             error_code=exc.code,
@@ -3462,7 +3510,7 @@ async def checkout_my_cart(
         raise
     except Exception as exc:
         checkout_duration_ms = int((perf_counter() - checkout_started) * 1000)
-        observe_checkout_result(
+        await observe_checkout_result(
             success=False,
             duration_ms=checkout_duration_ms,
             error_code="internal_error",

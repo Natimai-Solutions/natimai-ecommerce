@@ -1,9 +1,9 @@
 import uuid
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
-from typing import Any, Generic, Protocol, TypeVar, cast
+from typing import Annotated, Any, Generic, Protocol, TypeVar, cast
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlmodel import SQLModel
 
 from app.api.deps import CurrentUser, SessionDep, get_current_user_optional
@@ -182,8 +182,8 @@ class BaseRouter(
 
         async def read_multi(
             session: SessionDep,
-            skip: int = 0,
-            limit: int = 100,
+            skip: Annotated[int, Query(ge=0)] = 0,
+            limit: Annotated[int, Query(ge=1, le=500)] = 100,
             filter: str | None = None,
             order_by: str | None = None,
             include_archived: bool = False,

@@ -15,8 +15,10 @@ import csv
 import io
 import uuid
 from decimal import Decimal
+from typing import Annotated
 
-from fastapi import APIRouter, Response
+import anyio
+from fastapi import APIRouter, Query, Response
 from sqlmodel import col, select
 
 from app.api.deps import CurrentSuperUser, SessionDep
@@ -74,8 +76,8 @@ async def list_credit_notes(
     session: SessionDep,
     _current_user: CurrentSuperUser,
     fiscal_year: int | None = None,
-    skip: int = 0,
-    limit: int = 100,
+    skip: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ) -> list[CreditNotePublic]:
     """List issued credit notes, most recent first (optionally one year)."""
     statement = select(CreditNote)
@@ -167,7 +169,7 @@ async def download_credit_note_pdf(
     """Download the PDF of an issued credit note."""
     credit_note = await _load_credit_note(session, credit_note_id)
     try:
-        pdf = render_credit_note_pdf(credit_note)
+        pdf = await anyio.to_thread.run_sync(render_credit_note_pdf, credit_note)
     except PdfRenderingUnavailableError as exc:
         raise AppError(
             code="credit_note.pdf.unavailable",

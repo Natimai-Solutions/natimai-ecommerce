@@ -28,6 +28,7 @@ from app.core import totp
 from app.core.config import settings
 from app.core.errors import AppError
 from app.core.secrets_box import decrypt_json, encrypt_json
+from app.core.security import new_security_stamp
 from app.features.user.models.user import User
 
 RECOVERY_CODE_COUNT = 10
@@ -165,6 +166,7 @@ def regenerate_recovery_codes(user: User, code: str) -> list[str]:
 def disable(user: User) -> None:
     """Turn 2FA off and forget the secret (callers check who may do it)."""
     user.totp_enabled = False
+    user.security_stamp = new_security_stamp()
     user.totp_enabled_at = None
     user.totp_secret_encrypted = None
     user.totp_last_step = None

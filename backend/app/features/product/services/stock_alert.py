@@ -20,11 +20,7 @@ from app.core import runtime_settings
 from app.core.config import settings
 from app.core.errors import AppError
 from app.features.notification.email_renderer import render_email
-from app.features.notification.providers import (
-    NotificationMessage,
-    UnknownNotificationProviderError,
-    get_notification_provider,
-)
+from app.features.notification.mailer import send_email
 from app.features.product.models.product import (
     BACKORDER_MODES,
     AvailabilityMode,
@@ -86,31 +82,21 @@ async def subscribe(
     return alert
 
 
-async def _send(alert: StockAlert, product: Product) -> bool:
+async def _send(session: AsyncSession, alert: StockAlert, product: Product) -> bool:
     email = render_email(
         "stock_alert",
         product_name=product.name,
         product_url=product_url(product.id),
         shop_name=runtime_settings.peek("shop_name"),
     )
-    try:
-        provider = get_notification_provider(
-            settings.PAYMENT_NOTIFICATIONS_EMAIL_PROVIDER
-        )
-    except UnknownNotificationProviderError:
-        provider = get_notification_provider("noop")
-    result = await provider.send(
-        NotificationMessage(
-            channel="email",
-            recipient=alert.email,
-            subject=email.subject,
-            text=email.text,
-            html=email.html,
-            metadata={
-                "event_type": "stock_alert.sent",
-                "stock_alert_id": str(alert.id),
-            },
-        )
+    result = await send_email(
+        session,
+        recipient=alert.email,
+        subject=email.subject,
+        text=email.text,
+        html=email.html,
+        event_type="stock_alert.sent",
+        metadata={"stock_alert_id": str(alert.id)},
     )
     return bool(result.delivered)
 
@@ -133,7 +119,7 @@ async def notify_due_alerts(session: AsyncSession) -> dict[str, int]:
     for alert, product in pending:
         if not product.is_active or not product_orderable(product):
             continue
-        if await _send(alert, product):
+        if await _send(session, alert, product):
             alert.status = "sent"
             alert.notified_at = now
             session.add(alert)

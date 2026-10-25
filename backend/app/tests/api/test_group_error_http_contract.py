@@ -170,11 +170,11 @@ def test_get_user_groups_not_owned_returns_error_payload(client: TestClient) -> 
 
     response = client.get(f"/api/v1/group/users/{owner_user_id}/groups")
 
-    assert response.status_code == 403
+    assert response.status_code == 404
     assert response.json() == {
         "error": {
-            "code": "group.not_owned",
-            "message": "You cannot access another user's groups",
+            "code": "group.not_found",
+            "message": "Groupe introuvable",
             "details": {"user_id": str(owner_user_id)},
         }
     }

@@ -41,7 +41,7 @@ async def test_send_payment_event_notifications_uses_configured_email_provider(
             return NotificationResult(provider_code="mailgun", delivered=True)
 
     monkeypatch.setattr(
-        "app.features.payment.services.notifications.get_notification_provider",
+        "app.features.notification.mailer.get_notification_provider",
         lambda _provider_code: _FakeProvider(),
     )
 
@@ -85,7 +85,7 @@ async def test_send_payment_event_notifications_skips_unresolvable_user(
             return NotificationResult(provider_code="mailgun", delivered=True)
 
     monkeypatch.setattr(
-        "app.features.payment.services.notifications.get_notification_provider",
+        "app.features.notification.mailer.get_notification_provider",
         lambda _provider_code: _FakeProvider(),
     )
 
@@ -110,34 +110,35 @@ async def test_send_payment_event_notifications_skips_unresolvable_user(
 
 
 @pytest.mark.anyio
-async def test_send_payment_event_notifications_fallbacks_to_noop_provider(
+async def test_an_unknown_email_provider_is_a_failed_send_not_a_silent_one(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(settings, "PAYMENT_NOTIFICATIONS_EMAIL_ENABLED", True)
-    monkeypatch.setattr(settings, "PAYMENT_NOTIFICATIONS_SLACK_ENABLED", False)
+    """The mailer no longer falls back to noop, which declared success and
+    threw the message away: an unknown provider is a failure, journaled."""
     monkeypatch.setattr(settings, "PAYMENT_NOTIFICATIONS_EMAIL_PROVIDER", "custom")
     monkeypatch.setattr(settings, "EMAIL_SUPPORT", None)
 
     provider_calls: list[str] = []
-    delivered_by_provider: list[str] = []
-
-    class _FakeNoopProvider:
-        async def send(self, _message: Any) -> NotificationResult:
-            delivered_by_provider.append("noop")
-            return NotificationResult(provider_code="noop", delivered=True)
 
     def _fake_get_provider(provider_code: str) -> Any:
         provider_calls.append(provider_code)
-        if provider_code == "custom":
-            raise UnknownNotificationProviderError(provider_code)
-        if provider_code == "noop":
-            return _FakeNoopProvider()
-        raise AssertionError(f"Unexpected provider: {provider_code}")
+        raise UnknownNotificationProviderError(provider_code)
 
     monkeypatch.setattr(
-        "app.features.payment.services.notifications.get_notification_provider",
+        "app.features.notification.mailer.get_notification_provider",
         _fake_get_provider,
     )
+    sent: list[Any] = []
+
+    async def _deliver_spy(log: Any, **kwargs: Any) -> Any:
+        result = await real_deliver(log, **kwargs)
+        sent.append(log)
+        return result
+
+    from app.features.notification import mailer
+
+    real_deliver = mailer.deliver
+    monkeypatch.setattr(mailer, "deliver", _deliver_spy)
 
     customer_id = uuid.uuid4()
     session = AsyncMock()
@@ -155,5 +156,5 @@ async def test_send_payment_event_notifications_fallbacks_to_noop_provider(
         },
     )
 
-    assert provider_calls[:2] == ["custom", "noop"]
-    assert delivered_by_provider == ["noop"]
+    assert provider_calls == ["custom"]
+    assert [log.status for log in sent] == ["failed"]
