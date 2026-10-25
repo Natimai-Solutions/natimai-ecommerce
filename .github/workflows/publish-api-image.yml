@@ -20,6 +20,11 @@ on:
       - ".github/workflows/publish-api-image.yml"
   workflow_dispatch:
 
+# Pas d'enregistrement de build (artefact) : il compte dans le quota de
+# stockage des artefacts, qui a déjà été atteint.
+env:
+  DOCKER_BUILD_RECORD_UPLOAD: "false"
+
 permissions:
   contents: read
 

@@ -15,7 +15,7 @@ sur le serveur, chez un tiers ou une décision.
 
 - **Sauvegardes réelles** : planifier le cron de `scripts/backup/backup.sh`, configurer la copie hors site (rclone / scp), **exécuter une restauration réelle** avant la première commande (DEPLOYMENT.md §12).
 - **`ALERT_WEBHOOK_URL`** à renseigner (`.env` et cron) : sans lui, un événement outbox perdu après 8 tentatives, un health-check en erreur, un échec de sauvegarde ou une identité légale incomplète ne préviennent personne.
-- **CI de `main` rouge** : le job frontend échoue sur le quota de stockage des artefacts GitHub — purger les artefacts ou réduire leur rétention.
+- **Quota d'artefacts GitHub** atteint : les envois sont devenus non bloquants et leur rétention réduite à 7–14 j ; purger les anciens artefacts (*Settings → Actions → Artifacts* ou l'API) pour retrouver les rapports de couverture.
 - **Dependabot security updates** à activer sur le dépôt amont `Natimai-Solutions/fastapi-ecommerce` (*Settings → Code security*), avec *Grouped security updates*.
 - Variables GitHub `VITE_PUBLIC_SITE_URL`, `VITE_SENTRY_DSN`, `CODEQL_ENABLED`.
 - **CSP en observation sur staging** (`CSP_HEADER=Content-Security-Policy-Report-Only`), puis l'imposer.
@@ -109,7 +109,7 @@ sur le serveur, chez un tiers ou une décision.
 
 - **Garde-fou Vitest des couleurs** (`no-fixed-light-backgrounds.test.ts` de natimai-paie) sur les deux applications et `shared/ui`, puis retrait des surcharges `!important` et des 29 couleurs Material passées en JS — M.
 - `quasar.variables.scss` et `theme.ts` dans `shared/ui` ; jetons de rayon et d'espacement ; points de rupture Quasar seulement — S.
-- `docs/GUIDE_INTERFACE.md` (sur le modèle de natimai-paie) et une seule compétence de design (13 dans `.agents/skills`) — S.
+- `docs/GUIDE_INTERFACE.md` (sur le modèle de natimai-paie), avec la compétence de design retenue en copie figée sous `.claude/skills/` (les skills « Taste » ont été retirés du dépôt) — S.
 - Densité admin : tables `dense`, squelettes plutôt que spinners, `app-empty` partout ; tableaux larges qui défilent (fournisseurs, paramètres) — M.
 - Vitrine : vrais **404 en SSR** (aujourd'hui HTTP 200), décalage d'hydratation du `min-height` de `QPage`, flash de thème à la première visite, police d'icônes chargée en entier, `srcset` des photos fournisseur, parité fr / en testée — M.
 - 21 champs sans libellé (placeholder seul) — S.

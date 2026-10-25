@@ -9,7 +9,13 @@
         <q-card-section class="app-dialog__head">
           <div class="product-form__head">
             <h2 class="app-dialog__title">
-              {{ isEdit ? $t('product_form.edit_title') : $t('product_form.new_title') }}
+              {{
+                isEdit
+                  ? $t('product_form.edit_title')
+                  : isDuplicate
+                    ? $t('product_form.duplicate_title')
+                    : $t('product_form.new_title')
+              }}
             </h2>
             <StatusTag
               v-if="isEdit && product?.is_supplier_managed"
@@ -21,8 +27,14 @@
         </q-card-section>
 
         <q-card-section class="product-form__body">
-          <div v-if="error || (isEdit && product?.is_supplier_managed)" class="admin-notices">
+          <div
+            v-if="error || isDuplicate || (isEdit && product?.is_supplier_managed)"
+            class="admin-notices"
+          >
             <AppNotice v-if="error" tone="error" dense>{{ error }}</AppNotice>
+            <AppNotice v-if="isDuplicate" tone="info" dense data-testid="product-duplicate-notice">
+              {{ $t('product_form.duplicate_notice', { name: duplicateOf?.name ?? '' }) }}
+            </AppNotice>
             <AppNotice v-if="isEdit && product?.is_supplier_managed" tone="info" dense>
               {{ $t('product_form.synced_notice') }}
             </AppNotice>
@@ -923,7 +935,13 @@ import { useShopConfigStore } from '@/stores/shopConfig';
 
 const { t } = useI18n();
 
-const props = defineProps<{ modelValue: boolean; product: ProductPublic | null }>();
+const props = defineProps<{
+  modelValue: boolean;
+  /** Article à modifier (null : création). */
+  product: ProductPublic | null;
+  /** Création pré-remplie depuis cet article (ignoré quand `product` est fourni). */
+  duplicateOf?: ProductPublic | null;
+}>();
 const mediaPickerOpen = ref(false);
 /** Where the next picked image goes: the main image or the gallery. */
 const pickerTarget = ref<'main' | 'gallery'>('main');
@@ -1312,8 +1330,14 @@ async function saveLinks(productId: string) {
 
 async function saveSpecs(productId: string) {
   if (!specsOn.value) return;
+  // A copy starts from the source's values, which the new article does not
+  // have yet: every filled one is saved, not only what the admin retyped.
   const changed = specRows.value
-    .filter((row) => (specValues[row.key] ?? '') !== (specOriginal[row.key] ?? ''))
+    .filter((row) =>
+      isDuplicate.value
+        ? (specValues[row.key] ?? '').trim() !== ''
+        : (specValues[row.key] ?? '') !== (specOriginal[row.key] ?? ''),
+    )
     .map((row) => ({ key: row.key, value: (specValues[row.key] ?? '').trim() || null }));
   if (changed.length === 0) return;
   try {
@@ -1357,7 +1381,10 @@ async function saveGroupPrices(productId: string) {
   const current = groupPrices.value;
   const ids = new Set([...Object.keys(storedGroupPrices), ...Object.keys(current)]);
   const changes = [...ids]
-    .filter((id) => (current[id] ?? '') !== (storedGroupPrices[id] ?? ''))
+    .filter((id) =>
+      // Same as the specs: a copy saves every price taken from the source.
+      isDuplicate.value ? !!current[id] : (current[id] ?? '') !== (storedGroupPrices[id] ?? ''),
+    )
     .map((id) => ({
       price_group_id: id,
       price: current[id] ? String(Number(current[id])) : null,
@@ -1386,6 +1413,8 @@ function decimalOrNull(value: string | number | null): string | null {
 const placeOptions = ref<{ label: string; value: string }[]>([]);
 
 const isEdit = ref(false);
+/** Création pré-remplie depuis un autre article (« Dupliquer »). */
+const isDuplicate = ref(false);
 
 /** Libellés des champs verrouillables, pour les puces de verrous. */
 const FIELD_LABELS: Record<string, string> = labels({
@@ -1529,7 +1558,10 @@ function num(v: unknown): number | null {
   return Number.isNaN(n) ? null : n;
 }
 
-function loadFromProduct(p: ProductPublic | null) {
+/** Longueur maximale du nom côté API (`ProductBase.name`). */
+const NAME_MAX = 100;
+
+function loadFromProduct(p: ProductPublic | null, asCopy = false) {
   const base = emptyForm();
   if (p) {
     const rec = p as unknown as Record<string, unknown>;
@@ -1575,6 +1607,19 @@ function loadFromProduct(p: ProductPublic | null) {
       : [];
     base.is_featured = Boolean(rec.is_featured);
     base.featured_position = num(rec.featured_position);
+  }
+  if (p && asCopy) {
+    // Copy of an article: the content, prices, category, images and
+    // logistics carry over; what identifies or counts the original does not.
+    base.name = t('product_form.copy_name', { name: base.name }).slice(0, NAME_MAX);
+    base.supplier_name = null;
+    base.supplier_sku = '';
+    base.vendor_part_number = '';
+    base.ean = '';
+    base.supplier_quantity = '0';
+    base.local_quantity = '0';
+    base.is_featured = false;
+    base.featured_position = null;
   }
   Object.assign(form, base);
   // Deep copy: the gallery is an array the form mutates in place.
@@ -1691,15 +1736,19 @@ watch(
   (open) => {
     if (open) {
       isEdit.value = !!props.product;
+      isDuplicate.value = !props.product && !!props.duplicateOf;
+      // Edit: the article itself. Duplicate: the source, read but never written.
+      const seed = props.product ?? (isDuplicate.value ? (props.duplicateOf ?? null) : null);
       error.value = null;
       linkNotice.value = null;
       managedAfterLink.value = null;
       lockedFields.value = [...(props.product?.overridden_fields ?? [])];
-      loadFromProduct(props.product);
+      loadFromProduct(seed, isDuplicate.value);
       for (const key of Object.keys(specValues)) delete specValues[key];
-      void loadSpecs(props.product?.id ?? null, props.product?.category_id ?? null);
+      void loadSpecs(seed?.id ?? null, seed?.category_id ?? null);
+      // Linked articles are edited on an existing product only.
       void loadLinks(props.product?.id ?? null);
-      void loadGroupPrices(props.product);
+      void loadGroupPrices(seed);
     }
   },
 );
