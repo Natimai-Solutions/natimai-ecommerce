@@ -12,6 +12,12 @@ pnpm --filter admin typecheck  # vue-tsc
 pnpm --filter admin build      # build SPA
 ```
 
+Sans Python : `make dev-front` démarre Postgres, Redis et l'API depuis l'image
+publiée (`ghcr.io/natimai-solutions/natimai-ecommerce/api:main`), puis
+`pnpm dev:admin` sert l'application sur le port libre suivant (9001 quand la
+vitrine tourne déjà sur 9000). Détail des trois
+configurations possibles : [`CONTRIBUTING.md`](../CONTRIBUTING.md).
+
 ## Charte des écrans (R9 / T8)
 
 Courte, pour que les 37 écrans se lisent de la même façon. Quand un cas n'est

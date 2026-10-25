@@ -40,7 +40,10 @@ async def _list(session: SessionDep) -> list[PaymentProviderPublic]:
             implemented=state.implemented,
             available=state.available,
         )
-        for state in await provider_states(session)
+        # fresh : l'écran relit ce qu'il vient d'enregistrer, même si le GET du
+        # rechargement tombe sur un autre worker que le PUT (instantané des
+        # réglages par processus, cf. app.core.runtime_settings).
+        for state in await provider_states(session, fresh=True)
     ]
 
 

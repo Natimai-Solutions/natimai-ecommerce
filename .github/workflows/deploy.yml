@@ -3,7 +3,7 @@
 #
 # Actions → « Deploy » → Run workflow → choisir la référence (branche, tag ou
 # sha) et l'environnement. Pour revenir en arrière : relancer avec le commit
-# précédent (les migrations, elles, ne redescendent pas : DEPLOYMENT.md §8).
+# précédent (les migrations, elles, ne redescendent pas : docs/DEPLOYMENT.md §8).
 #
 # Configuration, dans Settings → Environments → staging / production :
 #   variables  VITE_API_URL   https://api.<domaine> (figée dans les frontends)

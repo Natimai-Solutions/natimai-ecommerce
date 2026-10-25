@@ -1,5 +1,5 @@
 # Production docker-compose avec health checking dédié
-# Usage (le proxy Caddy est l'unique point d'entrée — cf. DEPLOYMENT.md) :
+# Usage (le proxy Caddy est l'unique point d'entrée — cf. docs/DEPLOYMENT.md) :
 #   docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.proxy.yml up -d
 
 # Rotation des logs Docker — appliquée aux services applicatifs (sinon le

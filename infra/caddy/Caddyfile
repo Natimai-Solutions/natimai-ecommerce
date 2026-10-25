@@ -11,7 +11,7 @@
 	email {$ACME_EMAIL}
 	# Adresse réelle du visiteur ({client_ip}). Par défaut, aucun proxy amont
 	# n'est cru : c'est l'adresse du pair TCP. Derrière Cloudflare (nuage
-	# orange), CADDY_TRUSTED_PROXIES liste ses plages (DEPLOYMENT.md §9) :
+	# orange), CADDY_TRUSTED_PROXIES liste ses plages (docs/DEPLOYMENT.md §9) :
 	# CF-Connecting-IP n'est alors lu QUE sur une connexion venant d'elles —
 	# quelqu'un qui joint le serveur en direct ne peut pas forger son adresse.
 	servers {

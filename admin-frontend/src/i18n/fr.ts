@@ -413,7 +413,7 @@ const fr = {
     col_products: 'Produits',
     col_rate: 'Douane',
     help: 'Saisir le <strong>taux effectif</strong> : l\'ensemble des droits et taxes à l\'import (droits de douane, TDL et les autres prélèvements de la position tarifaire) ramené à un seul pourcentage de la valeur CAF — pas le seul droit de douane. Le dériver du <a href="https://simulateur-douane-polynesie.com/" target="_blank" rel="noopener" class="admin-link">simulateur des douanes PF</a> en simulant une valeur représentative, origine UE pour le corridor France → Papeete.',
-    hint: "Taux effectif de l'ensemble des droits et taxes à l'import, appliqué sur la valeur CAF (voir DEPLOYMENT.md §15). Un produit dont le taux ne se résout ni sur lui-même ni sur sa catégorie est masqué de la vitrine.",
+    hint: "Taux effectif de l'ensemble des droits et taxes à l'import, appliqué sur la valeur CAF (voir docs/DEPLOYMENT.md §15). Un produit dont le taux ne se résout ni sur lui-même ni sur sa catégorie est masqué de la vitrine.",
     kpi_no_rate: 'Sans taux de douane',
     kpi_no_rate_hint: 'à traiter ci-dessous',
     kpi_no_weight: 'Sans poids',
@@ -424,7 +424,7 @@ const fr = {
     no_category_hint: "Ces produits n'ont pas de catégorie : leur taux ne peut pas être hérité.",
     none: 'Aucune catégorie.',
     procedure:
-      'Procédure complète, règle en cas de positions multiples et tableau de suivi : <code>DEPLOYMENT.md</code> §15.',
+      'Procédure complète, règle en cas de positions multiples et tableau de suivi : <code>docs/DEPLOYMENT.md</code> §15.',
     rate: 'Taux de douane (%)',
     rate_hint: 'Vide = aucun taux : les produits de cette catégorie restent masqués',
     set_rate: 'Définir le taux de douane',

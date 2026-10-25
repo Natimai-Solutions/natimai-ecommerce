@@ -8,9 +8,12 @@ SHELL := /bin/bash
 
 BACKEND := cd backend && uv run
 
-.PHONY: help setup dev stop logs migrate seed \
+.PHONY: help setup dev dev-front stop logs migrate seed \
         lint format typecheck test test-backend test-fronts coverage \
         gen-types check-types e2e audit seed-demo purge-demo
+
+# Pile « frontend seul » : l'API vient de l'image GHCR (docker-compose.frontend-dev.yml).
+FRONT_COMPOSE := docker compose -f docker-compose.yml -f docker-compose.frontend-dev.yml
 
 help: ## Liste des cibles
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | \
@@ -23,8 +26,14 @@ setup: ## Installer les dépendances (uv sync, pnpm install)
 dev: ## Démarrer la pile locale (postgres, redis, api, vitrine, admin)
 	docker compose up -d --wait postgres redis api frontend admin-frontend
 
-stop: ## Arrêter la pile locale
-	docker compose down
+dev-front: ## Travailler sur un frontend sans Python : API depuis l'image GHCR, puis `pnpm dev:front` / `pnpm dev:admin`
+	$(FRONT_COMPOSE) pull --quiet api
+	$(FRONT_COMPOSE) up -d --wait --no-build postgres redis api
+	$(FRONT_COMPOSE) run --rm --no-build migrate
+	$(FRONT_COMPOSE) up -d --no-build arq-worker outbox-poller
+
+stop: ## Arrêter la pile locale (complète ou « frontend seul »)
+	$(FRONT_COMPOSE) down
 
 logs: ## Suivre les journaux de l'API
 	docker compose logs -f api

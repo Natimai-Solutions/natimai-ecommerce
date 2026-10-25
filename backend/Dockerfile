@@ -58,7 +58,10 @@ ENV PYTHONUNBUFFERED=1 \
 
 # Bibliothèques d'exécution de WeasyPrint (PDF des factures), curl pour les
 # healthchecks. Ni compilateur ni en-têtes de développement.
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# `apt-get upgrade` : l'image de base suit les versions ponctuelles de Debian,
+# pas ses correctifs de sécurité ; Trivy (security.yml) bloque sur ceux qui
+# manquent.
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
     libpango-1.0-0 \
     libpangocairo-1.0-0 \
     libgdk-pixbuf-xlib-2.0-0 \
@@ -67,6 +70,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     shared-mime-info \
     curl \
     && rm -rf /var/lib/apt/lists/*
+
+# pip n'a aucun rôle à l'exécution (le venv construit est copié tel quel et
+# `uv run` ne synchronise rien) ; il embarque ses propres copies de urllib3,
+# msgpack et setuptools, que Trivy signale. La roue pip d'ensurepip aussi.
+RUN python -m pip uninstall -y pip \
+    && rm -rf /usr/local/lib/python3.*/ensurepip/_bundled /root/.cache/pip
 
 # Le binaire uv installé dans l'étape de build (même version, aucun tirage).
 COPY --from=builder /usr/local/bin/uv /bin/uv

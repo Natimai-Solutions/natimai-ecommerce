@@ -14,10 +14,15 @@ pnpm --filter frontend typecheck  # vue-tsc
 pnpm --filter frontend build      # build SSR → dist/ssr (node index.js)
 ```
 
+Sans Python : `make dev-front` démarre Postgres, Redis et l'API depuis l'image
+publiée (`ghcr.io/natimai-solutions/natimai-ecommerce/api:main`), puis
+`pnpm dev:front` sert l'application sur http://localhost:9000. Détail des trois
+configurations possibles : [`CONTRIBUTING.md`](../CONTRIBUTING.md).
+
 ## Variables de build
 
 Figées par Vite au moment du build (`frontend/.env`, `docker compose` ou
-`deploy.yml`, voir `DEPLOYMENT.md` § Storefront) :
+`deploy.yml`, voir `docs/DEPLOYMENT.md` § Storefront) :
 
 | Variable                                                         | Rôle                                                                    |
 | ---------------------------------------------------------------- | ----------------------------------------------------------------------- |

@@ -1,0 +1,67 @@
+# Travailler sur la vitrine ou l'admin SANS installer Python ni construire
+# l'API : les services Python tournent sur l'image publiée depuis `main`
+# (.github/workflows/publish-api-image.yml), les frontends sur la machine
+# (`pnpm dev:front`, `pnpm dev:admin`).
+#
+#   cp .env.example .env            # une fois ; les valeurs par défaut suffisent
+#   make dev-front                  # postgres, redis, api (image GHCR), migrations
+#   pnpm install && pnpm dev:front  # http://localhost:9000  (admin : dev:admin)
+#
+# Soit, sans make :
+#   docker compose -f docker-compose.yml -f docker-compose.frontend-dev.yml \
+#     up -d --wait --no-build postgres redis api
+#
+# Ce fichier s'empile sur docker-compose.yml SEUL : docker-compose.override.yml
+# (montage des sources, image de dev) n'est pas appliqué dès qu'un -f est passé.
+#
+# Si votre branche change l'API elle-même (routes, schémas, shared/api-types),
+# l'image `main` ne la contient pas : revenez à la pile complète
+# (`docker compose up -d --build api`) le temps de ces changements.
+#
+# Si le paquet GHCR est privé : `docker login ghcr.io` avec un jeton `read:packages`.
+
+x-api-image: &api-image
+  # IMAGE_PREFIX permet de viser un fork (ghcr.io/<vous>/natimai-ecommerce) ou
+  # un tag précis (API_IMAGE_TAG=sha-<commit>, voir les tags du paquet).
+  image: ${IMAGE_PREFIX:-ghcr.io/natimai-solutions/natimai-ecommerce}/api:${API_IMAGE_TAG:-main}
+  # Plus de construction locale : l'image vient du registre.
+  build: !reset null
+  pull_policy: always
+
+services:
+  api:
+    <<: *api-image
+    # ClamAV (120 s de démarrage, signatures à télécharger) n'a rien à voir
+    # avec le travail sur un frontend : désactivé, et l'API ne l'attend plus.
+    # Autorisé parce que ENVIRONMENT=local (garde-fou de config.py).
+    environment:
+      - CLAMAV_ENABLED=false
+      - ENVIRONMENT=local
+      # Les serveurs de développement Quasar (9000 vitrine, 9001 admin = port
+      # libre suivant, 9100 si `quasar dev -m ssr`) et les ports des images
+      # (3000, 3001), tous appelés depuis le navigateur.
+      - BACKEND_CORS_ORIGINS=["http://localhost:9000","http://localhost:9001","http://localhost:9100","http://localhost:3000","http://localhost:3001"]
+      - FRONTEND_HOST=http://localhost:9000
+    depends_on: !override
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  arq-worker:
+    <<: *api-image
+    environment:
+      - CLAMAV_ENABLED=false
+      - ENVIRONMENT=local
+
+  outbox-poller:
+    <<: *api-image
+    environment:
+      - CLAMAV_ENABLED=false
+      - ENVIRONMENT=local
+
+  migrate:
+    <<: *api-image
+    environment:
+      - CLAMAV_ENABLED=false
+      - ENVIRONMENT=local

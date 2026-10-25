@@ -7,7 +7,7 @@
 #   - DNS A/AAAA (domaine nu, www, api, admin) → IP publique du serveur ; ports 80/443 ouverts.
 #   - .env racine : DOMAIN (ex. natimai.solutions) + ACME_EMAIL.
 #   - Images frontends rebuildées avec VITE_API_URL=https://api.${DOMAIN}
-#     (le préfixe /api/v1 est ajouté par le client) — cf. DEPLOYMENT.md §4.
+#     (le préfixe /api/v1 est ajouté par le client) — cf. docs/DEPLOYMENT.md §4.
 #
 # Caddy devient l'unique point d'entrée : on retire l'exposition directe des ports
 # hôte des services applicatifs (nécessite Docker Compose ≥ 2.24 pour le tag !reset).

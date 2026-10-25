@@ -1,7 +1,14 @@
 {
-  "name": "fastapi-ecommerce",
+  "name": "natimai-ecommerce",
+  "description": "E-commerce platform: FastAPI API, Quasar storefront (SSR) and back-office, shared TypeScript packages",
   "private": true,
   "license": "AGPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Natimai-Solutions/natimai-ecommerce.git"
+  },
+  "homepage": "https://github.com/Natimai-Solutions/natimai-ecommerce#readme",
+  "bugs": "https://github.com/Natimai-Solutions/natimai-ecommerce/issues",
   "packageManager": "pnpm@10.0.0",
   "scripts": {
     "gen:types": "./scripts/gen-api-types.sh",
@@ -25,7 +32,9 @@
       "undici@<8.10.2": ">=8.10.2",
       "qs@<6.16.0": ">=6.16.0",
       "esbuild@>=0.27.3 <0.28.1": ">=0.28.1",
-      "js-yaml@<4.3.2": "~4.3.2"
+      "js-yaml@<4.3.2": "~4.3.2",
+      "proxy-addr@<2.0.8": ">=2.0.8",
+      "source-map-js@<1.2.2": ">=1.2.2"
     }
   }
 }
