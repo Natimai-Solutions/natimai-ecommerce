@@ -1,7 +1,7 @@
 """jeton de sécurité par utilisateur : users.security_stamp
 
 Revision ID: a1b2c3d4e5f6
-Revises: z8e4a2c0b1d3
+Revises: b3d5f7a9c1e2
 Create Date: 2026-10-25 09:00:00.000000
 
 Chaque jeton d'accès porte le ``security_stamp`` de son utilisateur ; le
@@ -15,7 +15,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "a1b2c3d4e5f6"
-down_revision = "z8e4a2c0b1d3"
+down_revision = "b3d5f7a9c1e2"
 branch_labels = None
 depends_on = None
 

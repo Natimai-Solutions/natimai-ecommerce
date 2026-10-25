@@ -2,10 +2,10 @@
   <q-page class="product page-container">
     <nav class="product__crumbs" :aria-label="$t('product.crumbs')">
       <router-link :to="{ name: 'catalogue' }">{{ $t('layout.catalogue') }}</router-link>
-      <template v-if="categoryLabel && product?.category_id">
+      <template v-for="crumb in categoryCrumbs" :key="crumb.id">
         <q-icon name="ph:caret-right" size="12px" />
-        <router-link :to="{ name: 'catalogue', query: { cat: product.category_id } }">
-          {{ categoryLabel }}
+        <router-link :to="{ name: 'catalogue', query: { cat: crumb.id } }">
+          {{ crumb.label }}
         </router-link>
       </template>
       <template v-if="product">
@@ -180,6 +180,19 @@
             <div v-for="axis in variants.axes" :key="axis" class="variants__axis">
               <span :id="`axis-${axis}`" class="variants__label">{{ axis }}</span>
               <div class="variants__options" role="group" :aria-labelledby="`axis-${axis}`">
+                <!-- Déclinaisons optionnelles : « Standard » = le produit de
+                     base, tel que décrit sur la fiche ; une valeur le remplace. -->
+                <button
+                  v-if="variantsOptional"
+                  type="button"
+                  class="variants__option"
+                  :class="{ 'variants__option--active': !selectedOptions[axis] }"
+                  :aria-pressed="!selectedOptions[axis]"
+                  data-testid="variant-base"
+                  @click="clearOption(axis)"
+                >
+                  {{ $t('product.variant_base') }}
+                </button>
                 <button
                   v-for="value in optionValues[axis] ?? []"
                   :key="value"
@@ -205,8 +218,14 @@
             <p v-if="selectedVariant?.supplier_sku" class="variants__hint font-mono">
               {{ $t('product.ref', { ref: selectedVariant.supplier_sku }) }}
             </p>
-            <p v-else-if="!selectedVariant" class="variants__hint">
+            <p v-else-if="!variantsOptional && !selectedVariant" class="variants__hint">
               {{ $t('product.choose_variant_hint') }}
+            </p>
+            <p v-else-if="partialSelection" class="variants__hint">
+              {{ $t('product.variant_combo_missing') }}
+            </p>
+            <p v-else-if="!selectedVariant" class="variants__hint">
+              {{ $t('product.variant_base_hint') }}
             </p>
           </div>
 
@@ -516,6 +535,7 @@ import { useDepartureLabels } from '@/composables/useDepartureLabels';
 import { useTranslate } from '@/composables/useTranslate';
 import { useTurnstile } from '@/composables/useTurnstile';
 import { absoluteUrl, breadcrumbList, jsonLd } from '@/utils/seo';
+import { categoryLineage } from '@/utils/categories';
 import { useShopModulesStore } from '@/stores/shopModules';
 import { useProductDetailStore } from '@/stores/productDetail';
 import { storeToRefs } from 'pinia';
@@ -574,6 +594,10 @@ const showKeySpecs = computed(() => keySpecs.value.length >= 2);
 // stocked and added to the cart.
 const selectedOptions = ref<Record<string, string>>({});
 const hasVariants = computed(() => Boolean(product.value?.has_variants));
+// Optional variants: the page's product is the base configuration, sold as
+// is; picking a value replaces it, picking it again (or « Standard ») goes
+// back to the base product.
+const variantsOptional = computed(() => Boolean(product.value?.variants_optional));
 
 const optionValues = computed<Record<string, string[]>>(() => {
   const out: Record<string, string[]> = {};
@@ -733,10 +757,31 @@ function optionExtra(axis: string, value: string): string | null {
 }
 
 function selectOption(axis: string, value: string) {
+  // A second click on the chosen value deselects it.
+  if (selectedOptions.value[axis] === value) {
+    clearOption(axis);
+    return;
+  }
   selectedOptions.value = { ...selectedOptions.value, [axis]: value };
   justAdded.value = false;
   selectedImage.value = null;
 }
+
+function clearOption(axis: string) {
+  const next = { ...selectedOptions.value };
+  delete next[axis];
+  selectedOptions.value = next;
+  justAdded.value = false;
+  selectedImage.value = null;
+}
+
+/** Some axes chosen, but no variant carries that combination. */
+const partialSelection = computed(
+  () =>
+    hasVariants.value &&
+    !selectedVariant.value &&
+    Object.values(selectedOptions.value).some(Boolean),
+);
 
 /** The product actually shown / sold: the chosen variant, else the page's product. */
 const effectiveProduct = computed<ProductPublic | null>(
@@ -744,7 +789,14 @@ const effectiveProduct = computed<ProductPublic | null>(
 );
 
 const isOutOfStock = computed(() => !availability.value.orderable);
-const needsVariantChoice = computed(() => hasVariants.value && !selectedVariant.value);
+// Add-to-cart blocked: a variant must be chosen, or the chosen combination
+// does not exist. With optional variants, nothing chosen = the base product.
+const needsVariantChoice = computed(
+  () =>
+    hasVariants.value &&
+    !selectedVariant.value &&
+    (!variantsOptional.value || partialSelection.value),
+);
 
 const selectedMode = computed(
   () => shippingModes.value.find((m) => m.service_level === selectedModeKey.value) ?? null,
@@ -785,10 +837,16 @@ const promotionEnds = computed(() => {
   return raw ? formatDate(raw) : null;
 });
 
+// « Catalogue › Réseau › WiFi › Point d'accès » : the category's lineage.
+const categoryCrumbs = computed(() =>
+  categoryLineage(productsStore.categories, product.value?.category_id ?? null).map((c) => ({
+    id: c.id,
+    label: c.title ?? c.name,
+  })),
+);
 const categoryLabel = computed(() => {
-  const id = product.value?.category_id;
-  const cat = id ? productsStore.categories.find((c) => c.id === id) : undefined;
-  return cat ? (cat.title ?? cat.name) : null;
+  const chain = categoryCrumbs.value;
+  return chain.length ? (chain[chain.length - 1]?.label ?? null) : null;
 });
 
 /** HTML → one line of text. */
@@ -980,11 +1038,8 @@ useMeta(() => {
       { name: t('layout.home'), path: '/' },
       { name: t('layout.catalogue'), path: '/catalogue' },
     ];
-    if (categoryLabel.value && product.value.category_id) {
-      crumbs.push({
-        name: categoryLabel.value,
-        path: `/catalogue?cat=${product.value.category_id}`,
-      });
+    for (const crumb of categoryCrumbs.value) {
+      crumbs.push({ name: crumb.label, path: `/catalogue?cat=${crumb.id}` });
     }
     crumbs.push({ name: product.value.name, path: route.path });
     const breadcrumb = breadcrumbList(crumbs);
@@ -1021,8 +1076,9 @@ async function loadProduct() {
   const data = product.value;
   selectedOptions.value = {};
   if (!data || data.id !== routeId) return;
-  // One variant only: nothing to choose, select it.
-  if (variants.value?.variants.length === 1) {
+  // One variant only: nothing to choose, select it — unless the base
+  // product is sold as is, in which case it stays the default.
+  if (variants.value?.variants.length === 1 && !data.variants_optional) {
     selectedOptions.value = { ...(variants.value.variants[0]?.variant_options ?? {}) };
   }
 

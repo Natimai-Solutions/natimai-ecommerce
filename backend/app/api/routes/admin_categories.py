@@ -1,10 +1,18 @@
 """Back-office des catégories (A17 + A12).
 
 GET   /admin/categories               — toutes les catégories, fusionnées comprises,
-                                        avec le nombre de produits
-POST  /admin/categories               — créer une catégorie
-PATCH /admin/categories/{id}          — titre vitrine, description, image, activation
+                                        avec le nombre de produits, dans l'ordre
+                                        de l'arbre (parents puis enfants)
+POST  /admin/categories               — créer une catégorie (sous un parent ou non)
+PATCH /admin/categories/{id}          — titre vitrine, description, image, activation,
+                                        parent, marge par défaut
 POST  /admin/categories/{id}/merge    — fusionner dans une autre catégorie
+
+Hiérarchie (« Réseau > WiFi > Point d'accès WiFi ») : ``parent_id``. Une
+sous-catégorie hérite des valeurs par défaut que sa branche ne fixe pas (TVA,
+douane, marge) — ``inherited_*`` les donne telles qu'en vigueur, avec la
+catégorie d'où elles viennent — et la vitrine liste une catégorie avec les
+produits de ses descendantes.
 
 Les catégories naissent de la synchronisation fournisseur (``get_or_create_by_name``
 sur la sous-catégorie Ingram) : leur ``name`` est la clé de rapprochement et ne se
@@ -44,6 +52,17 @@ from app.features.integrations.services.category_mapping import retarget_after_m
 from app.features.product.crud.category import crud_category
 from app.features.product.models.category import Category
 from app.features.product.models.product import Product
+from app.features.product.services.category_tree import (
+    CategoryCycle,
+    Tree,
+    build_tree,
+    check_parent,
+    depth_of,
+    descendant_ids,
+    inherited_defaults,
+    load_tree,
+    path_titles,
+)
 from app.features.product.services.related import (
     replace_category_links,
     suggested_categories_map,
@@ -77,6 +96,22 @@ class AdminCategoryItem(BaseModel):
     merged_into_id: uuid.UUID | None
     merged_into_name: str | None = None
     product_count: int = 0
+    #: Hierarchy: the parent, the titles from the root down to this one
+    #: (« Réseau › WiFi › Point d'accès »), the level (0 = root) and how
+    #: many categories sit directly below.
+    parent_id: uuid.UUID | None = None
+    parent_name: str | None = None
+    path: list[str] = Field(default_factory=list)
+    depth: int = 0
+    children_count: int = 0
+    #: Defaults in force (own value, else the nearest ancestor's), and the
+    #: title of the ancestor they come from (None = own value or nothing).
+    inherited_tax_rate_id: uuid.UUID | None = None
+    inherited_tax_rate_from: str | None = None
+    inherited_customs_rate_pct: Decimal | None = None
+    inherited_customs_rate_from: str | None = None
+    inherited_margin_rate_pct: Decimal | None = None
+    inherited_margin_rate_from: str | None = None
     #: Translated display_name / description per language (R9 / T3).
     translations: dict[str, dict[str, Any]] = Field(default_factory=dict)
     translation_status: dict[str, str] = Field(default_factory=dict)
@@ -102,9 +137,11 @@ class AdminCategoryUpdate(BaseModel):
     description: str | None = Field(default=None, max_length=500)
     image_url: str | None = Field(default=None, max_length=500)
     is_active: bool | None = None
-    #: Marge par défaut des articles de la catégorie (None = celle du groupe
-    #: tarifaire du client). Un article peut la surcharger.
+    #: Marge par défaut des articles de la catégorie (None = celle de la
+    #: catégorie parente, sinon du groupe tarifaire). Un article peut la surcharger.
     default_margin_rate_pct: Decimal | None = Field(default=None, ge=0)
+    #: Catégorie parente (None = catégorie de premier niveau).
+    parent_id: uuid.UUID | None = None
     #: Traductions du titre vitrine et de la description (R9 / T3).
     translations: dict[str, dict[str, Any]] | None = None
     #: Catégories à proposer depuis les articles de celle-ci (R9 / T7).
@@ -126,6 +163,14 @@ class MergeResult(BaseModel):
     moved_discounts: int
 
 
+def _origin_title(tree: Tree, origin: uuid.UUID | None, own: uuid.UUID) -> str | None:
+    """Title of the ancestor a default comes from (None when it is the
+    category's own or nothing is set)."""
+    if origin is None or origin == own or origin not in tree:
+        return None
+    return tree[origin].title
+
+
 def _to_item(
     category: Category,
     *,
@@ -133,7 +178,12 @@ def _to_item(
     merged_into_name: str | None,
     suggested: list[uuid.UUID] | None = None,
     supplier_sources: list[str] | None = None,
+    tree: Tree | None = None,
+    children_count: int = 0,
 ) -> AdminCategoryItem:
+    tree = tree if tree is not None else build_tree([category])
+    effective = inherited_defaults(tree, category.id)
+    parent = tree.get(category.parent_id) if category.parent_id else None
     return AdminCategoryItem(
         id=category.id,
         name=category.name,
@@ -156,7 +206,71 @@ def _to_item(
         ),
         suggested_category_ids=list(suggested or []),
         supplier_sources=list(supplier_sources or []),
+        parent_id=category.parent_id,
+        parent_name=parent.title if parent else None,
+        path=path_titles(tree, category.id),
+        depth=depth_of(tree, category.id),
+        children_count=children_count,
+        inherited_tax_rate_id=effective.tax_rate_id,
+        inherited_tax_rate_from=_origin_title(
+            tree, effective.tax_rate_from, category.id
+        ),
+        inherited_customs_rate_pct=effective.customs_rate_pct,
+        inherited_customs_rate_from=_origin_title(
+            tree, effective.customs_rate_from, category.id
+        ),
+        inherited_margin_rate_pct=effective.margin_rate_pct,
+        inherited_margin_rate_from=_origin_title(
+            tree, effective.margin_rate_from, category.id
+        ),
     )
+
+
+def _children_counts(tree: Tree) -> dict[uuid.UUID, int]:
+    counts: dict[uuid.UUID, int] = {}
+    for node in tree.values():
+        if node.parent_id is not None and not node.merged_into_id:
+            counts[node.parent_id] = counts.get(node.parent_id, 0) + 1
+    return counts
+
+
+def _check_parent(
+    tree: Tree,
+    category_id: uuid.UUID | None,
+    parent_id: uuid.UUID | None,
+) -> None:
+    """A parent must exist, be neither merged nor the category itself nor
+    one of its descendants."""
+    if parent_id is None:
+        return
+    parent = tree.get(parent_id)
+    if parent is None:
+        raise AppError(
+            code="category.parent.not_found",
+            status_code=400,
+            message=f"Catégorie parente introuvable : {parent_id}",
+            details={"field": "parent_id"},
+        )
+    if parent.merged_into_id is not None:
+        raise AppError(
+            code="category.parent.merged",
+            status_code=409,
+            message="La catégorie parente a été fusionnée dans une autre",
+            details={"field": "parent_id", "parent_id": str(parent_id)},
+        )
+    if category_id is not None:
+        try:
+            check_parent(tree, category_id, parent_id)
+        except CategoryCycle as exc:
+            raise AppError(
+                code="category.parent.cycle",
+                status_code=409,
+                message=(
+                    "Une catégorie ne peut pas être rangée sous elle-même ni "
+                    "sous une de ses sous-catégories"
+                ),
+                details={"field": "parent_id", "parent_id": str(parent_id)},
+            ) from exc
 
 
 async def supplier_sources_map(
@@ -221,12 +335,15 @@ async def _item_for(session: SessionDep, category: Category) -> AdminCategoryIte
         merged_name = target.name if target is not None else None
     suggested = await suggested_categories_map(session, [category.id])
     sources = await supplier_sources_map(session, [category.id])
+    tree = await load_tree(session)
     return _to_item(
         category,
         product_count=await _product_count(session, category.id),
         merged_into_name=merged_name,
         suggested=suggested.get(category.id),
         supplier_sources=sources.get(category.id),
+        tree=tree,
+        children_count=_children_counts(tree).get(category.id, 0),
     )
 
 
@@ -245,6 +362,8 @@ async def list_categories(
     names = {c.id: c.name for c in categories}
     suggested = await suggested_categories_map(session, [c.id for c in categories])
     sources = await supplier_sources_map(session, [c.id for c in categories])
+    tree = build_tree(categories)
+    children = _children_counts(tree)
 
     data = [
         _to_item(
@@ -253,9 +372,13 @@ async def list_categories(
             merged_into_name=names.get(c.merged_into_id) if c.merged_into_id else None,
             suggested=suggested.get(c.id),
             supplier_sources=sources.get(c.id),
+            tree=tree,
+            children_count=children.get(c.id, 0),
         )
         for c in categories
     ]
+    # Tree order: a parent, then its children (« Réseau », « Réseau › WiFi »…).
+    data.sort(key=lambda item: [p.casefold() for p in item.path])
     return AdminCategoriesPublic(data=data, count=len(data))
 
 
@@ -265,6 +388,8 @@ class AdminCategoryCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     display_name: str | None = Field(default=None, max_length=100)
     description: str | None = Field(default=None, max_length=500)
+    #: Catégorie parente (« Réseau » pour « WiFi »), None = premier niveau.
+    parent_id: uuid.UUID | None = None
 
 
 @router.post("", response_model=AdminCategoryItem, status_code=201)
@@ -287,11 +412,14 @@ async def create_category(
             message=f"Une catégorie « {existing.name} » existe déjà",
             details={"category_id": str(existing.id)},
         )
+    if payload.parent_id is not None:
+        _check_parent(await load_tree(session), None, payload.parent_id)
     display = (payload.display_name or "").strip()
     category = Category(
         name=name,
         display_name=display if display and display != name else None,
         description=payload.description,
+        parent_id=payload.parent_id,
         is_active=True,
         is_admin_active=True,
     )
@@ -349,6 +477,9 @@ async def update_category(
                 details={"field": "translations"},
             ) from exc
 
+    if "parent_id" in fields and fields["parent_id"] != category.parent_id:
+        _check_parent(await load_tree(session), category.id, fields["parent_id"])
+
     suggested = fields.pop("suggested_category_ids", None)
     if suggested is not None:
         known = set(
@@ -377,9 +508,10 @@ async def update_category(
     logger.info(
         "Admin updated category: category_id=%s fields=%s", category_id, sorted(fields)
     )
-    if PRICING_FIELDS & set(fields):
-        # Margin, customs or tax default changed: the list prices of the
-        # category's products are stale until refreshed.
+    if (PRICING_FIELDS | {"parent_id"}) & set(fields):
+        # Margin, customs or tax default changed — or the parent they are
+        # inherited from: the list prices of the category's products (the
+        # sub-categories' included) are stale until refreshed.
         await schedule_price_refresh(
             reason="category_pricing_defaults", category_id=category_id
         )
@@ -428,9 +560,29 @@ async def merge_category(
             message="La catégorie cible est inactive ou a elle-même été fusionnée",
             details={"target_id": str(payload.target_id)},
         )
+    tree = await load_tree(session)
+    if payload.target_id in descendant_ids(tree, category_id):
+        raise AppError(
+            code="category.merge.target_below_source",
+            status_code=409,
+            message=(
+                "La catégorie cible est une sous-catégorie de la source : "
+                "déplacez-la d'abord ailleurs"
+            ),
+            details={"target_id": str(payload.target_id)},
+        )
 
     admin_id = current_user.id
     source_id, target_id = source.id, target.id
+
+    # The source's sub-categories move under the target.
+    moved_children = (
+        await session.exec(
+            sa_update(Category)
+            .where(col(Category.parent_id) == source_id)
+            .values(parent_id=target_id)
+        )
+    ).rowcount
 
     moved_products = (
         await session.exec(
@@ -463,11 +615,13 @@ async def merge_category(
         await schedule_price_refresh(reason="category_merge", category_id=target_id)
 
     logger.info(
-        "Category merged: source=%s target=%s products=%s discounts=%s admin=%s",
+        "Category merged: source=%s target=%s products=%s discounts=%s "
+        "children=%s admin=%s",
         source_id,
         target_id,
         moved_products,
         moved_discounts,
+        moved_children,
         admin_id,
     )
     return MergeResult(

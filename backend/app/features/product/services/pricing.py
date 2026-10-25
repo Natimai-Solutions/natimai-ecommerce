@@ -18,6 +18,12 @@ from app.features.product.models.currency_rate import CurrencyRate
 from app.features.product.models.price_group import PriceGroup
 from app.features.product.models.product import PricingMode, Product
 from app.features.product.models.tax_rate import TaxRate
+from app.features.product.services.category_tree import (
+    build_tree,
+    category_chain,
+    first_default,
+    inherited_defaults,
+)
 from app.features.product.services.margin import MarginFigures, compute_margin
 from app.features.product.services.pricing_parameters import (
     apply_fx_safety_margin,
@@ -237,14 +243,12 @@ async def resolve_tax_rate(
             return product_rate
 
     if product_category_id is not None:
-        try:
-            category = await session.get(Category, product_category_id)
-        except Exception:
-            category = None
-
-        if category is not None and category.default_tax_rate_id is not None:
+        # The category's own default, else its nearest ancestor's.
+        chain = await category_chain(session, product_category_id)
+        category_rate_id = first_default(chain, "default_tax_rate_id")
+        if category_rate_id is not None:
             try:
-                category_rate = await session.get(TaxRate, category.default_tax_rate_id)
+                category_rate = await session.get(TaxRate, category_rate_id)
             except Exception:
                 category_rate = None
 
@@ -293,7 +297,8 @@ async def resolve_customs_rate_pct(
 
     Resolution order, mirroring resolve_tax_rate:
     1) Product.customs_rate_pct
-    2) Category.default_customs_rate_pct
+    2) Category.default_customs_rate_pct — the category's own, else the
+       nearest ancestor's (« Réseau > WiFi > Point d'accès »)
 
     Returns None when neither is set. Callers must treat None as "unknown",
     never as zero: the supplier sync never fills this rate, so a silent zero
@@ -308,15 +313,8 @@ async def resolve_customs_rate_pct(
     if category_id is None:
         return None
 
-    try:
-        category = await session.get(Category, category_id)
-    except Exception:
-        return None
-
-    if category is None:
-        return None
-
-    category_rate = getattr(category, "default_customs_rate_pct", None)
+    chain = await category_chain(session, category_id)
+    category_rate = first_default(chain, "default_customs_rate_pct")
     if category_rate is None:
         return None
     return _as_decimal(category_rate)
@@ -348,7 +346,7 @@ async def resolve_margin_rate_pct(
     Resolution order, mirroring the customs and tax rates:
     1) Product.margin_rate_pct (per-article override)
     2) Category.default_margin_rate_pct (the category is where a margin is
-       normally decided)
+       normally decided), own value else the nearest ancestor's
     3) PriceGroup.margin_rate_pct (the customer's price group), else 30 %.
     """
     product_rate = getattr(product, "margin_rate_pct", None)
@@ -357,11 +355,8 @@ async def resolve_margin_rate_pct(
 
     category_id = getattr(product, "category_id", None)
     if category_id is not None:
-        try:
-            category = await session.get(Category, category_id)
-        except Exception:
-            category = None
-        category_rate = getattr(category, "default_margin_rate_pct", None)
+        chain = await category_chain(session, category_id)
+        category_rate = first_default(chain, "default_margin_rate_pct")
         if category_rate is not None:
             return _as_decimal(category_rate)
 
@@ -776,23 +771,26 @@ class PricingContext:
                 fx[row.currency_code] = _as_decimal(row.rate_to_reference)
                 fx_from[row.currency_code] = row.valid_from
 
+        # Each category's defaults in force: its own, else inherited from
+        # its parent chain (« Réseau > WiFi > Point d'accès »).
         category_rows = list((await session.exec(select(Category))).all())
-        categories = {
-            row.id: _CategoryPricing(
+        tree = build_tree(category_rows)
+        categories: dict[uuid.UUID, _CategoryPricing] = {}
+        for category_row in category_rows:
+            effective = inherited_defaults(tree, category_row.id)
+            categories[category_row.id] = _CategoryPricing(
                 default_customs_rate_pct=(
-                    _as_decimal(row.default_customs_rate_pct)
-                    if row.default_customs_rate_pct is not None
+                    _as_decimal(effective.customs_rate_pct)
+                    if effective.customs_rate_pct is not None
                     else None
                 ),
                 default_margin_rate_pct=(
-                    _as_decimal(row.default_margin_rate_pct)
-                    if row.default_margin_rate_pct is not None
+                    _as_decimal(effective.margin_rate_pct)
+                    if effective.margin_rate_pct is not None
                     else None
                 ),
-                default_tax_rate_id=row.default_tax_rate_id,
+                default_tax_rate_id=effective.tax_rate_id,
             )
-            for row in category_rows
-        }
 
         parameters = await load_pricing_parameters(session)
         origin = await load_origin_context(session)

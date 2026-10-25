@@ -22,6 +22,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.discount.models import Discount, DiscountTarget, DiscountType
 from app.features.order.models.order import Order
+from app.features.product.services.category_tree import category_ancestors_map
 from app.utils.money import quantize_amount
 
 ZERO = Decimal("0.00")
@@ -58,9 +59,13 @@ def _now() -> datetime:
 
 
 def eligible_lines(
-    discount: Any, items: list[Any], products_by_id: dict[uuid.UUID, Any]
+    discount: Any,
+    items: list[Any],
+    products_by_id: dict[uuid.UUID, Any],
+    category_ancestors: dict[uuid.UUID, tuple[uuid.UUID, ...]] | None = None,
 ) -> list[Any]:
-    """Cart lines the discount's target covers."""
+    """Cart lines the discount's target covers. ``category_ancestors`` (category
+    → its ancestors) lets a code on « Réseau » cover the WiFi access points."""
     target = discount.target
     if target == DiscountTarget.ORDER:
         return list(items)
@@ -71,12 +76,21 @@ def eligible_lines(
             continue
         if target == DiscountTarget.PRODUCT and product.id == discount.product_id:
             out.append(item)
-        elif (
-            target == DiscountTarget.CATEGORY
-            and getattr(product, "category_id", None) == discount.category_id
+        elif target == DiscountTarget.CATEGORY and discount.category_id in _lineage(
+            getattr(product, "category_id", None), category_ancestors
         ):
             out.append(item)
     return out
+
+
+def _lineage(
+    category_id: uuid.UUID | None,
+    category_ancestors: dict[uuid.UUID, tuple[uuid.UUID, ...]] | None,
+) -> tuple[uuid.UUID, ...]:
+    """The product's category and its ancestors (empty without a category)."""
+    if category_id is None:
+        return ()
+    return (category_id, *(category_ancestors or {}).get(category_id, ()))
 
 
 def split_amount(
@@ -167,7 +181,13 @@ async def resolve_coupon(
                 "Vous avez déjà utilisé ce code le nombre de fois permis",
             )
 
-    lines = eligible_lines(discount, items, products_by_id)
+    ancestors = (
+        await category_ancestors_map(session)
+        if discount.target == DiscountTarget.CATEGORY
+        or not getattr(discount, "applies_to_promoted", True)
+        else {}
+    )
+    lines = eligible_lines(discount, items, products_by_id, ancestors)
     if not getattr(discount, "applies_to_promoted", True) and lines:
         # « Non cumulable » : the articles a promotion in force covers are
         # left out of the code (they already have their own reduced price).
@@ -184,6 +204,9 @@ async def resolve_coupon(
                     product_id=product_id,
                     parent_id=getattr(product, "parent_product_id", None),
                     category_id=getattr(product, "category_id", None),
+                    category_lineage=_lineage(
+                        getattr(product, "category_id", None), ancestors
+                    ),
                 )
                 for p in promotions
             )

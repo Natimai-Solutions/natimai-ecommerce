@@ -167,6 +167,11 @@ const fr = {
     departure: 'Départ groupé « {name} ». {cutoff}.',
     condition: 'État',
     choose_variant_hint: 'Choisissez une déclinaison pour voir son prix et sa disponibilité.',
+    variant_base: 'Standard',
+    variant_base_hint:
+      'Standard : le produit tel que décrit sur cette fiche. Choisissez une option pour le remplacer.',
+    variant_combo_missing:
+      'Aucune déclinaison ne correspond à ces options : complétez votre choix ou revenez au standard.',
     quantity: 'Quantité',
     qty_less: 'Diminuer la quantité',
     qty_more: 'Augmenter la quantité',
@@ -337,6 +342,7 @@ const fr = {
   catalogue: {
     categories: 'Catégories',
     all: 'Tout le catalogue',
+    back_to: 'Revenir à {name}',
     filters: 'Filtres',
     filters_n: 'Filtres ({n})',
     close_filters: 'Fermer les filtres',

@@ -71,9 +71,15 @@ async def refresh_parent_from_variants(
     The parent is never sold, but the listings sort and filter on its price:
     it shows « à partir de » = the cheapest active variant. ``has_variants``
     follows whether any active variant is left.
+
+    With ``variants_optional`` the parent is the base configuration, sold and
+    priced as is: nothing is rolled up but ``has_variants``.
     """
     variants = await list_variants(session, parent.id)
     parent.has_variants = bool(variants)
+    if parent.variants_optional:
+        session.add(parent)
+        return parent
     priced = [
         v
         for v in variants
@@ -149,6 +155,30 @@ async def refresh_all_parents(session: AsyncSession) -> int:
     return count
 
 
+# -- a parent is found through its variants ---------------------------------
+
+
+def active_variants_of_enclosing_product() -> Any:
+    """SQL: the active variants of the ``Product`` row of the enclosing query,
+    as an aliased select to build a correlated ``EXISTS`` / ``IN`` on.
+
+    A variant may change a characteristic of its parent (« processeur : i7 »
+    on an i5 machine): the storefront lists the parent, so what a variant
+    carries — its name, its option values, its ``product_specs`` rows — must
+    find the parent in the search.
+    """
+    child = Product.__table__.alias("variant_match")  # type: ignore[attr-defined]
+    return child, (
+        select(child.c.id)
+        .where(
+            child.c.parent_product_id == col(Product.id),
+            child.c.is_active.is_(True),
+            child.c.is_admin_active.is_(True),
+        )
+        .correlate(Product)
+    )
+
+
 # -- availability of a parent = its variants ---------------------------------
 
 
@@ -183,6 +213,9 @@ def _children_stock_expression(kind: str) -> Any:
         .select_from(child)
         .where(
             child.c.parent_product_id == col(Product.id),
+            # The base product sold as is has a stock of its own; its
+            # optional variants have theirs (what the checkout reserves).
+            col(Product.variants_optional).is_(False),
             child.c.is_active.is_(True),
             child.c.is_admin_active.is_(True),
         )
@@ -256,3 +289,12 @@ async def children_availability(
             supplier=current.supplier + supplier_available_quantity(variant),
         )
     return out
+
+
+def stock_counts_variants(parent: Any) -> bool:
+    """Whether a parent's sellable stock includes its variants' (SQL twin:
+    :func:`_children_stock_expression`). The base product sold as is
+    (``variants_optional``) only counts its own: what the checkout reserves."""
+    return bool(getattr(parent, "has_variants", False)) and not bool(
+        getattr(parent, "variants_optional", False)
+    )

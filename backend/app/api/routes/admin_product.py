@@ -21,6 +21,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
+from sqlalchemy import func
 from sqlmodel import col, select
 
 from app.api.deps import CurrentSuperUser, SessionDep, module_required
@@ -39,6 +40,7 @@ from app.features.integrations.services.supplier_attachment import (
 )
 from app.features.inventory.services.availability import publish_with_availability
 from app.features.product.crud.product import crud_product
+from app.features.product.models.brand import Brand
 from app.features.product.models.price_group import PriceGroup
 from app.features.product.models.price_history import (
     ProductPriceEntry,
@@ -183,6 +185,39 @@ def _product_translations(
             message=f"Traductions invalides : {exc}",
             details={"field": "translations"},
         ) from exc
+
+
+@router.get("/manufacturers", response_model=list[str])
+async def admin_list_manufacturers(
+    session: SessionDep,
+    _current_user: CurrentSuperUser,
+) -> list[str]:
+    """The brands the product form proposes: every manufacturer already on a
+    product (one spelling per brand — the most frequent — so « HP » and
+    « hp » stop coexisting) and the brands of the catalogue, sorted."""
+    clean = func.nullif(func.trim(col(Product.manufacturer)), "")
+    rows = (
+        await session.exec(
+            select(clean, func.count())
+            .where(clean.is_not(None))
+            .group_by(clean)
+            .order_by(func.count().desc(), clean)
+        )
+    ).all()
+    by_key: dict[str, str] = {}
+    for name, _count in rows:
+        key = str(name).casefold()
+        by_key.setdefault(key, str(name))
+    brands = (
+        await session.exec(
+            select(col(Brand.name)).where(col(Brand.is_active).is_(True))
+        )
+    ).all()
+    for name in brands:
+        text = str(name).strip()
+        if text:
+            by_key.setdefault(text.casefold(), text)
+    return sorted(by_key.values(), key=str.casefold)
 
 
 @router.get(
