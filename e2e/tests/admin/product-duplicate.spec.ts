@@ -28,8 +28,9 @@ test('the admin duplicates an article into a pre-filled new product', async ({ p
   await expect(dialog.getByRole('heading', { name: 'Dupliquer le produit' })).toBeVisible()
   await expect(dialog.getByTestId('product-duplicate-notice')).toContainText(name)
   await expect(dialog.getByLabel('Nom *')).toHaveValue(copyName)
-  await expect(dialog.getByTestId('product-base-price')).toHaveValue('11600')
-  await expect(dialog.getByTestId('product-cost')).toHaveValue('6000')
+  // Amounts come back from the API as decimals ("11600.00"), as on any edit.
+  await expect(dialog.getByTestId('product-base-price')).toHaveValue(/^11600(\.0+)?$/)
+  await expect(dialog.getByTestId('product-cost')).toHaveValue(/^6000(\.0+)?$/)
   await dialog.getByRole('button', { name: 'Créer' }).click()
   await expect(dialog).toBeHidden()
 
