@@ -927,6 +927,26 @@ const fr = {
     title: 'Favoris',
     waiting: 'En attente du retour en stock',
   },
+  reviews: {
+    title: 'Avis clients',
+    count: '{n} avis | {n} avis',
+    none: "Pas encore d'avis sur ce produit.",
+    customer: 'Client',
+    verified: 'Achat vérifié',
+    more: "Plus d'avis",
+    rated: 'Noté {n} sur 5',
+    rating: 'Votre note',
+    stars: '{n} étoile | {n} étoiles',
+    comment: 'Votre avis (facultatif)',
+    write_title: 'Donnez votre avis',
+    edit_title: 'Votre avis',
+    submit: 'Envoyer mon avis',
+    save_failed: "L'avis n'a pas pu être envoyé.",
+    status_pending: 'Merci ! Votre avis sera publié après vérification par la boutique.',
+    status_approved: 'Votre avis est publié. Le modifier le soumettra à nouveau à vérification.',
+    status_rejected:
+      "Votre avis n'a pas été publié. Vous pouvez le modifier et l'envoyer à nouveau.",
+  },
 };
 
 export type MessageSchema = typeof fr;

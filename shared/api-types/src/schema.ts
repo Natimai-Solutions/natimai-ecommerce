@@ -5711,6 +5711,90 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/reviews/product/{product_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Published Product Reviews
+         * @description The approved reviews of a product, newest first, with their summary.
+         */
+        get: operations["review-list_published_product_reviews"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reviews/product/{product_id}/mine": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get My Review */
+        get: operations["review-get_my_review"];
+        /**
+         * Put My Review
+         * @description Write or edit the review of a product the customer bought (403
+         *     ``review.not_purchased`` otherwise). It waits for moderation.
+         */
+        put: operations["review-put_my_review"];
+        post?: never;
+        /** Delete My Review */
+        delete: operations["review-delete_my_review"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reviews/admin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Reviews To Moderate
+         * @description Reviews by moderation status (pending by default), oldest first for
+         *     the pending ones, newest first otherwise.
+         */
+        get: operations["review-list_reviews_to_moderate"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reviews/admin/{review_id}/moderate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Moderate
+         * @description Publish (approve) or reject a review.
+         */
+        post: operations["review-moderate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/notification/": {
         parameters: {
             query?: never;
@@ -14530,6 +14614,16 @@ export interface components {
             /** Task Id */
             task_id?: string | null;
         };
+        /** ModerationDecision */
+        ModerationDecision: {
+            /**
+             * Decision
+             * @enum {string}
+             */
+            decision: "approve" | "reject";
+            /** Note */
+            note?: string | null;
+        };
         /** ModuleState */
         ModuleState: {
             /** Key */
@@ -15042,6 +15136,32 @@ export interface components {
             order_id: string | null;
             /** Can Order */
             can_order: boolean;
+        };
+        /**
+         * MyReview
+         * @description The signed-in customer's own review, whatever its moderation.
+         */
+        MyReview: {
+            /** Rating */
+            rating: number;
+            /** Comment */
+            comment?: string | null;
+            /** Status */
+            status: string;
+            /** Created At */
+            created_at?: string | null;
+        };
+        /**
+         * MyReviewState
+         * @description Whether the signed-in customer may review the product, and their review.
+         */
+        MyReviewState: {
+            /**
+             * Can Review
+             * @default false
+             */
+            can_review: boolean;
+            review?: components["schemas"]["MyReview"] | null;
         };
         /**
          * NotificationCreate
@@ -18849,6 +18969,12 @@ export interface components {
             /** Missing */
             missing?: string[];
         };
+        /** ProductReviewsResponse */
+        ProductReviewsResponse: {
+            summary: components["schemas"]["ReviewSummaryPublic"];
+            /** Data */
+            data?: components["schemas"]["PublishedReview"][];
+        };
         /**
          * ProductSearchFacets
          * @description Represents product search facets.
@@ -19291,6 +19417,30 @@ export interface components {
             already_published: number;
             /** Missing */
             missing?: string[];
+        };
+        /**
+         * PublishedReview
+         * @description A review as the storefront shows it: no e-mail, no account id.
+         */
+        PublishedReview: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Rating */
+            rating: number;
+            /** Comment */
+            comment?: string | null;
+            /** Author Name */
+            author_name?: string | null;
+            /**
+             * Verified Purchase
+             * @default false
+             */
+            verified_purchase: boolean;
+            /** Created At */
+            created_at?: string | null;
         };
         /**
          * QuoteIssueBody
@@ -19839,6 +19989,64 @@ export interface components {
             user_id: string;
         };
         /**
+         * ReviewStatus
+         * @description Moderation of a review: only an approved one is shown.
+         * @enum {string}
+         */
+        ReviewStatus: "pending" | "approved" | "rejected";
+        /** ReviewSummaryPublic */
+        ReviewSummaryPublic: {
+            /**
+             * Count
+             * @default 0
+             */
+            count: number;
+            /** Average */
+            average?: number | null;
+            /** Distribution */
+            distribution?: {
+                [key: string]: number;
+            };
+        };
+        /** ReviewToModerate */
+        ReviewToModerate: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Product Name */
+            product_name?: string | null;
+            /** Author Name */
+            author_name?: string | null;
+            /** Author Email */
+            author_email?: string | null;
+            /** Rating */
+            rating: number;
+            /** Comment */
+            comment?: string | null;
+            /** Status */
+            status: string;
+            /**
+             * Verified Purchase
+             * @default false
+             */
+            verified_purchase: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Moderated At */
+            moderated_at?: string | null;
+            /** Moderation Note */
+            moderation_note?: string | null;
+        };
+        /**
          * ReviewUpdate
          * @description Represents review update.
          */
@@ -19876,6 +20084,13 @@ export interface components {
             /** User Id */
             user_id?: string | null;
         };
+        /** ReviewWrite */
+        ReviewWrite: {
+            /** Rating */
+            rating: number;
+            /** Comment */
+            comment?: string | null;
+        };
         /**
          * ReviewsPublic
          * @description Represents reviews public.
@@ -19889,6 +20104,16 @@ export interface components {
             /**
              * Count
              * @description Total number of reviews
+             * @default 0
+             */
+            count: number;
+        };
+        /** ReviewsToModerate */
+        ReviewsToModerate: {
+            /** Data */
+            data?: components["schemas"]["ReviewToModerate"][];
+            /**
+             * Count
              * @default 0
              */
             count: number;
@@ -34575,6 +34800,203 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReviewPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "review-list_published_product_reviews": {
+        parameters: {
+            query?: {
+                skip?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductReviewsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "review-get_my_review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyReviewState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "review-put_my_review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyReviewState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "review-delete_my_review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "review-list_reviews_to_moderate": {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["ReviewStatus"] | null;
+                skip?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewsToModerate"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "review-moderate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                review_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModerationDecision"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewToModerate"];
                 };
             };
             /** @description Validation Error */

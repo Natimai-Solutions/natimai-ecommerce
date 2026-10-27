@@ -1,11 +1,22 @@
 # mypy: disable-error-code="assignment,misc,override"
 
+import datetime
 import uuid
+from enum import StrEnum
 
 from pydantic import field_validator
+from sqlalchemy import Index, text
 from sqlmodel import Field, SQLModel
 
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
+
+
+class ReviewStatus(StrEnum):
+    """Moderation of a review: only an approved one is shown."""
+
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
 
 
 def validate_rating(v: int, field_name: str = "Rating") -> int:
@@ -62,6 +73,16 @@ class Review(ReviewBase, table=True):
     """Represents review."""
 
     __tablename__ = "reviews"
+    __table_args__ = (
+        # One review per customer and product: the storefront edits it in place.
+        Index(
+            "ux_reviews_user_product_active",
+            "user_id",
+            "product_id",
+            unique=True,
+            postgresql_where=text("is_active"),
+        ),
+    )
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
     product_id: uuid.UUID = Field(
         foreign_key="products.id",
@@ -75,6 +96,25 @@ class Review(ReviewBase, table=True):
         index=True,
         description="ID of the user who created the review",
     )
+    #: pending until the shop approves it; edited by its author → pending again.
+    status: str = Field(
+        default=ReviewStatus.PENDING.value,
+        max_length=16,
+        index=True,
+        sa_column_kwargs={"server_default": ReviewStatus.PENDING.value},
+    )
+    #: The author bought the product (checked when the review is written).
+    verified_purchase: bool = Field(
+        default=False, sa_column_kwargs={"server_default": "false"}
+    )
+    #: How the author is shown (« Hina T. »), frozen when the review is written.
+    author_name: str | None = Field(default=None, max_length=60)
+    moderated_at: datetime.datetime | None = Field(default=None)
+    moderated_by_id: uuid.UUID | None = Field(
+        default=None, foreign_key="users.id", nullable=True
+    )
+    #: Why a review was rejected (seen by the shop only).
+    moderation_note: str | None = Field(default=None, max_length=300)
 
 
 class ReviewPublic(ReviewBase, BasePublic):

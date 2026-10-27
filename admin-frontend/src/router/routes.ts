@@ -52,6 +52,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/pages/GroupUpgradeRequestsPage.vue'),
       },
       { path: 'addresses', component: () => import('@/pages/AddressesPage.vue') },
+      { path: 'reviews', component: () => import('@/pages/ReviewsPage.vue') },
       { path: 'users', component: () => import('@/pages/UsersPage.vue') },
       { path: 'abandoned-carts', component: () => import('@/pages/AbandonedCartsPage.vue') },
       {

@@ -914,6 +914,25 @@ const en: MessageSchema = {
     title: 'Favourites',
     waiting: 'Waiting for restock',
   },
+  reviews: {
+    title: 'Customer reviews',
+    count: '{n} review | {n} reviews',
+    none: 'No reviews for this product yet.',
+    customer: 'Customer',
+    verified: 'Verified purchase',
+    more: 'More reviews',
+    rated: 'Rated {n} out of 5',
+    rating: 'Your rating',
+    stars: '{n} star | {n} stars',
+    comment: 'Your review (optional)',
+    write_title: 'Write a review',
+    edit_title: 'Your review',
+    submit: 'Send my review',
+    save_failed: 'The review could not be sent.',
+    status_pending: 'Thank you! Your review will be published once the shop has checked it.',
+    status_approved: 'Your review is published. Editing it sends it for checking again.',
+    status_rejected: 'Your review was not published. You can edit it and send it again.',
+  },
 };
 
 export default en;

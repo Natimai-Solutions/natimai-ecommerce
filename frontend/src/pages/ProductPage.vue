@@ -376,6 +376,8 @@
         />
       </section>
 
+      <ProductReviews :product-id="product.id" class="product__reviews" />
+
       <section
         v-if="related.accessories.length > 0"
         class="product__related"
@@ -512,6 +514,7 @@ import {
 } from '@/api/products';
 import ProductImage from '@/components/ProductImage.vue';
 import ProductOffers from '@/components/ProductOffers.vue';
+import ProductReviews from '@/components/ProductReviews.vue';
 import { useAuthStore } from '@/stores/auth';
 import { addToMyWishlist, getMyWishlist, removeFromMyWishlist } from '@/api/wishlist';
 import { useCartStore } from '@/stores/cart';
@@ -1214,7 +1217,8 @@ watch(
   padding-bottom: 96px;
 }
 
-.product__related {
+.product__related,
+.product__reviews {
   margin-top: 48px;
 }
 
