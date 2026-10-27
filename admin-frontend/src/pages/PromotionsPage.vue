@@ -208,7 +208,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
-import { intlLocale } from '@app/utils';
+import { formatDate, intlLocale } from '@app/utils';
 import { computed, onMounted, reactive, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
@@ -265,9 +265,7 @@ const columns = computed<QTableColumn<Discount>[]>(() => [
 ]);
 
 function fmtDate(value: string | null): string {
-  if (!value) return '∞';
-  const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? value : d.toLocaleDateString(intlLocale());
+  return value ? formatDate(value) : '∞';
 }
 
 function valueLabel(d: Discount): string {

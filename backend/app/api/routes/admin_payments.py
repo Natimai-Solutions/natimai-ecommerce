@@ -638,7 +638,14 @@ async def get_attachment_download_url(
             },
         )
 
-    if attachment.av_scanned and attachment.av_clean is False:
+    if not attachment.av_scanned:
+        raise AppError(
+            code="attachment.scan_pending",
+            status_code=409,
+            message="Analyse antivirus en cours : réessayez dans un instant.",
+            details={"reason": "scan_pending"},
+        )
+    if attachment.av_clean is False:
         raise AppError(
             code="attachment.validation_failed",
             status_code=403,

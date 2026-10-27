@@ -310,3 +310,55 @@ async def test_search_matches_the_beginning_of_a_word(db_session: AsyncSession) 
     assert _names(await crud_product.search_products(db_session, q="zzz")) == set()
     # Only punctuation: no text filter rather than an SQL error.
     assert (await crud_product.search_products(db_session, q="?!"))["count"] >= 3
+
+
+@pytest.mark.asyncio
+async def test_a_parent_is_found_through_what_its_variants_change(
+    db_session: AsyncSession,
+) -> None:
+    """« Je cherche un i7 » : the machine is an i5 whose variant is an i7. The
+    listed entry is the parent, so the variant's name, option values and
+    characteristics (``product_specs``) find it — an inactive variant's do
+    not."""
+    seeded = await _seed(db_session)
+    laptops = seeded["laptops"]
+    parent = _product("PC HP EliteDesk 800", "180000", category_id=laptops.id)
+    parent.has_variants = True
+    db_session.add(parent)
+    await db_session.flush()
+    i7 = _product("PC HP EliteDesk 800 — i7", "210000", category_id=laptops.id)
+    i7.parent_product_id = parent.id
+    i7.variant_options = {"Processeur": "i7"}
+    retired = _product("PC HP EliteDesk 800 — Xeon", "250000", category_id=laptops.id)
+    retired.parent_product_id = parent.id
+    retired.variant_options = {"Processeur": "Xeon"}
+    retired.is_active = False
+    db_session.add_all([i7, retired])
+    await db_session.flush()
+    db_session.add_all(
+        [
+            ProductSpec(product_id=parent.id, spec_key="cpu", value_text="i5"),
+            ProductSpec(product_id=i7.id, spec_key="cpu", value_text="i7"),
+            ProductSpec(product_id=retired.id, spec_key="cpu", value_text="xeon"),
+        ]
+    )
+    await db_session.commit()
+    await refresh_sale_prices(db_session)
+
+    # The text search: the variant's name / option value finds the parent,
+    # which is listed alone (variants are never rows of their own).
+    by_text = await crud_product.search_products(db_session, q="i7")
+    assert _names(by_text) == {"PC HP EliteDesk 800"}
+    assert _names(await crud_product.search_products(db_session, q="xeon")) == set()
+
+    # The spec filter: the parent's own value and the variant's both match.
+    assert _names(
+        await crud_product.search_products(db_session, specs={"cpu": "i7"})
+    ) == {"PC HP EliteDesk 800"}
+    assert _names(
+        await crud_product.search_products(db_session, specs={"cpu": "i5"})
+    ) == {"PC HP EliteDesk 800"}
+    assert (
+        _names(await crud_product.search_products(db_session, specs={"cpu": "xeon"}))
+        == set()
+    )

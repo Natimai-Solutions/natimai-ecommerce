@@ -27,6 +27,8 @@ from __future__ import annotations
 
 import base64
 import binascii
+import hashlib
+import hmac
 import json
 import logging
 import re
@@ -38,7 +40,7 @@ from typing import Any, cast
 from urllib.parse import urlencode
 
 import httpx
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -48,6 +50,8 @@ from app.core import security
 from app.core.auth_cookies import set_refresh_cookie
 from app.core.config import settings
 from app.core.errors import AppError
+from app.core.logging_config import mask_email
+from app.core.rate_limit import rate_limited
 from app.features.user.crud.refresh_token import crud_user_refresh_token
 from app.features.user.crud.user import crud_user, mark_logged_in
 from app.features.user.models.oauth_link import UserOAuthLink
@@ -59,6 +63,19 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["oauth"])
 
 _STATE_TTL = 300  # seconds
+#: Ties the callback to the browser that started the sign-in: without it, an
+#: attacker could send a victim the callback URL of the attacker's own code
+#: and sign them into the attacker's account (login CSRF).
+_BINDING_COOKIE = "oauth_binding"
+_oauth_limit = Depends(rate_limited("oauth", limit=20, window_seconds=60))
+
+
+def _pkce_challenge(verifier: str) -> str:
+    """S256 code challenge of a PKCE verifier (RFC 7636)."""
+    digest = hashlib.sha256(verifier.encode("ascii")).digest()
+    return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
+
+
 _STATE_PREFIX = "oauth:state:"
 
 # ---------------------------------------------------------------------------
@@ -145,7 +162,10 @@ def _callback_url(request: Request, provider: str) -> str:
     return f"{base}{settings.API_V1_STR}/auth/{provider}/callback"
 
 
-def _authorization_url(provider: str, *, redirect_uri: str, state: str) -> str:
+def _authorization_url(
+    provider: str, *, redirect_uri: str, state: str, code_challenge: str
+) -> str:
+    pkce = {"code_challenge": code_challenge, "code_challenge_method": "S256"}
     if provider == "google":
         params = {
             "client_id": settings.GOOGLE_CLIENT_ID,
@@ -154,6 +174,7 @@ def _authorization_url(provider: str, *, redirect_uri: str, state: str) -> str:
             "scope": "openid email profile",
             "state": state,
             "access_type": "online",
+            **pkce,
         }
         return f"{_GOOGLE_AUTH_URL}?{urlencode(params)}"
     # microsoft
@@ -165,13 +186,14 @@ def _authorization_url(provider: str, *, redirect_uri: str, state: str) -> str:
         "scope": "openid email profile User.Read",
         "state": state,
         "response_mode": "query",
+        **pkce,
     }
     auth_url = _MICROSOFT_AUTH_URL.format(tenant=tenant)
     return f"{auth_url}?{urlencode(params)}"
 
 
 async def _exchange_code(
-    provider: str, *, code: str, redirect_uri: str
+    provider: str, *, code: str, redirect_uri: str, code_verifier: str
 ) -> dict[str, Any]:
     """Exchange authorization code for access token."""
     if provider == "google":
@@ -182,6 +204,7 @@ async def _exchange_code(
             "code": code,
             "grant_type": "authorization_code",
             "redirect_uri": redirect_uri,
+            "code_verifier": code_verifier,
         }
     else:
         tenant = settings.MICROSOFT_TENANT_ID or "common"
@@ -193,6 +216,7 @@ async def _exchange_code(
             "grant_type": "authorization_code",
             "redirect_uri": redirect_uri,
             "scope": "openid email profile User.Read",
+            "code_verifier": code_verifier,
         }
 
     async with httpx.AsyncClient(timeout=10.0) as client:
@@ -305,12 +329,14 @@ def _extract_user_info(
     )
 
 
-def _build_token_bundle(user_id: uuid.UUID) -> tuple[str, str, str, datetime]:
+def _build_token_bundle(
+    user_id: uuid.UUID, stamp: str
+) -> tuple[str, str, str, datetime]:
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     refresh_token_expires = timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     refresh_jti = str(uuid.uuid4())
     access_tok = security.create_access_token(
-        user_id, expires_delta=access_token_expires
+        user_id, expires_delta=access_token_expires, stamp=stamp
     )
     refresh_tok = security.create_refresh_token(
         user_id, expires_delta=refresh_token_expires, jti=refresh_jti
@@ -413,7 +439,7 @@ async def _find_or_create_user(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/{provider}/login")
+@router.get("/{provider}/login", dependencies=[_oauth_limit])
 async def oauth_login(
     provider: str,
     request: Request,
@@ -421,20 +447,54 @@ async def oauth_login(
 ) -> RedirectResponse:
     """Redirect the browser to the provider OAuth authorization page.
 
-    Generates a CSRF state token stored in Redis (TTL 5 min).
+    The state (Redis, TTL 5 min, single use) holds the provider, the PKCE
+    verifier and a binding secret also set as an HttpOnly cookie on this
+    browser: the callback is accepted only from the browser that started it.
     """
     _check_provider(provider)
     _check_configured(provider)
 
     state = secrets.token_urlsafe(24)
-    await redis.setex(f"{_STATE_PREFIX}{state}", _STATE_TTL, provider.encode())
+    binding = secrets.token_urlsafe(24)
+    verifier = secrets.token_urlsafe(48)
+    await redis.setex(
+        f"{_STATE_PREFIX}{state}",
+        _STATE_TTL,
+        json.dumps({"provider": provider, "binding": binding, "verifier": verifier}),
+    )
 
     redirect_uri = _callback_url(request, provider)
-    auth_url = _authorization_url(provider, redirect_uri=redirect_uri, state=state)
-    return RedirectResponse(url=auth_url, status_code=302)
+    auth_url = _authorization_url(
+        provider,
+        redirect_uri=redirect_uri,
+        state=state,
+        code_challenge=_pkce_challenge(verifier),
+    )
+    redirect = RedirectResponse(url=auth_url, status_code=302)
+    # Lax: sent on the provider's top-level redirect back to the callback.
+    redirect.set_cookie(
+        key=_BINDING_COOKIE,
+        value=binding,
+        max_age=_STATE_TTL,
+        path=f"{settings.API_V1_STR}/auth",
+        secure=settings.refresh_cookie_secure,
+        httponly=True,
+        samesite="lax",
+    )
+    return redirect
 
 
-@router.get("/{provider}/callback", name="oauth_callback")
+def _read_state(raw: bytes | str | None) -> dict[str, str] | None:
+    if raw is None:
+        return None
+    try:
+        data = json.loads(raw)
+    except (TypeError, ValueError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+@router.get("/{provider}/callback", name="oauth_callback", dependencies=[_oauth_limit])
 async def oauth_callback(
     provider: str,
     request: Request,
@@ -462,16 +522,24 @@ async def oauth_callback(
     if not code or not state:
         return _frontend_error_redirect("missing_code_or_state")
 
-    # Verify + consume state (replay protection)
-    stored = await redis.getdel(f"{_STATE_PREFIX}{state}")
-    if stored is None or stored.decode() != provider:
-        logger.warning("OAuth state mismatch: provider=%s state=%s", provider, state)
+    # Verify + consume state (replay protection), from this browser only.
+    stored = _read_state(await redis.getdel(f"{_STATE_PREFIX}{state}"))
+    binding = request.cookies.get(_BINDING_COOKIE) or ""
+    if (
+        stored is None
+        or stored.get("provider") != provider
+        or not hmac.compare_digest(str(stored.get("binding", "")), binding)
+    ):
+        logger.warning("OAuth state mismatch: provider=%s", provider)
         return _frontend_error_redirect("invalid_state")
 
     try:
         redirect_uri = _callback_url(request, provider)
         token_data = await _exchange_code(
-            provider, code=code, redirect_uri=redirect_uri
+            provider,
+            code=code,
+            redirect_uri=redirect_uri,
+            code_verifier=str(stored.get("verifier", "")),
         )
         access_token_provider = token_data.get("access_token", "")
         user_info = await _fetch_user_info(provider, access_token_provider)
@@ -493,7 +561,7 @@ async def oauth_callback(
         logger.warning(
             "OAuth sign-in refused: provider=%s email=%s reason=%s (%s)",
             provider,
-            email,
+            mask_email(email),
             refused.code,
             refused,
         )
@@ -522,7 +590,7 @@ async def oauth_callback(
         return _frontend_error_redirect("user_inactive")
 
     _access_tok, refresh_tok, refresh_jti, refresh_expires_at = _build_token_bundle(
-        user.id
+        user.id, user.security_stamp
     )
     mark_logged_in(user)
     # create_for_user internally calls CrudBase.create which commits the transaction,

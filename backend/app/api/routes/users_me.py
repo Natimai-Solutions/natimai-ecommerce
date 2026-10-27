@@ -24,7 +24,11 @@ from app.core.auth_cookies import clear_refresh_cookie
 from app.core.config import settings
 from app.core.errors import AppError
 from app.core.rate_limit import get_client_ip, hit_rate_limit
-from app.core.security import get_password_hash, verify_password
+from app.core.security import (
+    aget_password_hash,
+    averify_password,
+    new_security_stamp,
+)
 from app.features.system import audit
 from app.features.user.crud.refresh_token import crud_user_refresh_token
 from app.features.user.models.oauth_link import UserOAuthLink
@@ -129,7 +133,7 @@ async def change_my_password(
             status_code=429,
             message="Trop de tentatives. Réessayez dans quelques minutes.",
         )
-    if not current_user.hashed_password or not verify_password(
+    if not current_user.hashed_password or not await averify_password(
         payload.current_password, current_user.hashed_password
     ):
         raise AppError(
@@ -145,7 +149,8 @@ async def change_my_password(
             message="Le nouveau mot de passe doit être différent de l'actuel.",
             details={"field": "new_password"},
         )
-    current_user.hashed_password = get_password_hash(payload.new_password)
+    current_user.hashed_password = await aget_password_hash(payload.new_password)
+    current_user.security_stamp = new_security_stamp()
     session.add(current_user)
     await crud_user_refresh_token.revoke_all_active_for_user(
         session=session, user_id=current_user.id, reason="password_change"
@@ -226,7 +231,7 @@ async def delete_my_account(
         )
     ).first() is not None
     if payload.password or not has_provider:
-        if not payload.password or not verify_password(
+        if not payload.password or not await averify_password(
             payload.password, current_user.hashed_password or ""
         ):
             raise AppError(

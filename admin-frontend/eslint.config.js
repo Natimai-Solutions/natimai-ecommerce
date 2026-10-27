@@ -67,6 +67,24 @@ export default defineConfigWithVueTs(
 
       // allow debugger during development only
       'no-debugger': process.env.NODE_ENV === 'production' ? 'error' : 'off',
+
+      // Business dates are days of the shop (Pacific/Tahiti), not of UTC or
+      // of the browser: `todayLocal()`, `dayBounds()` and `formatDate()`
+      // from @app/utils.
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            "CallExpression[callee.property.name='slice'][callee.object.callee.property.name='toISOString']",
+          message:
+            'toISOString().slice() is the UTC day (the next day in Tahiti from 14:00): use todayLocal() or dayBounds() from @app/utils.',
+        },
+        {
+          selector: "CallExpression[callee.property.name='toLocaleDateString']",
+          message:
+            "toLocaleDateString() shows the browser's day, not the shop's: use formatDate() from @app/utils.",
+        },
+      ],
     },
   },
 

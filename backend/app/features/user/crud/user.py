@@ -7,7 +7,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
-from app.core.security import get_password_hash, verify_password
+from app.core.security import averify_password, get_password_hash
 from app.features.base.crud import CrudBase
 from app.features.user.models.user import User, UserCreate, UserUpdate
 
@@ -107,14 +107,14 @@ class CrudUser(CrudBase[User, UserCreate, UserUpdate]):
         if not user:
             # Timing equalization: run a bcrypt verify for unknown emails too,
             # so the response time does not reveal whether the account exists.
-            verify_password(password, _get_dummy_password_hash())
+            await averify_password(password, _get_dummy_password_hash())
             return None
 
         now = _utcnow()
         if user.locked_until is not None and user.locked_until > now:
             raise AccountLockedError(user.locked_until)
 
-        if not verify_password(password, user.hashed_password):
+        if not await averify_password(password, user.hashed_password):
             user.failed_login_attempts += 1
             locked_until: datetime.datetime | None = None
             if user.failed_login_attempts >= settings.LOGIN_LOCKOUT_MAX_FAILURES:

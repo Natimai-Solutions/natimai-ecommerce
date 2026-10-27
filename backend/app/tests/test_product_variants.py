@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import uuid
+from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any, cast
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from sqlalchemy.dialects import postgresql
@@ -16,7 +17,11 @@ from app.api.routes.cart import _get_active_product_or_404
 from app.core.errors import AppError
 from app.features.inventory.services.availability import available_quantity_expression
 from app.features.product.models.product import Product
-from app.features.product.services.variants import option_axes, variant_display_name
+from app.features.product.services.variants import (
+    option_axes,
+    stock_counts_variants,
+    variant_display_name,
+)
 
 
 def test_display_name_joins_the_option_values() -> None:
@@ -65,3 +70,48 @@ async def test_a_parent_with_variants_is_not_sellable_as_such() -> None:
         await _get_active_product_or_404(cast(Any, session), product_id=parent.id)
     assert raised.value.code == "cart.product.has_variants"
     assert raised.value.status_code == 409
+
+
+@pytest.mark.anyio
+async def test_a_parent_whose_variants_are_optional_is_sold_as_the_base_product() -> (
+    None
+):
+    parent = SimpleNamespace(
+        id=uuid.uuid4(),
+        is_active=True,
+        is_admin_active=True,
+        has_variants=True,
+        variants_optional=True,
+        base_price=Decimal("18000"),
+    )
+    session = AsyncMock()
+    session.get = AsyncMock(return_value=parent)
+    with (
+        patch("app.api.routes.cart.publication_blockers", AsyncMock(return_value=[])),
+        patch("app.api.routes.cart._price_for_customer", AsyncMock()),
+    ):
+        sold = await _get_active_product_or_404(
+            cast(Any, session), product_id=parent.id
+        )
+    assert cast(Any, sold) is parent
+
+
+def test_optional_variants_leave_their_stock_out_of_the_parent() -> None:
+    """The base product sold as is counts its own stock only (what the
+    checkout reserves); the entry-only parent counts its variants'."""
+    stmt = select(col(Product.id)).where(available_quantity_expression() > 0)
+    sql = str(
+        stmt.compile(
+            dialect=postgresql.dialect(),  # type: ignore[no-untyped-call]
+            compile_kwargs={"literal_binds": True},
+        )
+    )
+    assert "products.variants_optional IS false" in sql
+    assert stock_counts_variants(SimpleNamespace(has_variants=True)) is True
+    assert (
+        stock_counts_variants(
+            SimpleNamespace(has_variants=True, variants_optional=True)
+        )
+        is False
+    )
+    assert stock_counts_variants(SimpleNamespace(has_variants=False)) is False

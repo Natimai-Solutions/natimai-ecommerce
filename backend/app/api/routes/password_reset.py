@@ -33,13 +33,13 @@ from app.core import runtime_settings
 from app.core.config import settings
 from app.core.errors import AppError
 from app.core.rate_limit import get_client_ip, hit_rate_limit
-from app.core.security import get_password_hash, hash_reset_token
-from app.features.notification.email_renderer import render_email
-from app.features.notification.providers import (
-    NotificationMessage,
-    UnknownNotificationProviderError,
-    get_notification_provider,
+from app.core.security import (
+    aget_password_hash,
+    hash_reset_token,
+    new_security_stamp,
 )
+from app.features.notification.email_renderer import render_email
+from app.features.notification.mailer import queue_email
 from app.features.user.crud.refresh_token import crud_user_refresh_token
 from app.features.user.models.user import User
 
@@ -85,7 +85,9 @@ def _utcnow() -> datetime.datetime:
     return datetime.datetime.now(datetime.UTC)
 
 
-async def _send_reset_email(email: str, token: str) -> None:
+async def _send_reset_email(session: SessionDep, email: str, token: str) -> None:
+    """Queue the reset link: sent by the worker, so the answer takes the same
+    time whether the account exists or not."""
     reset_url = f"{settings.FRONTEND_HOST.rstrip('/')}/reinitialiser?token={token}"
     rendered = render_email(
         "password_reset",
@@ -93,27 +95,15 @@ async def _send_reset_email(email: str, token: str) -> None:
         valid_minutes=RESET_TOKEN_TTL_MINUTES,
         shop_name=runtime_settings.peek("shop_name"),
     )
-    try:
-        provider = get_notification_provider(
-            settings.PAYMENT_NOTIFICATIONS_EMAIL_PROVIDER
-        )
-    except UnknownNotificationProviderError:
-        provider = get_notification_provider("noop")
-
-    result = await provider.send(
-        NotificationMessage(
-            channel="email",
-            recipient=email,
-            subject=rendered.subject,
-            text=rendered.text,
-            html=rendered.html,
-            metadata={"event_type": "password.reset_requested"},
-        )
+    await queue_email(
+        session,
+        recipient=email,
+        subject=rendered.subject,
+        text=rendered.text,
+        html=rendered.html,
+        event_type="password.reset_requested",
+        resendable=False,  # carries a valid reset link
     )
-    if not result.delivered:
-        logger.warning(
-            "password reset email not delivered to %s: %s", email, result.error
-        )
     if settings.ENVIRONMENT == "local":
         # Confort de développement : sans mailer configuré, le lien n'existerait
         # nulle part. Jamais journalisé hors local.
@@ -159,7 +149,7 @@ async def forgot_password(
         )
         session.add(user)
         await session.commit()
-        await _send_reset_email(email, token)
+        await _send_reset_email(session, email, token)
 
     return _NEUTRAL_RESPONSE
 
@@ -191,7 +181,8 @@ async def reset_password(
             details={"reason": "invalid_or_expired"},
         )
 
-    user.hashed_password = get_password_hash(body.password)
+    user.hashed_password = await aget_password_hash(body.password)
+    user.security_stamp = new_security_stamp()
     # Jeton à usage unique.
     user.password_reset_token = None
     user.password_reset_token_expires = None

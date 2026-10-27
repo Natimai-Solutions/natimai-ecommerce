@@ -132,6 +132,7 @@ async def test_preference_never_adds_a_second_last_leg(
         total_weight_kg=Decimal("1"),
         declared_value=Decimal("100"),
         currency="EUR",
+        destination_chain=[],
         include_customer_routes=False,
     )
     assert [r.id for r in selected] == [shop.inbound.id]
@@ -144,6 +145,7 @@ async def test_preference_never_adds_a_second_last_leg(
         total_weight_kg=Decimal("1"),
         declared_value=Decimal("100"),
         currency="EUR",
+        destination_chain=[],
     )
     assert [r.id for r in legacy] == [shop.inbound.id, shop.express.id]
 

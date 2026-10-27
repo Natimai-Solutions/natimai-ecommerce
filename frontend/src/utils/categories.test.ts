@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { components } from '@app/api-types';
 
-import { categoryTitle, pickCategoryTiles } from './categories';
+import {
+  catalogueCategoryChoices,
+  categoryChildren,
+  categoryLineage,
+  categoryTitle,
+  pickCategoryTiles,
+} from './categories';
 
 type CategoryPublic = components['schemas']['CategoryPublic'];
 
@@ -33,6 +39,49 @@ describe('pickCategoryTiles', () => {
       category({ name: 'Serveurs', image_url: 'https://img/serveurs.webp' }),
     ]);
     expect(tiles.map((c) => c.name)).toEqual(['Serveurs', 'Accessoires', 'Écrans']);
+  });
+});
+
+describe('hiérarchie', () => {
+  const tree = [
+    category({ name: 'Réseau' }),
+    category({ name: 'WiFi', parent_id: 'Réseau' }),
+    category({ name: "Point d'accès", parent_id: 'WiFi' }),
+    category({ name: 'Switch', parent_id: 'Réseau' }),
+    category({ name: 'Écrans' }),
+  ];
+
+  it("l'accueil ne montre que le premier niveau", () => {
+    expect(pickCategoryTiles(tree).map((c) => c.name)).toEqual(['Écrans', 'Réseau']);
+  });
+
+  it('remonte le fil des parents, de la racine à la catégorie', () => {
+    expect(categoryLineage(tree, "Point d'accès").map((c) => c.name)).toEqual([
+      'Réseau',
+      'WiFi',
+      "Point d'accès",
+    ]);
+    expect(categoryLineage(tree, null)).toEqual([]);
+    expect(categoryLineage(tree, 'inconnue')).toEqual([]);
+  });
+
+  it('propose les sous-catégories, sinon les sœurs, sinon le premier niveau', () => {
+    expect(catalogueCategoryChoices(tree, null).map((c) => c.name)).toEqual(['Réseau', 'Écrans']);
+    expect(catalogueCategoryChoices(tree, 'Réseau').map((c) => c.name)).toEqual(['WiFi', 'Switch']);
+    expect(catalogueCategoryChoices(tree, "Point d'accès").map((c) => c.name)).toEqual([
+      "Point d'accès",
+    ]);
+    expect(catalogueCategoryChoices(tree, 'Écrans').map((c) => c.name)).toEqual([
+      'Réseau',
+      'Écrans',
+    ]);
+    expect(categoryChildren(tree, 'WiFi').map((c) => c.name)).toEqual(["Point d'accès"]);
+  });
+
+  it('ne boucle pas sur un parent inconnu ou circulaire', () => {
+    const loop = [category({ name: 'A', parent_id: 'B' }), category({ name: 'B', parent_id: 'A' })];
+    expect(categoryLineage(loop, 'A').map((c) => c.name)).toEqual(['B', 'A']);
+    expect(pickCategoryTiles(loop)).toEqual([]);
   });
 });
 

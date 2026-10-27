@@ -28,6 +28,19 @@ updates:
       js-mineures-et-patchs:
         update-types: ["minor", "patch"]
     labels: ["dépendances", "javascript"]
+    ignore:
+      # Majeures qui ne peuvent pas passer seules (PLAN_DE_TRAVAIL §9) :
+      # - typescript 7 : vue-tsc et typescript-eslint ne le prennent pas encore ;
+      # - express 5 : Quasar recopie sa propre dépendance express 4 dans le
+      #   serveur SSR, la montée de version n'aurait aucun effet ;
+      # - @types/node : suit la ligne LTS des images (node:24-alpine), pas la
+      #   dernière majeure.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "express"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
 
   # ── Python (backend) ───────────────────────────────────────────────────────
   # Écosystème `uv` et non `pip` : le projet est verrouillé par uv.lock, que

@@ -284,7 +284,7 @@ import { useI18n } from 'vue-i18n';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
 import { toneIcon, type StatusTone } from '@app/ui/statusTone';
-import { formatDateTime, formatMoney as money } from '@app/utils';
+import { dayBounds, formatDateTime, formatMoney as money } from '@app/utils';
 import PageHeader from '@/components/PageHeader.vue';
 import { extractApiError } from '@/api/errors';
 import {
@@ -430,7 +430,8 @@ async function submit() {
   saving.value = true;
   dialogError.value = null;
   try {
-    const expires = form.expires_at ? new Date(`${form.expires_at}T23:59:59`).toISOString() : null;
+    // Valid through the whole day as the shop sees it, not the browser's.
+    const expires = form.expires_at ? dayBounds(form.expires_at).end : null;
     issued.value = await issueGiftCards({
       kind: form.kind,
       amount: String(Number(form.amount)),

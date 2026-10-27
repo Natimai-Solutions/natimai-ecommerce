@@ -21,7 +21,7 @@ from app.api.deps import CurrentSuperUserEnrolling, SessionDep
 from app.core.config import settings
 from app.core.errors import AppError
 from app.core.rate_limit import get_client_ip
-from app.core.security import verify_password
+from app.core.security import averify_password
 from app.features.system import audit
 from app.features.user.models.user import User
 from app.features.user.services import two_factor
@@ -138,7 +138,7 @@ async def disable(
     user_id, email = current_user.id, current_user.email
     if not current_user.totp_enabled:
         return _status(current_user)
-    if not verify_password(payload.password, current_user.hashed_password):
+    if not await averify_password(payload.password, current_user.hashed_password):
         raise AppError(
             code="auth.password.invalid",
             status_code=400,

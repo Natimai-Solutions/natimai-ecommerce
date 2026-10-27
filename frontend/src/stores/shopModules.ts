@@ -8,6 +8,8 @@ import { api } from '@/boot/api';
 export interface ShopPublicConfig {
   shop_name?: string;
   reference_currency?: string;
+  /** ISO country of the shop: its zone tree (islands) is the destination list. */
+  country_code?: string;
   modules?: Record<string, boolean>;
   /** Language when the visitor states none, and the languages offered (R7). */
   default_locale?: string;

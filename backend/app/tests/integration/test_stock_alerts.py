@@ -19,10 +19,10 @@ from app.api.routes.stock_alerts import (
     subscribe_stock_alert,
 )
 from app.core.errors import AppError
+from app.features.notification import mailer
 from app.features.notification.providers import NotificationResult
 from app.features.product.models.product import Product
 from app.features.product.models.stock_alert import StockAlertSubscribe
-from app.features.product.services import stock_alert as service
 from app.features.product.services.stock_alert import (
     notify_due_alerts,
     product_orderable,
@@ -79,7 +79,7 @@ async def test_alerts_are_sent_once_when_the_product_is_back(
             sent.append(message)
             return NotificationResult(provider_code="fake", delivered=True)
 
-    monkeypatch.setattr(service, "get_notification_provider", lambda _c: _Provider())
+    monkeypatch.setattr(mailer, "get_notification_provider", lambda _c: _Provider())
 
     # An available product refuses the alert; an unavailable one takes it,
     # once per e-mail (the account's when signed in, a typed one otherwise).

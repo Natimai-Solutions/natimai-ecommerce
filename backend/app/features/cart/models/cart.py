@@ -277,8 +277,9 @@ class CheckoutRequest(SQLModel):
         max_digits=12,
         decimal_places=2,
         description=(
-            "Deprecated manual shipping fee override. "
-            "Used only if no shipping routes are selected"
+            "Ignored. The shipping fee is priced server-side from the routes "
+            "serving the address: a caller does not get to set it. Kept "
+            "optional so existing clients that still send it are not rejected."
         ),
     )
     payment_fee_amount: Decimal | None = Field(

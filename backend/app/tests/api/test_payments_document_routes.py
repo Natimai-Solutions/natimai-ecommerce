@@ -166,8 +166,8 @@ async def test_issue_document_upload_url_rejects_non_owner(
             current_user=cast(Any, other_user),
         )
 
-    assert exc_info.value.status_code == 403
-    assert exc_info.value.code == "payment.not_owned"
+    assert exc_info.value.status_code == 404
+    assert exc_info.value.code == "payment.not_found"
 
 
 @pytest.mark.anyio

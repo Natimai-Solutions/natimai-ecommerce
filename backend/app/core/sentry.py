@@ -1,7 +1,8 @@
 """Sentry for every process (R8 / U3): API, worker, poller, health checker.
 
 Only the API was initialised; a handler crashing in the worker was invisible.
-``SENTRY_DSN`` empty or ``ENVIRONMENT=local`` → nothing is sent.
+``SENTRY_DSN`` empty or ``ENVIRONMENT=local`` → nothing is sent. What is
+sent carries no personal data (see the options of :func:`init_sentry`).
 """
 
 from __future__ import annotations
@@ -21,6 +22,12 @@ def init_sentry(component: str) -> bool:
         # Sans ça staging et production se mélangent dans la même vue.
         environment=settings.ENVIRONMENT,
         release=settings.APP_RELEASE or None,
+        # No personal data leaves for Sentry: no IP, cookies or user (the
+        # SDK default, made explicit), no request body (addresses, codes,
+        # passwords), no local variables of the frames (the same values).
+        send_default_pii=False,
+        max_request_body_size="never",
+        include_local_variables=False,
     )
     sentry_sdk.set_tag("component", component)
     return True

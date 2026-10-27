@@ -229,11 +229,10 @@ def test_trigger_inventory_sync_queue_failure_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "supplier.sync.queue_failed",
-            "message": "Failed to queue inventory refresh: queue down",
+            "message": "Failed to queue inventory refresh (see the server log)",
             "details": {
                 "supplier_name": "demo_supplier",
                 "sync_type": "inventory",
-                "reason": "queue down",
             },
         }
     }

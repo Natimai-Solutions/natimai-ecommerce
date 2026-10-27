@@ -9,7 +9,13 @@
         <q-card-section class="app-dialog__head">
           <div class="product-form__head">
             <h2 class="app-dialog__title">
-              {{ isEdit ? $t('product_form.edit_title') : $t('product_form.new_title') }}
+              {{
+                isEdit
+                  ? $t('product_form.edit_title')
+                  : isDuplicate
+                    ? $t('product_form.duplicate_title')
+                    : $t('product_form.new_title')
+              }}
             </h2>
             <StatusTag
               v-if="isEdit && product?.is_supplier_managed"
@@ -21,8 +27,14 @@
         </q-card-section>
 
         <q-card-section class="product-form__body">
-          <div v-if="error || (isEdit && product?.is_supplier_managed)" class="admin-notices">
+          <div
+            v-if="error || isDuplicate || (isEdit && product?.is_supplier_managed)"
+            class="admin-notices"
+          >
             <AppNotice v-if="error" tone="error" dense>{{ error }}</AppNotice>
+            <AppNotice v-if="isDuplicate" tone="info" dense data-testid="product-duplicate-notice">
+              {{ $t('product_form.duplicate_notice', { name: duplicateOf?.name ?? '' }) }}
+            </AppNotice>
             <AppNotice v-if="isEdit && product?.is_supplier_managed" tone="info" dense>
               {{ $t('product_form.synced_notice') }}
             </AppNotice>
@@ -106,12 +118,25 @@
                 dense
                 hide-bottom-space
               />
-              <q-input
-                v-model="form.manufacturer"
+              <!-- Marques déjà connues : une seule orthographe par marque.
+                   Une marque nouvelle se tape quand même. -->
+              <q-select
+                :model-value="form.manufacturer || null"
+                :options="manufacturerOptions"
                 :label="$t('product_form.manufacturer')"
+                use-input
+                fill-input
+                hide-selected
+                input-debounce="0"
+                new-value-mode="add-unique"
                 outlined
                 dense
                 hide-bottom-space
+                clearable
+                data-testid="product-manufacturer"
+                @filter="filterManufacturers"
+                @input-value="(value: string) => (form.manufacturer = value)"
+                @update:model-value="(value: string | null) => (form.manufacturer = value ?? '')"
               />
               <q-input
                 v-model="form.vendor_part_number"
@@ -666,11 +691,7 @@
           </section>
 
           <!-- 8. Caractéristiques (filtres de la vitrine) -->
-          <section
-            v-if="specsOn"
-            class="product-form__section"
-            data-testid="product-specs"
-          >
+          <section v-if="specsOn" class="product-form__section" data-testid="product-specs">
             <header class="product-form__section-head">
               <q-icon name="ph:sliders-horizontal" class="product-form__section-icon" />
               <h3 class="product-form__section-title">{{ $t('product_form.specs') }}</h3>
@@ -835,6 +856,15 @@
               :parent-price="form.pricing_mode === 'fixed' ? form.base_price : null"
               @changed="emit('saved')"
             />
+            <div class="product-form__inline q-mt-sm">
+              <q-toggle
+                v-model="form.variants_optional"
+                :label="$t('product_form.variants_optional')"
+                dense
+                data-testid="product-variants-optional"
+              />
+            </div>
+            <p class="admin-hint q-mb-none">{{ $t('product_form.variants_optional_hint') }}</p>
           </section>
           <p v-else-if="isEdit && product?.parent_product_id" class="admin-hint q-mt-md q-mb-none">
             {{ $t('product_form.variant_of') }}
@@ -883,6 +913,7 @@ import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
 import {
   categoryLabel,
+  categoryPathOptions,
   listAdminCategories,
   listCategories,
   type Category,
@@ -909,6 +940,7 @@ import {
 import { intlLocale } from '@app/utils';
 import { getGroupPrices, setGroupPrices, type MarginPreviewRequest } from '@/api/margin';
 import { getSpecForm, setProductSpecs, type SpecFormRow } from '@/api/productSpecs';
+import { listManufacturers } from '@/api/manufacturers';
 import {
   listProductLinks,
   searchProductsForLink,
@@ -923,7 +955,13 @@ import { useShopConfigStore } from '@/stores/shopConfig';
 
 const { t } = useI18n();
 
-const props = defineProps<{ modelValue: boolean; product: ProductPublic | null }>();
+const props = defineProps<{
+  modelValue: boolean;
+  /** Article à modifier (null : création). */
+  product: ProductPublic | null;
+  /** Création pré-remplie depuis cet article (ignoré quand `product` est fourni). */
+  duplicateOf?: ProductPublic | null;
+}>();
 const mediaPickerOpen = ref(false);
 /** Where the next picked image goes: the main image or the gallery. */
 const pickerTarget = ref<'main' | 'gallery'>('main');
@@ -1011,6 +1049,8 @@ interface FormState {
   base_price: string;
   /** Set: each unit sold issues a gift card of this amount (R8 / confort). */
   gift_card_amount: string;
+  /** The variants are options over the base product, which stays sellable as is. */
+  variants_optional: boolean;
   category_id: string | null;
   tax_rate_id: string | null;
   supplier_place_id: string | null;
@@ -1064,6 +1104,7 @@ function emptyForm(): FormState {
     customs_rate_pct: '',
     base_price: '0.00',
     gift_card_amount: '',
+    variants_optional: false,
     category_id: null,
     tax_rate_id: null,
     supplier_place_id: null,
@@ -1177,6 +1218,16 @@ function onSupplierChange(code: string | null) {
   if (supplier.price_currency) form.cost_currency = supplier.price_currency;
 }
 const categoryOptions = ref<{ label: string; value: string }[]>([]);
+// Marques connues (fabricants des produits + marques du catalogue).
+const manufacturers = ref<string[]>([]);
+const manufacturerFilter = ref('');
+const manufacturerOptions = computed(() => {
+  const needle = manufacturerFilter.value.trim().toLowerCase();
+  return manufacturers.value.filter((m) => !needle || m.toLowerCase().includes(needle));
+});
+function filterManufacturers(needle: string, update: (fn: () => void) => void) {
+  update(() => (manufacturerFilter.value = needle));
+}
 const taxRateOptions = ref<{ label: string; value: string }[]>([]);
 
 // Caractéristiques (R9 / T4) : une ligne par définition de la catégorie ;
@@ -1312,8 +1363,14 @@ async function saveLinks(productId: string) {
 
 async function saveSpecs(productId: string) {
   if (!specsOn.value) return;
+  // A copy starts from the source's values, which the new article does not
+  // have yet: every filled one is saved, not only what the admin retyped.
   const changed = specRows.value
-    .filter((row) => (specValues[row.key] ?? '') !== (specOriginal[row.key] ?? ''))
+    .filter((row) =>
+      isDuplicate.value
+        ? (specValues[row.key] ?? '').trim() !== ''
+        : (specValues[row.key] ?? '') !== (specOriginal[row.key] ?? ''),
+    )
     .map((row) => ({ key: row.key, value: (specValues[row.key] ?? '').trim() || null }));
   if (changed.length === 0) return;
   try {
@@ -1357,7 +1414,10 @@ async function saveGroupPrices(productId: string) {
   const current = groupPrices.value;
   const ids = new Set([...Object.keys(storedGroupPrices), ...Object.keys(current)]);
   const changes = [...ids]
-    .filter((id) => (current[id] ?? '') !== (storedGroupPrices[id] ?? ''))
+    .filter((id) =>
+      // Same as the specs: a copy saves every price taken from the source.
+      isDuplicate.value ? !!current[id] : (current[id] ?? '') !== (storedGroupPrices[id] ?? ''),
+    )
     .map((id) => ({
       price_group_id: id,
       price: current[id] ? String(Number(current[id])) : null,
@@ -1386,6 +1446,8 @@ function decimalOrNull(value: string | number | null): string | null {
 const placeOptions = ref<{ label: string; value: string }[]>([]);
 
 const isEdit = ref(false);
+/** Création pré-remplie depuis un autre article (« Dupliquer »). */
+const isDuplicate = ref(false);
 
 /** Libellés des champs verrouillables, pour les puces de verrous. */
 const FIELD_LABELS: Record<string, string> = labels({
@@ -1411,6 +1473,7 @@ const FIELD_LABELS: Record<string, string> = labels({
   customs_rate_pct: 'product_form.f_customs_rate_pct',
   base_price: 'product_form.f_base_price',
   gift_card_amount: 'product_form.f_gift_card_amount',
+  variants_optional: 'product_form.variants_optional',
   category_id: 'product_form.f_category_id',
   tax_rate_id: 'product_form.f_tax_rate_id',
   supplier_place_id: 'product_form.f_supplier_place_id',
@@ -1529,7 +1592,10 @@ function num(v: unknown): number | null {
   return Number.isNaN(n) ? null : n;
 }
 
-function loadFromProduct(p: ProductPublic | null) {
+/** Longueur maximale du nom côté API (`ProductBase.name`). */
+const NAME_MAX = 100;
+
+function loadFromProduct(p: ProductPublic | null, asCopy = false) {
   const base = emptyForm();
   if (p) {
     const rec = p as unknown as Record<string, unknown>;
@@ -1558,6 +1624,7 @@ function loadFromProduct(p: ProductPublic | null) {
     base.warranty_months = str(rec.warranty_months);
     base.margin_rate_pct = str(rec.margin_rate_pct);
     base.gift_card_amount = str(rec.gift_card_amount);
+    base.variants_optional = rec.variants_optional === true;
     base.cost_amount = str(rec.cost_amount) || '0.00';
     base.cost_currency = str(rec.cost_currency) || shopConfig.currency;
     base.customs_rate_pct = str(rec.customs_rate_pct);
@@ -1575,6 +1642,19 @@ function loadFromProduct(p: ProductPublic | null) {
       : [];
     base.is_featured = Boolean(rec.is_featured);
     base.featured_position = num(rec.featured_position);
+  }
+  if (p && asCopy) {
+    // Copy of an article: the content, prices, category, images and
+    // logistics carry over; what identifies or counts the original does not.
+    base.name = t('product_form.copy_name', { name: base.name }).slice(0, NAME_MAX);
+    base.supplier_name = null;
+    base.supplier_sku = '';
+    base.vendor_part_number = '';
+    base.ean = '';
+    base.supplier_quantity = '0';
+    base.local_quantity = '0';
+    base.is_featured = false;
+    base.featured_position = null;
   }
   Object.assign(form, base);
   // Deep copy: the gallery is an array the form mutates in place.
@@ -1665,7 +1745,12 @@ async function loadLookups() {
         label: `${s.name}${s.is_domestic ? t('product_form.local') : ''} — ${s.code}`,
         value: s.code,
       }));
-    categoryOptions.value = categories.value.map((c) => ({ label: categoryLabel(c), value: c.id }));
+    // « Réseau › WiFi › Point d'accès » : le chemin complet lève l'ambiguïté
+    // entre deux sous-catégories de même nom.
+    categoryOptions.value = categoryPathOptions(categories.value);
+    void listManufacturers()
+      .then((rows) => (manufacturers.value = rows))
+      .catch(() => undefined);
     void listAdminCategories()
       .then((rows) => {
         categoryMargins.value = Object.fromEntries(
@@ -1691,15 +1776,19 @@ watch(
   (open) => {
     if (open) {
       isEdit.value = !!props.product;
+      isDuplicate.value = !props.product && !!props.duplicateOf;
+      // Edit: the article itself. Duplicate: the source, read but never written.
+      const seed = props.product ?? (isDuplicate.value ? (props.duplicateOf ?? null) : null);
       error.value = null;
       linkNotice.value = null;
       managedAfterLink.value = null;
       lockedFields.value = [...(props.product?.overridden_fields ?? [])];
-      loadFromProduct(props.product);
+      loadFromProduct(seed, isDuplicate.value);
       for (const key of Object.keys(specValues)) delete specValues[key];
-      void loadSpecs(props.product?.id ?? null, props.product?.category_id ?? null);
+      void loadSpecs(seed?.id ?? null, seed?.category_id ?? null);
+      // Linked articles are edited on an existing product only.
       void loadLinks(props.product?.id ?? null);
-      void loadGroupPrices(props.product);
+      void loadGroupPrices(seed);
     }
   },
 );

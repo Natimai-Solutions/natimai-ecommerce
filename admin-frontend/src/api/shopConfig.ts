@@ -17,6 +17,11 @@ export interface ShopConfig {
   /** Fuseau horaire des dates affichées. */
   timezone?: string;
   default_display_currency?: string;
+  /** Logo and site icon chosen in Système → Identité visuelle (R9 / T9). */
+  branding?: {
+    logo?: { src: string; srcset?: string | null; width: number; height: number } | null;
+    icon?: { base: string; sizes: number[]; manifest: string } | null;
+  };
 }
 
 export async function getShopConfig(): Promise<ShopConfig> {

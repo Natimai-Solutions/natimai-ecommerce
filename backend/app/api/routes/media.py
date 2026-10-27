@@ -12,7 +12,7 @@ import re
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, File, Form, Request, Response, UploadFile
+from fastapi import APIRouter, File, Form, Query, Request, Response, UploadFile
 from sqlalchemy import Text, cast
 from sqlmodel import col, func, or_, select
 
@@ -120,7 +120,7 @@ async def list_media(
     session: SessionDep,
     _admin: CurrentSuperUser,
     kind: str | None = None,
-    limit: int = 60,
+    limit: Annotated[int, Query(ge=1, le=200)] = 60,
     offset: int = 0,
 ) -> list[MediaAssetPublic]:
     """Latest images first, optionally for one kind."""

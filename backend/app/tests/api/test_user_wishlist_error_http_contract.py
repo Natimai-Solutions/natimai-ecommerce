@@ -46,11 +46,11 @@ def test_get_user_wishlists_not_owned_returns_error_payload(
 
     response = client.get(f"/api/v1/wishlist/users/{owner_user_id}/wishlists")
 
-    assert response.status_code == 403
+    assert response.status_code == 404
     assert response.json() == {
         "error": {
-            "code": "wishlist.not_owned",
-            "message": "You cannot access another user's wishlists",
+            "code": "wishlist.not_found",
+            "message": "Liste introuvable",
             "details": {"user_id": str(owner_user_id)},
         }
     }

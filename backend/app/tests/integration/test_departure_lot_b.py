@@ -5,6 +5,7 @@ publish through the webhook, cancellation on a closed departure)."""
 from __future__ import annotations
 
 import uuid
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
@@ -43,6 +44,12 @@ from app.features.system.models.system_setting import SystemSetting
 from app.features.user.models.user import User
 
 NOW = datetime(2026, 10, 1, 12, 0, tzinfo=UTC)
+
+
+@pytest.fixture(autouse=True)
+def _at_now(freeze_departure_clock: Callable[[datetime], None]) -> None:
+    """Every test runs on NOW, the date its cutoffs are written from."""
+    freeze_departure_clock(NOW)
 
 
 async def _seed(session: AsyncSession) -> SimpleNamespace:
@@ -236,6 +243,10 @@ async def test_supplier_order_is_recorded_and_moves_the_departure_to_ordered(
 async def test_reminders_are_scheduled_rendered_and_published(
     db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    # The default reminders are only created while still in the future, against
+    # the real clock: pin it to the fixtures' NOW so the J-7 and J-2 ones do not
+    # vanish once the hard-coded October cutoff is less than a week away.
+    monkeypatch.setattr(services, "utcnow", lambda: NOW)
     seed = await _seed(db_session)
     created = await create_departure(
         GroupedDepartureCreate(

@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
+from app.features.attachment.antivirus.base import ScanResult
 from app.features.attachment.antivirus.factory import get_antivirus_scanner
 from app.features.attachment.storage.base import PresignedDownload, PresignedUpload
 from app.features.attachment.storage.factory import get_file_storage
@@ -130,6 +131,32 @@ async def register_uploaded_attachment(
     return attachment
 
 
+#: First bytes of each accepted type: the MIME type is declared by the
+#: uploader, the content is what the admin will open.
+_MAGIC: dict[str, tuple[bytes, ...]] = {
+    "application/pdf": (b"%PDF-",),
+    "image/jpeg": (b"\xff\xd8\xff",),
+    "image/png": (b"\x89PNG\r\n\x1a\n",),
+}
+
+
+def content_matches_mime(data: bytes, mimetype: str | None) -> bool:
+    """Whether the bytes are of the declared type (unknown types: no opinion)."""
+    signatures = _MAGIC.get((mimetype or "").lower())
+    return signatures is None or data.startswith(signatures)
+
+
+async def scan_content(data: bytes, mimetype: str | None) -> ScanResult:
+    """Verdict on an uploaded document: refused when its content is not of
+    the declared type (an HTML or executable file renamed .pdf), otherwise
+    the antivirus' verdict."""
+    if not content_matches_mime(data, mimetype):
+        return ScanResult(
+            is_clean=False, signature="Content-Type-Mismatch", engine="sniff"
+        )
+    return await get_antivirus_scanner().scan_bytes(data)
+
+
 async def scan_attachment_now(
     session: AsyncSession,
     *,
@@ -137,10 +164,9 @@ async def scan_attachment_now(
 ) -> PaymentAttachment:
     """Execute scan attachment now."""
     storage = get_file_storage()
-    scanner = get_antivirus_scanner()
 
     data = await storage.get_bytes(key=attachment.file_key)
-    result = await scanner.scan_bytes(data)
+    result = await scan_content(data, attachment.mimetype)
 
     attachment.av_scanned = True
     attachment.av_clean = result.is_clean

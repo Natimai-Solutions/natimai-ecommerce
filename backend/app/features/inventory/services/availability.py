@@ -157,7 +157,10 @@ async def publish_with_availability(
         price_publics,
         pricing_for_user,
     )
-    from app.features.product.services.variants import children_availability
+    from app.features.product.services.variants import (
+        children_availability,
+        stock_counts_variants,
+    )
 
     publics = [ProductPublic.model_validate(product) for product in products]
     if customer is not STAFF:
@@ -178,11 +181,14 @@ async def publish_with_availability(
         children = parents.get(public.id)
         public.variants_count = children.count if children else 0
         # Sellable stock split by where it is: our warehouse, the supplier.
+        # A parent counts its variants' stock — unless it is sold as is
+        # (optional variants): its stock is then its own, as at the checkout.
+        counted = children if children and stock_counts_variants(public) else None
         public.stock_local = public.local_quantity + (
-            children.local if children else ZERO
+            counted.local if counted else ZERO
         )
         public.stock_supplier = supplier_available_quantity(public) + (
-            children.supplier if children else ZERO
+            counted.supplier if counted else ZERO
         )
         public.available_quantity = public.stock_local + public.stock_supplier
     return publics

@@ -18,6 +18,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from app.api.routes import cart as cart_routes
 from app.api.routes.cart import (
     _import_route_ids,
     _resolve_selected_checkout_routes,
@@ -33,9 +34,16 @@ def anyio_backend() -> str:
     return "asyncio"
 
 
-def _route(*, to_place_id: UUID, name: str = "route", priority: int = 1) -> Any:
+def _route(
+    *,
+    to_place_id: UUID,
+    name: str = "route",
+    priority: int = 1,
+    is_to_customer: bool = False,
+) -> Any:
     return SimpleNamespace(
         id=uuid4(),
+        is_to_customer=is_to_customer,
         to_place_id=to_place_id,
         name=name,
         priority=priority,
@@ -115,7 +123,7 @@ async def test_client_cannot_bill_an_import_route() -> None:
 
     with pytest.raises(AppError) as exc_info:
         await _resolve_selected_checkout_routes(
-            session, shipping_route_ids=[import_leg.id]
+            session, shipping_route_ids=[import_leg.id], destination_chain=[]
         )
 
     assert exc_info.value.code == "shipping.route.import_not_billable"
@@ -129,10 +137,34 @@ async def test_domestic_routes_are_still_billable() -> None:
     session = _session(customs_place_ids=set(), routes=[local_leg])
 
     resolved = await _resolve_selected_checkout_routes(
-        session, shipping_route_ids=[local_leg.id]
+        session, shipping_route_ids=[local_leg.id], destination_chain=[]
     )
 
     assert [r.id for r in resolved] == [local_leg.id]
+
+
+@pytest.mark.anyio
+async def test_client_cannot_bill_a_last_leg_of_another_destination(
+    monkeypatch: Any,
+) -> None:
+    """A last leg is billable only if the storefront would offer it for the
+    shipping address: otherwise a caller picks the cheapest island."""
+    serving_leg = _route(to_place_id=uuid4(), name="Tahiti", is_to_customer=True)
+    other_leg = _route(to_place_id=uuid4(), name="Moorea", is_to_customer=True)
+    session = _session(customs_place_ids=set(), routes=[other_leg])
+
+    async def _serving(_session: Any, _chain: Any) -> set[UUID]:
+        return {serving_leg.id}
+
+    monkeypatch.setattr(cart_routes, "_last_legs_serving", _serving)
+
+    with pytest.raises(AppError) as exc_info:
+        await _resolve_selected_checkout_routes(
+            session, shipping_route_ids=[other_leg.id], destination_chain=[]
+        )
+
+    assert exc_info.value.code == "shipping.route.destination_not_served"
+    assert exc_info.value.status_code == 400
 
 
 # ---------------------------------------------------------------------------
@@ -148,17 +180,24 @@ async def test_auto_selection_skips_the_import_leg(monkeypatch: Any) -> None:
     import_leg = _route(to_place_id=papeete, name="France → Papeete", priority=1)
     consolidation_leg = _route(to_place_id=tahiti_hub, name="Hub PF", priority=2)
     customer_leg = _route(to_place_id=uuid4(), name="Livraison", priority=3)
+    # As cheap, listed first, but not serving the address: never picked.
+    other_island_leg = _route(to_place_id=uuid4(), name="Autre île", priority=3)
 
     async def _intermediary(**_kwargs: Any) -> list[Any]:
         return [import_leg, consolidation_leg]
 
     async def _customer(**_kwargs: Any) -> list[Any]:
-        return [customer_leg]
+        return [other_island_leg, customer_leg]
 
     # cart.py holds a reference to this very singleton, so patching it here
     # reaches the code under test.
     monkeypatch.setattr(crud_shipping_route, "get_intermediary_routes", _intermediary)
     monkeypatch.setattr(crud_shipping_route, "get_customer_routes", _customer)
+
+    async def _serving(_session: Any, _chain: Any) -> set[UUID]:
+        return {customer_leg.id}
+
+    monkeypatch.setattr(cart_routes, "_last_legs_serving", _serving)
 
     selected = await _select_checkout_routes_by_preference(
         _session(customs_place_ids={papeete}),
@@ -166,8 +205,11 @@ async def test_auto_selection_skips_the_import_leg(monkeypatch: Any) -> None:
         total_weight_kg=Decimal("2"),
         declared_value=Decimal("100000"),
         currency="XPF",
+        destination_chain=[],
     )
 
     selected_ids = {r.id for r in selected}
     assert import_leg.id not in selected_ids
     assert consolidation_leg.id in selected_ids
+    assert customer_leg.id in selected_ids
+    assert other_island_leg.id not in selected_ids

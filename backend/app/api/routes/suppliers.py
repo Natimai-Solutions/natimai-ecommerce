@@ -342,14 +342,14 @@ async def trigger_product_sync(
     try:
         job_id = await trigger_manual_sync(adapter.name, categories=categories)
     except Exception as e:
+        logger.exception("supplier.sync.queue_failed")
         raise AppError(
             code="supplier.sync.queue_failed",
             status_code=500,
-            message=f"Failed to queue product sync: {e}",
+            message="Failed to queue product sync (see the server log)",
             details={
                 "supplier_name": adapter.name,
                 "sync_type": "product_catalog",
-                "reason": str(e),
             },
         ) from e
 
@@ -377,14 +377,14 @@ async def trigger_inventory_sync(
     try:
         job_id = await trigger_inventory_refresh(adapter.name, skus=request.skus)
     except Exception as e:
+        logger.exception("supplier.sync.queue_failed")
         raise AppError(
             code="supplier.sync.queue_failed",
             status_code=500,
-            message=f"Failed to queue inventory refresh: {e}",
+            message="Failed to queue inventory refresh (see the server log)",
             details={
                 "supplier_name": adapter.name,
                 "sync_type": "inventory",
-                "reason": str(e),
             },
         ) from e
 

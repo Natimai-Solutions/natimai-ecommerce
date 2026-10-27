@@ -17,13 +17,8 @@ from typing import Any
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import runtime_settings
-from app.core.config import settings
 from app.features.notification.email_renderer import RenderedEmail, render_email
-from app.features.notification.providers import (
-    NotificationMessage,
-    UnknownNotificationProviderError,
-    get_notification_provider,
-)
+from app.features.notification.mailer import send_email
 from app.features.order.models.order import Order
 from app.features.order.services.order_number import resolve_order_ref
 from app.features.order.services.tracking_link import tracking_url_from_payload
@@ -73,22 +68,14 @@ async def _send_shipping_email(
     if pref is not None and not pref.notification_shipping_steps:
         return
 
-    try:
-        provider = get_notification_provider(
-            settings.PAYMENT_NOTIFICATIONS_EMAIL_PROVIDER
-        )
-    except UnknownNotificationProviderError:
-        provider = get_notification_provider("noop")
-
-    result = await provider.send(
-        NotificationMessage(
-            channel="email",
-            recipient=user.email,
-            subject=subject,
-            text=text,
-            html=html,
-            metadata={"event_type": event_type, "payload": payload},
-        )
+    result = await send_email(
+        session,
+        recipient=user.email,
+        subject=subject,
+        text=text,
+        html=html,
+        event_type=event_type,
+        metadata={"payload": payload},
     )
     if not result.delivered:
         logger.warning(

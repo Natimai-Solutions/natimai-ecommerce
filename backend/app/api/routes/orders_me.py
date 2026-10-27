@@ -23,7 +23,10 @@ from app.features.departure.reception import MyOrderLine, customer_lines
 from app.features.order.crud.order_crud import crud_order
 from app.features.order.models.order import Order, OrderPublic
 from app.features.order.models.order_status import OrderStatus
-from app.features.order.services.tracking_link import verify_order_tracking_token
+from app.features.order.services.tracking_link import (
+    tracking_link_still_valid,
+    verify_order_tracking_token,
+)
 from app.features.payment.models.payment import Payment
 from app.features.payment.models.payment_method import PaymentMethod
 from app.features.payment.services.deposit import balance_amount, balance_due
@@ -141,10 +144,11 @@ async def _my_order_or_error(
             details={"order_id": str(order_id)},
         ) from exc
     if order.user_id != current_user.id:
+        # Someone else's order reads like an unknown one: no existence oracle.
         raise AppError(
-            code="order.not_owned",
-            status_code=http_status.HTTP_403_FORBIDDEN,
-            message="You cannot access this order",
+            code="order.not_found",
+            status_code=http_status.HTTP_404_NOT_FOUND,
+            message=f"Order {order_id} not found",
             details={"order_id": str(order_id)},
         )
     return order
@@ -257,6 +261,15 @@ async def track_order_by_link(
             message=f"Order {order_id} not found",
             details={"order_id": str(order_id)},
         ) from exc
+    if not tracking_link_still_valid(order.created_at):
+        # A forwarded e-mail stops showing the order (and its address) once
+        # the order is long done: the customer's account still does.
+        raise AppError(
+            code="order.not_found",
+            status_code=http_status.HTTP_404_NOT_FOUND,
+            message=f"Order {order_id} not found",
+            details={"order_id": str(order_id)},
+        )
     view = MyOrderPublic.model_validate(order)
     status = (
         await session.get(OrderStatus, order.order_status_id)

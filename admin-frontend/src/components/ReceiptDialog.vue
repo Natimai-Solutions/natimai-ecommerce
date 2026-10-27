@@ -96,7 +96,7 @@ import { useI18n } from 'vue-i18n';
 import { computed, reactive, ref, watch } from 'vue';
 
 import AppNotice from '@app/ui/AppNotice.vue';
-import { decimalsOf, formatMoney } from '@app/utils';
+import { decimalsOf, formatMoney, todayLocal } from '@app/utils';
 import { extractApiError } from '@/api/errors';
 import {
   RECEIPT_METHOD_LABELS,
@@ -135,7 +135,7 @@ const emit = defineEmits<{
   done: [result: ReceiptResult];
 }>();
 
-const today = new Date().toISOString().slice(0, 10);
+const today = todayLocal();
 const form = reactive({
   amount: 0,
   receivedOn: today,

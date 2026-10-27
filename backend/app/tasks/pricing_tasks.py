@@ -28,6 +28,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.db import engine
 from app.features.product.crud.product import crud_product
 from app.features.product.models.product import Product
+from app.features.product.services.category_tree import (
+    product_in_category_condition,
+)
 from app.features.product.services.pricing import PricingContext
 from app.features.product.services.variants import refresh_all_parents
 from app.tasks.enqueue import enqueue_with_dedup
@@ -58,7 +61,8 @@ async def refresh_sale_prices(
     """
     id_statement = select(col(Product.id)).order_by(col(Product.id))
     if category_id is not None:
-        id_statement = id_statement.where(col(Product.category_id) == category_id)
+        # A default set on « Réseau » reprices the WiFi access points too.
+        id_statement = id_statement.where(product_in_category_condition(category_id))
     if product_ids:
         id_statement = id_statement.where(col(Product.id).in_(product_ids))
     ids = list((await session.exec(id_statement)).all())

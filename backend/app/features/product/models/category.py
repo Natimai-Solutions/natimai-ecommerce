@@ -51,11 +51,25 @@ class CategoryBase(Base):
             '{"en": {"display_name": "…", "_source": "<digest>"}}'
         ),
     )
+    parent_id: uuid.UUID | None = Field(
+        default=None,
+        foreign_key="categories.id",
+        index=True,
+        description=(
+            "Parent category (« Réseau > WiFi > Point d'accès WiFi »). None = "
+            "a top-level category. A child inherits the defaults its chain "
+            "leaves unset (tax rate, customs rate, margin) and is listed "
+            "under its ancestors in the storefront."
+        ),
+    )
     default_tax_rate_id: uuid.UUID | None = Field(
         default=None,
         foreign_key="tax_rates.id",
         index=True,
-        description="Default tax rate applied to products in this category",
+        description=(
+            "Default tax rate applied to products in this category; None → "
+            "the parent category's, else the shop default"
+        ),
     )
     default_customs_rate_pct: Decimal | None = Field(
         default=None,
@@ -87,6 +101,7 @@ class CategoryCreate(CategoryBase, BaseCreate):
 class CategoryUpdate(CategoryBase, BaseUpdate):
     """Represents category update."""
 
+    parent_id: uuid.UUID | None = None
     default_tax_rate_id: uuid.UUID | None = None
     default_customs_rate_pct: Decimal | None = None
     default_margin_rate_pct: Decimal | None = None

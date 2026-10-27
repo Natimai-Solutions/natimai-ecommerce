@@ -40,7 +40,7 @@ class _FakeStorage:
         return self.head_result
 
     async def get_bytes(self, *, key: str) -> bytes:
-        return b"data"
+        return b"%PDF-1.7 data"
 
     async def delete(self, *, key: str) -> None:
         pass
@@ -201,6 +201,7 @@ async def test_scan_attachment_now_marks_clean(
         SimpleNamespace(
             id=uuid4(),
             file_key="payments/abc/po.pdf",
+            mimetype="application/pdf",
             av_scanned=False,
             av_clean=None,
             av_signature=None,
@@ -243,6 +244,7 @@ async def test_scan_attachment_now_marks_infected_and_deletes(
         SimpleNamespace(
             id=uuid4(),
             file_key="payments/abc/virus.pdf",
+            mimetype="application/pdf",
             av_scanned=False,
             av_clean=None,
             av_signature=None,
@@ -256,3 +258,26 @@ async def test_scan_attachment_now_marks_infected_and_deletes(
     assert result.av_clean is False
     assert result.av_signature == "EICAR"
     delete_mock.assert_awaited_once()
+
+
+@pytest.mark.anyio
+async def test_a_document_whose_content_is_not_its_declared_type_is_refused(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An HTML page renamed .pdf never reaches the admin: the declared MIME
+    type comes from the uploader, the content is checked."""
+    scanner = Mock()
+    scanner.scan_bytes = AsyncMock()
+    monkeypatch.setattr(
+        "app.features.attachment.service.get_antivirus_scanner", lambda: scanner
+    )
+
+    result = await attachment_service.scan_content(
+        b"<html><script>steal()</script>", "application/pdf"
+    )
+
+    assert result.is_clean is False
+    assert result.signature == "Content-Type-Mismatch"
+    scanner.scan_bytes.assert_not_awaited()
+    assert attachment_service.content_matches_mime(b"\x89PNG\r\n\x1a\n..", "image/png")
+    assert attachment_service.content_matches_mime(b"\xff\xd8\xff\xe0", "image/jpeg")

@@ -50,11 +50,11 @@ def test_get_user_notifications_not_owned_returns_error_payload(
 
     response = client.get(f"/api/v1/notification/users/{owner_user_id}/notifications")
 
-    assert response.status_code == 403
+    assert response.status_code == 404
     assert response.json() == {
         "error": {
-            "code": "notification.not_owned",
-            "message": "You cannot access another user's notifications",
+            "code": "notification.not_found",
+            "message": "Notification introuvable",
             "details": {"user_id": str(owner_user_id)},
         }
     }

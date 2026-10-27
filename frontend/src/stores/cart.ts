@@ -447,6 +447,11 @@ export const useCartStore = defineStore('cart', () => {
   };
 });
 
+/** The visitor's cart token, if they have a server cart (read only). */
+export function currentGuestToken(): string | null {
+  return guestToken(false);
+}
+
 /** The visitor's cart token; created on demand when `create` is true. */
 function guestToken(create: boolean): string | null {
   if (typeof window === 'undefined') return null;

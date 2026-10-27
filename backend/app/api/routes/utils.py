@@ -173,7 +173,7 @@ async def get_observability_dashboard(
     now = datetime.now(UTC)
     commerce_metrics = await _collect_commerce_metrics(session, now=now)
     outbox_metrics = await _collect_outbox_metrics(session, now=now)
-    checkout_snapshot = get_checkout_metrics_snapshot(window_minutes=60)
+    checkout_snapshot = await get_checkout_metrics_snapshot(window_minutes=60)
 
     checkout_metrics = CheckoutObservabilityMetrics(
         window_minutes=int(checkout_snapshot["window_minutes"]),

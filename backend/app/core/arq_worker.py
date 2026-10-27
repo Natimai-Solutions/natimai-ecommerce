@@ -18,6 +18,7 @@ from app.tasks.departure_tasks import (
     get_departure_cron_jobs,
     publish_departure_reminders_task,
 )
+from app.tasks.email_tasks import EMAIL_MAX_TRIES, send_queued_email_task
 from app.tasks.icecat_tasks import (
     batch_enrich_products_task,
     enrich_product_with_icecat_task,
@@ -103,6 +104,12 @@ class WorkerSettings:
             max_tries=OUTBOX_HANDLER_MAX_TRIES,
         ),
         example_handler,
+        # E-mails journaled by the mailer and sent off the request
+        func(
+            send_queued_email_task,
+            name="send_queued_email_task",
+            max_tries=EMAIL_MAX_TRIES,
+        ),
         # Tâches fournisseurs (multi-distributeurs, liste lue en base à
         # chaque tick du planificateur)
         sync_supplier_products_task,

@@ -54,9 +54,10 @@ async def create_otp(r: redis.Redis, email: str) -> str:
     code = _generate_code()
     await r.set(
         f"otp:{email_lower}",
-        json.dumps({"code": code, "attempts": 0}),
+        json.dumps({"code": code}),
         ex=OTP_TTL_SECONDS,
     )
+    await r.delete(f"otp_attempts:{email_lower}")  # a new code, a new budget
     return code
 
 
@@ -74,8 +75,12 @@ async def verify_otp(r: redis.Redis, *, email: str, code: str) -> str:
             message="Code expiré ou introuvable. Demandez un nouveau code.",
         )
 
-    data = json.loads(_as_str(raw))
-    attempts = int(data.get("attempts", 0)) + 1
+    # INCR, not read-then-write: parallel guesses each take an attempt, so
+    # the budget of OTP_MAX_ATTEMPTS holds even for a scripted burst.
+    attempts_key = f"otp_attempts:{email_lower}"
+    attempts = int(await r.incr(attempts_key))
+    if attempts == 1:
+        await r.expire(attempts_key, OTP_TTL_SECONDS)
     if attempts > OTP_MAX_ATTEMPTS:
         await r.delete(otp_key)
         raise AppError(
@@ -84,17 +89,22 @@ async def verify_otp(r: redis.Redis, *, email: str, code: str) -> str:
             message="Trop de tentatives. Demandez un nouveau code.",
         )
 
+    data = json.loads(_as_str(raw))
     if data.get("code") != code.strip():
-        data["attempts"] = attempts
-        ttl = await r.ttl(otp_key)
-        await r.set(otp_key, json.dumps(data), ex=max(int(ttl), 1))
         raise AppError(
             code="otp.invalid_code",
             status_code=400,
             message="Code invalide.",
         )
 
-    await r.delete(otp_key)
+    # Burn the code atomically: of two correct submissions, one token only.
+    if await r.getdel(otp_key) is None:
+        raise AppError(
+            code="otp.expired",
+            status_code=400,
+            message="Code expiré ou introuvable. Demandez un nouveau code.",
+        )
+    await r.delete(attempts_key)
     token = str(uuid.uuid4())
     await r.set(f"signup_token:{token}", email_lower, ex=SIGNUP_TOKEN_TTL_SECONDS)
     return token

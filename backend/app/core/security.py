@@ -1,8 +1,10 @@
 import hashlib
+import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import anyio
 import bcrypt
 import jwt
 
@@ -30,10 +32,23 @@ def _bcrypt_input(password: str) -> bytes:
 ALGORITHM = "HS256"
 
 
-def create_access_token(subject: str | Any, expires_delta: timedelta) -> str:
+def new_security_stamp() -> str:
+    """A fresh ``User.security_stamp``: changing it closes every session.
+
+    The access token carries the stamp it was issued with (``stp``); the API
+    refuses a token whose stamp is no longer the user's. Rotated on password
+    change or reset, deactivation, change of rights and 2FA reset — what
+    must not wait for the 15 minutes of an access token to expire.
+    """
+    return secrets.token_hex(16)
+
+
+def create_access_token(
+    subject: str | Any, expires_delta: timedelta, stamp: str | None = None
+) -> str:
     """Create access token."""
     expire = datetime.now(UTC) + expires_delta
-    to_encode = {"exp": expire, "sub": str(subject), "type": "access"}
+    to_encode = {"exp": expire, "sub": str(subject), "type": "access", "stp": stamp}
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
@@ -75,6 +90,20 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def get_password_hash(password: str) -> str:
     """Empreinte bcrypt du mot de passe (coût 12, inchangé)."""
     return bcrypt.hashpw(_bcrypt_input(password), bcrypt.gensalt()).decode("utf-8")
+
+
+async def averify_password(plain_password: str, hashed_password: str) -> bool:
+    """:func:`verify_password` off the event loop: bcrypt (cost 12) takes
+    ~0.25 s of CPU, during which a request handler would block every other
+    request of the worker — a burst of logins froze the API."""
+    return await anyio.to_thread.run_sync(
+        verify_password, plain_password, hashed_password
+    )
+
+
+async def aget_password_hash(password: str) -> str:
+    """:func:`get_password_hash` off the event loop (see :func:`averify_password`)."""
+    return await anyio.to_thread.run_sync(get_password_hash, password)
 
 
 def hash_reset_token(token: str) -> str:

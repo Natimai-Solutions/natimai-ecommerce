@@ -62,3 +62,74 @@ export function formatRelative(isoString: string | null | undefined): string {
     return formatDate(isoString)
   }
 }
+
+/** `YYYY-MM-DD` of `moment` on the calendar of the shop's time zone. */
+function calendarDay(moment: Date, timeZone: string): string {
+  // en-CA formats as YYYY-MM-DD.
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(moment)
+}
+
+/**
+ * Today (`YYYY-MM-DD`) in the shop's time zone — a business date.
+ *
+ * Never `new Date().toISOString().slice(0, 10)`: that is the UTC day, the
+ * next day in Tahiti from 14:00 on.
+ */
+export function todayLocal(now: Date = new Date()): string {
+  return calendarDay(now, formatContext().timeZone)
+}
+
+/** Offset of `timeZone` from UTC at `moment`, as `±HH:MM`. */
+function zoneOffset(moment: Date, timeZone: string): string {
+  const name =
+    new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName: 'longOffset' })
+      .formatToParts(moment)
+      .find((part) => part.type === 'timeZoneName')?.value ?? 'GMT'
+  const offset = name.replace('GMT', '')
+  return offset === '' ? '+00:00' : offset
+}
+
+/**
+ * The first and last instants (ISO 8601 with the zone offset) of a business
+ * day of the shop: what an API filter on timestamps needs to cover the whole
+ * day as the shop sees it, not the UTC day.
+ */
+export function dayBounds(day: string): { start: string; end: string } {
+  const timeZone = formatContext().timeZone
+  // Noon of that day: the offset in force that day, away from any change.
+  const offset = zoneOffset(new Date(`${day}T12:00:00Z`), timeZone)
+  return { start: `${day}T00:00:00${offset}`, end: `${day}T23:59:59.999${offset}` }
+}
+
+/**
+ * ISO instant → value of a `datetime-local` field (`YYYY-MM-DDTHH:mm`), read
+ * on the shop's clock: the admin types the time the shop shows, wherever
+ * their browser is.
+ */
+export function toShopDateTimeInput(iso: string | null | undefined): string | null {
+  if (!iso) return null
+  const moment = new Date(iso)
+  if (Number.isNaN(moment.getTime())) return null
+  const timeZone = formatContext().timeZone
+  const time = new Intl.DateTimeFormat('en-GB', {
+    timeZone,
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).format(moment)
+  return `${calendarDay(moment, timeZone)}T${time}`
+}
+
+/** `datetime-local` value read on the shop's clock → ISO instant (UTC). */
+export function fromShopDateTimeInput(value: string | null | undefined): string | null {
+  if (!value) return null
+  const day = value.slice(0, 10)
+  const offset = zoneOffset(new Date(`${day}T12:00:00Z`), formatContext().timeZone)
+  const moment = new Date(`${value.slice(0, 16)}:00${offset}`)
+  return Number.isNaN(moment.getTime()) ? null : moment.toISOString()
+}

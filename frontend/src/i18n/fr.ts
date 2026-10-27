@@ -167,6 +167,11 @@ const fr = {
     departure: 'Départ groupé « {name} ». {cutoff}.',
     condition: 'État',
     choose_variant_hint: 'Choisissez une déclinaison pour voir son prix et sa disponibilité.',
+    variant_base: 'Standard',
+    variant_base_hint:
+      'Standard : le produit tel que décrit sur cette fiche. Choisissez une option pour le remplacer.',
+    variant_combo_missing:
+      'Aucune déclinaison ne correspond à ces options : complétez votre choix ou revenez au standard.',
     quantity: 'Quantité',
     qty_less: 'Diminuer la quantité',
     qty_more: 'Augmenter la quantité',
@@ -290,6 +295,15 @@ const fr = {
       "Le moyen de paiement sélectionné n'est pas disponible pour le moment. Veuillez réessayer.",
     failed: 'Une erreur est survenue lors de la finalisation de la commande.',
   },
+  ship_estimate: {
+    customs: 'Plus {amount} de frais de dédouanement, une fois par envoi.',
+    eta: '{n} jour | {n} jours',
+    failed: "L'estimation n'a pas pu être calculée : elle le sera à la commande.",
+    island: 'Votre île',
+    none: 'Aucun mode de livraison ne dessert encore cette île : contactez-nous.',
+    pick: 'Choisissez votre île pour voir le prix de la livraison, sans créer de compte.',
+    title: 'Livraison',
+  },
   cart: {
     title: 'Panier',
     count: '{n} article | {n} articles',
@@ -305,7 +319,7 @@ const fr = {
     summary: 'Récapitulatif',
     items: 'Articles',
     subtotal: 'Sous-total TTC',
-    note: 'Prix toutes taxes comprises. Frais de livraison calculés à la commande.',
+    note: 'Prix toutes taxes comprises. Livraison : choisissez votre île ci-dessous.',
     checkout: 'Passer commande',
     continue: 'Continuer mes achats',
     clear: 'Vider le panier',
@@ -328,6 +342,7 @@ const fr = {
   catalogue: {
     categories: 'Catégories',
     all: 'Tout le catalogue',
+    back_to: 'Revenir à {name}',
     filters: 'Filtres',
     filters_n: 'Filtres ({n})',
     close_filters: 'Fermer les filtres',

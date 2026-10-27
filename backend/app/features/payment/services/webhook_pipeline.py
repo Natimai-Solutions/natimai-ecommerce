@@ -123,6 +123,24 @@ async def find_payment(
     ).first()
 
 
+async def lock_payment(session: AsyncSession, payment: Payment) -> Payment:
+    """The payment row, locked until the commit and read again under the lock.
+
+    Providers retry and sometimes deliver the same notification twice at
+    once: without the lock both deliveries read the payment as not yet
+    processed and both apply it (two ``payment.captured``, two invoices…).
+    The second one now waits, then sees the first one's work as a duplicate.
+    """
+    return (
+        await session.exec(
+            select(Payment)
+            .where(col(Payment.id) == payment.id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    ).one()
+
+
 async def _status_name(session: AsyncSession, payment: Payment) -> str | None:
     if payment.payment_status_id is None:
         return None
@@ -237,6 +255,7 @@ async def apply_provider_outcome(
         await _commit(session)
         return PipelineResult(RESULT_UNKNOWN_PAYMENT)
 
+    payment = await lock_payment(session, payment)
     payment_id = payment.id
     current = await _status_name(session, payment)
     target = _STATUS_FOR_OUTCOME.get(outcome.status or "")

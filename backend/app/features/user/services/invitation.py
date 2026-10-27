@@ -21,15 +21,13 @@ import datetime
 import logging
 import secrets
 
+from sqlmodel.ext.asyncio.session import AsyncSession
+
 from app.core import runtime_settings
 from app.core.config import settings
 from app.core.security import get_password_hash, hash_reset_token
 from app.features.notification.email_renderer import render_email
-from app.features.notification.providers import (
-    NotificationMessage,
-    UnknownNotificationProviderError,
-    get_notification_provider,
-)
+from app.features.notification.mailer import send_email
 from app.features.user.models.user import User
 
 logger = logging.getLogger(__name__)
@@ -76,12 +74,13 @@ def build_invitation_url(token: str) -> str:
 
 
 async def send_invitation_email(
-    *, email: str, token: str, full_name: str | None
+    session: AsyncSession, *, email: str, token: str, full_name: str | None
 ) -> bool:
     """Envoyer l'email d'invitation ; renvoie True s'il est parti.
 
     L'échec d'envoi n'est pas une exception : le compte existe déjà, l'admin
     voit dans la liste que l'invitation est en attente et peut la renvoyer.
+    Journalisé, sans être renvoyable tel quel : le lien porte un jeton.
     """
     invitation_url = build_invitation_url(token)
     rendered = render_email(
@@ -91,25 +90,15 @@ async def send_invitation_email(
         valid_hours=INVITATION_TOKEN_TTL_HOURS,
         shop_name=await runtime_settings.get("shop_name"),
     )
-    try:
-        provider = get_notification_provider(
-            settings.PAYMENT_NOTIFICATIONS_EMAIL_PROVIDER
-        )
-    except UnknownNotificationProviderError:
-        provider = get_notification_provider("noop")
-
-    result = await provider.send(
-        NotificationMessage(
-            channel="email",
-            recipient=email,
-            subject=rendered.subject,
-            text=rendered.text,
-            html=rendered.html,
-            metadata={"event_type": "user.invited"},
-        )
+    result = await send_email(
+        session,
+        recipient=email,
+        subject=rendered.subject,
+        text=rendered.text,
+        html=rendered.html,
+        event_type="user.invited",
+        resendable=False,
     )
-    if not result.delivered:
-        logger.warning("invitation email not delivered to %s: %s", email, result.error)
     if settings.ENVIRONMENT == "local":
         # Confort de développement : sans mailer, le lien n'existerait nulle
         # part. Jamais journalisé hors local.

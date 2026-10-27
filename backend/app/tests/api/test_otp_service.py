@@ -79,3 +79,26 @@ async def test_verify_locks_after_too_many_attempts() -> None:
     with pytest.raises(AppError) as exc:
         await verify_otp(r, email=_EMAIL, code=wrong)
     assert exc.value.code == "otp.too_many_attempts"
+
+
+@pytest.mark.asyncio
+async def test_parallel_guesses_each_spend_an_attempt() -> None:
+    """A burst of simultaneous guesses used to read the same counter: each
+    one now takes an attempt (INCR), so the budget holds."""
+    import asyncio
+
+    r = fake_redis()
+    code = await create_otp(r, _EMAIL)
+    wrong = "000000" if code != "000000" else "111111"
+
+    outcomes = await asyncio.gather(
+        *(verify_otp(r, email=_EMAIL, code=wrong) for _ in range(OTP_MAX_ATTEMPTS + 3)),
+        return_exceptions=True,
+    )
+
+    codes = [o.code for o in outcomes if isinstance(o, AppError)]
+    assert codes.count("otp.invalid_code") == OTP_MAX_ATTEMPTS
+    assert "otp.too_many_attempts" in codes
+    # The code is gone: even the right one is refused now.
+    with pytest.raises(AppError):
+        await verify_otp(r, email=_EMAIL, code=code)

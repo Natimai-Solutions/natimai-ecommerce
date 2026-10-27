@@ -5,7 +5,7 @@ from pydantic import EmailStr, model_validator
 from sqlalchemy import JSON, BigInteger, Column, Text
 from sqlmodel import Field, SQLModel
 
-from app.core.security import get_password_hash
+from app.core.security import get_password_hash, new_security_stamp
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
@@ -128,6 +128,8 @@ class User(UserBase, table=True):
     __tablename__ = "users"
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
     hashed_password: str = Field(..., max_length=128)
+    # Carried by every access token: rotated, it closes all sessions at once.
+    security_stamp: str = Field(default_factory=new_security_stamp, max_length=32)
     password_reset_token: str | None = Field(default=None, max_length=255)
     password_reset_token_expires: datetime.datetime | None = Field(default=None)
     email_verification_token: str | None = Field(default=None, max_length=255)
@@ -192,6 +194,7 @@ class TokenPayload(SQLModel):
     sub: str | None = None
     type: str | None = None
     jti: str | None = None
+    stp: str | None = None
 
 
 # JSON payload containing access token

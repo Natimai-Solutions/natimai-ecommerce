@@ -33,6 +33,7 @@ def _make_attachment() -> Any:
     return SimpleNamespace(
         id=uuid4(),
         file_key="payments/abc/po.pdf",
+        mimetype="application/pdf",
         av_scanned=False,
         av_clean=None,
         av_signature=None,
@@ -84,7 +85,7 @@ async def test_document_uploaded_handler_runs_av_scan_clean(
     )
 
     storage = Mock()
-    storage.get_bytes = AsyncMock(return_value=b"clean pdf bytes")
+    storage.get_bytes = AsyncMock(return_value=b"%PDF-1.4 clean pdf bytes")
     storage.delete = AsyncMock()
     monkeypatch.setattr(
         "app.features.attachment.storage.factory.get_file_storage",
@@ -96,7 +97,7 @@ async def test_document_uploaded_handler_runs_av_scan_clean(
         return_value=SimpleNamespace(is_clean=True, signature=None)
     )
     monkeypatch.setattr(
-        "app.features.attachment.antivirus.factory.get_antivirus_scanner",
+        "app.features.attachment.service.get_antivirus_scanner",
         lambda: scanner,
     )
 
@@ -141,7 +142,7 @@ async def test_document_uploaded_handler_quarantines_infected_file(
     )
 
     storage = Mock()
-    storage.get_bytes = AsyncMock(return_value=b"virus")
+    storage.get_bytes = AsyncMock(return_value=b"%PDF-1.4 virus")
     storage.delete = AsyncMock()
     monkeypatch.setattr(
         "app.features.attachment.storage.factory.get_file_storage",
@@ -153,7 +154,7 @@ async def test_document_uploaded_handler_quarantines_infected_file(
         return_value=SimpleNamespace(is_clean=False, signature="EICAR")
     )
     monkeypatch.setattr(
-        "app.features.attachment.antivirus.factory.get_antivirus_scanner",
+        "app.features.attachment.service.get_antivirus_scanner",
         lambda: scanner,
     )
 

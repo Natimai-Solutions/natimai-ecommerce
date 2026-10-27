@@ -284,6 +284,30 @@ def fallback(spec: SettingSpec) -> tuple[Any, Source]:
     return spec.default, "default"
 
 
+#: Prefix of a secret setting stored encrypted (``secrets_box``).
+SEALED_PREFIX = "enc:"
+
+
+def seal(spec: SettingSpec, text: str) -> str:
+    """The text to store for ``spec``: a secret (Turnstile, Slack webhook…)
+    is encrypted when ``SECRETS_ENCRYPTION_KEY`` is set — required outside
+    ``local`` —, so a database dump does not hand out the shop's secrets."""
+    from app.core.secrets_box import encrypt_json, secrets_key_configured
+
+    if not spec.secret or not text or not secrets_key_configured():
+        return text
+    return SEALED_PREFIX + encrypt_json({"v": text})
+
+
+def unseal(stored: str | None) -> str | None:
+    """Stored text → its clear text (unreadable: empty, logged)."""
+    if stored and stored.startswith(SEALED_PREFIX):
+        from app.core.secrets_box import decrypt_json
+
+        return decrypt_json(stored[len(SEALED_PREFIX) :]).get("v", "")
+    return stored
+
+
 def resolve_row(
     spec: SettingSpec,
     stored: str | None,
@@ -292,6 +316,7 @@ def resolve_row(
     updated_by_id: uuid.UUID | None = None,
 ) -> Resolved:
     """Resolve one setting from its stored text (``None``: no row)."""
+    stored = unseal(stored)
     if stored is not None and stored.strip():
         try:
             return Resolved(

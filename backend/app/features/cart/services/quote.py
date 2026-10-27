@@ -11,12 +11,14 @@ their account: the checkout then bills the quoted prices, not the catalogue.
 
 from __future__ import annotations
 
+import functools
 import logging
 import uuid
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
+import anyio
 from fastapi import Response
 from pydantic import BaseModel, Field
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -33,11 +35,7 @@ from app.features.invoice.services.pdf import (
     render_quote_pdf,
 )
 from app.features.notification.email_renderer import render_email
-from app.features.notification.providers import (
-    NotificationMessage,
-    UnknownNotificationProviderError,
-    get_notification_provider,
-)
+from app.features.notification.mailer import send_email
 from app.features.product.models.product import Product
 from app.utils.money import quantize_amount
 
@@ -160,7 +158,7 @@ async def issue_quote(
     return quote
 
 
-async def send_quote_email(quote: QuoteRequest) -> bool:
+async def send_quote_email(session: AsyncSession, quote: QuoteRequest) -> bool:
     """E-mail the quote to the customer, PDF attached when it can be
     rendered (the text carries the amounts and the link either way)."""
     snapshot = quote.quote_snapshot or {}
@@ -183,22 +181,15 @@ async def send_quote_email(quote: QuoteRequest) -> bool:
         )
     except PdfRenderingUnavailableError as exc:
         logger.warning("Quote %s e-mailed without PDF: %s", quote.quote_number, exc)
-    try:
-        provider = get_notification_provider(
-            settings.PAYMENT_NOTIFICATIONS_EMAIL_PROVIDER
-        )
-    except UnknownNotificationProviderError:
-        provider = get_notification_provider("noop")
-    result = await provider.send(
-        NotificationMessage(
-            channel="email",
-            recipient=quote.email,
-            subject=email.subject,
-            text=email.text,
-            html=email.html,
-            metadata={"event_type": "quote.issued", "quote_request_id": str(quote.id)},
-            attachments=attachments or None,
-        )
+    result = await send_email(
+        session,
+        recipient=quote.email,
+        subject=email.subject,
+        text=email.text,
+        html=email.html,
+        event_type="quote.issued",
+        metadata={"quote_request_id": str(quote.id)},
+        attachments=attachments or None,
     )
     if not result.delivered:
         logger.warning("Quote %s e-mail failed: %s", quote.quote_number, result.error)
@@ -263,7 +254,7 @@ def quoted_prices(quote: QuoteRequest) -> dict[uuid.UUID, tuple[int, Decimal]]:
     return out
 
 
-def quote_pdf_response(quote: QuoteRequest) -> Response:
+async def quote_pdf_response(quote: QuoteRequest) -> Response:
     """The issued quote as a PDF download (admin and customer routes)."""
     if not quote.quote_snapshot:
         raise AppError(
@@ -276,7 +267,9 @@ def quote_pdf_response(quote: QuoteRequest) -> Response:
 
     try:
         # The customer downloads it in the language of the interface (R7).
-        pdf = render_quote_pdf(quote, lang=request_locale())
+        pdf = await anyio.to_thread.run_sync(
+            functools.partial(render_quote_pdf, quote, lang=request_locale())
+        )
     except PdfRenderingUnavailableError as exc:
         raise AppError(
             code="quote.pdf.unavailable",

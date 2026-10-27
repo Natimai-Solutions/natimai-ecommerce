@@ -1,8 +1,11 @@
 import uuid
 
+from fastapi import Depends
+
 from app.api.base_router import BaseRouter
 from app.api.deps import CurrentUser, SessionDep
 from app.core.errors import AppError
+from app.core.rate_limit import rate_limited
 from app.features.discount.crud import DiscountCrud, crud_discount
 from app.features.discount.models import (
     Discount,
@@ -56,9 +59,16 @@ router = DiscountRouter(
 )
 
 
-@router.post("/validate-coupon", response_model=dict)
+@router.post(
+    "/validate-coupon",
+    response_model=dict,
+    # Signed-in and rate-limited: anonymous and unlimited, it let anyone
+    # enumerate the shop's promo codes.
+    dependencies=[Depends(rate_limited("coupon", limit=10, window_seconds=60))],
+)
 async def validate_coupon(
     session: SessionDep,
+    _user: CurrentUser,
     code: str,
 ) -> dict[str, object]:
     """

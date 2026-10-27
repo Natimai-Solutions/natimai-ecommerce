@@ -693,7 +693,7 @@ async def on_payment_document_uploaded(
     """
     import uuid as _uuid
 
-    from app.features.attachment.antivirus.factory import get_antivirus_scanner
+    from app.features.attachment.service import scan_content
     from app.features.attachment.storage.factory import get_file_storage
     from app.features.payment.crud.payment import crud_payment
     from app.features.payment.crud.payment_attachment import (
@@ -724,7 +724,6 @@ async def on_payment_document_uploaded(
         return
 
     storage = get_file_storage()
-    scanner = get_antivirus_scanner()
 
     logger.info(
         "AV scan starting: payment=%s attachment=%s key=%s",
@@ -735,7 +734,7 @@ async def on_payment_document_uploaded(
 
     try:
         data = await storage.get_bytes(key=attachment.file_key)
-        result = await scanner.scan_bytes(data)
+        result = await scan_content(data, attachment.mimetype)
     except Exception as e:
         # Re-raise so the ARQ job is retried (e.g. ClamAV not ready yet, or the
         # file not yet visible). Swallowing here left the attachment stuck on

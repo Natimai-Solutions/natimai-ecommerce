@@ -1,8 +1,8 @@
 import uuid
 from collections.abc import Callable
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import Depends
+from fastapi import Depends, Query
 
 from app.api.base_router import BaseRouter
 from app.api.deps import CurrentUser, SessionDep, get_current_user_optional
@@ -40,8 +40,8 @@ class OrderRouter(
 
         async def read_multi(
             session: SessionDep,
-            skip: int = 0,
-            limit: int = 100,
+            skip: Annotated[int, Query(ge=0)] = 0,
+            limit: Annotated[int, Query(ge=1, le=500)] = 100,
             current_user: CurrentUser | None = Depends(get_current_user_optional),
         ) -> Any:
             """List orders (own orders unless superuser)."""
@@ -86,9 +86,9 @@ class OrderRouter(
                 and record.user_id != current_user.id
             ):
                 raise AppError(
-                    code="order.not_owned",
-                    status_code=403,
-                    message="You cannot access this order",
+                    code="order.not_found",
+                    status_code=404,
+                    message="Commande introuvable",
                     details={"order_id": str(id)},
                 )
 
@@ -160,6 +160,7 @@ class Auth:
     create = True
     update = True
     delete = True
+    read_superuser = False  # scoped to the caller by OrderRouter
     create_superuser = True
     update_superuser = True
     delete_superuser = True
@@ -183,16 +184,16 @@ async def get_user_orders(
     session: SessionDep,
     current_user: CurrentUser,
     user_id: uuid.UUID,
-    skip: int = 0,
-    limit: int = 100,
+    skip: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ) -> list[OrderPublic]:
     """Get user orders."""
     # Vérifier que l'utilisateur accède à ses propres commandes ou est admin
     if current_user.id != user_id and not current_user.is_superuser:
         raise AppError(
-            code="order.not_owned",
-            status_code=403,
-            message="You can only access your own orders",
+            code="order.not_found",
+            status_code=404,
+            message="Commande introuvable",
             details={"user_id": str(user_id)},
         )
 
@@ -207,8 +208,8 @@ async def get_orders_by_status(
     session: SessionDep,
     current_user: CurrentUser,
     order_status_id: uuid.UUID,
-    skip: int = 0,
-    limit: int = 100,
+    skip: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ) -> list[OrderPublic]:
     """Get orders by status."""
     if not current_user.is_superuser:

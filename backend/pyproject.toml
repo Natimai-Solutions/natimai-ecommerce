@@ -9,22 +9,22 @@ dependencies = [
     # `standard` embarque depuis la 0.13x un CLI de déploiement FastAPI Cloud
     # (fastapi-cloud-cli, fastar, rignore). Ce projet se déploie par docker
     # compose : autant ne pas l'embarquer dans l'image de production.
-    "fastapi[standard-no-fastapi-cloud-cli]>=0.141.1,<1.0.0",
+    "fastapi[standard-no-fastapi-cloud-cli]>=0.161.1,<1.0.0",
     "python-multipart<1.0.0,>=0.0.7",
     "email-validator<3.0.0.0,>=2.1.0.post1",
-    "tenacity>=9.1.4,<10.0.0",
-    "pydantic>=2.13.5",
+    "tenacity>=9.2.1,<10.0.0",
+    "pydantic>=2.14.1",
     "jinja2<4.0.0,>=3.1.4",
-    "alembic>=1.20.0,<2.0.0",
+    "alembic>=1.20.1,<2.0.0",
     "httpx>=0.25.1,<1.0.0",
-    "psycopg[binary]>=3.3.4,<4.0.0",
-    "sqlmodel>=0.0.47,<1.0.0",
+    "psycopg[binary]>=3.3.6,<4.0.0",
+    "sqlmodel>=0.0.48,<1.0.0",
     # Plus de pin figé : le pin existait parce que passlib lisait
     # bcrypt.__about__, disparu en 4.1. passlib est retiré, la contrainte
     # tombe avec lui.
     "bcrypt>=4.0.1,<6.0.0",
-    "pydantic-settings<3.0.0,>=2.2.1",
-    "sentry-sdk[fastapi]>=2.68.1",
+    "pydantic-settings>=2.16.1,<3.0.0",
+    "sentry-sdk[fastapi]>=2.71.0",
     "pyjwt>=2.15.1,<3.0.0",
     "arq>=0.28.0",
     # Borne haute alignée sur ce qu'arq autorise réellement : toutes ses
@@ -33,8 +33,8 @@ dependencies = [
     # Dependabot échoue en boucle à résoudre le fichier. Ne la retirer que le
     # jour où arq élargira sa propre contrainte.
     "redis>=5.0.0,<6.0.0",
-    "aiohttp>=3.8.0", # Pour les appels API REST Ingram Micro
-    "boto3>=1.43.103", # S3 file storage for payment attachments
+    "aiohttp>=3.14.5", # Pour les appels API REST Ingram Micro
+    "boto3>=1.43.118", # S3 file storage for payment attachments
     "clamd>=1.0.2", # ClamAV antivirus scanner for uploaded documents
     "pyyaml>=6.0.3", # Lecture de spec_definitions.yaml pour les specs filtrables
     # Rendu PDF des factures (M3). Nécessite des libs système (pango, cairo,
@@ -43,7 +43,7 @@ dependencies = [
     # (Windows) ne casse que le rendu PDF.
     "weasyprint>=70.0",
     "openpyxl>=3.1.5",
-    "pillow>=12.3.0",
+    "pillow>=13.0.0",
     # Chiffrement (Fernet) des identifiants des fournisseurs par flux fichier
     # (app/core/secrets_box.py).
     "cryptography>=44.0.0",
@@ -56,11 +56,11 @@ dev = [
     "pytest>=8.0.0",
     # Tests only: kept out of the production image (uv sync --no-dev).
     "pytest-asyncio>=1.0.0",
-    "pytest-mock>=3.14.0",
-    "mypy>=2.0.0",
-    "ruff>=0.16.9,<1.0.0",
-    "coverage>=7.16.1,<8.0.0",
-    "httpx2>=2.13.1",
+    "pytest-mock>=3.17.0",
+    "mypy>=2.4.0",
+    "ruff>=0.17.2,<1.0.0",
+    "coverage>=7.17.0,<8.0.0",
+    "httpx2>=2.16.0",
 ]
 
 [build-system]
@@ -122,10 +122,9 @@ omit = [
     "app/alembic/*",
     "app/scripts/*",
     # External API clients & background tasks: exercised via integration/manual
-    # tests, not unit tests (unit-testing them is just HTTP/LLM mocking).
+    # tests, not unit tests (unit-testing them is just HTTP mocking).
     "app/services/icecat_service.py",
     "app/services/suppliers/ingram_micro.py",
-    "app/services/ia_search_agent.py",
     # app/tasks/* measured since R8 / U10 (the sweeps, syncs and pricing
     # refreshes have integration tests of their own); only the two external
     # clients above stay out.

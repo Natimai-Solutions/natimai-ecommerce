@@ -4,6 +4,7 @@ The security-critical guarantee under test: an inactive user must never obtain
 JWT tokens through social login — parity with classic password authentication.
 """
 
+import json
 import uuid
 from collections.abc import AsyncGenerator, Generator
 from types import SimpleNamespace
@@ -25,13 +26,25 @@ def db_session() -> SimpleNamespace:
     return SimpleNamespace(rollback=AsyncMock(), commit=AsyncMock())
 
 
+BINDING = "binding-of-this-browser"
+
+
 @pytest.fixture
 def fake_redis() -> SimpleNamespace:
-    # getdel returns the provider name (bytes) to satisfy state verification.
+    # getdel returns the state written by /login, bound to this browser.
+    state = {"provider": "google", "binding": BINDING, "verifier": "v" * 64}
     return SimpleNamespace(
         setex=AsyncMock(),
-        getdel=AsyncMock(return_value=b"google"),
+        getdel=AsyncMock(return_value=json.dumps(state).encode()),
     )
+
+
+@pytest.fixture(autouse=True)
+def browser_binding(client: TestClient) -> Generator[None, None, None]:
+    """The binding cookie /login set on the browser that started the flow."""
+    client.cookies.set(oauth_module._BINDING_COOKIE, BINDING)
+    yield
+    client.cookies.clear()
 
 
 @pytest.fixture(autouse=True)
@@ -72,6 +85,43 @@ def test_callback_invalid_state_redirects_with_error(
     assert response.status_code == 302
     query = parse_qs(urlparse(response.headers["location"]).query)
     assert query["oauth_error"] == ["invalid_state"]
+
+
+def test_callback_from_another_browser_is_refused(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Login CSRF: the victim's browser does not carry the attacker's binding."""
+    exchange = AsyncMock(return_value={"access_token": "tok"})
+    monkeypatch.setattr(oauth_module, "_exchange_code", exchange)
+    client.cookies.set(oauth_module._BINDING_COOKIE, "someone-else")
+
+    response = client.get(
+        "/api/v1/auth/google/callback?code=abc&state=valid",
+        follow_redirects=False,
+    )
+
+    query = parse_qs(urlparse(response.headers["location"]).query)
+    assert query["oauth_error"] == ["invalid_state"]
+    exchange.assert_not_awaited()
+
+
+def test_login_binds_the_browser_and_sends_a_pkce_challenge(
+    client: TestClient, fake_redis: SimpleNamespace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(oauth_module, "_check_configured", lambda _provider: None)
+
+    response = client.get("/api/v1/auth/google/login", follow_redirects=False)
+
+    assert response.status_code == 302
+    params = parse_qs(urlparse(response.headers["location"]).query)
+    assert params["code_challenge_method"] == ["S256"]
+    stored = json.loads(fake_redis.setex.await_args.args[2])
+    assert params["code_challenge"] == [
+        oauth_module._pkce_challenge(stored["verifier"])
+    ]
+    cookie = response.headers["set-cookie"]
+    assert f"{oauth_module._BINDING_COOKIE}={stored['binding']}" in cookie
+    assert "HttpOnly" in cookie
 
 
 def test_callback_inactive_user_is_blocked_and_issues_no_token(
@@ -118,7 +168,9 @@ def test_callback_active_user_sets_refresh_cookie(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    active_user = SimpleNamespace(id=uuid.uuid4(), is_active=True, is_superuser=False)
+    active_user = SimpleNamespace(
+        id=uuid.uuid4(), is_active=True, is_superuser=False, security_stamp="stamp"
+    )
 
     monkeypatch.setattr(
         oauth_module, "_exchange_code", AsyncMock(return_value={"access_token": "tok"})

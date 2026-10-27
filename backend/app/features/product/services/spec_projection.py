@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 import uuid
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
@@ -23,6 +23,7 @@ from app.features.product.models.product_spec import (
     SPEC_SOURCE_MANUAL,
     ProductSpec,
 )
+from app.features.product.services.category_tree import category_lineage
 
 _YAML_PATH = Path(__file__).parent.parent / "spec_definitions.yaml"
 _DECIMAL_PATTERN = re.compile(r"[-+]?\d*\.?\d+")
@@ -79,7 +80,7 @@ async def _load_defs_from_db(session: AsyncSession) -> list[dict[str, Any]] | No
 def _spec_applies_to_category(
     spec_def: dict[str, Any],
     supplier_category: str,
-    category_id: uuid.UUID | str | None = None,
+    category_id: uuid.UUID | str | Iterable[uuid.UUID | str] | None = None,
 ) -> bool:
     """Return True if spec_def applies to the product's category.
 
@@ -87,13 +88,23 @@ def _spec_applies_to_category(
     supplier category keywords (``categories``); with neither it applies to
     every product. Keyword matching is partial and case-insensitive:
     "Ordinateur/Serveur" matches both "ordinateur" and "serveur".
+
+    ``category_id`` may be the product's category alone, or its lineage
+    (the category and its ancestors): a definition scoped to « Réseau »
+    then applies to the WiFi access points below it.
     """
     ids = spec_def.get("category_ids") or []
     categories = spec_def.get("categories") or []
     if not ids and not categories:
         return True
-    if category_id is not None and str(category_id) in ids:
-        return True
+    if category_id is not None:
+        lineage: Iterable[Any] = (
+            category_id
+            if isinstance(category_id, list | tuple | set)
+            else (category_id,)
+        )
+        if any(str(c) in ids for c in lineage):
+            return True
     if categories and supplier_category:
         category_lower = supplier_category.lower()
         return any(kw in category_lower for kw in categories)
@@ -156,10 +167,13 @@ def iter_matched_specs(
     technical_specifications: list[dict[str, Any]],
     *,
     supplier_category: str | None = None,
-    category_id: uuid.UUID | None = None,
+    category_id: uuid.UUID | Iterable[uuid.UUID] | None = None,
     alias_index: dict[str, dict[str, Any]] | None = None,
 ) -> Iterator[tuple[dict[str, Any], str]]:
     """Yield (spec_def, raw_value) for each Icecat entry matching a definition.
+
+    ``category_id``: the product's category, or its lineage (see
+    :func:`_spec_applies_to_category`).
 
     Shared by the projection (normalized values) and the key-spec tiles, which
     need the supplier's original wording (« Intel Core Ultra 5 », not the
@@ -205,7 +219,7 @@ def project_specs_from_payload(
     technical_specifications: list[dict[str, Any]],
     *,
     supplier_category: str | None = None,
-    category_id: uuid.UUID | None = None,
+    category_id: uuid.UUID | Iterable[uuid.UUID] | None = None,
     alias_index: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, tuple[str | None, Decimal | None, str | None]]:
     """Return {spec_key → (value_text, value_numeric, unit)} from raw Icecat payload.
@@ -239,7 +253,9 @@ async def upsert_product_specs(
     """Project Icecat payload into product_spec rows. Returns count of upserted rows."""
     specs_payload = product.technical_specifications or []
     supplier_category = getattr(product, "supplier_category", None) or ""
-    category_id = getattr(product, "category_id", None)
+    # The category and its ancestors: a definition scoped to « Réseau »
+    # applies to the access points below it.
+    lineage = await category_lineage(session, getattr(product, "category_id", None))
 
     # Prefer DB definitions (editable via admin); fall back to YAML on error.
     db_defs = await _load_defs_from_db(session)
@@ -248,14 +264,14 @@ async def upsert_product_specs(
         projected = project_specs_from_payload(
             specs_payload,
             supplier_category=supplier_category or None,
-            category_id=category_id,
+            category_id=lineage or None,
             alias_index=alias_index,
         )
     else:
         projected = project_specs_from_payload(
             specs_payload,
             supplier_category=supplier_category or None,
-            category_id=category_id,
+            category_id=lineage or None,
         )
 
     if not projected:
@@ -317,10 +333,13 @@ async def get_effective_spec_definitions(
     if not defs:
         defs = _RAW_DEFS
     if category_keyword or category_id is not None:
+        lineage = await category_lineage(session, category_id)
         defs = [
             d
             for d in defs
-            if _spec_applies_to_category(d, category_keyword or "", category_id)
+            if _spec_applies_to_category(
+                d, category_keyword or "", lineage or category_id
+            )
         ]
     return [_localized_def(d) for d in defs]
 

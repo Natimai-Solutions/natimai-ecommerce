@@ -86,9 +86,9 @@ async def get_user_notifications(
     """Get all notifications for a specific user."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
         raise AppError(
-            code="notification.not_owned",
-            status_code=403,
-            message="You cannot access another user's notifications",
+            code="notification.not_found",
+            status_code=404,
+            message="Notification introuvable",
             details={"user_id": str(user_id)},
         )
 
@@ -117,9 +117,9 @@ async def get_user_unread_notifications_count(
     """Get count of unread notifications for a specific user."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
         raise AppError(
-            code="notification.not_owned",
-            status_code=403,
-            message="You cannot access another user's notifications",
+            code="notification.not_found",
+            status_code=404,
+            message="Notification introuvable",
             details={"user_id": str(user_id)},
         )
 
@@ -142,9 +142,9 @@ async def get_user_notification(
     """Get a specific notification for a user."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
         raise AppError(
-            code="notification.not_owned",
-            status_code=403,
-            message="You cannot access another user's notifications",
+            code="notification.not_found",
+            status_code=404,
+            message="Notification introuvable",
             details={"user_id": str(user_id)},
         )
 
@@ -185,9 +185,9 @@ async def mark_notification_as_read(
     """Mark a notification as read for a specific user."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
         raise AppError(
-            code="notification.not_owned",
-            status_code=403,
-            message="You cannot access another user's notifications",
+            code="notification.not_found",
+            status_code=404,
+            message="Notification introuvable",
             details={"user_id": str(user_id)},
         )
 
@@ -220,9 +220,9 @@ async def mark_all_notifications_as_read(
     """Mark all notifications as read for a specific user."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
         raise AppError(
-            code="notification.not_owned",
-            status_code=403,
-            message="You cannot access another user's notifications",
+            code="notification.not_found",
+            status_code=404,
+            message="Notification introuvable",
             details={"user_id": str(user_id)},
         )
 
@@ -245,9 +245,9 @@ async def delete_user_notification(
     """Delete a notification for a specific user."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
         raise AppError(
-            code="notification.not_owned",
-            status_code=403,
-            message="You cannot access another user's notifications",
+            code="notification.not_found",
+            status_code=404,
+            message="Notification introuvable",
             details={"user_id": str(user_id)},
         )
 
@@ -283,9 +283,9 @@ async def create_user_notification(
     """Create a new notification for a user."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
         raise AppError(
-            code="notification.not_owned",
-            status_code=403,
-            message="You cannot access another user's notifications",
+            code="notification.not_found",
+            status_code=404,
+            message="Notification introuvable",
             details={"user_id": str(user_id)},
         )
 

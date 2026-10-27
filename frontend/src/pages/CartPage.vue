@@ -135,6 +135,7 @@
         <p class="cart__note">
           {{ $t('cart.note') }}
         </p>
+        <ShippingEstimate />
 
         <q-btn
           unelevated
@@ -192,6 +193,7 @@ import { useCartStore } from '@/stores/cart';
 import { useCurrencyStore } from '@/stores/currency';
 import ProductImage from '@/components/ProductImage.vue';
 import ProductCard from '@/components/ProductCard.vue';
+import ShippingEstimate from '@/components/ShippingEstimate.vue';
 import { getRelatedToProducts } from '@/api/products';
 import type { components } from '@app/api-types';
 import { getProductRoute } from '@/utils/productRoute';

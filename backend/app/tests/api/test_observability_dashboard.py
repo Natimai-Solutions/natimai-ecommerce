@@ -9,6 +9,7 @@ from decimal import Decimal
 from types import SimpleNamespace
 
 import pytest
+import pytest_asyncio
 from fastapi.testclient import TestClient
 
 import app.api.routes.utils as utils_routes
@@ -23,11 +24,11 @@ from app.core.observability import (
 from app.main import app
 
 
-@pytest.fixture(autouse=True)
-def reset_checkout_metrics() -> Generator[None, None, None]:
-    reset_checkout_metrics_for_tests()
+@pytest_asyncio.fixture(autouse=True)
+async def reset_checkout_metrics() -> AsyncGenerator[None, None]:
+    await reset_checkout_metrics_for_tests()
     yield
-    reset_checkout_metrics_for_tests()
+    await reset_checkout_metrics_for_tests()
 
 
 @pytest.fixture(autouse=True)
@@ -54,12 +55,17 @@ class _CaptureHandler(logging.Handler):
         self.messages.append(record.getMessage())
 
 
-def test_checkout_metrics_alert_triggers_with_high_failure_rate() -> None:
-    observe_checkout_result(success=False, duration_ms=120, error_code="http_error")
-    observe_checkout_result(success=False, duration_ms=80, error_code="internal_error")
-    observe_checkout_result(success=True, duration_ms=60, error_code=None)
+@pytest.mark.asyncio
+async def test_checkout_metrics_alert_triggers_with_high_failure_rate() -> None:
+    await observe_checkout_result(
+        success=False, duration_ms=120, error_code="http_error"
+    )
+    await observe_checkout_result(
+        success=False, duration_ms=80, error_code="internal_error"
+    )
+    await observe_checkout_result(success=True, duration_ms=60, error_code=None)
 
-    snapshot = get_checkout_metrics_snapshot(window_minutes=60)
+    snapshot = await get_checkout_metrics_snapshot(window_minutes=60)
 
     assert snapshot["attempts"] == 3
     assert snapshot["failures"] == 2
@@ -136,9 +142,9 @@ def test_observability_dashboard_endpoint_returns_expected_payload(
         "app.api.routes.utils._collect_outbox_metrics",
         _fake_outbox_metrics,
     )
-    monkeypatch.setattr(
-        "app.api.routes.utils.get_checkout_metrics_snapshot",
-        lambda window_minutes=60: {
+
+    async def _fake_checkout_snapshot(window_minutes: int = 60) -> dict[str, object]:
+        return {
             "window_minutes": window_minutes,
             "attempts": 5,
             "successes": 3,
@@ -148,7 +154,10 @@ def test_observability_dashboard_endpoint_returns_expected_payload(
             "p95_duration_ms": 140,
             "alert_checkout_errors": True,
             "recent_failure_codes": ["http_error", "internal_error"],
-        },
+        }
+
+    monkeypatch.setattr(
+        "app.api.routes.utils.get_checkout_metrics_snapshot", _fake_checkout_snapshot
     )
 
     response = client.get("/api/v1/utils/observability/dashboard")

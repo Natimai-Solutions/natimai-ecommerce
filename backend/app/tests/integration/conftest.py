@@ -13,7 +13,8 @@ from __future__ import annotations
 import asyncio
 import os
 import sys
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
+from datetime import datetime
 
 import pytest
 import pytest_asyncio
@@ -62,3 +63,24 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
             yield session
     finally:
         await engine.dispose()
+
+
+@pytest.fixture
+def freeze_departure_clock(
+    monkeypatch: pytest.MonkeyPatch,
+) -> Callable[[datetime], None]:
+    """Pin the clock of the grouped departures (``departure.crud.utcnow`` and
+    every module that imported it by name) to a fixed instant.
+
+    Tests written around a fixed date (cutoffs ``NOW + n days``) otherwise
+    break once the real date passes them: the next open departure and the
+    reminders still to come are decided against the real clock.
+    """
+    from app.api.routes import admin_grouped_departures
+    from app.features.departure import crud, reception, services
+
+    def freeze(now: datetime) -> None:
+        for module in (crud, services, reception, admin_grouped_departures):
+            monkeypatch.setattr(module, "utcnow", lambda: now)
+
+    return freeze

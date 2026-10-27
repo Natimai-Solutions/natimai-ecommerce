@@ -1,7 +1,13 @@
 export { formatXpf, formatPrice, formatMoney, parseDecimal } from './currency'
-export { calculateSalePrice } from './pricing'
-export type { PricingInput, PricingBreakdown } from './pricing'
-export { formatDate, formatDateTime, formatRelative } from './date'
+export {
+  dayBounds,
+  formatDate,
+  formatDateTime,
+  formatRelative,
+  fromShopDateTimeInput,
+  todayLocal,
+  toShopDateTimeInput,
+} from './date'
 export {
   configureFormatting,
   decimalsOf,

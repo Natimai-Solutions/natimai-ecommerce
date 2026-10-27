@@ -4,6 +4,7 @@ order attachment, filtered order list / CSV / SKU summary, public endpoints."""
 from __future__ import annotations
 
 import uuid
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
@@ -24,10 +25,12 @@ from app.api.routes.admin_orders import (
     _list_order_rows,
     _sku_summary_rows,
     export_orders_csv,
+    list_orders,
     sku_summary_csv,
 )
 from app.api.routes.grouped_departures import get_departure, next_departure
 from app.core.errors import AppError
+from app.features.departure import crud as departure_crud
 from app.features.departure.crud import crud_grouped_departure
 from app.features.departure.models import (
     GroupedDeparture,
@@ -41,6 +44,12 @@ from app.features.product.models.product import Product
 from app.features.user.models.user import User
 
 NOW = datetime(2026, 10, 1, 12, 0, tzinfo=UTC)
+
+
+@pytest.fixture(autouse=True)
+def _at_now(freeze_departure_clock: Callable[[datetime], None]) -> None:
+    """Every test runs on NOW, the date its cutoffs are written from."""
+    freeze_departure_clock(NOW)
 
 
 def _departure(name: str, days: int, **overrides: Any) -> GroupedDeparture:
@@ -290,7 +299,7 @@ async def test_filtered_orders_export_and_sku_summary(db_session: AsyncSession) 
     assert summary["MS-1"].quantity == 3 and summary["MS-1"].unit_cost is None
 
     csv_orders = await export_orders_csv(
-        db_session, seed.admin, **_filters(departure_id=departure_id)
+        db_session, seed.admin, **_filters(departure_id=departure_id), q=None
     )
     lines = bytes(csv_orders.body).decode("utf-8-sig").splitlines()
     assert lines[0].startswith("Numéro;Date;Client") and len(lines) == 3
@@ -309,9 +318,51 @@ async def test_filtered_orders_export_and_sku_summary(db_session: AsyncSession) 
 
 
 @pytest.mark.asyncio
-async def test_public_endpoints_expose_only_published_departures(
+async def test_the_order_list_pages_searches_and_sorts(
     db_session: AsyncSession,
 ) -> None:
+    seed = await _seed(db_session)
+
+    async def page(**query: Any) -> Any:
+        params: dict[str, Any] = {
+            **_filters(),
+            "skip": 0,
+            "limit": 50,
+            "q": None,
+            "sort_by": "created_at",
+            "descending": True,
+        }
+        params.update(query)
+        return await list_orders(db_session, seed.admin, **params)
+
+    # The count is the whole match, not the page: nothing hidden past it.
+    first = await page(limit=2)
+    assert first.count == 3 and len(first.data) == 2
+    assert [r.order_number for r in first.data] == ["CMD-2026-00009", "CMD-2026-00005"]
+    rest = await page(skip=2, limit=2)
+    assert [r.order_id for r in rest.data] == [seed.orders[0]]
+
+    # Text search: order number, customer name or e-mail.
+    assert (await page(q="00005")).count == 1
+    assert (await page(q="tehani")).count == 3
+    assert (await page(q="buyer+")).count == 3
+    assert (await page(q="nobody")).count == 0
+
+    by_total = await page(sort_by="total_amount", descending=False)
+    assert [r.total_amount for r in by_total.data] == [50.0, 1000.0, 2000.0]
+
+    with pytest.raises(AppError) as refused:
+        await page(sort_by="user_id")
+    assert refused.value.code == "query.order_by_not_allowed"
+
+
+@pytest.mark.asyncio
+async def test_public_endpoints_expose_only_published_departures(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # `/next` reads the real clock: pin it to the fixtures' NOW, or the test
+    # expires by itself once the hard-coded October cutoffs are behind us.
+    monkeypatch.setattr(departure_crud, "utcnow", lambda: NOW)
     visible = _departure("Octobre", 14, estimated_delivery_at=NOW + timedelta(days=40))
     hidden = _departure("Interne", 5, is_published=False)
     db_session.add_all([visible, hidden])

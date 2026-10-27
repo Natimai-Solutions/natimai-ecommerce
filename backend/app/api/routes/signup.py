@@ -21,13 +21,9 @@ from app.core.captcha import require_captcha
 from app.core.config import settings
 from app.core.errors import AppError
 from app.core.rate_limit import rate_limited
-from app.core.security import get_password_hash
+from app.core.security import aget_password_hash
 from app.features.notification.email_renderer import render_email
-from app.features.notification.providers import (
-    NotificationMessage,
-    UnknownNotificationProviderError,
-    get_notification_provider,
-)
+from app.features.notification.mailer import queue_email
 from app.features.user.crud.refresh_token import crud_user_refresh_token
 from app.features.user.crud.user import crud_user, mark_logged_in
 from app.features.user.models.user import AccessTokenResponse, User
@@ -76,32 +72,23 @@ class OkMessage(BaseModel):
     message: str
 
 
-async def _send_otp_email(email: str, code: str) -> None:
+async def _send_otp_email(session: SessionDep, email: str, code: str) -> None:
+    """Queue the sign-up code (sent by the worker, off the request)."""
     rendered = render_email(
         "signup_otp",
         code=code,
         valid_minutes=OTP_VALID_MINUTES,
         shop_name=runtime_settings.peek("shop_name"),
     )
-    try:
-        provider = get_notification_provider(
-            settings.PAYMENT_NOTIFICATIONS_EMAIL_PROVIDER
-        )
-    except UnknownNotificationProviderError:
-        provider = get_notification_provider("noop")
-
-    result = await provider.send(
-        NotificationMessage(
-            channel="email",
-            recipient=email,
-            subject=rendered.subject,
-            text=rendered.text,
-            html=rendered.html,
-            metadata={"event_type": "signup.otp"},
-        )
+    await queue_email(
+        session,
+        recipient=email,
+        subject=rendered.subject,
+        text=rendered.text,
+        html=rendered.html,
+        event_type="signup.otp",
+        resendable=False,  # carries a valid code
     )
-    if not result.delivered:
-        logger.warning("signup OTP email not delivered to %s: %s", email, result.error)
     # Local dev affordance: surface the code in logs when no real mailer is set up.
     if settings.ENVIRONMENT == "local":
         logger.info("[DEV] signup OTP for %s = %s", email, code)
@@ -128,7 +115,7 @@ async def send_otp(
         )
 
     code = await create_otp(redis, str(body.email))
-    await _send_otp_email(str(body.email), code)
+    await _send_otp_email(session, str(body.email), code)
     return OkMessage(message="Un code de vérification a été envoyé par email.")
 
 
@@ -166,7 +153,7 @@ async def complete_signup(
         email=email,
         full_name=body.full_name,
         is_verified=True,
-        hashed_password=get_password_hash(body.password),
+        hashed_password=await aget_password_hash(body.password),
     )
     mark_logged_in(user)  # l'inscription connecte : c'est une première ouverture
     session.add(user)
@@ -174,7 +161,7 @@ async def complete_signup(
 
     user_id = user.id
     access_token, refresh_token, refresh_jti, refresh_expires_at = _build_token_bundle(
-        user_id
+        user_id, user.security_stamp
     )
     await crud_user_refresh_token.create_for_user(
         session=session,

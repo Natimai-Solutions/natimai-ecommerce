@@ -101,11 +101,11 @@ def test_get_user_orders_not_owned_returns_error_payload(client: TestClient) -> 
 
     response = client.get(f"/api/v1/order/user/{owner_user_id}")
 
-    assert response.status_code == 403
+    assert response.status_code == 404
     assert response.json() == {
         "error": {
-            "code": "order.not_owned",
-            "message": "You can only access your own orders",
+            "code": "order.not_found",
+            "message": "Commande introuvable",
             "details": {"user_id": str(owner_user_id)},
         }
     }

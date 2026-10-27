@@ -15,6 +15,19 @@
       >
         {{ $t('catalogue.all') }}
       </button>
+      <!-- Niveaux : « Réseau › WiFi » puis les rayons de ce niveau. Un parent
+           choisi liste aussi les produits de ses sous-catégories. -->
+      <button
+        v-for="crumb in categoryCrumbs"
+        :key="crumb.id"
+        type="button"
+        class="chip chip--parent"
+        :aria-label="$t('catalogue.back_to', { name: crumb.label })"
+        @click="onCategoryChange(crumb.id)"
+      >
+        <q-icon name="ph:caret-left" size="12px" />
+        {{ crumb.label }}
+      </button>
       <button
         v-for="cat in categoryOptions"
         :key="cat.value"
@@ -337,6 +350,7 @@
 import { computed, onMounted, onServerPrefetch, ref, watch } from 'vue';
 import { useMeta } from 'quasar';
 import { absoluteUrl, breadcrumbList, jsonLd } from '@/utils/seo';
+import { catalogueCategoryChoices, categoryChildren, categoryLineage } from '@/utils/categories';
 import { useI18n } from 'vue-i18n';
 import { intlLocale } from '@app/utils';
 import { useShopModulesStore } from '@/stores/shopModules';
@@ -411,9 +425,27 @@ const cartError = ref<string | null>(null);
 const filtersOpen = ref(false);
 const showAllManufacturers = ref(false);
 
+// The chips of the current level: the selected category's sub-categories,
+// else its siblings; the top level without a selection.
 const categoryOptions = computed(() =>
-  store.categories.map((c) => ({ label: c.title ?? c.name, value: c.id })),
+  catalogueCategoryChoices(store.categories, selectedCategory.value).map((c) => ({
+    label: c.title ?? c.name,
+    value: c.id,
+  })),
 );
+// Its ancestors (nearest last), and the category itself when it has
+// sub-categories (the chips then show them, so it needs a way back to it).
+const categoryLineageList = computed(() =>
+  categoryLineage(store.categories, selectedCategory.value),
+);
+const categoryCrumbs = computed(() => {
+  const chain = categoryLineageList.value;
+  const current = chain[chain.length - 1];
+  const hasChildren = !!current && categoryChildren(store.categories, current.id).length > 0;
+  return chain
+    .slice(0, hasChildren ? chain.length : -1)
+    .map((c) => ({ id: c.id, label: c.title ?? c.name }));
+});
 
 // Après les refs et `categoryOptions` : Quasar évalue ce callback dès l'appel,
 // une déclaration `const` plus bas serait lue avant son initialisation.
@@ -438,8 +470,9 @@ useMeta(() => {
     { name: t('layout.home'), path: '/' },
     { name: t('layout.catalogue'), path: '/catalogue' },
   ];
-  const category = categoryOptions.value.find((c) => c.value === selectedCategory.value);
-  if (category) crumbs.push({ name: category.label, path: `/catalogue?cat=${category.value}` });
+  for (const category of categoryLineageList.value) {
+    crumbs.push({ name: category.title ?? category.name, path: `/catalogue?cat=${category.id}` });
+  }
   const breadcrumb = breadcrumbList(crumbs);
   if (breadcrumb) script['ldBreadcrumb'] = jsonLd(breadcrumb);
   return { title, meta, link, script };
@@ -447,8 +480,9 @@ useMeta(() => {
 
 const pageTitle = computed(() => {
   if (store.filters.q) return t('catalogue.results_for', { q: store.filters.q });
-  const cat = categoryOptions.value.find((c) => c.value === selectedCategory.value);
-  return cat?.label ?? t('catalogue.title');
+  const chain = categoryLineageList.value;
+  const cat = chain[chain.length - 1];
+  return cat ? (cat.title ?? cat.name) : t('catalogue.title');
 });
 
 const resultLabel = computed(() =>
@@ -791,6 +825,13 @@ onMounted(async () => {
     margin: 0 -16px;
     padding: 0 16px 4px;
   }
+}
+
+.chip--parent {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--n-ink-3);
 }
 
 .chip {

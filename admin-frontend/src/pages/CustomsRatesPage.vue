@@ -49,7 +49,7 @@
     </div>
 
     <q-table
-      :rows="report?.categories ?? []"
+      :rows="tableRows"
       :columns="columns"
       row-key="category_id"
       :loading="loading"
@@ -66,7 +66,15 @@
       </template>
       <template #body-cell-rate="props">
         <q-td :props="props">
-          <span v-if="props.row.default_customs_rate_pct" class="font-mono"
+          <span
+            v-if="!props.row.default_customs_rate_pct && props.row.inherited_rate"
+            class="font-mono text-muted"
+            >{{ props.row.inherited_rate }} %
+            <span class="text-caption">{{
+              $t('customs.inherited_from', { name: props.row.inherited_from })
+            }}</span></span
+          >
+          <span v-else-if="props.row.default_customs_rate_pct" class="font-mono"
             >{{ props.row.default_customs_rate_pct }} %</span
           >
           <StatusTag
@@ -171,11 +179,49 @@ import {
   type CategoryPublicationRow,
   type PublicationReport,
 } from '@/api/taxRates';
+import { listAdminCategories, type AdminCategory } from '@/api/categories';
 import { extractApiError } from '@/api/errors';
 
 const { t } = useI18n();
 
 const report = ref<PublicationReport | null>(null);
+/** Every live category, products or not: a rate is set before the products arrive. */
+const categories = ref<AdminCategory[]>([]);
+
+type CustomsRow = CategoryPublicationRow & {
+  /** Rate in force when the category sets none: an ancestor's. */
+  inherited_rate?: string | null;
+  inherited_from?: string | null;
+};
+
+// One row per live category (tree order, full path), with the report's
+// counts; the report's « sans catégorie » row stays at the end.
+const tableRows = computed<CustomsRow[]>(() => {
+  const counts = new Map(
+    (report.value?.categories ?? [])
+      .filter((r) => r.category_id)
+      .map((r) => [r.category_id as string, r]),
+  );
+  const rows: CustomsRow[] = categories.value
+    .filter((c) => c.is_active && !c.merged_into_id)
+    .map((c) => {
+      const counted = counts.get(c.id);
+      return {
+        category_id: c.id,
+        category_name: c.path.join(' › '),
+        default_customs_rate_pct: c.default_customs_rate_pct,
+        default_tax_rate_id: c.default_tax_rate_id,
+        product_count: counted?.product_count ?? 0,
+        blocked_count: counted?.blocked_count ?? 0,
+        inherited_rate: c.default_customs_rate_pct ? null : c.inherited_customs_rate_pct,
+        inherited_from: c.inherited_customs_rate_from,
+      };
+    });
+  for (const row of report.value?.categories ?? []) {
+    if (!row.category_id) rows.push(row);
+  }
+  return rows;
+});
 const loading = ref(false);
 const error = ref<string | null>(null);
 
@@ -201,7 +247,10 @@ async function load() {
   loading.value = true;
   error.value = null;
   try {
-    report.value = await getPublicationReport();
+    [report.value, categories.value] = await Promise.all([
+      getPublicationReport(),
+      listAdminCategories(),
+    ]);
   } catch (err) {
     error.value = extractApiError(err) ?? t('common.load_failed');
   } finally {

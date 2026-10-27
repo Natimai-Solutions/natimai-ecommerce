@@ -1,7 +1,7 @@
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
-// Unit tests + coverage for the shared engine (@app/utils: currency / pricing /
+// Unit tests + coverage for the shared engine (@app/utils: currency / format /
 // date helpers shared by the storefront and admin apps). The Quasar apps are
 // covered by typecheck + lint in CI; this is the "frontend" coverage badge.
 export default defineConfig({

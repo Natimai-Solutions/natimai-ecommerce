@@ -39,6 +39,11 @@ concurrency:
   group: deploy-${{ inputs.environment }}
   cancel-in-progress: false
 
+# Pas d'enregistrement de build (artefact par image) : il compte dans le
+# quota de stockage des artefacts, qui a déjà été atteint.
+env:
+  DOCKER_BUILD_RECORD_UPLOAD: "false"
+
 permissions:
   contents: read
 

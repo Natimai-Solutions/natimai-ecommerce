@@ -196,9 +196,9 @@ async def get_user_wishlists(
     """Get all wishlists for a specific user."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
         raise AppError(
-            code="wishlist.not_owned",
-            status_code=403,
-            message="You cannot access another user's wishlists",
+            code="wishlist.not_found",
+            status_code=404,
+            message="Liste introuvable",
             details={"user_id": str(user_id)},
         )
 
@@ -225,9 +225,9 @@ async def create_user_wishlist(
     """Create a new wishlist for a user."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
         raise AppError(
-            code="wishlist.not_owned",
-            status_code=403,
-            message="You cannot access another user's wishlists",
+            code="wishlist.not_found",
+            status_code=404,
+            message="Liste introuvable",
             details={"user_id": str(user_id)},
         )
 
@@ -250,9 +250,9 @@ async def get_user_wishlist(
     """Get a specific wishlist for a user."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
         raise AppError(
-            code="wishlist.not_owned",
-            status_code=403,
-            message="You cannot access another user's wishlists",
+            code="wishlist.not_found",
+            status_code=404,
+            message="Liste introuvable",
             details={"user_id": str(user_id)},
         )
 

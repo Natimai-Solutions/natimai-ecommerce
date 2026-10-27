@@ -1,8 +1,8 @@
 import uuid
 from collections.abc import Callable
-from typing import Any, cast
+from typing import Annotated, Any, cast
 
-from fastapi import Depends
+from fastapi import Depends, Query
 from sqlalchemy import and_
 from sqlmodel import col, not_, select
 
@@ -113,8 +113,8 @@ class ProductRouter(
 
         async def read_multi(
             session: SessionDep,
-            skip: int = 0,
-            limit: int = 100,
+            skip: Annotated[int, Query(ge=0)] = 0,
+            limit: Annotated[int, Query(ge=1, le=500)] = 100,
             order_by: str | None = None,
             include_archived: bool = False,
             status: str | None = None,
@@ -204,6 +204,7 @@ class Auth:
     create: bool = True
     update: bool = True
     delete: bool = True
+    read_superuser = False  # public catalogue
     create_superuser: bool = True
     update_superuser: bool = True
     delete_superuser: bool = True

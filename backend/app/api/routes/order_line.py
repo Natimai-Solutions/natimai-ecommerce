@@ -1,4 +1,7 @@
 import uuid
+from typing import Annotated
+
+from fastapi import Query
 
 from app.api.base_router import BaseRouter
 from app.api.deps import CurrentUser, SessionDep
@@ -58,6 +61,24 @@ router = OrderLineRouter(
 )
 
 
+async def _ensure_order_readable(
+    session: SessionDep, *, order_id: uuid.UUID, user: CurrentUser
+) -> None:
+    """404 unless the order exists and is the caller's (or the caller is an
+    admin): same answer for "missing" and "not yours", so nothing leaks."""
+    try:
+        order = await crud_order.read(session=session, id=order_id)
+    except RecordNotFoundError:
+        order = None
+    if order is None or (not user.is_superuser and order.user_id != user.id):
+        raise AppError(
+            code="order.not_found",
+            status_code=404,
+            message=f"Order '{order_id}' not found",
+            details={"order_id": str(order_id)},
+        )
+
+
 @router.get("/order/{order_id}", response_model=list[OrderLinePublic])
 async def get_order_lines(
     session: SessionDep,
@@ -65,20 +86,7 @@ async def get_order_lines(
     order_id: uuid.UUID,
 ) -> list[OrderLinePublic]:
     """Get the lines of an order (owner or superuser only)."""
-    try:
-        order = await crud_order.read(session=session, id=order_id)
-    except RecordNotFoundError:
-        order = None
-    if order is None or (
-        not current_user.is_superuser and order.user_id != current_user.id
-    ):
-        # Same 404 for "missing" and "not yours": don't leak order existence.
-        raise AppError(
-            code="order.not_found",
-            status_code=404,
-            message=f"Order '{order_id}' not found",
-            details={"order_id": str(order_id)},
-        )
+    await _ensure_order_readable(session, order_id=order_id, user=current_user)
     lines = await crud_order_line.get_by_order(session=session, order_id=order_id)
     return [OrderLinePublic.model_validate(line) for line in lines]
 
@@ -88,8 +96,8 @@ async def get_product_order_lines(
     session: SessionDep,
     current_user: CurrentUser,
     product_id: uuid.UUID,
-    skip: int = 0,
-    limit: int = 100,
+    skip: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ) -> list[OrderLinePublic]:
     """Get product order lines."""
     if not current_user.is_superuser:
@@ -109,10 +117,11 @@ async def get_product_order_lines(
 @router.get("/order/{order_id}/total", response_model=dict)
 async def calculate_order_total(
     session: SessionDep,
-    _current_user: CurrentUser,
+    current_user: CurrentUser,
     order_id: uuid.UUID,
 ) -> dict[str, object]:
-    """Calculate order total."""
+    """Total of an order's lines (owner or superuser only)."""
+    await _ensure_order_readable(session, order_id=order_id, user=current_user)
     total = await crud_order_line.calculate_order_total(
         session=session, order_id=order_id
     )

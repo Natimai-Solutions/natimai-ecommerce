@@ -39,6 +39,22 @@ SETTLED_PAYMENT_STATUSES: frozenset[str] = frozenset(
 DEAD_PAYMENT_STATUSES: frozenset[str] = frozenset({"Failed", "Cancelled"})
 
 
+async def lock_wallet(session: AsyncSession, user_id: uuid.UUID) -> None:
+    """Serialize the balance checks of one customer until the transaction ends.
+
+    Store credit and loyalty points are ledgers: a write is valid only against
+    the balance read just before it. Without this lock two concurrent requests
+    (two tabs, a scripted burst) both read the same balance and both spend it.
+    A transaction-level advisory lock keyed on the customer: released by the
+    commit or rollback, re-entrant within the same transaction.
+    """
+    await session.exec(
+        select(
+            func.pg_advisory_xact_lock(func.hashtextextended(f"wallet:{user_id}", 0))
+        )
+    )
+
+
 async def balance(session: AsyncSession, user_id: uuid.UUID) -> Decimal:
     """Σ of the customer's ledger."""
     total = (
@@ -87,6 +103,7 @@ async def grant(
             message="Le montant de l'avoir doit être différent de zéro",
             details={},
         )
+    await lock_wallet(session, user_id)
     if amount < 0 and await balance(session, user_id) + amount < 0:
         raise AppError(
             code="store_credit.insufficient",
@@ -121,6 +138,7 @@ async def apply_to_order(
     drives the order like any other payment. Flushes, no commit."""
     currency = order.currency or "XPF"
     amount = quantize_amount(amount, currency)
+    await lock_wallet(session, user.id)
     available = await balance(session, user.id)
     if amount <= 0 or amount > available:
         raise AppError(

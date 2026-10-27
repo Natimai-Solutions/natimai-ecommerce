@@ -9,7 +9,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import runtime_settings
 from app.core.config import settings
+from app.core.logging_config import mask_email
 from app.features.notification.email_renderer import render_email
+from app.features.notification.mailer import send_email
 from app.features.notification.providers import (
     NotificationMessage,
     NotificationProvider,
@@ -204,27 +206,25 @@ async def _send_email_notifications(
         )
         return
 
-    provider = _resolve_provider(settings.PAYMENT_NOTIFICATIONS_EMAIL_PROVIDER)
     # Same styled HTML shell as the customer-facing emails.
     email = render_email(
         "admin_payment_event", **_build_admin_email_context(event_type, payload)
     )
 
     for target in targets:
-        result = await provider.send(
-            NotificationMessage(
-                channel=_EMAIL_CHANNEL,
-                recipient=target,
-                subject=email.subject,
-                text=email.text,
-                html=email.html,
-                metadata={"event_type": event_type, "payload": payload},
-            )
+        result = await send_email(
+            session,
+            recipient=target,
+            subject=email.subject,
+            text=email.text,
+            html=email.html,
+            event_type=event_type,
+            metadata={"payload": payload},
         )
         if not result.delivered:
             logger.warning(
                 "Payment notification email failed for target=%s provider=%s: %s",
-                target,
+                mask_email(target),
                 result.provider_code,
                 result.error,
             )

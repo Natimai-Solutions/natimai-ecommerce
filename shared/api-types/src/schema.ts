@@ -219,7 +219,9 @@ export interface paths {
          * Oauth Login
          * @description Redirect the browser to the provider OAuth authorization page.
          *
-         *     Generates a CSRF state token stored in Redis (TTL 5 min).
+         *     The state (Redis, TTL 5 min, single use) holds the provider, the PKCE
+         *     verifier and a binding secret also set as an HttpOnly cookie on this
+         *     browser: the callback is accepted only from the browser that started it.
          */
         get: operations["oauth-oauth_login"];
         put?: never;
@@ -1250,7 +1252,8 @@ export interface paths {
         };
         /**
          * List Orders
-         * @description List customer orders (most recent first) with client and status names.
+         * @description One page of the customer orders with client and status names, and the
+         *     number of orders the filters match (most recent first by default).
          */
         get: operations["admin-order-list_orders"];
         put?: never;
@@ -2276,6 +2279,28 @@ export interface paths {
          *     always visible and are left untouched here.
          */
         post: operations["admin-product-admin_publish_products"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/products/manufacturers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Admin List Manufacturers
+         * @description The brands the product form proposes: every manufacturer already on a
+         *     product (one spelling per brand — the most frequent — so « HP » and
+         *     « hp » stop coexisting) and the brands of the catalogue, sorted.
+         */
+        get: operations["admin-product-admin_list_manufacturers"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -4334,12 +4359,33 @@ export interface paths {
          * Get Last Leg Options
          * @description Priced last-leg (zone C) delivery options for the current cart.
          *
-         *     Lets the storefront show each delivery mode's price before checkout. Mirrors
-         *     the pricing applied at ``POST /cart/checkout`` (base_price + price_per_kg ×
-         *     billable weight). Only delivery modes whose route serves the address'
-         *     destination appear — plus the always-available ones (in-store pickup...).
+         *     Lets the storefront show each delivery mode's price before checkout. Only
+         *     delivery modes whose route serves the destination appear — plus the
+         *     always-available ones (in-store pickup...).
          */
         get: operations["cart-get_last_leg_options"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cart/guest/last-leg-options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Guest Last Leg Options
+         * @description The delivery price to an island before signing in: the visitor picks
+         *     the island, the delivery modes serving it are priced for their cart —
+         *     « le prix final rendu, avant de commander ».
+         */
+        get: operations["cart-get_guest_last_leg_options"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5205,7 +5251,7 @@ export interface paths {
         };
         /**
          * Calculate Order Total
-         * @description Calculate order total.
+         * @description Total of an order's lines (owner or superuser only).
          */
         get: operations["order-line-calculate_order_total"];
         put?: never;
@@ -8638,6 +8684,8 @@ export interface components {
             display_name?: string | null;
             /** Description */
             description?: string | null;
+            /** Parent Id */
+            parent_id?: string | null;
         };
         /**
          * AdminCategoryItem
@@ -8676,6 +8724,34 @@ export interface components {
              * @default 0
              */
             product_count: number;
+            /** Parent Id */
+            parent_id?: string | null;
+            /** Parent Name */
+            parent_name?: string | null;
+            /** Path */
+            path?: string[];
+            /**
+             * Depth
+             * @default 0
+             */
+            depth: number;
+            /**
+             * Children Count
+             * @default 0
+             */
+            children_count: number;
+            /** Inherited Tax Rate Id */
+            inherited_tax_rate_id?: string | null;
+            /** Inherited Tax Rate From */
+            inherited_tax_rate_from?: string | null;
+            /** Inherited Customs Rate Pct */
+            inherited_customs_rate_pct?: string | null;
+            /** Inherited Customs Rate From */
+            inherited_customs_rate_from?: string | null;
+            /** Inherited Margin Rate Pct */
+            inherited_margin_rate_pct?: string | null;
+            /** Inherited Margin Rate From */
+            inherited_margin_rate_from?: string | null;
             /** Translations */
             translations?: {
                 [key: string]: {
@@ -8707,6 +8783,8 @@ export interface components {
             is_active?: boolean | null;
             /** Default Margin Rate Pct */
             default_margin_rate_pct?: number | string | null;
+            /** Parent Id */
+            parent_id?: string | null;
             /** Translations */
             translations?: {
                 [key: string]: {
@@ -9043,6 +9121,16 @@ export interface components {
              * @default false
              */
             accepts_receipts: boolean;
+        };
+        /**
+         * AdminOrdersPage
+         * @description One page of the order list and the number of orders the filters match.
+         */
+        AdminOrdersPage: {
+            /** Data */
+            data: components["schemas"]["AdminOrderListItem"][];
+            /** Count */
+            count: number;
         };
         /** AdminPaymentMethod */
         AdminPaymentMethod: {
@@ -10479,8 +10567,13 @@ export interface components {
                 };
             };
             /**
+             * Parent Id
+             * @description Parent category (« Réseau > WiFi > Point d'accès WiFi »). None = a top-level category. A child inherits the defaults its chain leaves unset (tax rate, customs rate, margin) and is listed under its ancestors in the storefront.
+             */
+            parent_id?: string | null;
+            /**
              * Default Tax Rate Id
-             * @description Default tax rate applied to products in this category
+             * @description Default tax rate applied to products in this category; None → the parent category's, else the shop default
              */
             default_tax_rate_id?: string | null;
             /**
@@ -10589,8 +10682,13 @@ export interface components {
                 };
             };
             /**
+             * Parent Id
+             * @description Parent category (« Réseau > WiFi > Point d'accès WiFi »). None = a top-level category. A child inherits the defaults its chain leaves unset (tax rate, customs rate, margin) and is listed under its ancestors in the storefront.
+             */
+            parent_id?: string | null;
+            /**
              * Default Tax Rate Id
-             * @description Default tax rate applied to products in this category
+             * @description Default tax rate applied to products in this category; None → the parent category's, else the shop default
              */
             default_tax_rate_id?: string | null;
             /**
@@ -10714,6 +10812,8 @@ export interface components {
                     [key: string]: unknown;
                 };
             };
+            /** Parent Id */
+            parent_id?: string | null;
             /** Default Tax Rate Id */
             default_tax_rate_id?: string | null;
             /** Default Customs Rate Pct */
@@ -10898,7 +10998,7 @@ export interface components {
             notes?: string | null;
             /**
              * Shipping Fee Amount
-             * @description Deprecated manual shipping fee override. Used only if no shipping routes are selected
+             * @description Ignored. The shipping fee is priced server-side from the routes serving the address: a caller does not get to set it. Kept optional so existing clients that still send it are not rejected.
              */
             shipping_fee_amount?: number | string | null;
             /**
@@ -17857,6 +17957,12 @@ export interface components {
              */
             has_variants: boolean;
             /**
+             * Variants Optional
+             * @description The variants are options over the base product: the parent stays sellable as is (its own price and stock), a variant replaces it when the customer picks one. False (default): the parent is only the storefront entry, a variant must be chosen.
+             * @default false
+             */
+            variants_optional: boolean;
+            /**
              * Price Extra
              * @description Variant only (R9 / T6): supplement over the parent's fixed price (« i7 : + 10 000 »). When set, base_price = parent.base_price + price_extra, recomputed whenever the parent price changes; the storefront shows « + 10 000 » in the selector. None: the variant has a price of its own.
              */
@@ -18408,6 +18514,12 @@ export interface components {
              */
             has_variants: boolean;
             /**
+             * Variants Optional
+             * @description The variants are options over the base product: the parent stays sellable as is (its own price and stock), a variant replaces it when the customer picks one. False (default): the parent is only the storefront entry, a variant must be chosen.
+             * @default false
+             */
+            variants_optional: boolean;
+            /**
              * Price Extra
              * @description Variant only (R9 / T6): supplement over the parent's fixed price (« i7 : + 10 000 »). When set, base_price = parent.base_price + price_extra, recomputed whenever the parent price changes; the storefront shows « + 10 000 » in the selector. None: the variant has a price of its own.
              */
@@ -18835,6 +18947,8 @@ export interface components {
             } | null;
             /** Has Variants */
             has_variants?: boolean | null;
+            /** Variants Optional */
+            variants_optional?: boolean | null;
             /** Price Extra */
             price_extra?: number | string | null;
             /** Gift Card Amount */
@@ -25583,6 +25697,10 @@ export interface operations {
                 date_from?: string | null;
                 /** @description Commandes créées jusqu'à cette date */
                 date_to?: string | null;
+                /** @description Numéro de commande, nom ou e-mail du client (contient) */
+                q?: string | null;
+                sort_by?: string;
+                descending?: boolean;
             };
             header?: never;
             path?: never;
@@ -25596,7 +25714,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AdminOrderListItem"][];
+                    "application/json": components["schemas"]["AdminOrdersPage"];
                 };
             };
             /** @description Validation Error */
@@ -25623,6 +25741,8 @@ export interface operations {
                 date_from?: string | null;
                 /** @description Commandes créées jusqu'à cette date */
                 date_to?: string | null;
+                /** @description Numéro de commande, nom ou e-mail du client (contient) */
+                q?: string | null;
             };
             header?: never;
             path?: never;
@@ -27373,6 +27493,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-product-admin_list_manufacturers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string[];
                 };
             };
         };
@@ -31163,8 +31303,45 @@ export interface operations {
             query?: {
                 /** @description Shipping address whose destination filters the delivery modes (must belong to the current user). Without it, only destination-independent modes are returned. */
                 address_id?: string | null;
+                /** @description Destination zone (island) when no address is chosen yet */
+                place_id?: string | null;
             };
             header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LastLegOptionsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "cart-get_guest_last_leg_options": {
+        parameters: {
+            query?: {
+                /** @description Destination zone (island) picked by the visitor */
+                place_id?: string | null;
+            };
+            header: {
+                /** @description Token of the visitor's cart, generated by the storefront */
+                "X-Cart-Token": string;
+            };
             path?: never;
             cookie?: never;
         };

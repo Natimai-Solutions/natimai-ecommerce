@@ -29,9 +29,10 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.datetimes import utcnow
 from app.core.errors import AppError
-from app.core.security import get_password_hash
+from app.core.security import get_password_hash, new_security_stamp
 from app.features.cart.models.cart import Cart, CartItem
 from app.features.cart.models.quote_request import QuoteRequest
+from app.features.notification.models.email_log import EmailLog
 from app.features.order.models.order import Order
 from app.features.order.models.order_line import OrderLine
 from app.features.order.models.order_status import OrderStatus
@@ -285,6 +286,13 @@ async def erase_account(session: AsyncSession, user: User) -> None:
             notes=None,
         )
     )
+    # The e-mails sent to the person: address and bodies are personal data.
+    if user.email:
+        await session.execute(
+            sa_delete(EmailLog).where(
+                func.lower(col(EmailLog.recipient)) == user.email.lower()
+            )
+        )
     await crud_user_refresh_token.revoke_all_active_for_user(
         session, user_id=uid, reason="account_deleted"
     )
@@ -293,6 +301,7 @@ async def erase_account(session: AsyncSession, user: User) -> None:
     user.full_name = None
     user.phone = None
     user.hashed_password = get_password_hash(secrets.token_urlsafe(32))
+    user.security_stamp = new_security_stamp()
     user.is_active = False
     user.is_verified = False
     user.password_reset_token = None

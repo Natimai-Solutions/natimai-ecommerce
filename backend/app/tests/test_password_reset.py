@@ -135,7 +135,7 @@ async def test_the_stored_token_is_the_digest_of_the_emailed_one(
 ) -> None:
     captured: dict[str, str] = {}
 
-    async def _capture(email: str, token: str) -> None:
+    async def _capture(_session: object, email: str, token: str) -> None:
         captured["email"] = email
         captured["token"] = token
 

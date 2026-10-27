@@ -26,6 +26,7 @@ from app.api.routes.cart import _get_active_product_or_404
 from app.api.routes.product_catalog import get_product_variants
 from app.core.errors import AppError
 from app.features.inventory.models.inventory import Inventory
+from app.features.inventory.services.availability import publish_with_availability
 from app.features.product.crud.product import crud_product
 from app.features.product.models.product import (
     PricingMode,
@@ -288,3 +289,86 @@ async def test_a_variant_supplement_follows_the_parent_price(
         payload=ProductUpdate(price_extra=None, base_price=Decimal("45000")),
     )
     assert (freed.price_extra, freed.base_price) == (None, Decimal("45000.00"))
+
+
+@pytest.mark.asyncio
+async def test_optional_variants_keep_the_base_product_sellable(
+    db_session: AsyncSession,
+) -> None:
+    """« PC à 18 000, i7 à + 3 000 » with the i5 machine sold as is: the
+    parent keeps its own price and stock, the cart accepts it, and the
+    variant is an option on top. Switching the rule off brings the entry-only
+    behaviour back (cheapest variant, variants' stock, cart refusal)."""
+    admin = await _admin(db_session)
+    parent = await admin_create_product(
+        session=db_session,
+        current_user=admin,
+        payload=ProductCreate(
+            name="PC HP EliteDesk",
+            pricing_mode=PricingMode.FIXED,
+            base_price=Decimal("18000"),
+            variants_optional=True,
+        ),
+    )
+    parent_id = parent.id
+    i7 = await admin_create_variant(
+        session=db_session,
+        current_user=await _fresh(db_session, admin),
+        product_id=parent_id,
+        payload=VariantCreateRequest(
+            options={"Processeur": "i7"}, base_price=Decimal("12000")
+        ),
+    )
+    db_session.add_all(
+        [
+            Inventory(
+                product_id=parent_id,
+                place_id=None,
+                quantity=Decimal("1"),
+                compute_from_movements=False,
+            ),
+            Inventory(
+                product_id=i7.id,
+                place_id=None,
+                quantity=Decimal("2"),
+                compute_from_movements=False,
+            ),
+        ]
+    )
+    await db_session.commit()
+    await refresh_sale_prices(db_session)
+
+    # Priced as itself, not « à partir de » the (cheaper) variant.
+    parent_row = await db_session.get(Product, parent_id)
+    assert parent_row is not None
+    await db_session.refresh(parent_row)
+    assert parent_row.has_variants is True
+    assert parent_row.sale_price_cached == Decimal("18000.00")
+
+    # Sold as is, with its own stock (the one the checkout reserves).
+    sold = await _get_active_product_or_404(db_session, product_id=parent_id)
+    assert sold.base_price == Decimal("18000.00")
+    (published,) = await publish_with_availability(db_session, [parent_row])
+    assert published.variants_count == 1
+    assert published.available_quantity == Decimal("1")
+    listed = await crud_product.search_products(
+        db_session, stock="local", group_offers=False
+    )
+    assert "PC HP EliteDesk" in {p.name for p in listed["data"]}
+
+    # Back to the entry-only rule: cheapest variant, variants' stock, no sale.
+    await admin_update_product(
+        session=db_session,
+        current_user=await _fresh(db_session, admin),
+        product_id=parent_id,
+        payload=ProductUpdate(variants_optional=False),
+    )
+    parent_row = await db_session.get(Product, parent_id)
+    assert parent_row is not None
+    await db_session.refresh(parent_row)
+    assert parent_row.sale_price_cached == Decimal("12000.00")
+    (published,) = await publish_with_availability(db_session, [parent_row])
+    assert published.available_quantity == Decimal("3")
+    with pytest.raises(AppError) as refused:
+        await _get_active_product_or_404(db_session, product_id=parent_id)
+    assert refused.value.code == "cart.product.has_variants"

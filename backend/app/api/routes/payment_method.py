@@ -34,6 +34,7 @@ class Auth:
     create: bool = True
     update: bool = True
     delete: bool = True
+    read_superuser: bool = False  # offered at checkout
     create_superuser: bool = True
     update_superuser: bool = True
     delete_superuser: bool = True

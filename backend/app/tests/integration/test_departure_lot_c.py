@@ -210,7 +210,7 @@ async def test_receipt_tally_reconciles_orders_and_hands_serials_to_lines(
     assert by_product[seed.mouse_id].warranty_until is None
     with pytest.raises(AppError) as denied:
         await get_my_order_lines(seed.first_id, db_session, seed.admin)
-    assert denied.value.code == "order.not_owned"
+    assert denied.value.code == "order.not_found"
 
     # Correcting the tally re-allocates (idempotent): the mouse arrives, the
     # fifth laptop too → the second order is served.

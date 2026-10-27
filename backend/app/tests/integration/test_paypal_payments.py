@@ -346,7 +346,8 @@ async def test_confirm_is_reserved_to_the_customer(
             session=cast(Any, db_session),
             current_user=cast(Any, SimpleNamespace(id=uuid.uuid4())),
         )
-    assert exc.value.status_code == 403
+    # Someone else's payment reads like an unknown one.
+    assert exc.value.status_code == 404
     assert paypal.calls == []
 
 

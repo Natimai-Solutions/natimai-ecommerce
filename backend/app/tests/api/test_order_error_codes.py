@@ -66,8 +66,8 @@ async def test_order_read_returns_order_not_owned_for_foreign_user(
     with pytest.raises(AppError) as exc_info:
         await endpoint(session=session, id=order_id, current_user=current_user)
 
-    assert exc_info.value.code == "order.not_owned"
-    assert exc_info.value.status_code == 403
+    assert exc_info.value.code == "order.not_found"
+    assert exc_info.value.status_code == 404
     assert exc_info.value.details == {"order_id": str(order_id)}
 
 
@@ -192,8 +192,8 @@ async def test_get_user_orders_returns_order_not_owned_for_foreign_user(
             user_id=user_id,
         )
 
-    assert exc_info.value.code == "order.not_owned"
-    assert exc_info.value.status_code == 403
+    assert exc_info.value.code == "order.not_found"
+    assert exc_info.value.status_code == 404
     assert exc_info.value.details == {"user_id": str(user_id)}
     get_by_user_mock.assert_not_awaited()
 
