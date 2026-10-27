@@ -73,6 +73,10 @@ def stamp_margin(context: PricingContext, product: Product) -> None:
 
 _TSQUERY_TOKEN_RE = re.compile(r"[^\W_]+", re.UNICODE)
 
+#: Word similarity (pg_trgm) a name needs to be offered when the words of the
+#: query match nothing: « samsng » ↔ « Samsung » is 0.57, « clavir » 0.71.
+FUZZY_SIMILARITY = 0.45
+
 
 def prefix_tsquery(query_text: str) -> str:
     """``to_tsquery`` text matching every word of ``query_text`` as a prefix.
@@ -662,6 +666,24 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
             .op("||")(func.coalesce(english.op("->>")(literal("description")), ""))
         )
 
+    @classmethod
+    def _search_document(cls, table: Any) -> Any:
+        """The indexed tsvector: matches ``ix_products_search_fts`` exactly."""
+        return func.to_tsvector("simple", func.shop_unaccent(cls._search_text(table)))
+
+    @staticmethod
+    def _search_order(sort: str, rank: Any) -> list[Any]:
+        """ORDER BY of a search page; the newest first breaks ties."""
+        price = col(Product.sale_price_cached)
+        newest = col(Product.created_at).desc().nulls_last()
+        if sort == "price_asc":
+            return [price.asc().nulls_last(), newest]
+        if sort == "price_desc":
+            return [price.desc().nulls_last(), newest]
+        if sort == "newest":
+            return [newest]
+        return [rank.desc().nulls_last(), newest]
+
     async def search_products(
         self,
         session: AsyncSession,
@@ -678,6 +700,8 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
         limit: int = 24,
         offset: int = 0,
         group_offers: bool = True,
+        sort: str = "relevance",
+        with_facets: bool = True,
     ) -> dict[str, Any]:
         """Search products entirely in SQL: filters, grouping, page and facets.
 
@@ -692,21 +716,26 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
         sold by several suppliers appears once, by its cheapest offer (in
         stock first at equal price); ``offers_counts`` tells how many offers
         each returned entry stands for.
+
+        Accents never matter (« ecran » finds « Écran »). When the words match
+        nothing, a second pass looks for names that *resemble* the query
+        (typos: « samsng ») and the result says ``approximate``.
+
+        ``sort``: ``relevance`` (default), ``price_asc``, ``price_desc`` or
+        ``newest``.
         """
         conditions: list[Any] = list(self.storefront_conditions())
+        text_conditions: list[Any] = []
 
         query_text = prefix_tsquery(q or "")
         rank_expr: Any = null()
         if query_text:
             # GIN FTS path — expression matches ix_products_search_fts exactly.
-            search_doc = func.to_tsvector(
-                "simple",
-                self._search_text(Product.__table__),  # type: ignore[attr-defined]
-            )
+            search_doc = self._search_document(Product.__table__)  # type: ignore[attr-defined]
             # Every word is matched as a prefix (« 242 » finds 242S9, « EliteD »
             # EliteDesk): plainto_tsquery only matched whole lexemes, which read
             # like an exact-match search on references and model names.
-            ts_q = func.to_tsquery("simple", query_text)
+            ts_q = func.to_tsquery("simple", func.shop_unaccent(query_text))
             # A variant that changes a characteristic of its parent (« i7 »
             # on an i5 machine) finds the parent, the listed entry: its name,
             # its texts and its option values are searched too (a correlated
@@ -717,8 +746,8 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
                 .op("||")(" ")
                 .op("||")(func.coalesce(cast(child.c.variant_options, Text), ""))
             )
-            variant_doc = func.to_tsvector("simple", variant_text)
-            conditions.append(
+            variant_doc = func.to_tsvector("simple", func.shop_unaccent(variant_text))
+            text_conditions.append(
                 or_(
                     search_doc.op("@@")(ts_q),
                     variant_ids.where(variant_doc.op("@@")(ts_q)).exists(),
@@ -754,6 +783,56 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
             if condition is not None:
                 conditions.append(condition)
 
+        result = await self._search_page(
+            session,
+            conditions=conditions + text_conditions,
+            rank_expr=rank_expr,
+            limit=limit,
+            offset=offset,
+            group_offers=group_offers,
+            sort=sort,
+            with_facets=with_facets,
+        )
+        result["approximate"] = False
+        if query_text and result["count"] == 0:
+            # Nothing has these words: names that look like the query (typos).
+            wanted = func.shop_unaccent(func.lower((q or "").strip()))
+            named = func.shop_unaccent(
+                func.lower(
+                    func.coalesce(col(Product.name), "")
+                    .op("||")(" ")
+                    .op("||")(func.coalesce(col(Product.manufacturer), ""))
+                )
+            )
+            similarity = func.word_similarity(wanted, named)
+            approximate = await self._search_page(
+                session,
+                conditions=conditions + [similarity >= FUZZY_SIMILARITY],
+                rank_expr=similarity,
+                limit=limit,
+                offset=offset,
+                group_offers=group_offers,
+                sort=sort,
+                with_facets=with_facets,
+            )
+            if approximate["count"]:
+                approximate["approximate"] = True
+                return approximate
+        return result
+
+    async def _search_page(
+        self,
+        session: AsyncSession,
+        *,
+        conditions: list[Any],
+        rank_expr: Any,
+        limit: int,
+        offset: int,
+        group_offers: bool,
+        sort: str,
+        with_facets: bool,
+    ) -> dict[str, Any]:
+        """One page of ``search_products``: grouping, order, pricing, facets."""
         group_key = func.coalesce(
             col(Product.identity_key), cast(col(Product.id), String)
         )
@@ -782,10 +861,7 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
         page_statement = (
             select(Product, representatives.c.offers_count)
             .join(representatives, representatives.c.id == col(Product.id))
-            .order_by(
-                representatives.c.rank.desc().nulls_last(),
-                col(Product.created_at).desc(),
-            )
+            .order_by(*self._search_order(sort, representatives.c.rank))
             .offset(offset)
             .limit(limit)
         )
@@ -802,7 +878,9 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
         for product in products:
             product.base_price = product.sale_price_cached or Decimal("0.00")
 
-        facets = await self._search_facets(session, representatives)
+        facets = (
+            await self._search_facets(session, representatives) if with_facets else {}
+        )
 
         return {
             "data": products,

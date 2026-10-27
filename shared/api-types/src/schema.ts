@@ -3715,6 +3715,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/product/suggest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Suggest Products
+         * @description The few best matches for what the visitor is typing (search field):
+         *     same matching as the search, accents and typos included, no facets.
+         */
+        get: operations["product-suggest_products"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/product/{product_id}/variants": {
         parameters: {
             query?: never;
@@ -18880,6 +18901,11 @@ export interface components {
             /** @description Only new or only refurbished items */
             condition?: components["schemas"]["ProductCondition"] | null;
             /**
+             * @description relevance, price_asc, price_desc or newest (newest first on ties)
+             * @default relevance
+             */
+            sort: components["schemas"]["SearchSort"];
+            /**
              * Limit
              * @default 24
              */
@@ -18909,6 +18935,11 @@ export interface components {
              */
             count: number;
             facets?: components["schemas"]["ProductSearchFacets"];
+            /**
+             * Approximate
+             * @default false
+             */
+            approximate: boolean;
         };
         /**
          * ProductShippingModesResponse
@@ -18924,6 +18955,19 @@ export interface components {
             shipping_modes: components["schemas"]["ShippingModePricePublic"][];
             /** Default Mode */
             default_mode: string | null;
+        };
+        /**
+         * ProductSuggestResponse
+         * @description A few products under the search field, as the visitor types.
+         */
+        ProductSuggestResponse: {
+            /** Data */
+            data?: components["schemas"]["ProductPublic"][];
+            /**
+             * Approximate
+             * @default false
+             */
+            approximate: boolean;
         };
         /**
          * ProductUpdate
@@ -20030,6 +20074,12 @@ export interface components {
             /** Updated By Email */
             updated_by_email?: string | null;
         };
+        /**
+         * SearchSort
+         * @description Order of the storefront search results.
+         * @enum {string}
+         */
+        SearchSort: "relevance" | "price_asc" | "price_desc" | "newest";
         /**
          * SendOtpRequest
          * @description Request an email verification code.
@@ -30122,6 +30172,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProductSearchResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "product-suggest_products": {
+        parameters: {
+            query: {
+                q: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductSuggestResponse"];
                 };
             };
             /** @description Validation Error */

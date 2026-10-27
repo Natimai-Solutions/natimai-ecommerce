@@ -44,7 +44,7 @@
             :label="deliveryFacet(order.order_status_name)!.label"
           />
           <StatusTag
-            v-else
+            v-else-if="order?.order_status_name !== 'Cancelled'"
             :tone="shippingTone(tracking.overall_status)"
             icon="ph:truck"
             :label="shippingLabel(tracking.overall_status)"

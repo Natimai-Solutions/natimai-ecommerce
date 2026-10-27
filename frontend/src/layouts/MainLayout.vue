@@ -47,6 +47,9 @@
               :placeholder="$t('layout.search_placeholder')"
               autocomplete="off"
               class="search-field__input"
+              @focus="searchFocused = 'desktop'"
+              @blur="searchFocused = null"
+              @keydown.esc="searchFocused = null"
             />
             <!-- Rappel du raccourci clavier « / » : infobulle au survol,
                  masqué sur les écrans tactiles ou étroits où il n'a pas de sens. -->
@@ -58,6 +61,12 @@
                 {{ $t('layout.search_shortcut') }}
               </q-tooltip></kbd
             >
+            <SearchSuggestions
+              :query="searchText"
+              :open="searchFocused === 'desktop'"
+              @picked="closeSuggestions"
+              @submit="submitSearch"
+            />
           </div>
         </form>
 
@@ -158,6 +167,15 @@
             :placeholder="$t('layout.search_placeholder')"
             autocomplete="off"
             class="search-field__input"
+            @focus="searchFocused = 'mobile'"
+            @blur="searchFocused = null"
+            @keydown.esc="searchFocused = null"
+          />
+          <SearchSuggestions
+            :query="searchText"
+            :open="searchFocused === 'mobile'"
+            @picked="closeSuggestions"
+            @submit="submitSearch"
           />
         </div>
       </form>
@@ -251,6 +269,7 @@ import { useRoute, useRouter } from 'vue-router';
 import CartDrawer from '@/components/CartDrawer.vue';
 import CompareBar from '@/components/CompareBar.vue';
 import { useCartStore } from '@/stores/cart';
+import SearchSuggestions from '@/components/SearchSuggestions.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useCurrencyStore } from '@/stores/currency';
 import { toggleTheme } from '@/utils/theme';
@@ -283,6 +302,13 @@ function onLocaleChange(event: Event) {
 
 const searchInput = ref<HTMLInputElement | null>(null);
 const searchText = ref('');
+/** Which search field has the focus: its suggestions are the ones shown. */
+const searchFocused = ref<'desktop' | 'mobile' | null>(null);
+
+function closeSuggestions() {
+  searchFocused.value = null;
+  (document.activeElement as HTMLElement | null)?.blur();
+}
 
 // Le champ reflète la recherche en cours du catalogue.
 watch(
@@ -294,6 +320,7 @@ watch(
 );
 
 function submitSearch() {
+  searchFocused.value = null;
   const q = searchText.value.trim();
   void router.push({ name: 'catalogue', query: q ? { q } : {} });
   (document.activeElement as HTMLElement | null)?.blur();
@@ -407,6 +434,7 @@ onBeforeUnmount(() => {
 }
 
 .search-field {
+  position: relative;
   height: 40px;
   padding: 0 12px;
   display: flex;
