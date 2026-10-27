@@ -7,6 +7,7 @@ import {
   clearMyCart,
   createGuestQuoteRequest,
   mergeGuestCart,
+  reorderIntoCart,
   replaceGuestCartItems,
   replaceMyCartItems,
   type CartDetailPublic,
@@ -116,6 +117,17 @@ export const useCartStore = defineStore('cart', () => {
     } catch {
       scheduleServerMirror();
     }
+  }
+
+  /**
+   * « Re-commander » : the server adds the order's articles to the account's
+   * cart (today's prices), which then becomes the local cart. Returns how
+   * many articles came back and how many are no longer sold.
+   */
+  async function reorder(orderId: string): Promise<{ added: number; skipped: number }> {
+    const result = await reorderIntoCart(orderId);
+    adoptServerCart(result.cart);
+    return { added: result.added, skipped: result.skipped };
   }
 
   /** The e-mail a visitor typed (stock alert, quote): kept on their server cart. */
@@ -425,6 +437,7 @@ export const useCartStore = defineStore('cart', () => {
     loading,
     mutating,
     mergeAfterLogin,
+    reorder,
     attachGuestEmail,
     quoteSubmitting,
     error,

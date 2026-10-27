@@ -4194,6 +4194,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/cart/reorder/{order_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reorder Into Cart
+         * @description Put the articles of one of the customer's orders back into the cart,
+         *     at today's price; the quantities add to what the cart already holds.
+         */
+        post: operations["cart-reorder_into_cart"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/cart/items/{item_id}": {
         parameters: {
             query?: never;
@@ -4959,6 +4980,28 @@ export interface paths {
         get: operations["order-get_my_order"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orders/me/{order_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel one of my orders before it is paid
+         * @description The customer cancels an order that has received no money yet: stock
+         *     and coupon come back, pending payments are closed. A paid order is a
+         *     refund, asked from the shop (409 ``order.cancel_refused``).
+         */
+        post: operations["order-cancel_my_order"];
         delete?: never;
         options?: never;
         head?: never;
@@ -14689,6 +14732,11 @@ export interface components {
              * @default 0
              */
             amount_due: string;
+            /**
+             * Can Cancel
+             * @default false
+             */
+            can_cancel: boolean;
         };
         /**
          * MyOrderLine
@@ -19606,6 +19654,23 @@ export interface components {
              * @default 8
              */
             limit: number;
+        };
+        /**
+         * ReorderResponse
+         * @description The cart after « Re-commander », and what could not be put back.
+         */
+        ReorderResponse: {
+            cart: components["schemas"]["CartDetailPublic"];
+            /**
+             * Added
+             * @default 0
+             */
+            added: number;
+            /**
+             * Skipped
+             * @default 0
+             */
+            skipped: number;
         };
         /**
          * RequestBalanceResponse
@@ -31040,6 +31105,37 @@ export interface operations {
             };
         };
     };
+    "cart-reorder_into_cart": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReorderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "cart-remove_cart_item": {
         parameters: {
             query?: never;
@@ -32777,6 +32873,37 @@ export interface operations {
         };
     };
     "order-get_my_order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyOrderDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "order-cancel_my_order": {
         parameters: {
             query?: never;
             header?: never;

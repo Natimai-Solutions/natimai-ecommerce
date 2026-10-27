@@ -338,10 +338,68 @@
               @click="onDownloadInvoice"
             />
             <p v-if="invoiceError" class="summary__error">{{ invoiceError }}</p>
+
+            <div v-if="!linkToken" class="summary__actions">
+              <q-btn
+                outline
+                color="primary"
+                icon="ph:arrow-counter-clockwise"
+                :label="$t('tracking.reorder')"
+                :loading="reordering"
+                data-testid="order-reorder"
+                @click="onReorder"
+              />
+              <q-btn
+                v-if="canCancel"
+                flat
+                color="negative"
+                icon="ph:x-circle"
+                :label="$t('tracking.cancel')"
+                data-testid="order-cancel"
+                @click="cancelOpen = true"
+              />
+            </div>
+            <AppNotice
+              v-if="actionMessage"
+              :tone="actionTone"
+              dense
+              data-testid="order-action-notice"
+            >
+              {{ actionMessage }}
+              <template v-if="showCartLink" #action>
+                <q-btn
+                  flat
+                  no-caps
+                  :label="$t('tracking.reorder_see_cart')"
+                  :to="{ name: 'cart' }"
+                />
+              </template>
+            </AppNotice>
           </div>
         </aside>
       </div>
     </template>
+
+    <q-dialog v-model="cancelOpen">
+      <q-card class="cancel-dialog" data-testid="order-cancel-dialog">
+        <q-card-section>
+          <h2 class="cancel-dialog__title">{{ $t('tracking.cancel_title') }}</h2>
+          <p class="cancel-dialog__text">{{ $t('tracking.cancel_text') }}</p>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn v-close-popup flat no-caps :label="$t('tracking.cancel_keep')" />
+          <q-btn
+            unelevated
+            no-caps
+            color="negative"
+            :label="$t('tracking.cancel_confirm')"
+            :loading="cancelling"
+            data-testid="order-cancel-confirm"
+            @click="onCancel"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
@@ -360,6 +418,7 @@ import StatusTag from '@app/ui/StatusTag.vue';
 import { getDeparture, type Departure } from '@/api/departures';
 import { downloadInvoicePdf, listMyInvoices, type Invoice } from '@/api/invoices';
 import {
+  cancelMyOrder,
   getMyOrder,
   getMyOrderLines,
   getMyOrderTracking,
@@ -371,6 +430,7 @@ import {
   type OrderTrackingSegment,
 } from '@/api/orders';
 import { useAuthStore } from '@/stores/auth';
+import { useCartStore } from '@/stores/cart';
 import { useCurrencyStore } from '@/stores/currency';
 import { apiErrorMessage } from '@/utils/errors';
 import { isPositiveAmount, orderMoney } from '@/utils/money';
@@ -542,6 +602,52 @@ async function onDownloadInvoice() {
   }
 }
 
+const cartStore = useCartStore();
+/** Only the account's detail (not the e-mail link) says whether it may be cancelled. */
+const canCancel = computed(
+  () => !!order.value && 'can_cancel' in order.value && order.value.can_cancel === true,
+);
+const reordering = ref(false);
+const cancelOpen = ref(false);
+const cancelling = ref(false);
+const actionMessage = ref<string | null>(null);
+const actionTone = ref<'success' | 'warning' | 'error'>('success');
+const showCartLink = ref(false);
+
+function notify(message: string, tone: 'success' | 'warning' | 'error', cartLink = false) {
+  actionMessage.value = message;
+  actionTone.value = tone;
+  showCartLink.value = cartLink;
+}
+
+async function onReorder() {
+  reordering.value = true;
+  try {
+    const { added, skipped } = await cartStore.reorder(orderId.value);
+    if (added === 0) notify(t('tracking.reorder_none'), 'warning');
+    else if (skipped > 0) notify(t('tracking.reorder_partly', { added, skipped }), 'warning', true);
+    else notify(t('tracking.reorder_done'), 'success', true);
+  } catch (err) {
+    notify(apiErrorMessage(err) ?? t('tracking.reorder_failed'), 'error');
+  } finally {
+    reordering.value = false;
+  }
+}
+
+async function onCancel() {
+  cancelling.value = true;
+  try {
+    order.value = await cancelMyOrder(orderId.value);
+    cancelOpen.value = false;
+    notify(t('tracking.cancel_done'), 'success');
+  } catch {
+    cancelOpen.value = false;
+    notify(t('tracking.cancel_failed'), 'error');
+  } finally {
+    cancelling.value = false;
+  }
+}
+
 async function loadDeparture(id: string | null | undefined) {
   departure.value = id ? await getDeparture(id).catch(() => null) : null;
 }
@@ -612,6 +718,28 @@ watch(orderId, (next, previous) => {
 </script>
 
 <style scoped lang="scss">
+.summary__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.cancel-dialog {
+  max-width: 440px;
+}
+
+.cancel-dialog__title {
+  margin: 0 0 8px;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.cancel-dialog__text {
+  margin: 0;
+  color: var(--n-ink-2);
+}
+
 .order__back {
   margin-bottom: 20px;
   display: inline-flex;

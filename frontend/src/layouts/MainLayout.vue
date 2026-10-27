@@ -105,8 +105,11 @@
               flat
               no-caps
               class="gt-sm app-header__text-btn"
-              :label="$t('layout.account')"
+              icon="ph:user-circle"
+              :label="authStore.displayName ?? $t('layout.account')"
+              :aria-label="$t('layout.account')"
               :to="{ name: 'account' }"
+              data-testid="header-account"
             />
             <q-btn
               flat

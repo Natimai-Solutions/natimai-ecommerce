@@ -23,6 +23,10 @@ from app.features.departure.reception import MyOrderLine, customer_lines
 from app.features.order.crud.order_crud import crud_order
 from app.features.order.models.order import Order, OrderPublic
 from app.features.order.models.order_status import OrderStatus
+from app.features.order.services.customer_actions import (
+    cancel_order_by_customer,
+    cancellation_refusal,
+)
 from app.features.order.services.tracking_link import (
     tracking_link_still_valid,
     verify_order_tracking_token,
@@ -161,6 +165,8 @@ class MyOrderDetail(MyOrderPublic):
     #: Money already received (instalments included) and what is left to pay.
     amount_paid: Decimal = Decimal("0")
     amount_due: Decimal = Decimal("0")
+    #: Whether « Annuler la commande » is offered (nothing paid yet).
+    can_cancel: bool = False
 
 
 async def _payment_method_name(session: SessionDep, order_id: uuid.UUID) -> str | None:
@@ -195,7 +201,25 @@ async def get_my_order(
     item.payment_method_name = await _payment_method_name(session, order.id)
     summary = await order_payment_summary(session, order=order)
     item.amount_paid, item.amount_due = summary.paid, summary.due
+    item.can_cancel = await cancellation_refusal(session, order) is None
     return item
+
+
+@router.post(
+    "/me/{order_id}/cancel",
+    response_model=MyOrderDetail,
+    summary="Cancel one of my orders before it is paid",
+)
+async def cancel_my_order(
+    order_id: uuid.UUID, session: SessionDep, current_user: CurrentUser
+) -> MyOrderDetail:
+    """The customer cancels an order that has received no money yet: stock
+    and coupon come back, pending payments are closed. A paid order is a
+    refund, asked from the shop (409 ``order.cancel_refused``)."""
+    await cancel_order_by_customer(session, order_id=order_id, user_id=current_user.id)
+    # The commit expired the session's objects, the signed-in user included.
+    await session.refresh(current_user)
+    return await get_my_order(order_id, session, current_user)
 
 
 @router.get(

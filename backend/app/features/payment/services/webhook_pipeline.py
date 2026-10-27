@@ -63,6 +63,9 @@ _TERMINAL_STATUSES = {
     STATUS_FAILED,
     "Refunded",
     "PartiallyRefunded",
+    # Closed by the customer's cancellation: a late success must not revive
+    # the order (it is logged as a conflict for the shop to refund).
+    "Cancelled",
 }
 
 RESULT_APPLIED = "applied"
