@@ -220,6 +220,19 @@ export async function getGuestLastLegOptions(
   return data;
 }
 
+/** The delivery price of one product to an island, from its page (no cart). */
+export async function estimateProductShipping(
+  productId: string,
+  placeId: string,
+  quantity = 1,
+): Promise<LastLegOptionsResponse> {
+  const { data } = await api.get<LastLegOptionsResponse>(
+    `/cart/estimate/product/${productId}`,
+    { params: { place_id: placeId, quantity } },
+  );
+  return data;
+}
+
 export type { LastLegOptionsResponse };
 
 /** Deposit part of a quote / checkout response (`DepositTerms`). */

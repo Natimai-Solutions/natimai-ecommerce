@@ -313,6 +313,7 @@ const en: MessageSchema = {
   },
   ship_estimate: {
     customs: 'Plus {amount} of customs clearance, once per shipment.',
+    for_product: 'For this item alone; the cart groups shipments.',
     eta: '{n} day | {n} days',
     failed: 'The estimate could not be computed: it will be at checkout.',
     island: 'Your island',

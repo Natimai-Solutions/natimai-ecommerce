@@ -2969,18 +2969,33 @@ async def _priced_last_leg_options(
         items=items,
         products_by_id=products_by_id,
     )
+    return await _price_last_legs(
+        session,
+        products=list(products_by_id.values()),
+        declared_value=declared_value,
+        total_weight_kg=total_weight_kg,
+        currency=cart.currency,
+        destination_chain=destination_chain,
+    )
+
+
+async def _price_last_legs(
+    session: SessionDep,
+    *,
+    products: list[Product],
+    declared_value: Decimal,
+    total_weight_kg: Decimal,
+    currency: str,
+    destination_chain: list[uuid.UUID],
+) -> LastLegOptionsResponse:
+    """Price every delivery mode serving the destination for this shipment."""
     # Delivery modes are driven by the admin's configured last-leg routes, not a
     # fixed enum: any mode whose route serves this destination appears.
     candidates = await resolve_last_leg_candidates(
         session, destination_chain=destination_chain
     )
     declaration_fee_total = sum(
-        (
-            fee.amount
-            for fee in await _customs_declaration_fees(
-                session, list(products_by_id.values())
-            )
-        ),
+        (fee.amount for fee in await _customs_declaration_fees(session, products)),
         Decimal("0.00"),
     )
 
@@ -2991,23 +3006,23 @@ async def _priced_last_leg_options(
             routes=[route],
             total_weight_kg=total_weight_kg,
             declared_value=declared_value,
-            currency=cart.currency,
+            currency=currency,
         )
         options.append(
             LastLegOption(
                 delivery_type=mode,
                 label=route.customer_label,
                 amount=summary.total_fee,
-                currency=cart.currency,
+                currency=currency,
                 eta_days=route.eta_days,
                 route_name=route.name,
             )
         )
 
     return LastLegOptionsResponse(
-        currency=cart.currency,
+        currency=currency,
         options=options,
-        customs_declaration_fee=quantize_amount(declaration_fee_total, cart.currency),
+        customs_declaration_fee=quantize_amount(declaration_fee_total, currency),
     )
 
 
@@ -3073,6 +3088,34 @@ async def get_guest_last_leg_options(
     )
     return await _priced_last_leg_options(
         session, cart=cart, user=None, destination_chain=destination_chain
+    )
+
+
+@router.get(
+    "/estimate/product/{product_id}",
+    response_model=LastLegOptionsResponse,
+    dependencies=[Depends(rate_limited("ship_estimate", limit=60, window_seconds=60))],
+)
+async def estimate_product_shipping(
+    session: SessionDep,
+    product_id: uuid.UUID,
+    place_id: uuid.UUID | None = Query(
+        default=None, description="Destination zone (island) picked by the visitor"
+    ),
+    quantity: int = Query(default=1, ge=1, le=99),
+) -> LastLegOptionsResponse:
+    """The delivery price of one product to an island, from its page, before
+    anything is in the cart: priced like the cart estimate, at the reference
+    price (the checkout bills the real shipment)."""
+    product = await _get_active_product_or_404(session, product_id=product_id)
+    weight = Decimal(str(product.weight)) if product.weight else Decimal("0")
+    return await _price_last_legs(
+        session,
+        products=[product],
+        declared_value=product.base_price * quantity,
+        total_weight_kg=(weight * quantity) if weight > 0 else Decimal("0"),
+        currency=settings.REFERENCE_CURRENCY,
+        destination_chain=await _destination_chain_for_place(session, place_id),
     )
 
 

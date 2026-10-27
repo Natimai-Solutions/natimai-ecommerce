@@ -316,6 +316,7 @@ const fr = {
   },
   ship_estimate: {
     customs: 'Plus {amount} de frais de dédouanement, une fois par envoi.',
+    for_product: 'Pour cet article seul ; le panier regroupe les envois.',
     eta: '{n} jour | {n} jours',
     failed: "L'estimation n'a pas pu être calculée : elle le sera à la commande.",
     island: 'Votre île',

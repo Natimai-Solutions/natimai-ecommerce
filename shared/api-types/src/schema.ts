@@ -4481,6 +4481,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/cart/estimate/product/{product_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Estimate Product Shipping
+         * @description The delivery price of one product to an island, from its page, before
+         *     anything is in the cart: priced like the cart estimate, at the reference
+         *     price (the checkout bills the real shipment).
+         */
+        get: operations["cart-estimate_product_shipping"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/cart/checkout": {
         parameters: {
             query?: never;
@@ -31864,6 +31886,41 @@ export interface operations {
                 "X-Cart-Token": string;
             };
             path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LastLegOptionsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "cart-estimate_product_shipping": {
+        parameters: {
+            query?: {
+                /** @description Destination zone (island) picked by the visitor */
+                place_id?: string | null;
+                quantity?: number;
+            };
+            header?: never;
+            path: {
+                product_id: string;
+            };
             cookie?: never;
         };
         requestBody?: never;

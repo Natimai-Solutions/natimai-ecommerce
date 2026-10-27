@@ -322,6 +322,11 @@
           </AppNotice>
 
           <ProductOffers :offers="offers" class="product__offers" />
+          <ShippingEstimate
+            v-if="effectiveProduct && !needsVariantChoice"
+            :product-id="effectiveProduct.id"
+            class="product__ship"
+          />
         </div>
       </section>
 
@@ -514,6 +519,7 @@ import {
 } from '@/api/products';
 import ProductImage from '@/components/ProductImage.vue';
 import ProductOffers from '@/components/ProductOffers.vue';
+import ShippingEstimate from '@/components/ShippingEstimate.vue';
 import ProductReviews from '@/components/ProductReviews.vue';
 import { useAuthStore } from '@/stores/auth';
 import { addToMyWishlist, getMyWishlist, removeFromMyWishlist } from '@/api/wishlist';
@@ -1639,6 +1645,10 @@ watch(
 
 .product__offers {
   margin-top: 36px;
+}
+
+.product__ship {
+  margin-top: 24px;
 }
 
 .product__about {
