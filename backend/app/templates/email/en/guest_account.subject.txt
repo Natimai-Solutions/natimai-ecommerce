@@ -1,0 +1,1 @@
+{{ shop_name }} — keep track of your orders with a password

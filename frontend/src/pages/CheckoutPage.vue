@@ -29,19 +29,22 @@
           {{ $t('checkout.from_quote') }}
         </AppNotice>
 
-        <!-- Paiement lié au compte : connexion requise -->
-        <div v-if="!isAuthenticated" class="app-empty">
-          <q-icon name="ph:lock-simple" size="36px" class="text-subtle" />
-          <h3>{{ $t('checkout.login_title') }}</h3>
-          <p>{{ $t('checkout.login_text') }}</p>
-          <q-btn
-            unelevated
-            color="primary"
-            :label="$t('checkout.login_btn')"
-            :to="{ name: 'login', query: { redirect: '/checkout' } }"
-          />
+        <!-- Identification : se connecter, ou commander sans compte -->
+        <div v-if="!isAuthenticated" class="checkout__identify">
+          <div class="app-panel checkout__login">
+            <q-icon name="ph:user-circle" size="28px" class="text-subtle" />
+            <h3>{{ $t('checkout.login_title') }}</h3>
+            <p>{{ $t('checkout.login_text') }}</p>
+            <q-btn
+              unelevated
+              color="primary"
+              no-caps
+              :label="$t('checkout.login_btn')"
+              :to="{ name: 'login', query: { redirect: '/checkout' } }"
+            />
+          </div>
+          <GuestCheckoutForm />
         </div>
-
         <div v-else-if="loadingMethods && !methods.length" aria-busy="true">
           <q-skeleton v-for="n in 3" :key="n" height="60px" class="checkout__skeleton" />
         </div>
@@ -116,6 +119,8 @@
             {{ $t('checkout.po_received') }}
           </AppNotice>
 
+          <GuestAccountOffer v-if="!needsUpload || uploadDone" class="q-my-md" />
+
           <div v-if="!needsUpload || uploadDone" class="confirmation__actions">
             <q-btn
               unelevated
@@ -144,7 +149,8 @@
                 outline
                 color="primary"
                 :label="$t('checkout.add_address')"
-                :to="{ name: 'account', query: { tab: 'addresses' } }"
+                data-testid="checkout-add-address"
+                @click="addressDialog = true"
               />
             </div>
             <ChoiceList
@@ -153,13 +159,17 @@
               :label="$t('checkout.step_address')"
               :options="addressChoices"
             />
-            <router-link
-              v-if="addresses.length"
-              :to="{ name: 'account', query: { tab: 'addresses' } }"
-              class="text-link step__link"
-            >
-              {{ $t('checkout.manage_addresses') }}
-            </router-link>
+            <div v-if="addresses.length" class="step__links">
+              <button type="button" class="text-link" @click="addressDialog = true">
+                {{ $t('checkout.add_address') }}
+              </button>
+              <router-link
+                :to="{ name: 'account', query: { tab: 'addresses' } }"
+                class="text-link"
+              >
+                {{ $t('checkout.manage_addresses') }}
+              </router-link>
+            </div>
           </section>
 
           <section v-if="deliveryOptions.length > 0" class="step">
@@ -427,6 +437,7 @@
         </div>
       </aside>
     </div>
+    <AddressDialog v-model="addressDialog" @saved="onAddressSaved" />
   </q-page>
 </template>
 
@@ -440,7 +451,10 @@ import { useRoute } from 'vue-router';
 import { countryLabel, formatMoney as formatInCurrency, orderRef } from '@app/utils';
 
 import AppNotice from '@app/ui/AppNotice.vue';
+import AddressDialog from '@/components/AddressDialog.vue';
 import ChoiceList, { type ChoiceOption } from '@/components/ChoiceList.vue';
+import GuestAccountOffer from '@/components/GuestAccountOffer.vue';
+import GuestCheckoutForm from '@/components/GuestCheckoutForm.vue';
 import { useCurrencyStore } from '@/stores/currency';
 import { apiErrorMessage } from '@/utils/errors';
 import { orderMoney } from '@/utils/money';
@@ -847,6 +861,33 @@ onMounted(async () => {
     loadingMethods.value = false;
     return;
   }
+  await prepareCheckout();
+});
+
+// Ordering without an account: the form opens the session (and unmounts
+// with it), the checkout then starts here.
+watch(isAuthenticated, (now, before) => {
+  if (now && !before && !orderPlaced.value) void onGuestStarted();
+});
+
+async function onGuestStarted() {
+  loadingMethods.value = true;
+  await cartStore.mergeAfterLogin();
+  await prepareCheckout();
+  // A new guest has no address yet: ask for it straight away.
+  if (addresses.value.length === 0) addressDialog.value = true;
+}
+
+const addressDialog = ref(false);
+
+function onAddressSaved(address: Address) {
+  addresses.value = [...addresses.value.filter((a) => a.id !== address.id), address];
+  // The watcher reloads the delivery modes and the quote for it.
+  selectedAddressId.value = address.id;
+}
+
+/** Mirror the cart, load addresses, delivery modes, quote and methods. */
+async function prepareCheckout() {
   // The storefront cart is client-side: mirror it into the backend cart so
   // the delivery options and the quote are computed on what is being bought.
   // Ordering an issued quote: the backend cart was just loaded from the quote
@@ -873,7 +914,7 @@ onMounted(async () => {
   // quote — which also loads the payment methods eligible for that amount.
   await loadDeliveryOptions();
   await loadQuote();
-});
+}
 
 // Delivery modes depend on the destination (île → archipel → pays) of the
 // selected address: reload them whenever the customer picks another address.
@@ -1163,9 +1204,37 @@ async function uploadDocument() {
   padding: 28px 16px;
 }
 
-.step__link {
+.step__links {
   margin-top: 10px;
-  display: inline-block;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  font-size: 14px;
+}
+
+.checkout__identify {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.checkout__login {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+
+  h3 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  p {
+    margin: 0 0 8px;
+    font-size: 14px;
+    color: var(--n-ink-2);
+  }
 }
 
 .credit-toggle {

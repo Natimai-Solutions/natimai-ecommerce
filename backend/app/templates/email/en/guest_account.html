@@ -1,0 +1,14 @@
+{% extends "_layout.html" %}
+{% block title %}Your {{ shop_name }} orders{% endblock %}
+{% block heading %}Keep track of your orders{% endblock %}
+{% block content %}
+      <p>Hello{% if full_name %} {{ full_name }}{% endif %},</p>
+      <p>You ordered from {{ shop_name }} without an account. Choose a password to find your orders, follow their delivery and check out faster next time:</p>
+      <p style="text-align:center;margin:28px 0;">
+        <a href="{{ activation_url }}" style="display:inline-block;background:#1976d2;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 24px;border-radius:6px;">Choose my password</a>
+      </p>
+      <p style="font-size:13px;color:#555;">If the button does not work, copy this link into your browser:<br /><span style="word-break:break-all;">{{ activation_url }}</span></p>
+      <p>This link is valid for <strong>{{ valid_hours }} hours</strong> and works only once. After that, use “forgot password” on the sign-in page.</p>
+      <p>If you did not ask for this, ignore this message: no access is possible without following the link.</p>
+      <p>The {{ shop_name }} team</p>
+{% endblock %}

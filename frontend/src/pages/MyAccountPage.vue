@@ -20,6 +20,8 @@
       />
     </header>
 
+    <GuestAccountOffer class="account__guest" />
+
     <div v-if="ready" class="account__layout">
       <nav class="account-nav" :aria-label="$t('account.sections_aria')">
         <router-link
@@ -59,6 +61,7 @@ import AccountPreferences from '@/components/account/AccountPreferences.vue';
 import AccountProfile from '@/components/account/AccountProfile.vue';
 import AccountQuotes from '@/components/account/AccountQuotes.vue';
 import AccountWishlist from '@/components/account/AccountWishlist.vue';
+import GuestAccountOffer from '@/components/GuestAccountOffer.vue';
 import { getMyProfile, type MyProfile } from '@/api/profile';
 import { useAuthStore } from '@/stores/auth';
 import { useShopModulesStore } from '@/stores/shopModules';
@@ -175,6 +178,10 @@ onMounted(async () => {
 </script>
 
 <style scoped lang="scss">
+.account__guest {
+  margin-bottom: 24px;
+}
+
 .account__head {
   margin-bottom: 32px;
   display: flex;

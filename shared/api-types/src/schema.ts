@@ -318,6 +318,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/signup/guest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start Guest Checkout
+         * @description Open a passwordless account to order without signing up, and its session.
+         *
+         *     An address that already has an account opens nothing (409
+         *     ``signup.guest.account_exists``): ``details.reason`` is ``account`` (sign
+         *     in) or ``guest`` (an earlier guest order: the link to take the account
+         *     over has just been e-mailed).
+         */
+        post: operations["signup-start_guest_checkout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/signup/guest/activation-link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send My Guest Activation Link
+         * @description E-mail the guest the link that sets their password (« créer mon compte »).
+         */
+        post: operations["signup-send_my_guest_activation_link"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/partner/": {
         parameters: {
             query?: never;
@@ -13686,6 +13731,21 @@ export interface components {
             /** Items */
             items?: components["schemas"]["GuestQuoteRequestItem"][];
         };
+        /**
+         * GuestStartRequest
+         * @description Who orders without an account: enough to deliver and to reach them.
+         */
+        GuestStartRequest: {
+            /**
+             * Email
+             * Format: email
+             */
+            email: string;
+            /** Full Name */
+            full_name: string;
+            /** Phone */
+            phone?: string | null;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -15095,6 +15155,11 @@ export interface components {
              * @default false
              */
             is_verified: boolean;
+            /**
+             * Is Guest
+             * @default false
+             */
+            is_guest: boolean;
             /** Created At */
             created_at?: string | null;
         };
@@ -24170,6 +24235,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "signup-start_guest_checkout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GuestStartRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccessTokenResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "signup-send_my_guest_activation_link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["app__api__routes__signup__OkMessage"];
                 };
             };
         };

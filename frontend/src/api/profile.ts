@@ -7,6 +7,8 @@ export interface MyProfile {
   full_name: string | null;
   phone: string | null;
   is_verified: boolean;
+  /** Opened at checkout without a password (« commande sans compte »). */
+  is_guest?: boolean;
   created_at: string | null;
 }
 
@@ -69,4 +71,13 @@ export async function deleteMyAccount(confirmation: string, password: string): P
     confirmation,
     password: password || null,
   });
+}
+
+/**
+ * Guest account: e-mail the link that sets its password (« créer mon
+ * compte »). Returns the acknowledgement naming the address.
+ */
+export async function sendGuestActivationLink(): Promise<string> {
+  const { data } = await api.post<{ message: string }>('/signup/guest/activation-link');
+  return data.message;
 }

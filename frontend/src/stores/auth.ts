@@ -143,6 +143,30 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  // --- Guest checkout ------------------------------------------------------ //
+  /**
+   * Order without an account: opens a passwordless account and its session.
+   * `reason` tells an address already known: `account` (sign in) or `guest`
+   * (an earlier guest order, the take-over link was e-mailed).
+   */
+  async function startGuestCheckout(
+    payload: { email: string; full_name: string; phone: string | null },
+    headers: Record<string, string> = {},
+  ): Promise<StepResult & { reason?: 'account' | 'guest' }> {
+    try {
+      const { data } = await api.post<AccessTokenResponse>('/signup/guest', payload, { headers });
+      accessToken.value = data.access_token;
+      return { ok: true };
+    } catch (err) {
+      const reason = extractErrorReason(err);
+      return {
+        ok: false,
+        error: extractErrorMessage(err) ?? gt('stores.signup_failed'),
+        ...(reason === 'account' || reason === 'guest' ? { reason } : {}),
+      };
+    }
+  }
+
   return {
     isAuthenticated,
     profile,
@@ -156,8 +180,16 @@ export const useAuthStore = defineStore('auth', () => {
     sendSignupOtp,
     verifySignupOtp,
     completeSignup,
+    startGuestCheckout,
   };
 });
+
+function extractErrorReason(err: unknown): string | null {
+  const data = (err as { response?: { data?: { error?: { details?: { reason?: unknown } } } } })
+    ?.response?.data;
+  const reason = data?.error?.details?.reason;
+  return typeof reason === 'string' ? reason : null;
+}
 
 function extractErrorMessage(err: unknown): string | null {
   if (typeof err === 'object' && err !== null && 'response' in err) {
