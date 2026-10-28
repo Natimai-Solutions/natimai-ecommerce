@@ -127,7 +127,7 @@ jobs:
       # unseen. setup-python gives the latest 3.14.x (an old uv would install
       # a 3.14 release candidate); uv picks it up.
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.14"
 
@@ -236,7 +236,7 @@ jobs:
     # fronts typer une API qui n'existe plus (R8 / U2).
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.14"
       - uses: astral-sh/setup-uv@v7
