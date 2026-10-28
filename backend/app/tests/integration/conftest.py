@@ -29,6 +29,7 @@ if sys.platform == "win32":
 
 # Import every model so SQLModel.metadata is fully populated before create_all.
 from app.features.models import *  # noqa: E402,F401,F403
+from app.features.product.search_sql import SEARCH_SQL_SETUP  # noqa: E402
 
 TEST_DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL",
@@ -50,6 +51,9 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
             await conn.exec_driver_sql("DROP SCHEMA public CASCADE")
             await conn.exec_driver_sql("CREATE SCHEMA public")
             await conn.run_sync(SQLModel.metadata.create_all)
+            # Objects the migrations create beside the tables (search).
+            for statement in SEARCH_SQL_SETUP:
+                await conn.exec_driver_sql(statement)
     except (OperationalError, InterfaceError, OSError) as exc:
         # No reachable test database (e.g. a local run without the stack up).
         # Skip by default so the unit suite stays runnable everywhere.

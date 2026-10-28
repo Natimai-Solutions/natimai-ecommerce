@@ -56,6 +56,7 @@ from app.features.user.crud.refresh_token import crud_user_refresh_token
 from app.features.user.crud.user import crud_user, mark_logged_in
 from app.features.user.models.oauth_link import UserOAuthLink
 from app.features.user.models.user import User
+from app.features.user.services.guest import claim_guest_account
 from app.features.user.services.invitation import unusable_password_hash
 
 logger = logging.getLogger(__name__)
@@ -407,6 +408,10 @@ async def _find_or_create_user(
             "account_exists",
             "an administrator account uses this e-mail; sign in with the password",
         )
+
+    if user is not None and user.is_guest:
+        # The provider verified the address: the guest account is theirs.
+        await claim_guest_account(session, user)
 
     if user is None:
         # Built directly, like the signup: the CRUD's model_dump drops the

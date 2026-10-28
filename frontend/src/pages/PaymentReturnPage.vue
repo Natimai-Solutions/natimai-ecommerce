@@ -21,6 +21,7 @@
           <template v-else>{{ $t('payment_return.order_saved') }}</template>
           {{ $t('payment_return.confirmation_sent') }}
         </p>
+        <GuestAccountOffer class="q-mb-md" />
         <div class="app-result__actions">
           <q-btn
             v-if="orderId"
@@ -114,6 +115,7 @@ import { onMounted, onUnmounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { confirmMyPayment, getMyPaymentStatus, type PaymentStatusResponse } from '@/api/payments';
 import { PENDING_PAYMENT_KEY } from '@/utils/payzen';
+import GuestAccountOffer from '@/components/GuestAccountOffer.vue';
 
 const { t } = useI18n();
 const POLL_INTERVAL_MS = 2000;

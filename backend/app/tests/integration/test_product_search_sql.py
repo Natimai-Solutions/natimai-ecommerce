@@ -8,10 +8,12 @@ not-yet-cached row landing in the page.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
 import pytest
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.product.crud.product import crud_product
@@ -362,3 +364,64 @@ async def test_a_parent_is_found_through_what_its_variants_change(
         _names(await crud_product.search_products(db_session, specs={"cpu": "xeon"}))
         == set()
     )
+
+
+@pytest.mark.asyncio
+async def test_accents_never_matter(db_session: AsyncSession) -> None:
+    await _seed(db_session)
+
+    plain = await crud_product.search_products(db_session, q="ecran")
+    accented = await crud_product.search_products(db_session, q="ÉCRAN")
+    assert _names(plain) == _names(accented) == {"Écran 24 pouces"}
+    assert plain["approximate"] is False
+
+
+@pytest.mark.asyncio
+async def test_a_typo_falls_back_to_names_that_look_alike(
+    db_session: AsyncSession,
+) -> None:
+    await _seed(db_session)
+
+    typo = await crud_product.search_products(db_session, q="vostor")
+    assert _names(typo) == {"Dell Vostro"}
+    assert typo["approximate"] is True
+
+    # Words that resemble nothing still find nothing.
+    nothing = await crud_product.search_products(db_session, q="zzqxwv")
+    assert nothing["count"] == 0 and nothing["approximate"] is False
+
+
+@pytest.mark.asyncio
+async def test_results_sort_by_price_or_newest(db_session: AsyncSession) -> None:
+    await _seed(db_session)
+
+    ascending = await crud_product.search_products(
+        db_session, category_id=None, sort="price_asc"
+    )
+    prices = [p.base_price for p in ascending["data"]]
+    assert prices == sorted(prices)
+    descending = await crud_product.search_products(db_session, sort="price_desc")
+    assert [p.base_price for p in descending["data"]] == sorted(prices, reverse=True)
+
+    # Rows inserted directly have no creation date: give the Dell the latest.
+    seeded = await _products_by_name(db_session)
+    seeded["Dell Vostro"].created_at = datetime.now(UTC)
+    seeded["HP 255"].created_at = datetime.now(UTC) - timedelta(days=3)
+    await db_session.commit()
+    newest = await crud_product.search_products(db_session, sort="newest")
+    assert [p.name for p in newest["data"]][:2] == ["Dell Vostro", "HP 255"]
+
+
+@pytest.mark.asyncio
+async def test_suggestions_are_a_light_search(db_session: AsyncSession) -> None:
+    await _seed(db_session)
+
+    result = await crud_product.search_products(
+        db_session, q="hp", limit=2, with_facets=False
+    )
+    assert len(result["data"]) == 2
+    assert result["facets"] == {}
+
+
+async def _products_by_name(db_session: AsyncSession) -> dict[str, Product]:
+    return {p.name: p for p in (await db_session.exec(select(Product))).all()}

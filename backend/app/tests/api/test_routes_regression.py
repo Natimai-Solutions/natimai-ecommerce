@@ -89,11 +89,13 @@ async def test_address_get_uses_read_with_id(
 
 
 @pytest.mark.asyncio
-async def test_review_update_uses_read_then_update_with_id_and_record(
+async def test_review_update_keeps_product_and_goes_back_to_moderation(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
     current_user: SimpleNamespace,
 ) -> None:
+    """Editing changes the rating and the comment only, through the same
+    path as the storefront (bought product, back to moderation)."""
     user_id = current_user.id
     review_id = uuid.uuid4()
     product_id = uuid.uuid4()
@@ -114,27 +116,24 @@ async def test_review_update_uses_read_then_update_with_id_and_record(
     )
 
     read_mock = AsyncMock(return_value=review)
-    update_mock = AsyncMock(return_value=updated_review)
+    submit_mock = AsyncMock(return_value=updated_review)
     monkeypatch.setattr(crud_review, "read", read_mock)
-    monkeypatch.setattr(crud_review, "update", update_mock)
+    monkeypatch.setattr("app.api.routes.user_review.submit_review", submit_mock)
 
     response = client.patch(
         f"/api/v1/review/users/{user_id}/reviews/{review_id}",
-        json={"rating": 5, "comment": "much better"},
+        json={"rating": 5, "comment": "much better", "product_id": str(uuid.uuid4())},
     )
 
     assert response.status_code == 200
-
     assert read_mock.await_args is not None
-    read_kwargs = read_mock.await_args.kwargs
-    assert read_kwargs["id"] == review_id
-
-    assert update_mock.await_args is not None
-    update_kwargs = update_mock.await_args.kwargs
-    assert update_kwargs["id"] == review_id
-    assert update_kwargs["record"] is review
-    assert update_kwargs["data"].rating == 5
-    assert update_kwargs["data"].comment == "much better"
+    assert read_mock.await_args.kwargs["id"] == review_id
+    assert submit_mock.await_args is not None
+    kwargs = submit_mock.await_args.kwargs
+    # The product is the review's, never the one sent in the body.
+    assert kwargs["product_id"] == product_id
+    assert kwargs["rating"] == 5
+    assert kwargs["comment"] == "much better"
 
 
 @pytest.mark.asyncio

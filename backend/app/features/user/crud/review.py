@@ -4,7 +4,12 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.base.crud import CrudBase
-from app.features.user.models.review import Review, ReviewCreate, ReviewUpdate
+from app.features.user.models.review import (
+    Review,
+    ReviewCreate,
+    ReviewStatus,
+    ReviewUpdate,
+)
 
 
 class ReviewCrud(CrudBase[Review, ReviewCreate, ReviewUpdate]):
@@ -48,6 +53,7 @@ class ReviewCrud(CrudBase[Review, ReviewCreate, ReviewUpdate]):
                 self.model.product_id == product_id,
                 col(self.model.is_admin_active).is_(True),
                 col(self.model.is_active).is_(True),
+                col(self.model.status) == ReviewStatus.APPROVED.value,
             )
             .offset(skip)
             .limit(limit)
@@ -108,6 +114,7 @@ class ReviewCrud(CrudBase[Review, ReviewCreate, ReviewUpdate]):
             self.model.product_id == product_id,
             col(self.model.is_admin_active).is_(True),
             col(self.model.is_active).is_(True),
+            col(self.model.status) == ReviewStatus.APPROVED.value,
         )
         exec_result = await session.exec(statement)
         return len(exec_result.all())
@@ -120,6 +127,7 @@ class ReviewCrud(CrudBase[Review, ReviewCreate, ReviewUpdate]):
             self.model.product_id == product_id,
             col(self.model.is_admin_active).is_(True),
             col(self.model.is_active).is_(True),
+            col(self.model.status) == ReviewStatus.APPROVED.value,
         )
         exec_result = await session.exec(statement)
         ratings = exec_result.all()
