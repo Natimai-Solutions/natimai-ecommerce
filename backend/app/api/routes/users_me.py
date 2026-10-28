@@ -45,6 +45,8 @@ class MyProfilePublic(BaseModel):
     full_name: str | None = None
     phone: str | None = None
     is_verified: bool = False
+    #: Opened at checkout without a password: the storefront offers to finish it.
+    is_guest: bool = False
     created_at: datetime.datetime | None = None
 
 
@@ -85,6 +87,7 @@ def _profile_of(user: CurrentUser) -> MyProfilePublic:
         full_name=user.full_name,
         phone=user.phone,
         is_verified=bool(user.is_verified),
+        is_guest=bool(user.is_guest),
         created_at=getattr(user, "created_at", None),
     )
 

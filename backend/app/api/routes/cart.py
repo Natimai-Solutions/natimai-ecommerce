@@ -11,7 +11,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Header, Query, Request, Response, status
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm.attributes import set_committed_value
-from sqlmodel import col, or_, select
+from sqlmodel import SQLModel, col, or_, select
 
 from app.api.deps import CurrentUser, SessionDep, module_required
 from app.core import runtime_settings
@@ -77,9 +77,10 @@ from app.features.notification.mailer import send_email
 from app.features.order.crud.order_crud import crud_order
 from app.features.order.crud.order_line_crud import crud_order_line
 from app.features.order.crud.order_status_crud import crud_order_status
-from app.features.order.models.order import OrderCreate
+from app.features.order.models.order import Order, OrderCreate
 from app.features.order.models.order_line import OrderLineCreate
 from app.features.order.models.order_status import OrderStatus, OrderStatusCreate
+from app.features.order.services.customer_actions import order_lines_to_reorder
 from app.features.order.services.order_number import allocate_order_number
 from app.features.payment.crud.payment import crud_payment
 from app.features.payment.crud.payment_status import crud_payment_status
@@ -1699,6 +1700,72 @@ async def add_cart_item(
     return _build_cart_detail(cart, items)
 
 
+class ReorderResponse(SQLModel):
+    """The cart after « Re-commander », and what could not be put back."""
+
+    cart: CartDetailPublic
+    added: int = 0
+    #: Articles of the order that are no longer sold (or no longer visible).
+    skipped: int = 0
+
+
+@router.post("/reorder/{order_id}", response_model=ReorderResponse)
+async def reorder_into_cart(
+    session: SessionDep,
+    current_user: CurrentUser,
+    order_id: uuid.UUID,
+) -> ReorderResponse:
+    """Put the articles of one of the customer's orders back into the cart,
+    at today's price; the quantities add to what the cart already holds."""
+    user_id = current_user.id
+    order = await session.get(Order, order_id)
+    if order is None or order.user_id != user_id:
+        raise AppError(
+            code="order.not_found",
+            status_code=404,
+            message=f"Order {order_id} not found",
+            details={"order_id": str(order_id)},
+        )
+    wanted = await order_lines_to_reorder(session, order_id=order_id)
+    cart = await crud_cart.get_or_create_active_cart(session=session, user_id=user_id)
+    cart_id = cart.id
+    # What the cart holds now plus the order's quantities, written in one
+    # transaction (same path as the sign-in merge: each add would commit and
+    # expire the products priced for this customer).
+    quantities: dict[uuid.UUID, int] = {
+        item.product_id: item.quantity
+        for item in await crud_cart_item.get_by_cart_id(
+            session=session, cart_id=cart_id
+        )
+    }
+    added = skipped = 0
+    for product_id, quantity in wanted:
+        quantities[product_id] = quantities.get(product_id, 0) + quantity
+    entries: list[tuple[Product, int]] = []
+    reordered = {product_id for product_id, _ in wanted}
+    for product_id, quantity in quantities.items():
+        try:
+            product = await _get_active_product_or_404(
+                session, product_id=product_id, user=current_user
+            )
+        except AppError:
+            if product_id in reordered:
+                skipped += 1
+            continue
+        if product_id in reordered:
+            added += 1
+        entries.append((product, quantity))
+    await crud_cart_item.replace_cart_items(
+        session=session, cart_id=cart_id, entries=entries
+    )
+    await crud_cart.sync_total(session=session, cart_id=cart_id)
+    cart = await crud_cart.get_or_create_active_cart(session=session, user_id=user_id)
+    items = await crud_cart_item.get_by_cart_id(session=session, cart_id=cart_id)
+    return ReorderResponse(
+        cart=_build_cart_detail(cart, items), added=added, skipped=skipped
+    )
+
+
 @router.patch("/items/{item_id}", response_model=CartDetailPublic)
 async def update_cart_item_quantity(
     session: SessionDep,
@@ -2902,18 +2969,33 @@ async def _priced_last_leg_options(
         items=items,
         products_by_id=products_by_id,
     )
+    return await _price_last_legs(
+        session,
+        products=list(products_by_id.values()),
+        declared_value=declared_value,
+        total_weight_kg=total_weight_kg,
+        currency=cart.currency,
+        destination_chain=destination_chain,
+    )
+
+
+async def _price_last_legs(
+    session: SessionDep,
+    *,
+    products: list[Product],
+    declared_value: Decimal,
+    total_weight_kg: Decimal,
+    currency: str,
+    destination_chain: list[uuid.UUID],
+) -> LastLegOptionsResponse:
+    """Price every delivery mode serving the destination for this shipment."""
     # Delivery modes are driven by the admin's configured last-leg routes, not a
     # fixed enum: any mode whose route serves this destination appears.
     candidates = await resolve_last_leg_candidates(
         session, destination_chain=destination_chain
     )
     declaration_fee_total = sum(
-        (
-            fee.amount
-            for fee in await _customs_declaration_fees(
-                session, list(products_by_id.values())
-            )
-        ),
+        (fee.amount for fee in await _customs_declaration_fees(session, products)),
         Decimal("0.00"),
     )
 
@@ -2924,23 +3006,23 @@ async def _priced_last_leg_options(
             routes=[route],
             total_weight_kg=total_weight_kg,
             declared_value=declared_value,
-            currency=cart.currency,
+            currency=currency,
         )
         options.append(
             LastLegOption(
                 delivery_type=mode,
                 label=route.customer_label,
                 amount=summary.total_fee,
-                currency=cart.currency,
+                currency=currency,
                 eta_days=route.eta_days,
                 route_name=route.name,
             )
         )
 
     return LastLegOptionsResponse(
-        currency=cart.currency,
+        currency=currency,
         options=options,
-        customs_declaration_fee=quantize_amount(declaration_fee_total, cart.currency),
+        customs_declaration_fee=quantize_amount(declaration_fee_total, currency),
     )
 
 
@@ -3006,6 +3088,34 @@ async def get_guest_last_leg_options(
     )
     return await _priced_last_leg_options(
         session, cart=cart, user=None, destination_chain=destination_chain
+    )
+
+
+@router.get(
+    "/estimate/product/{product_id}",
+    response_model=LastLegOptionsResponse,
+    dependencies=[Depends(rate_limited("ship_estimate", limit=60, window_seconds=60))],
+)
+async def estimate_product_shipping(
+    session: SessionDep,
+    product_id: uuid.UUID,
+    place_id: uuid.UUID | None = Query(
+        default=None, description="Destination zone (island) picked by the visitor"
+    ),
+    quantity: int = Query(default=1, ge=1, le=99),
+) -> LastLegOptionsResponse:
+    """The delivery price of one product to an island, from its page, before
+    anything is in the cart: priced like the cart estimate, at the reference
+    price (the checkout bills the real shipment)."""
+    product = await _get_active_product_or_404(session, product_id=product_id)
+    weight = Decimal(str(product.weight)) if product.weight else Decimal("0")
+    return await _price_last_legs(
+        session,
+        products=[product],
+        declared_value=product.base_price * quantity,
+        total_weight_kg=(weight * quantity) if weight > 0 else Decimal("0"),
+        currency=settings.REFERENCE_CURRENCY,
+        destination_chain=await _destination_chain_for_place(session, place_id),
     )
 
 

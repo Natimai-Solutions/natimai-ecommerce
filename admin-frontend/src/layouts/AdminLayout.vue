@@ -217,6 +217,7 @@ const allNav: NavSection[] = [
     links: [
       { label: 'layout.nav.users', icon: 'ph:users', to: '/users' },
       { label: 'layout.nav.group_requests', icon: 'ph:user-plus', to: '/group-upgrade-requests' },
+      { label: 'layout.nav.reviews', icon: 'ph:star', to: '/reviews' },
       { label: 'layout.nav.addresses', icon: 'ph:map-pin', to: '/addresses' },
     ],
   },

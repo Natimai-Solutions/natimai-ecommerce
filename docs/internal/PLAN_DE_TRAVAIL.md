@@ -55,12 +55,7 @@ sur le serveur, chez un tiers ou une décision.
 
 ## 3. Fonctionnel — client
 
-- **Commande sans compte** (e-mail, compte proposé après paiement, suivi par le lien signé existant) — M ; l'estimation des frais de port sans compte est au panier, pas encore sur la fiche produit.
-- **Recherche tolérante** : `unaccent` + `pg_trgm`, suggestions sous le champ, tri prix / nouveautés — M.
 - **Retours, RMA et formulaire de rétractation** (obligation légale, c'est du code) : demande depuis « Mes commandes », validation admin, enchaînement sur le remboursement et l'avoir existants — L.
-- Annulation par le client, « Re-commander » — S.
-- **Avis clients** : achat vérifié, modération, affichage sur la fiche (la route existe, aucun écran) — M.
-- Nom du client dans l'en-tête de la vitrine — S.
 - **SMS** (expédition, solde dû) — M.
 - Newsletter double opt-in (outil externe ou intégré, à choisir) ; analytics sans cookie (Plausible / Matomo).
 

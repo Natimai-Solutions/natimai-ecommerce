@@ -80,17 +80,17 @@ def test_get_user_review_not_found_returns_error_payload(
     }
 
 
-def test_create_user_review_already_exists_returns_error_payload(
+def test_create_user_review_without_purchase_returns_error_payload(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
     current_user: SimpleNamespace,
 ) -> None:
+    """Only a buyer may review: same rule as the storefront route."""
     product_id = uuid.uuid4()
 
     monkeypatch.setattr(
-        crud_review,
-        "get_by_user_and_product",
-        AsyncMock(return_value=SimpleNamespace(id=uuid.uuid4())),
+        "app.features.user.services.reviews.has_bought",
+        AsyncMock(return_value=False),
     )
 
     response = client.post(
@@ -103,15 +103,12 @@ def test_create_user_review_already_exists_returns_error_payload(
         },
     )
 
-    assert response.status_code == 400
+    assert response.status_code == 403
     assert response.json() == {
         "error": {
-            "code": "review.already_exists",
-            "message": "User already has a review for this product",
-            "details": {
-                "user_id": str(current_user.id),
-                "product_id": str(product_id),
-            },
+            "code": "review.not_purchased",
+            "message": "Only a customer who bought this product can review it",
+            "details": {"product_id": str(product_id)},
         }
     }
 

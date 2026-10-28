@@ -241,6 +241,19 @@
               {{ resultLabel }}
             </span>
           </div>
+          <q-select
+            :model-value="selectedSort"
+            :options="sortOptions"
+            :label="$t('catalogue.sort')"
+            dense
+            outlined
+            emit-value
+            map-options
+            options-dense
+            class="catalogue__sort"
+            data-testid="catalogue-sort"
+            @update:model-value="onSortChange"
+          />
           <q-btn
             outline
             color="primary"
@@ -273,6 +286,16 @@
             {{ $t('catalogue.clear_all') }}
           </button>
         </div>
+
+        <AppNotice
+          v-if="store.approximate && store.filters.q"
+          tone="info"
+          dense
+          class="catalogue__notice"
+          data-testid="catalogue-approximate"
+        >
+          {{ $t('catalogue.approximate', { q: store.filters.q }) }}
+        </AppNotice>
 
         <AppNotice v-if="cartError" tone="warning" class="catalogue__notice">
           {{ cartError }}
@@ -400,6 +423,13 @@ const conditionOptions = computed(() => {
 // Where the stock is: our warehouse (fast) or the supplier (longer delivery).
 type StockLocation = 'local' | 'supplier';
 const selectedStock = ref<StockLocation | null>(null);
+
+type SearchSort = 'relevance' | 'price_asc' | 'price_desc' | 'newest';
+const SORTS: SearchSort[] = ['relevance', 'price_asc', 'price_desc', 'newest'];
+const selectedSort = ref<SearchSort>('relevance');
+const sortOptions = computed(() =>
+  SORTS.map((value) => ({ value, label: t(`catalogue.sort_${value}`) })),
+);
 const STOCK_LABELS = computed<Record<StockLocation, string>>(() => ({
   local: t('catalogue.stock_local'),
   supplier: t('catalogue.stock_supplier'),
@@ -644,6 +674,12 @@ async function onConditionChange(val: 'new' | 'refurbished' | null) {
   syncQueryParams();
 }
 
+async function onSortChange(val: SearchSort) {
+  selectedSort.value = val;
+  await store.applyFilters({ sort: val });
+  syncQueryParams();
+}
+
 async function onStockChange(val: StockLocation | null) {
   selectedStock.value = val;
   await store.applyFilters({ stock: val });
@@ -728,6 +764,7 @@ function stateQuery(): Record<string, string> {
   if (selectedCategory.value) query['cat'] = selectedCategory.value;
   if (selectedCondition.value) query['cond'] = selectedCondition.value;
   if (selectedStock.value) query['stock'] = selectedStock.value;
+  if (selectedSort.value !== 'relevance') query['tri'] = selectedSort.value;
   return query;
 }
 
@@ -756,6 +793,8 @@ function initFromQuery(query: LocationQuery = route.query) {
   selectedCondition.value = cond === 'new' || cond === 'refurbished' ? cond : null;
   const stock = query['stock'];
   selectedStock.value = stock === 'local' || stock === 'supplier' ? stock : null;
+  const sort = query['tri'];
+  selectedSort.value = SORTS.find((value) => value === sort) ?? 'relevance';
 }
 
 async function loadCatalogueData() {
@@ -768,6 +807,7 @@ async function loadCatalogueData() {
     category_id: selectedCategory.value,
     condition: selectedCondition.value,
     stock: selectedStock.value,
+    sort: selectedSort.value,
     specs: buildSpecs(),
   });
 }
@@ -779,7 +819,7 @@ watch(
   (query) => {
     if (route.name !== 'catalogue') return;
     const current = stateQuery();
-    const keys = ['q', 'mfr', 'cat', 'cond', 'stock'];
+    const keys = ['q', 'mfr', 'cat', 'cond', 'stock', 'tri'];
     const same =
       keys.every((k) => (query[k] ?? undefined) === current[k]) &&
       Object.keys(query).every((k) => keys.includes(k));
@@ -1074,9 +1114,10 @@ onMounted(async () => {
 
 .catalogue__head {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px 16px;
 }
 
 .catalogue__heading {
@@ -1085,6 +1126,24 @@ onMounted(async () => {
   flex-wrap: wrap;
   gap: 4px 14px;
   min-width: 0;
+}
+
+.catalogue__sort {
+  min-width: 190px;
+  margin-left: auto;
+}
+
+/* Téléphone : le titre garde toute la largeur, tri et filtres en dessous. */
+@media (max-width: 1023px) {
+  .catalogue__heading {
+    flex-basis: 100%;
+  }
+
+  .catalogue__sort {
+    flex: 1;
+    min-width: 0;
+    margin-left: 0;
+  }
 }
 
 .catalogue__count {

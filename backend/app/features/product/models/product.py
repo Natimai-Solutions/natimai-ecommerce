@@ -76,6 +76,15 @@ class AvailabilityMode(StrEnum):
     LOT = "lot"
 
 
+class SearchSort(StrEnum):
+    """Order of the storefront search results."""
+
+    RELEVANCE = "relevance"
+    PRICE_ASC = "price_asc"
+    PRICE_DESC = "price_desc"
+    NEWEST = "newest"
+
+
 class ProductCondition(StrEnum):
     """New goods or a refurbished item (graded, with its own warranty)."""
 
@@ -740,6 +749,10 @@ class ProductSearchRequest(SQLModel):
     condition: ProductCondition | None = Field(
         default=None, description="Only new or only refurbished items"
     )
+    sort: SearchSort = Field(
+        default=SearchSort.RELEVANCE,
+        description="relevance, price_asc, price_desc or newest (newest first on ties)",
+    )
     limit: int = Field(default=24, ge=1, le=200)
     offset: int = Field(default=0, ge=0)
     group_offers: bool = Field(
@@ -769,6 +782,15 @@ class ProductSearchResponse(SQLModel):
     data: list[ProductPublic] = Field(default_factory=list)
     count: int = 0
     facets: ProductSearchFacets = Field(default_factory=ProductSearchFacets)
+    #: No product has the words searched: these names only resemble them.
+    approximate: bool = False
+
+
+class ProductSuggestResponse(SQLModel):
+    """A few products under the search field, as the visitor types."""
+
+    data: list[ProductPublic] = Field(default_factory=list)
+    approximate: bool = False
 
 
 class ProductOfferPublic(SQLModel):

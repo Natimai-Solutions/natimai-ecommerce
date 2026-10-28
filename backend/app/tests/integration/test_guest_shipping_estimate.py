@@ -10,7 +10,7 @@ from decimal import Decimal
 import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.routes.cart import get_guest_last_leg_options
+from app.api.routes.cart import estimate_product_shipping, get_guest_last_leg_options
 from app.features.cart.models.cart import Cart, CartItem
 from app.features.place.models import Place
 from app.features.product.models.product import PricingMode, Product
@@ -83,7 +83,7 @@ async def test_the_estimate_lists_the_modes_serving_the_island(
             unit_price=Decimal("25000"),
         )
     )
-    moorea_id, bora_id = moorea.id, bora.id
+    moorea_id, bora_id, product_id = moorea.id, bora.id, product.id
     await db_session.commit()
 
     to_moorea = await get_guest_last_leg_options(db_session, TOKEN, place_id=moorea_id)
@@ -99,3 +99,11 @@ async def test_the_estimate_lists_the_modes_serving_the_island(
         db_session, "another-token-0123456789", place_id=moorea_id
     )
     assert empty.options == []
+
+    # From the product page, before anything is in a cart.
+    two = await estimate_product_shipping(
+        db_session, product_id, place_id=moorea_id, quantity=2
+    )
+    assert [(o.delivery_type, o.amount) for o in two.options] == [
+        ("ferry", Decimal("900"))  # 500 + 100 × 4 kg
+    ]

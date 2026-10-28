@@ -20,6 +20,8 @@ export const useProductsStore = defineStore('products', () => {
   const items = ref<ProductPublic[]>([]);
   const count = ref(0);
   const facets = ref<ProductSearchFacets | null>(null);
+  /** Nothing had the words searched: the results only resemble them. */
+  const approximate = ref(false);
   const categories = ref<CategoryPublic[]>([]);
   const specFacets = ref<SpecFacet[]>([]);
   const loading = ref(false);
@@ -38,6 +40,7 @@ export const useProductsStore = defineStore('products', () => {
     // Défaut du backend : un même article vendu par plusieurs fournisseurs
     // n'apparaît qu'une fois, à sa meilleure offre.
     group_offers: true,
+    sort: 'relevance',
   });
   const currentPage = ref(1);
 
@@ -57,6 +60,7 @@ export const useProductsStore = defineStore('products', () => {
       items.value = resp.data ?? [];
       count.value = resp.count;
       facets.value = resp.facets ?? null;
+      approximate.value = resp.approximate ?? false;
     } catch (e) {
       error.value = e instanceof Error ? e.message : gt('stores.unknown');
     } finally {
@@ -107,6 +111,7 @@ export const useProductsStore = defineStore('products', () => {
     items,
     count,
     facets,
+    approximate,
     categories,
     specFacets,
     loading,

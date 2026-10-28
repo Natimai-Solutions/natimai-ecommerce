@@ -78,6 +78,7 @@ from app.api.routes.product import (
     router as product_router,
 )
 from app.api.routes.product_catalog import router as product_catalog_router
+from app.api.routes.reviews import router as reviews_router
 from app.api.routes.shipping import shipping_router
 from app.api.routes.signup import router as signup_router
 from app.api.routes.stock_alerts import router as stock_alerts_router
@@ -156,6 +157,7 @@ api_router.include_router(order_line_router)
 
 api_router.include_router(address_router)
 api_router.include_router(user_review_router)
+api_router.include_router(reviews_router)
 api_router.include_router(user_notification_router)
 api_router.include_router(user_wishlist_router)
 api_router.include_router(user_preferences_router)

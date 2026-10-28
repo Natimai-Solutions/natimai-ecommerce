@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { accessToken, api } from '@/boot/api';
+import { getMyProfile, type MyProfile } from '@/api/profile';
 import { gt } from '@/i18n/global';
 
 interface AccessTokenResponse {
@@ -13,6 +14,37 @@ export const useAuthStore = defineStore('auth', () => {
   const loggingIn = ref(false);
 
   const isAuthenticated = computed(() => accessToken.value !== null);
+
+  /** The signed-in customer, for the header greeting; null while unknown. */
+  const profile = ref<MyProfile | null>(null);
+
+  /** First name when known, else the part of the e-mail before the @. */
+  const displayName = computed(() => {
+    const current = profile.value;
+    if (!current) return null;
+    const first = current.full_name?.trim().split(/\s+/)[0];
+    return first || current.email.split('@')[0] || null;
+  });
+
+  function setProfile(next: MyProfile | null) {
+    profile.value = next;
+  }
+
+  // The access token only lives in the browser (SSR renders signed out): fetch
+  // who is signed in once a session appears, forget it when it ends.
+  watch(
+    accessToken,
+    (token, previous) => {
+      if (!token) {
+        profile.value = null;
+      } else if (!previous || !profile.value) {
+        void getMyProfile()
+          .then((me) => (profile.value = me))
+          .catch(() => (profile.value = null));
+      }
+    },
+    { immediate: true },
+  );
 
   async function login(email: string, password: string): Promise<boolean> {
     loggingIn.value = true;
@@ -111,8 +143,35 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  // --- Guest checkout ------------------------------------------------------ //
+  /**
+   * Order without an account: opens a passwordless account and its session.
+   * `reason` tells an address already known: `account` (sign in) or `guest`
+   * (an earlier guest order, the take-over link was e-mailed).
+   */
+  async function startGuestCheckout(
+    payload: { email: string; full_name: string; phone: string | null },
+    headers: Record<string, string> = {},
+  ): Promise<StepResult & { reason?: 'account' | 'guest' }> {
+    try {
+      const { data } = await api.post<AccessTokenResponse>('/signup/guest', payload, { headers });
+      accessToken.value = data.access_token;
+      return { ok: true };
+    } catch (err) {
+      const reason = extractErrorReason(err);
+      return {
+        ok: false,
+        error: extractErrorMessage(err) ?? gt('stores.signup_failed'),
+        ...(reason === 'account' || reason === 'guest' ? { reason } : {}),
+      };
+    }
+  }
+
   return {
     isAuthenticated,
+    profile,
+    displayName,
+    setProfile,
     loginError,
     loggingIn,
     login,
@@ -121,8 +180,16 @@ export const useAuthStore = defineStore('auth', () => {
     sendSignupOtp,
     verifySignupOtp,
     completeSignup,
+    startGuestCheckout,
   };
 });
+
+function extractErrorReason(err: unknown): string | null {
+  const data = (err as { response?: { data?: { error?: { details?: { reason?: unknown } } } } })
+    ?.response?.data;
+  const reason = data?.error?.details?.reason;
+  return typeof reason === 'string' ? reason : null;
+}
 
 function extractErrorMessage(err: unknown): string | null {
   if (typeof err === 'object' && err !== null && 'response' in err) {

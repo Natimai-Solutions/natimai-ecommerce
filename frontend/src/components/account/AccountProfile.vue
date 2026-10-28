@@ -277,6 +277,7 @@ async function saveProfile() {
       phone: form.phone.trim(),
     });
     fill(updated);
+    authStore.setProfile(updated);
     profileSaved.value = true;
     emit('updated', updated);
   } catch (err) {

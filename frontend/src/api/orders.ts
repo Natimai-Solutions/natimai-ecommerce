@@ -86,6 +86,8 @@ export interface OrderDetail extends Order {
   /** Money already received (instalments included) and what is left to pay. */
   amount_paid?: string;
   amount_due?: string;
+  /** « Annuler la commande » is offered: nothing paid yet. */
+  can_cancel?: boolean;
 }
 
 /** My orders, most recent first, one page at a time. */
@@ -101,6 +103,12 @@ export async function listMyOrders(
 /** A single order of the current user (`GET /orders/me/{id}`). */
 export async function getMyOrder(orderId: string): Promise<OrderDetail> {
   const { data } = await api.get<OrderDetail>(`/orders/me/${orderId}`);
+  return data;
+}
+
+/** Cancel an order that received no money yet; returns it updated. */
+export async function cancelMyOrder(orderId: string): Promise<OrderDetail> {
+  const { data } = await api.post<OrderDetail>(`/orders/me/${orderId}/cancel`);
   return data;
 }
 

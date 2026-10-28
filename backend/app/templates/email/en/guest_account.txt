@@ -1,0 +1,14 @@
+Hello{% if full_name %} {{ full_name }}{% endif %},
+
+You ordered from {{ shop_name }} without an account. Choose a password to
+find your orders, follow their delivery and check out faster next time:
+
+{{ activation_url }}
+
+This link is valid for {{ valid_hours }} hours and works only once.
+After that, use “forgot password” on the sign-in page.
+
+If you did not ask for this, ignore this message: no access is possible
+without following the link.
+
+The {{ shop_name }} team

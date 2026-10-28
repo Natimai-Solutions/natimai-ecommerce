@@ -38,6 +38,16 @@ export async function searchProducts(req: ProductSearchRequest): Promise<Product
   return data;
 }
 
+type ProductSuggestResponse = components['schemas']['ProductSuggestResponse'];
+
+/** A few matches for the search field, as the visitor types. */
+export async function suggestProducts(q: string, limit = 6): Promise<ProductSuggestResponse> {
+  const { data } = await api.get<ProductSuggestResponse>('/product/suggest', {
+    params: { q, limit },
+  });
+  return data;
+}
+
 export async function getCategories(): Promise<{ data: CategoryPublic[]; count: number }> {
   const { data } = await api.get<{ data: CategoryPublic[]; count: number }>('/category/');
   return data;
