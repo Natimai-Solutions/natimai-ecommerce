@@ -59,7 +59,7 @@ jobs:
       image_prefix: ${{ steps.sha.outputs.image_prefix }}
       image_tag: ${{ steps.sha.outputs.image_tag }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref }}
 
@@ -112,7 +112,7 @@ jobs:
             context: .
             file: ./admin-frontend/Dockerfile
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.resolve.outputs.sha }}
 
