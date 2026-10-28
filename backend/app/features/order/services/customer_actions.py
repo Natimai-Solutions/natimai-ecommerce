@@ -32,7 +32,10 @@ from app.features.payment.crud.payment import crud_payment
 from app.features.payment.crud.payment_attachment import crud_payment_attachment
 from app.features.payment.crud.payment_status import crud_payment_status
 from app.features.payment.models.payment import Payment
-from app.features.payment.models.payment_status import PaymentStatusCreate
+from app.features.payment.models.payment_status import (
+    PaymentStatus,
+    PaymentStatusCreate,
+)
 from app.features.payment.services.receipts import order_payment_summary
 from app.features.payment.services.store_credit import (
     DEAD_PAYMENT_STATUSES,
@@ -53,6 +56,15 @@ async def _status_name(session: AsyncSession, order: Order) -> str | None:
     status = (
         await session.get(OrderStatus, order.order_status_id)
         if order.order_status_id
+        else None
+    )
+    return status.name if status else None
+
+
+async def _payment_status_name(session: AsyncSession, payment: Payment) -> str | None:
+    status = (
+        await session.get(PaymentStatus, payment.payment_status_id)
+        if payment.payment_status_id
         else None
     )
     return status.name if status else None
@@ -105,9 +117,11 @@ async def cancel_order_by_customer(
 ) -> Order:
     """Cancel the customer's own unpaid order; commits.
 
-    The order row is locked first: a payment notification processed at the
-    same moment either lands before (the order is then paid, the cancel is
-    refused) or after (the payment is closed, the notification is ignored).
+    The order row is locked first, then each open payment row — the row a
+    provider notification locks. A notification processed at the same moment
+    either lands before (the payment is then settled under our lock, the
+    cancel is refused) or after (the payment is closed, the notification is
+    ignored).
     """
     order = (
         await session.exec(
@@ -147,6 +161,20 @@ async def cancel_order_by_customer(
                 .execution_options(populate_existing=True)
             )
         ).one()
+        # The refusal above read the payments without a lock; a provider
+        # notification locks the payment row, not the order's. Decide on
+        # what the row says now that it is locked: money that came in
+        # meanwhile keeps the order, the cancel is refused.
+        current = await _payment_status_name(session, locked)
+        if current in SETTLED_PAYMENT_STATUSES:
+            raise AppError(
+                code="order.cancel_refused",
+                status_code=409,
+                message="This order can no longer be cancelled from the account",
+                details={"order_id": str(order_id), "reason": "paid"},
+            )
+        if current in DEAD_PAYMENT_STATUSES:
+            continue
         locked.payment_status_id = cancelled_id
         session.add(locked)
 

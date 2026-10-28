@@ -89,6 +89,9 @@ _WEBHOOK_RECEIVED_EVENT = "payment.webhook_received"
 _PAYMENT_STATUS_COMPLETED = "Completed"
 _PAYMENT_STATUS_FAILED = "Failed"
 _PAYMENT_STATUS_AUTHORIZED = "Authorized"
+# Set by the customer's cancellation (order/services/customer_actions): the
+# order is closed, a late IPN must not revive it.
+_PAYMENT_STATUS_CANCELLED = "Cancelled"
 # Statuses after which the storefront stops polling the payment. An
 # authorisation (deferred capture) is final for the customer: the card is
 # accepted, the debit happens later from the back office. Leaving it out made
@@ -165,6 +168,14 @@ def _get_existing_provider_trans_id(payment: Payment) -> str | None:
     """Get existing provider trans id."""
     provider_data = _provider_data_as_dict(payment)
     return _extract_trans_id(provider_data)
+
+
+async def _is_cancelled_by_customer(session: SessionDep, payment: Payment) -> bool:
+    """Whether the payment was closed by the customer's cancellation."""
+    if payment.payment_status_id is None:
+        return False
+    current = await session.get(PaymentStatus, payment.payment_status_id)
+    return current is not None and current.name == _PAYMENT_STATUS_CANCELLED
 
 
 def _is_duplicate_retry_for_payment(
@@ -425,6 +436,32 @@ async def payzen_ipn(session: SessionDep, request: Request) -> JSONResponse:
             trans_status=trans_status,
             trans_id=trans_id,
         )
+
+        if await _is_cancelled_by_customer(session, payment):
+            # The customer cancelled the order before this IPN arrived (the
+            # card form was still open in another tab): the stock is back on
+            # sale, the order is closed. The IPN is kept on the payment for
+            # the shop to refund a captured amount, never applied.
+            logger.warning(
+                "PayZen IPN on a cancelled payment ignored: payment_id=%s "
+                "trans_status=%s trans_id=%s amount=%s",
+                payment.id,
+                trans_status,
+                trans_id,
+                fields.get("amount"),
+            )
+            provider_data = dict(_provider_data_as_dict(payment))
+            provider_data["cancelled_conflict"] = {
+                "trans_status": trans_status,
+                "trans_id": trans_id,
+                "amount": str(fields.get("amount")),
+            }
+            payment.provider_data = provider_data
+            session.add(payment)
+            await session.commit()
+            return JSONResponse(
+                content={"status": "ok", "message": "IPN sur paiement annule ignore"},
+            )
 
         if _is_duplicate_retry_for_payment(
             payment,

@@ -72,24 +72,43 @@ def stamp_margin(context: PricingContext, product: Product) -> None:
 
 
 _TSQUERY_TOKEN_RE = re.compile(r"[^\W_]+", re.UNICODE)
+#: Letters (for ``\w``) that ``unaccent`` turns into an apostrophe: the
+#: Tahitian ʻeta (« Papeʻete », « Faʻaʻā ») and its look-alikes. The indexed
+#: text is split there by the ``simple`` parser (« pape », « ete ») — the
+#: query is split the same way, so the words match and no quote is produced
+#: inside a tsquery lexeme.
+_APOSTROPHE_LETTERS = str.maketrans(dict.fromkeys("ʹʻʼʽˈ", " "))
 
 #: Word similarity (pg_trgm) a name needs to be offered when the words of the
 #: query match nothing: « samsng » ↔ « Samsung » is 0.57, « clavir » 0.71.
 FUZZY_SIMILARITY = 0.45
 
 
-def prefix_tsquery(query_text: str) -> str:
-    """``to_tsquery`` text matching every word of ``query_text`` as a prefix.
+def search_words(query_text: str) -> list[str]:
+    """The words of ``query_text``, each searched as a prefix.
 
-    ``"hp elited 242"`` → ``"hp:* & elited:* & 242:*"``. Words are split on
-    anything that is not a letter or a digit, so a reference such as
-    ``i5-8500`` searches ``i5`` and ``8500`` — both lexemes the ``simple``
-    parser also emits for the indexed text — and no character reaches the
-    tsquery parser unescaped. Empty when the query holds no letter or digit
-    (the caller then applies no text filter).
+    Split on anything that is not a letter or a digit, so a reference such
+    as ``i5-8500`` searches ``i5`` and ``8500`` — both lexemes the ``simple``
+    parser also emits for the indexed text. Empty when the query holds no
+    letter or digit (the caller then applies no text filter).
     """
-    tokens = [t.lower() for t in _TSQUERY_TOKEN_RE.findall(query_text)]
-    return " & ".join(f"'{token}':*" for token in tokens)
+    words = query_text.translate(_APOSTROPHE_LETTERS)
+    return [t.lower() for t in _TSQUERY_TOKEN_RE.findall(words)]
+
+
+def prefix_tsquery_sql(words: list[str]) -> Any:
+    """``to_tsquery`` matching every word as a prefix, built in SQL:
+    ``["hp", "elited"]`` → ``'hp':* & 'elited':*``, each word unaccented
+    **before** it is quoted. ``unaccent`` maps a few letters to punctuation
+    (ŉ → ``'n``, ː → ``:``, ⑴ → ``(1)``): produced inside a quoted lexeme,
+    with the quote doubled, they are plain characters for the tsquery
+    parser — produced on the whole quoted text they were a syntax error, a
+    500 for the visitor. The index side is unaccented the same way."""
+    quoted = [
+        func.concat("'", func.replace(func.shop_unaccent(word), "'", "''"), "':*")
+        for word in words
+    ]
+    return func.to_tsquery("simple", func.concat_ws(" & ", *quoted))
 
 
 class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
@@ -727,15 +746,15 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
         conditions: list[Any] = list(self.storefront_conditions())
         text_conditions: list[Any] = []
 
-        query_text = prefix_tsquery(q or "")
+        words = search_words(q or "")
         rank_expr: Any = null()
-        if query_text:
+        if words:
             # GIN FTS path — expression matches ix_products_search_fts exactly.
             search_doc = self._search_document(Product.__table__)  # type: ignore[attr-defined]
             # Every word is matched as a prefix (« 242 » finds 242S9, « EliteD »
             # EliteDesk): plainto_tsquery only matched whole lexemes, which read
             # like an exact-match search on references and model names.
-            ts_q = func.to_tsquery("simple", func.shop_unaccent(query_text))
+            ts_q = prefix_tsquery_sql(words)
             # A variant that changes a characteristic of its parent (« i7 »
             # on an i5 machine) finds the parent, the listed entry: its name,
             # its texts and its option values are searched too (a correlated
@@ -794,7 +813,7 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
             with_facets=with_facets,
         )
         result["approximate"] = False
-        if query_text and result["count"] == 0:
+        if words and result["count"] == 0:
             # Nothing has these words: names that look like the query (typos).
             wanted = func.shop_unaccent(func.lower((q or "").strip()))
             named = func.shop_unaccent(

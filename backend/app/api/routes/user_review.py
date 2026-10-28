@@ -40,16 +40,18 @@ class ReviewRouter(
 
 
 class Auth:
-    """Generic CRUD writes are superuser-only (no ownership check on /{id}).
+    """Generic CRUD routes are superuser-only (no ownership check on /{id},
+    and the generic reads list every review — pending and rejected ones
+    included, with their author — which would bypass moderation).
     Customers create/edit their reviews via the ownership-checked
-    /users/{user_id}/reviews endpoints; product reviews are read publicly via
-    /products/{product_id}/reviews."""
+    /users/{user_id}/reviews endpoints; published product reviews are read
+    publicly via /products/{product_id}/reviews and /reviews/product/{id}."""
 
     read = True
     create = True
     update = True
     delete = True
-    read_superuser = False  # reviews are public on the product page
+    read_superuser = True
     create_superuser = True
     update_superuser = True
     delete_superuser = True

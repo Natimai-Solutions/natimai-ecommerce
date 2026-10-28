@@ -281,15 +281,19 @@ async def test_condition_filter_separates_new_from_refurbished(
     assert new_only["count"] == everything["count"] - 1
 
 
-def test_prefix_tsquery_matches_every_word_as_a_prefix() -> None:
-    from app.features.product.crud.product import prefix_tsquery
+def test_search_words_are_the_lexemes_of_the_indexed_text() -> None:
+    from app.features.product.crud.product import search_words
 
-    assert prefix_tsquery("242") == "'242':*"
-    assert prefix_tsquery("HP  EliteD") == "'hp':* & 'elited':*"
+    assert search_words("242") == ["242"]
+    assert search_words("HP  EliteD") == ["hp", "elited"]
     # Punctuation never reaches the tsquery parser; hyphenated references
     # search each part (both are lexemes of the indexed text).
-    assert prefix_tsquery("i5-8500 (G2) & co!") == "'i5':* & '8500':* & 'g2':* & 'co':*"
-    assert prefix_tsquery("  ?! ") == ""
+    assert search_words("i5-8500 (G2) & co!") == ["i5", "8500", "g2", "co"]
+    assert search_words("  ?! ") == []
+    # The Tahitian ʻeta is a letter for the regex but an apostrophe once
+    # unaccented: the indexed text is split there, the query follows.
+    assert search_words("Papeʻete") == ["pape", "ete"]
+    assert search_words("ʻa") == ["a"]
 
 
 @pytest.mark.asyncio
@@ -374,6 +378,29 @@ async def test_accents_never_matter(db_session: AsyncSession) -> None:
     accented = await crud_product.search_products(db_session, q="ÉCRAN")
     assert _names(plain) == _names(accented) == {"Écran 24 pouces"}
     assert plain["approximate"] is False
+
+
+@pytest.mark.asyncio
+async def test_tahitian_names_are_searched_without_an_error(
+    db_session: AsyncSession,
+) -> None:
+    """A letter unaccent maps to an apostrophe (ʻeta, ŉ) used to end in a
+    tsquery syntax error — a 500 for the visitor — once it reached SQL."""
+    await _seed(db_session)
+    db_session.add(_product("Station Papeʻete", "70000", manufacturer="Faʻaʻā"))
+    await db_session.commit()
+
+    letters = ("Papeʻete", "papeete station", "faʻaʻā", "ʻa", "ʹʺʻʼʽˈ")
+    # Other letters unaccent maps to punctuation: an apostrophe, a colon,
+    # parentheses — each once broke the tsquery syntax.
+    punctuation = ("ŉa", "aːb", "⑴x", "ʻ ŉ ː ⑴")
+    for query in letters + punctuation:
+        result = await crud_product.search_products(db_session, q=query)
+        assert isinstance(result["count"], int), query
+    exact = await crud_product.search_products(db_session, q="Papeʻete")
+    assert _names(exact) == {"Station Papeʻete"} and exact["approximate"] is False
+    plain = await crud_product.search_products(db_session, q="pape ete")
+    assert _names(plain) == {"Station Papeʻete"}
 
 
 @pytest.mark.asyncio

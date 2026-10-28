@@ -6,14 +6,18 @@ from __future__ import annotations
 
 import uuid
 from decimal import Decimal
-from typing import Any
+from types import SimpleNamespace
+from typing import Any, cast
+from unittest.mock import AsyncMock, Mock
 
 import pytest
+from fastapi import Request
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.routes.cart import reorder_into_cart
 from app.api.routes.orders_me import cancel_my_order, get_my_order
+from app.api.routes.payments import payzen_ipn
 from app.core.errors import AppError
 from app.core.security import get_password_hash
 from app.features.cart.models.cart import Cart, CartItem
@@ -161,6 +165,94 @@ async def test_a_paid_order_or_someone_elses_is_not_cancelled(
         await cancel_my_order(order_id, db_session, stranger)
     assert foreign.value.code == "order.not_found"
     assert foreign.value.status_code == 404
+
+
+async def _status_name_of(db_session: AsyncSession, row: Order | Payment) -> str | None:
+    status: OrderStatus | PaymentStatus | None
+    if isinstance(row, Order):
+        status = await db_session.get(OrderStatus, row.order_status_id)
+    else:
+        status = await db_session.get(PaymentStatus, row.payment_status_id)
+    return status.name if status else None
+
+
+@pytest.mark.asyncio
+async def test_a_late_payzen_ipn_does_not_revive_a_cancelled_order(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The card form was still open in another tab: the customer cancels,
+    then validates the card. PayZen's IPN finds the payment closed: it is
+    kept on the payment for the shop to refund, the order stays cancelled
+    and no capture is published (the stock is already back on sale)."""
+    buyer = await _user(db_session)
+    order_id, payment_id = await _order(
+        db_session, buyer, order_status="Pending", payment_status="Pending"
+    )
+    await db_session.refresh(buyer)
+    await cancel_my_order(order_id, db_session, buyer)
+
+    monkeypatch.setattr(
+        "app.api.routes.payments.validate_ipn_signature",
+        Mock(
+            return_value={
+                "order_id": str(payment_id),
+                "trans_status": "PAID",
+                "trans_uuid": "tx-late",
+                "amount": "30000",
+                "payment_cards": "VISA",
+                "_raw_answer": {},
+            }
+        ),
+    )
+    captured = AsyncMock(return_value=None)
+    monkeypatch.setattr(
+        "app.api.routes.payments._publish_provider_outcome_event", captured
+    )
+    request = cast(
+        Request, SimpleNamespace(form=AsyncMock(return_value={"kr-answer": "x"}))
+    )
+    response = await payzen_ipn(session=db_session, request=request)
+    assert response.status_code == 200
+
+    db_session.expire_all()
+    payment = await db_session.get(Payment, payment_id)
+    order = await db_session.get(Order, order_id)
+    assert payment is not None and order is not None
+    assert await _status_name_of(db_session, payment) == "Cancelled"
+    assert await _status_name_of(db_session, order) == "Cancelled"
+    captured.assert_not_awaited()
+    # The shop can see the money came in after the cancellation.
+    assert (payment.provider_data or {})["cancelled_conflict"]["trans_status"] == "PAID"
+
+
+@pytest.mark.asyncio
+async def test_money_that_comes_in_while_cancelling_keeps_the_order(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The refusal check reads the payments without a lock. Here it saw the
+    payment still pending (patched), while the row — locked afterwards —
+    is settled: the cancel is refused and nothing is written."""
+    buyer = await _user(db_session)
+    order_id, payment_id = await _order(
+        db_session, buyer, order_status="Pending", payment_status="Completed"
+    )
+    await db_session.refresh(buyer)
+    monkeypatch.setattr(
+        "app.features.order.services.customer_actions.cancellation_refusal",
+        AsyncMock(return_value=None),
+    )
+
+    with pytest.raises(AppError) as refused:
+        await cancel_my_order(order_id, db_session, buyer)
+    assert refused.value.code == "order.cancel_refused"
+    assert refused.value.details["reason"] == "paid"
+
+    await db_session.rollback()
+    payment = await db_session.get(Payment, payment_id)
+    order = await db_session.get(Order, order_id)
+    assert payment is not None and order is not None
+    assert await _status_name_of(db_session, payment) == "Completed"
+    assert await _status_name_of(db_session, order) == "Pending"
 
 
 @pytest.mark.asyncio
