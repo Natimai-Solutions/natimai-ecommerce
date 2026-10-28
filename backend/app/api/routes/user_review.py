@@ -14,6 +14,7 @@ from app.features.user.models.review import (
     ReviewsPublic,
     ReviewUpdate,
 )
+from app.features.user.services.reviews import submit_review
 
 
 def _check_permission(
@@ -154,23 +155,20 @@ async def create_user_review(
             details={"user_id": str(user_id)},
         )
 
-    # Check if user already has a review for this product
-    existing_review = await crud_review.get_by_user_and_product(
-        session=session, user_id=user_id, product_id=review_in.product_id
-    )
-    if existing_review:
+    # Same path as the storefront: bought product only, waits for moderation.
+    if current_user.id != user_id:
         raise AppError(
-            code="review.already_exists",
-            status_code=400,
-            message="User already has a review for this product",
-            details={
-                "user_id": str(user_id),
-                "product_id": str(review_in.product_id),
-            },
+            code="review.not_found",
+            status_code=404,
+            message="Avis introuvable",
+            details={"user_id": str(user_id)},
         )
-
-    review = await crud_review.create_for_user(
-        session=session, data=review_in, user_id=user_id
+    review = await submit_review(
+        session,
+        user=current_user,
+        product_id=review_in.product_id,
+        rating=review_in.rating,
+        comment=review_in.comment,
     )
     return ReviewPublic.model_validate(review)
 
@@ -210,11 +208,16 @@ async def update_user_review(
             details={"review_id": str(review_id)},
         )
 
-    review = await crud_review.update(
-        session=session,
-        id=review_id,
-        record=review,
-        data=review_in,
+    # Only the rating and the comment change (never the product or the
+    # author), and the edited review goes back to moderation.
+    review = await submit_review(
+        session,
+        user=current_user,
+        product_id=review.product_id,
+        rating=review_in.rating if review_in.rating is not None else review.rating,
+        comment=review_in.comment
+        if "comment" in review_in.model_fields_set
+        else review.comment,
     )
     return ReviewPublic.model_validate(review)
 

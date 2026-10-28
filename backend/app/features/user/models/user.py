@@ -137,6 +137,10 @@ class User(UserBase, table=True):
     failed_login_attempts: int = Field(default=0)
     locked_until: datetime.datetime | None = Field(default=None)
     last_login: datetime.datetime | None = Field(default=None)
+    #: Opened from the checkout without a password (« commande sans compte »):
+    #: the person becomes a full customer by choosing a password from the
+    #: e-mailed link, or by signing up with the same address.
+    is_guest: bool = Field(default=False, sa_column_kwargs={"server_default": "false"})
     # Two-factor authentication (administrators, R6). The secret is encrypted
     # (SECRETS_ENCRYPTION_KEY); recovery codes are stored as SHA-256 hashes.
     totp_secret_encrypted: str | None = Field(

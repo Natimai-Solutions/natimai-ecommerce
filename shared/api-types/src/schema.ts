@@ -318,6 +318,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/signup/guest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start Guest Checkout
+         * @description Open a passwordless account to order without signing up, and its session.
+         *
+         *     An address that already has an account opens nothing (409
+         *     ``signup.guest.account_exists``): ``details.reason`` is ``account`` (sign
+         *     in) or ``guest`` (an earlier guest order: the link to take the account
+         *     over has just been e-mailed).
+         */
+        post: operations["signup-start_guest_checkout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/signup/guest/activation-link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send My Guest Activation Link
+         * @description E-mail the guest the link that sets their password (« créer mon compte »).
+         */
+        post: operations["signup-send_my_guest_activation_link"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/partner/": {
         parameters: {
             query?: never;
@@ -3715,6 +3760,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/product/suggest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Suggest Products
+         * @description The few best matches for what the visitor is typing (search field):
+         *     same matching as the search, accents and typos included, no facets.
+         */
+        get: operations["product-suggest_products"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/product/{product_id}/variants": {
         parameters: {
             query?: never;
@@ -4194,6 +4260,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/cart/reorder/{order_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reorder Into Cart
+         * @description Put the articles of one of the customer's orders back into the cart,
+         *     at today's price; the quantities add to what the cart already holds.
+         */
+        post: operations["cart-reorder_into_cart"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/cart/items/{item_id}": {
         parameters: {
             query?: never;
@@ -4386,6 +4473,28 @@ export interface paths {
          *     « le prix final rendu, avant de commander ».
          */
         get: operations["cart-get_guest_last_leg_options"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cart/estimate/product/{product_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Estimate Product Shipping
+         * @description The delivery price of one product to an island, from its page, before
+         *     anything is in the cart: priced like the cart estimate, at the reference
+         *     price (the checkout bills the real shipment).
+         */
+        get: operations["cart-estimate_product_shipping"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4959,6 +5068,28 @@ export interface paths {
         get: operations["order-get_my_order"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orders/me/{order_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel one of my orders before it is paid
+         * @description The customer cancels an order that has received no money yet: stock
+         *     and coupon come back, pending payments are closed. A paid order is a
+         *     refund, asked from the shop (409 ``order.cancel_refused``).
+         */
+        post: operations["order-cancel_my_order"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5641,6 +5772,90 @@ export interface paths {
         get: operations["review-get_user_review_for_product"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reviews/product/{product_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Published Product Reviews
+         * @description The approved reviews of a product, newest first, with their summary.
+         */
+        get: operations["review-list_published_product_reviews"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reviews/product/{product_id}/mine": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get My Review */
+        get: operations["review-get_my_review"];
+        /**
+         * Put My Review
+         * @description Write or edit the review of a product the customer bought (403
+         *     ``review.not_purchased`` otherwise). It waits for moderation.
+         */
+        put: operations["review-put_my_review"];
+        post?: never;
+        /** Delete My Review */
+        delete: operations["review-delete_my_review"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reviews/admin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Reviews To Moderate
+         * @description Reviews by moderation status (pending by default), oldest first for
+         *     the pending ones, newest first otherwise.
+         */
+        get: operations["review-list_reviews_to_moderate"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reviews/admin/{review_id}/moderate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Moderate
+         * @description Publish (approve) or reject a review.
+         */
+        post: operations["review-moderate"];
         delete?: never;
         options?: never;
         head?: never;
@@ -13538,6 +13753,21 @@ export interface components {
             /** Items */
             items?: components["schemas"]["GuestQuoteRequestItem"][];
         };
+        /**
+         * GuestStartRequest
+         * @description Who orders without an account: enough to deliver and to reach them.
+         */
+        GuestStartRequest: {
+            /**
+             * Email
+             * Format: email
+             */
+            email: string;
+            /** Full Name */
+            full_name: string;
+            /** Phone */
+            phone?: string | null;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -14466,6 +14696,16 @@ export interface components {
             /** Task Id */
             task_id?: string | null;
         };
+        /** ModerationDecision */
+        ModerationDecision: {
+            /**
+             * Decision
+             * @enum {string}
+             */
+            decision: "approve" | "reject";
+            /** Note */
+            note?: string | null;
+        };
         /** ModuleState */
         ModuleState: {
             /** Key */
@@ -14689,6 +14929,11 @@ export interface components {
              * @default 0
              */
             amount_due: string;
+            /**
+             * Can Cancel
+             * @default false
+             */
+            can_cancel: boolean;
         };
         /**
          * MyOrderLine
@@ -14932,6 +15177,11 @@ export interface components {
              * @default false
              */
             is_verified: boolean;
+            /**
+             * Is Guest
+             * @default false
+             */
+            is_guest: boolean;
             /** Created At */
             created_at?: string | null;
         };
@@ -14973,6 +15223,32 @@ export interface components {
             order_id: string | null;
             /** Can Order */
             can_order: boolean;
+        };
+        /**
+         * MyReview
+         * @description The signed-in customer's own review, whatever its moderation.
+         */
+        MyReview: {
+            /** Rating */
+            rating: number;
+            /** Comment */
+            comment?: string | null;
+            /** Status */
+            status: string;
+            /** Created At */
+            created_at?: string | null;
+        };
+        /**
+         * MyReviewState
+         * @description Whether the signed-in customer may review the product, and their review.
+         */
+        MyReviewState: {
+            /**
+             * Can Review
+             * @default false
+             */
+            can_review: boolean;
+            review?: components["schemas"]["MyReview"] | null;
         };
         /**
          * NotificationCreate
@@ -18780,6 +19056,12 @@ export interface components {
             /** Missing */
             missing?: string[];
         };
+        /** ProductReviewsResponse */
+        ProductReviewsResponse: {
+            summary: components["schemas"]["ReviewSummaryPublic"];
+            /** Data */
+            data?: components["schemas"]["PublishedReview"][];
+        };
         /**
          * ProductSearchFacets
          * @description Represents product search facets.
@@ -18832,6 +19114,11 @@ export interface components {
             /** @description Only new or only refurbished items */
             condition?: components["schemas"]["ProductCondition"] | null;
             /**
+             * @description relevance, price_asc, price_desc or newest (newest first on ties)
+             * @default relevance
+             */
+            sort: components["schemas"]["SearchSort"];
+            /**
              * Limit
              * @default 24
              */
@@ -18861,6 +19148,11 @@ export interface components {
              */
             count: number;
             facets?: components["schemas"]["ProductSearchFacets"];
+            /**
+             * Approximate
+             * @default false
+             */
+            approximate: boolean;
         };
         /**
          * ProductShippingModesResponse
@@ -18876,6 +19168,19 @@ export interface components {
             shipping_modes: components["schemas"]["ShippingModePricePublic"][];
             /** Default Mode */
             default_mode: string | null;
+        };
+        /**
+         * ProductSuggestResponse
+         * @description A few products under the search field, as the visitor types.
+         */
+        ProductSuggestResponse: {
+            /** Data */
+            data?: components["schemas"]["ProductPublic"][];
+            /**
+             * Approximate
+             * @default false
+             */
+            approximate: boolean;
         };
         /**
          * ProductUpdate
@@ -19199,6 +19504,30 @@ export interface components {
             already_published: number;
             /** Missing */
             missing?: string[];
+        };
+        /**
+         * PublishedReview
+         * @description A review as the storefront shows it: no e-mail, no account id.
+         */
+        PublishedReview: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Rating */
+            rating: number;
+            /** Comment */
+            comment?: string | null;
+            /** Author Name */
+            author_name?: string | null;
+            /**
+             * Verified Purchase
+             * @default false
+             */
+            verified_purchase: boolean;
+            /** Created At */
+            created_at?: string | null;
         };
         /**
          * QuoteIssueBody
@@ -19608,6 +19937,23 @@ export interface components {
             limit: number;
         };
         /**
+         * ReorderResponse
+         * @description The cart after « Re-commander », and what could not be put back.
+         */
+        ReorderResponse: {
+            cart: components["schemas"]["CartDetailPublic"];
+            /**
+             * Added
+             * @default 0
+             */
+            added: number;
+            /**
+             * Skipped
+             * @default 0
+             */
+            skipped: number;
+        };
+        /**
          * RequestBalanceResponse
          * @description Represents request balance response.
          */
@@ -19730,6 +20076,64 @@ export interface components {
             user_id: string;
         };
         /**
+         * ReviewStatus
+         * @description Moderation of a review: only an approved one is shown.
+         * @enum {string}
+         */
+        ReviewStatus: "pending" | "approved" | "rejected";
+        /** ReviewSummaryPublic */
+        ReviewSummaryPublic: {
+            /**
+             * Count
+             * @default 0
+             */
+            count: number;
+            /** Average */
+            average?: number | null;
+            /** Distribution */
+            distribution?: {
+                [key: string]: number;
+            };
+        };
+        /** ReviewToModerate */
+        ReviewToModerate: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Product Name */
+            product_name?: string | null;
+            /** Author Name */
+            author_name?: string | null;
+            /** Author Email */
+            author_email?: string | null;
+            /** Rating */
+            rating: number;
+            /** Comment */
+            comment?: string | null;
+            /** Status */
+            status: string;
+            /**
+             * Verified Purchase
+             * @default false
+             */
+            verified_purchase: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Moderated At */
+            moderated_at?: string | null;
+            /** Moderation Note */
+            moderation_note?: string | null;
+        };
+        /**
          * ReviewUpdate
          * @description Represents review update.
          */
@@ -19767,6 +20171,13 @@ export interface components {
             /** User Id */
             user_id?: string | null;
         };
+        /** ReviewWrite */
+        ReviewWrite: {
+            /** Rating */
+            rating: number;
+            /** Comment */
+            comment?: string | null;
+        };
         /**
          * ReviewsPublic
          * @description Represents reviews public.
@@ -19780,6 +20191,16 @@ export interface components {
             /**
              * Count
              * @description Total number of reviews
+             * @default 0
+             */
+            count: number;
+        };
+        /** ReviewsToModerate */
+        ReviewsToModerate: {
+            /** Data */
+            data?: components["schemas"]["ReviewToModerate"][];
+            /**
+             * Count
              * @default 0
              */
             count: number;
@@ -19965,6 +20386,12 @@ export interface components {
             /** Updated By Email */
             updated_by_email?: string | null;
         };
+        /**
+         * SearchSort
+         * @description Order of the storefront search results.
+         * @enum {string}
+         */
+        SearchSort: "relevance" | "price_asc" | "price_desc" | "newest";
         /**
          * SendOtpRequest
          * @description Request an email verification code.
@@ -23830,6 +24257,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "signup-start_guest_checkout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GuestStartRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccessTokenResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "signup-send_my_guest_activation_link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["app__api__routes__signup__OkMessage"];
                 };
             };
         };
@@ -30070,6 +30550,38 @@ export interface operations {
             };
         };
     };
+    "product-suggest_products": {
+        parameters: {
+            query: {
+                q: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductSuggestResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "product-get_product_variants": {
         parameters: {
             query?: never;
@@ -31040,6 +31552,37 @@ export interface operations {
             };
         };
     };
+    "cart-reorder_into_cart": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReorderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "cart-remove_cart_item": {
         parameters: {
             query?: never;
@@ -31343,6 +31886,41 @@ export interface operations {
                 "X-Cart-Token": string;
             };
             path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LastLegOptionsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "cart-estimate_product_shipping": {
+        parameters: {
+            query?: {
+                /** @description Destination zone (island) picked by the visitor */
+                place_id?: string | null;
+                quantity?: number;
+            };
+            header?: never;
+            path: {
+                product_id: string;
+            };
             cookie?: never;
         };
         requestBody?: never;
@@ -32777,6 +33355,37 @@ export interface operations {
         };
     };
     "order-get_my_order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyOrderDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "order-cancel_my_order": {
         parameters: {
             query?: never;
             header?: never;
@@ -34366,6 +34975,203 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReviewPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "review-list_published_product_reviews": {
+        parameters: {
+            query?: {
+                skip?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductReviewsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "review-get_my_review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyReviewState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "review-put_my_review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyReviewState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "review-delete_my_review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "review-list_reviews_to_moderate": {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["ReviewStatus"] | null;
+                skip?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewsToModerate"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "review-moderate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                review_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModerationDecision"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewToModerate"];
                 };
             };
             /** @description Validation Error */

@@ -28,6 +28,7 @@ from app.features.product.models.product import (
     ProductSearchRequest,
     ProductSearchResponse,
     ProductsPublic,
+    ProductSuggestResponse,
 )
 from app.features.product.models.product_spec import (
     CategorySpecFacetsResponse,
@@ -485,6 +486,7 @@ async def search_products(
         limit=payload.limit,
         offset=payload.offset,
         group_offers=payload.group_offers,
+        sort=payload.sort.value,
     )
 
     offers_counts: dict[str, int] = search_result.get("offers_counts", {}) or {}
@@ -498,6 +500,27 @@ async def search_products(
         data=products,
         count=search_result.get("count", 0),
         facets=ProductSearchFacets.model_validate(search_result.get("facets", {})),
+        approximate=bool(search_result.get("approximate")),
+    )
+
+
+@router.get("/suggest", response_model=ProductSuggestResponse)
+async def suggest_products(
+    session: SessionDep,
+    q: Annotated[str, Query(min_length=2, max_length=100)],
+    limit: Annotated[int, Query(ge=1, le=10)] = 6,
+    current_user: object = Depends(get_current_user_optional),
+) -> ProductSuggestResponse:
+    """The few best matches for what the visitor is typing (search field):
+    same matching as the search, accents and typos included, no facets."""
+    result = await crud_product.search_products(
+        session=session, q=q, limit=limit, with_facets=False
+    )
+    return ProductSuggestResponse(
+        data=await publish_with_availability(
+            session, result.get("data", []), customer=current_user
+        ),
+        approximate=bool(result.get("approximate")),
     )
 
 

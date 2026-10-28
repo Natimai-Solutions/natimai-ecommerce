@@ -41,6 +41,7 @@
         </li>
       </ul>
       <p v-else class="ship-estimate__hint">{{ $t('ship_estimate.none') }}</p>
+      <p v-if="productId && estimate.options.length > 0" class="ship-estimate__hint">{{ $t('ship_estimate.for_product') }}</p>
       <p v-if="customsFee > 0" class="ship-estimate__hint">
         {{ $t('ship_estimate.customs', { amount: money(estimate.customs_declaration_fee) }) }}
       </p>
@@ -52,7 +53,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { getGuestLastLegOptions, getLastLegOptions, type LastLegOptionsResponse } from '@/api/cart';
+import {
+  estimateProductShipping,
+  getGuestLastLegOptions,
+  getLastLegOptions,
+  type LastLegOptionsResponse,
+} from '@/api/cart';
 import { getGeoTree, type PlaceTreeNode } from '@/api/addresses';
 import { useAuthStore } from '@/stores/auth';
 import { currentGuestToken, useCartStore } from '@/stores/cart';
@@ -61,9 +67,12 @@ import { useShopModulesStore } from '@/stores/shopModules';
 
 /**
  * « Le prix final rendu, avant de commander » : the visitor picks their
- * island and sees each delivery mode priced for this cart, signed in or not.
+ * island and sees each delivery mode priced for this cart, signed in or not —
+ * or, with `productId` (product page), for one unit of that product.
  * The island is remembered in the browser for the next visit.
  */
+const props = defineProps<{ productId?: string | null }>();
+
 const ISLAND_KEY = 'shipping_estimate_place';
 
 const { t } = useI18n();
@@ -129,7 +138,9 @@ async function loadEstimate() {
   loading.value = true;
   error.value = null;
   try {
-    if (auth.isAuthenticated) {
+    if (props.productId) {
+      estimate.value = await estimateProductShipping(props.productId, placeId.value);
+    } else if (auth.isAuthenticated) {
       estimate.value = await getLastLegOptions(null, placeId.value);
     } else {
       const token = currentGuestToken();
@@ -164,9 +175,11 @@ async function loadZones() {
   }
 }
 
-// The weight changes with the cart: price again.
+// The weight changes with the cart (or the chosen variant): price again.
 watch(
-  () => cartStore.items.map((item) => `${item.product_id}:${item.quantity}`).join(','),
+  () =>
+    props.productId ??
+    cartStore.items.map((item) => `${item.product_id}:${item.quantity}`).join(','),
   () => void loadEstimate(),
 );
 

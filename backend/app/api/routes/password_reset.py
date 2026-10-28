@@ -191,6 +191,8 @@ async def reset_password(
     # l'invitation emprunte ce même flux ; pour un compte ordinaire non
     # vérifié, c'est une preuve de plus, pas un contournement.
     user.is_verified = True
+    # Un compte ouvert au paiement sans mot de passe devient un compte client.
+    user.is_guest = False
     # Le compte a pu être verrouillé par les tentatives ratées qui ont mené
     # ici : reprendre la main doit lever le verrou.
     user.failed_login_attempts = 0

@@ -1,0 +1,15 @@
+Bonjour{% if full_name %} {{ full_name }}{% endif %},
+
+Vous avez commandé chez {{ shop_name }} sans créer de compte. Choisissez un
+mot de passe pour retrouver vos commandes, suivre leur livraison et commander
+plus vite la prochaine fois :
+
+{{ activation_url }}
+
+Ce lien est valable {{ valid_hours }} heures et ne fonctionne qu'une fois.
+Passé ce délai, utilisez « mot de passe oublié » depuis la page de connexion.
+
+Si vous n'êtes pas à l'origine de cette demande, ignorez ce message : aucun
+accès n'est possible sans suivre le lien.
+
+L'équipe {{ shop_name }}

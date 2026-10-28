@@ -142,6 +142,19 @@ export async function attachGuestCartEmail(token: string, email: string): Promis
   await api.patch('/cart/guest', { email }, { headers: guestHeaders(token) });
 }
 
+/** « Re-commander » : the articles of a past order go back into the cart. */
+export interface ReorderResult {
+  cart: CartDetailPublic;
+  added: number;
+  /** Articles of the order no longer sold. */
+  skipped: number;
+}
+
+export async function reorderIntoCart(orderId: string): Promise<ReorderResult> {
+  const { data } = await api.post<ReorderResult>(`/cart/reorder/${orderId}`);
+  return data;
+}
+
 /** Fold the visitor's cart into the account's at sign-in; returns the merged cart. */
 export async function mergeGuestCart(token: string): Promise<CartDetailPublic> {
   const { data } = await api.post<CartDetailPublic>('/cart/merge', null, {
@@ -204,6 +217,19 @@ export async function getGuestLastLegOptions(
     params: placeId ? { place_id: placeId } : {},
     headers: guestHeaders(token),
   });
+  return data;
+}
+
+/** The delivery price of one product to an island, from its page (no cart). */
+export async function estimateProductShipping(
+  productId: string,
+  placeId: string,
+  quantity = 1,
+): Promise<LastLegOptionsResponse> {
+  const { data } = await api.get<LastLegOptionsResponse>(
+    `/cart/estimate/product/${productId}`,
+    { params: { place_id: placeId, quantity } },
+  );
   return data;
 }
 
