@@ -31,7 +31,7 @@ jobs:
       stack: ${{ steps.filter.outputs.stack }}
     steps:
       # Sur un push, l'action compare par git local ; sur une PR, par l'API.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v3
         id: filter
         with:
@@ -119,7 +119,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Same Python as the production image (python:3.14-slim, see
       # backend/Dockerfile): a test run on 3.12 against a 3.14 image let
@@ -235,7 +235,7 @@ jobs:
     # backend sans `pnpm gen:types` fait échouer la CI au lieu de laisser les
     # fronts typer une API qui n'existe plus (R8 / U2).
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
@@ -266,7 +266,7 @@ jobs:
     needs: changes
     if: github.event_name == 'push' || needs.changes.outputs.frontend == 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: pnpm/action-setup@v4
 
@@ -346,7 +346,7 @@ jobs:
       CLAMAV_ENABLED: "false"
       ENVIRONMENT: local
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Write the root .env consumed by compose
         run: |
