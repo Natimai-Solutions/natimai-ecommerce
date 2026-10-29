@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue';
 import { accessToken, api } from '@/boot/api';
 import { getMyProfile, type MyProfile } from '@/api/profile';
 import { gt } from '@/i18n/global';
+import { apiErrorCode } from '@/utils/errors';
 
 interface AccessTokenResponse {
   access_token: string;
@@ -12,6 +13,12 @@ interface AccessTokenResponse {
 export const useAuthStore = defineStore('auth', () => {
   const loginError = ref<string | null>(null);
   const loggingIn = ref(false);
+  /**
+   * The password was accepted and the API now asks for the code of the
+   * authenticator app: an administrator with two-factor authentication
+   * signing in on the storefront (the API asks it whatever the application).
+   */
+  const needsSecondFactor = ref(false);
 
   const isAuthenticated = computed(() => accessToken.value !== null);
 
@@ -46,24 +53,37 @@ export const useAuthStore = defineStore('auth', () => {
     { immediate: true },
   );
 
-  async function login(email: string, password: string): Promise<boolean> {
+  async function login(email: string, password: string, totpCode?: string): Promise<boolean> {
     loggingIn.value = true;
     loginError.value = null;
     try {
       const form = new URLSearchParams();
       form.set('username', email);
       form.set('password', password);
+      if (totpCode) form.set('totp_code', totpCode.trim());
       const { data } = await api.post<AccessTokenResponse>('/login/access-token', form, {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       });
       accessToken.value = data.access_token;
+      needsSecondFactor.value = false;
       return true;
     } catch (err: unknown) {
+      if (apiErrorCode(err) === 'login.totp.required') {
+        // Not an error: the password is right, the code is the next step.
+        needsSecondFactor.value = true;
+        return false;
+      }
       loginError.value = extractErrorMessage(err) ?? gt('stores.login_failed');
       return false;
     } finally {
       loggingIn.value = false;
     }
+  }
+
+  /** Back to the e-mail and password (another account, or a mistyped one). */
+  function resetSecondFactor(): void {
+    needsSecondFactor.value = false;
+    loginError.value = null;
   }
 
   /**
@@ -174,7 +194,9 @@ export const useAuthStore = defineStore('auth', () => {
     setProfile,
     loginError,
     loggingIn,
+    needsSecondFactor,
     login,
+    resetSecondFactor,
     tryRestore,
     logout,
     sendSignupOtp,

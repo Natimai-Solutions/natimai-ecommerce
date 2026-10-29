@@ -27,6 +27,7 @@
             :label="$t('auth.email')"
             autocomplete="email"
             class="q-mb-sm"
+            :readonly="authStore.needsSecondFactor"
             :rules="[(v) => !!v || $t('auth.email_required')]"
           />
           <q-input
@@ -38,6 +39,7 @@
             :label="$t('auth.password')"
             autocomplete="current-password"
             class="q-mb-md"
+            :readonly="authStore.needsSecondFactor"
             :rules="[(v) => !!v || $t('auth.password_required')]"
           >
             <template #append>
@@ -49,13 +51,43 @@
             </template>
           </q-input>
 
+          <template v-if="authStore.needsSecondFactor">
+            <AppNotice tone="info" dense class="q-mb-sm">
+              {{ $t('auth.totp_hint') }}
+            </AppNotice>
+            <q-input
+              v-model="totpCode"
+              data-testid="login-totp"
+              outlined
+              stack-label
+              autofocus
+              inputmode="numeric"
+              autocomplete="one-time-code"
+              :label="$t('auth.totp_code')"
+              class="q-mb-md"
+              :rules="[(v) => !!v || $t('auth.totp_code_required')]"
+            />
+          </template>
+
           <q-btn
             type="submit"
             data-testid="login-submit"
             color="primary"
-            :label="$t('auth.sign_in')"
+            :label="authStore.needsSecondFactor ? $t('auth.validate_code') : $t('auth.sign_in')"
             class="full-width"
             :loading="authStore.loggingIn"
+          />
+          <q-btn
+            v-if="authStore.needsSecondFactor"
+            flat
+            dense
+            no-caps
+            size="sm"
+            color="primary"
+            data-testid="login-totp-back"
+            :label="$t('auth.totp_back')"
+            class="full-width q-mt-sm"
+            @click="onBackToPassword"
           />
         </q-form>
 
@@ -127,6 +159,7 @@ const router = useRouter();
 const email = ref('');
 const password = ref('');
 const showPassword = ref(false);
+const totpCode = ref('');
 // Arrivée depuis « Profil et sécurité » : toutes les sessions ont été fermées.
 const passwordChanged = computed(() => route.query.motif === 'mot-de-passe-change');
 const accountDeleted = computed(() => route.query.motif === 'compte-supprime');
@@ -144,11 +177,20 @@ function redirectTarget(): string {
 }
 
 async function onSubmit() {
-  const ok = await authStore.login(email.value.trim().toLowerCase(), password.value);
+  const ok = await authStore.login(
+    email.value.trim().toLowerCase(),
+    password.value,
+    authStore.needsSecondFactor ? totpCode.value : undefined,
+  );
   if (ok) {
     await useCartStore().mergeAfterLogin();
     await router.replace(redirectTarget());
   }
+}
+
+function onBackToPassword() {
+  totpCode.value = '';
+  authStore.resetSecondFactor();
 }
 
 function oauthLogin(provider: 'google' | 'microsoft') {

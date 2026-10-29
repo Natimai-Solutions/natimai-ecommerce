@@ -511,6 +511,11 @@ const fr = {
     step_code: 'Code',
     step_email: 'Email',
     step_password: 'Mot de passe',
+    totp_back: 'Utiliser un autre compte',
+    totp_code: 'Code de vérification',
+    totp_code_required: 'Code requis',
+    totp_hint:
+      "Saisissez le code à 6 chiffres de votre application d'authentification (ou un code de secours).",
     validate: 'Valider',
     validate_code: 'Valider le code',
     with_google: 'Continuer avec Google',
