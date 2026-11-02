@@ -248,7 +248,7 @@ jobs:
           UV_PYTHON: "3.14"
           UV_PYTHON_PREFERENCE: only-system
         run: uv sync --locked
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
           node-version: 24
@@ -268,7 +268,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
       - uses: actions/setup-node@v7
         with:
@@ -385,7 +385,7 @@ jobs:
       - name: Start the background jobs
         run: docker compose -f docker-compose.yml up -d arq-worker outbox-poller
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
       - uses: actions/setup-node@v7
         with:
