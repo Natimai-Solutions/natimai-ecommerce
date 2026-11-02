@@ -8,6 +8,9 @@ export default defineConfig({
   resolve: {
     alias: {
       "@app/ui": fileURLToPath(new URL("./shared/ui/src", import.meta.url)),
+      // Les stores de la vitrine importent leurs voisins par `@/…` ; leurs
+      // tests remplacent (vi.mock) les modules qui touchent le réseau.
+      "@": fileURLToPath(new URL("./frontend/src", import.meta.url)),
     },
   },
   test: {
