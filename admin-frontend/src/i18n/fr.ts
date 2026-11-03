@@ -503,7 +503,20 @@ const fr = {
     empty: 'Aucun mode de livraison : la livraison est gratuite et le client ne choisit rien.',
     everywhere: 'Partout',
     free: 'Gratuit',
+    help_flat:
+      '« Livraison à domicile », un prix forfaitaire et, si vous voulez, un montant « Gratuit dès ». Desserte : Partout.',
+    help_flat_title: 'Un forfait de livraison',
+    help_pickup:
+      '« Retrait sur place », puis le ou les lieux (créez-les depuis le formulaire, avec leur adresse). Prix vide = gratuit. Le client choisit son lieu.',
+    help_pickup_title: 'Retrait en boutique',
+    help_title: 'Exemples de configuration',
+    help_zones:
+      "Un mode par groupe de zones, desserte « Certaines zones seulement ». La zone d'un client se déduit de son code postal.",
+    help_zones_link: 'Gérer les zones',
+    help_zones_module: 'Les zones se créent avec le module « Trajets et lieux » :',
+    help_zones_title: 'Un prix selon la destination',
     hint: 'Ce que le client choisit au checkout, et son prix : forfait, gratuité dès un montant, retrait sur place.',
+    modules_link: 'Système → Modules',
     no_warehouse:
       "Aucun entrepôt principal : c'est de là que partent les livraisons. Créez-le pour ajouter un mode de livraison.",
     none_active:
@@ -1034,6 +1047,7 @@ const fr = {
     clearance: 'Dédouanement',
     code: 'Code (IATA / LOCODE, optionnel)',
     code_invalid: 'Lettres, chiffres, « _ » ou « - » uniquement.',
+    code_zone: 'Code (optionnel)',
     col_city: 'Ville',
     col_code: 'Code',
     col_country: 'Pays',
@@ -1052,6 +1066,7 @@ const fr = {
     col_tariff: 'Grille / franco',
     col_type: 'Type',
     col_warehouse: 'Entrepôt',
+    col_zone: 'Zone',
     country: 'Pays',
     country_required: 'Le pays (ISO) est requis pour rattacher des codes postaux.',
     coverage: 'Desserte',
@@ -1075,6 +1090,7 @@ const fr = {
     edit_place: 'Modifier le lieu',
     edit_delivery_mode: 'Modifier le mode de livraison',
     edit_route: 'Modifier le trajet',
+    edit_zone: 'Modifier la zone',
     ends_differ: "L'origine et la destination doivent être différentes.",
     ends_required: 'Origine et destination requises.',
     eta: 'Délai (jours)',
@@ -1087,7 +1103,18 @@ const fr = {
       'Ce tronçon devient gratuit dès que la valeur expédiée atteint ce montant. Vide = jamais gratuit.',
     free_hint_short: 'Vide = jamais gratuit.',
     from: 'Origine *',
-    hint: 'Lieux logistiques et tronçons tarifés qui composent les trajets de livraison.',
+    help_modes: 'Les prix et modes proposés au client se règlent dans',
+    help_places:
+      "Points physiques d'où partent et où arrivent les colis : entrepôts, boutiques, ports, aéroports, fournisseurs. L'entrepôt principal (étoile) est l'origine des livraisons.",
+    help_places_title: 'Lieux',
+    help_routes:
+      'Tronçons tarifés entre deux lieux (fournisseur → entrepôt, entrepôt → port…), invisibles du client. Inutile pour une boutique qui expédie depuis un seul entrepôt.',
+    help_routes_title: 'Trajets',
+    help_title: 'Comment cet écran est organisé',
+    help_zones:
+      "Où habitent vos clients : pays, régions, îles, communes. La zone d'une adresse se déduit de son code postal ; un mode de livraison peut se limiter à certaines zones.",
+    help_zones_title: 'Zones de livraison',
+    hint: 'Zones desservies, lieux logistiques et tronçons tarifés qui composent les trajets de livraison.',
     internal_name: 'Nom interne',
     internal_name_hint: 'Affiché dans le suivi des colis. Vide = déduit du mode et du lieu.',
     m_air: 'Avion',
@@ -1107,12 +1134,15 @@ const fr = {
     new_place_title: 'Nouveau lieu',
     new_route: 'Nouveau trajet',
     new_route_title: 'Nouveau trajet',
+    new_zone: 'Nouvelle zone',
     no_place: 'Aucun lieu.',
     no_route: 'Aucun trajet.',
     no_main_warehouse:
       "Aucun entrepôt principal : c'est l'origine des modes de livraison. Créez-le depuis Logistique → Modes de livraison.",
+    no_zone: 'Aucune zone.',
     parent: 'Zone parente (optionnel)',
-    parent_hint: 'Ex. commune → île, île → archipel, boutique → commune.',
+    parent_hint_node: 'La zone où se trouve ce lieu, ex. sa commune ou son île.',
+    parent_hint_zone: 'Ex. commune → île, île → archipel, archipel → pays.',
     per_kg: 'Prix / kg ({currency})',
     pickup_name_hint: 'Nom affiché au client, ex. « Boutique de Taravao ».',
     pickup_no_address:
@@ -1130,7 +1160,7 @@ const fr = {
     place_saved: 'Lieu enregistré.',
     places: 'Lieux',
     places_hint:
-      'Entrepôts, ports, aéroports, îles… utilisés comme origine / destination des tronçons.',
+      "Entrepôts, boutiques, ports, aéroports, fournisseurs… : les points physiques d'où partent et où arrivent les tronçons.",
     postcodes: 'Codes postaux de la zone',
     postcodes_hint:
       "Tapez un code postal puis Entrée (ex. 98728). Sert à déduire la zone depuis l'adresse client. Pays requis.",
@@ -1142,6 +1172,7 @@ const fr = {
     pt_port: 'Port',
     pt_region: 'Région / Archipel',
     pt_shop: 'Boutique',
+    pt_supplier: 'Fournisseur',
     pt_warehouse: 'Entrepôt',
     r_auto: 'Automatique (selon le pays)',
     r_import: 'Import — douane et fret import',
@@ -1164,6 +1195,9 @@ const fr = {
     transport: 'Transport *',
     type: 'Type *',
     up_to: "Jusqu'à (kg)",
+    view_places: 'Lieux ({n})',
+    view_routes: 'Trajets ({n})',
+    view_zones: 'Zones de livraison ({n})',
     warehouse: 'Entrepôt',
     weight_pricing: 'Tarif selon le poids (optionnel)',
     weight_pricing_hint: "S'ajoute au prix. Les produits sans poids comptent pour 0 kg.",
@@ -1173,6 +1207,9 @@ const fr = {
     zones_hint_short:
       'Une zone parente couvre ses zones enfants (ex. une île couvre ses communes).',
     zones_required: 'Choisissez au moins une zone desservie.',
+    zones_section_hint:
+      'Arbre des zones desservies. Une zone couvre ses zones enfants ; ses codes postaux rattachent les adresses clients.',
+    zones_title: 'Zones de livraison',
   },
   margin: {
     commission: 'Commission de paiement',

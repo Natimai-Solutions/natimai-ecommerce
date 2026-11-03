@@ -34,6 +34,17 @@ takes a tag as its `ref`.
   keep one offer per mode. In the admin, creating a pickup mode accepts
   several places (one route per place); a place already offered for that
   mode cannot be picked again.
+- Admin → Trajets et lieux is split into three views (Trajets, Lieux, Zones de
+  livraison) chosen with a segmented control and kept in the URL
+  (`?view=zones`). Zones (country, region, island, municipality) are listed
+  as a tree and have their own form (parent zone, postcodes); places
+  (warehouse, shop, port, airport, supplier, address) keep the address,
+  warehouse, customs and dropshipping fields. Place types and service levels
+  are shown translated.
+- Help panels: "Trajets et lieux" explains zones, places and routes (folded
+  once closed, remembered per browser); "Modes de livraison" shows three setup
+  examples (in-store pickup, flat fee, price by destination), open while no
+  mode exists.
 - Pickup modes take a pickup place; its postal address (new fields on physical
   places) is returned by the last-leg options endpoint (`pickup_place`) and
   shown to the customer at checkout under the delivery choice.

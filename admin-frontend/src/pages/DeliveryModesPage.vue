@@ -43,6 +43,44 @@
       </AppNotice>
     </div>
 
+    <!-- Exemples : les trois réglages courants. Ouvert tant qu'aucun mode
+         n'existe, replié ensuite. -->
+    <q-expansion-item
+      v-model="helpOpen"
+      class="app-panel q-mb-md"
+      dense-toggle
+      icon="ph:lightbulb"
+      :label="$t('delivery_modes.help_title')"
+      header-class="text-weight-medium"
+      data-testid="delivery-modes-help"
+    >
+      <div class="delivery-help">
+        <div v-for="item in helpItems" :key="item.key" class="delivery-help__item">
+          <q-icon :name="item.icon" size="20px" class="text-muted" />
+          <div>
+            <div class="text-weight-medium">
+              {{ $t(`delivery_modes.help_${item.key}_title`) }}
+            </div>
+            <div class="text-caption text-muted">{{ $t(`delivery_modes.help_${item.key}`) }}</div>
+            <div v-if="item.key === 'zones'" class="text-caption q-mt-xs">
+              <router-link
+                v-if="shopConfig.moduleOn('logistics_multileg')"
+                to="/logistics-routes?view=zones"
+                class="admin-link"
+                >{{ $t('delivery_modes.help_zones_link') }}</router-link
+              >
+              <template v-else>
+                {{ $t('delivery_modes.help_zones_module') }}
+                <router-link to="/modules" class="admin-link">{{
+                  $t('delivery_modes.modules_link')
+                }}</router-link>
+              </template>
+            </div>
+          </div>
+        </div>
+      </div>
+    </q-expansion-item>
+
     <section class="app-section">
       <q-table
         :rows="modes"
@@ -130,6 +168,7 @@
  */
 import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useShopConfigStore } from '@/stores/shopConfig';
 import type { QTableColumn } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
 import PageHeader from '@/components/PageHeader.vue';
@@ -148,6 +187,14 @@ import { extractApiError } from '@/api/errors';
 import { deliveryTypeLabel } from '@/utils/deliveryModes';
 
 const { t } = useI18n();
+const shopConfig = useShopConfigStore();
+
+const helpOpen = ref(false);
+const helpItems = [
+  { key: 'pickup', icon: 'ph:storefront' },
+  { key: 'flat', icon: 'ph:truck' },
+  { key: 'zones', icon: 'ph:map-trifold' },
+];
 
 const places = ref<Place[]>([]);
 const routes = ref<ShippingRoute[]>([]);
@@ -216,6 +263,8 @@ async function load() {
     error.value = extractApiError(err) ?? t('common.load_failed');
   } finally {
     loading.value = false;
+    // Première visite (aucun mode) : les exemples sont ouverts d'office.
+    if (!loaded.value) helpOpen.value = modes.value.length === 0;
     loaded.value = true;
   }
 }
@@ -274,3 +323,18 @@ async function onSaved() {
 
 onMounted(load);
 </script>
+
+<style scoped lang="scss">
+.delivery-help {
+  display: grid;
+  gap: 14px;
+  padding: 4px 16px 16px;
+}
+
+.delivery-help__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  line-height: 1.45;
+}
+</style>

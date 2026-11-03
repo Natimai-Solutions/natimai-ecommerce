@@ -503,7 +503,20 @@ const en: MessageSchema = {
     empty: 'No delivery mode: delivery is free and the customer picks nothing.',
     everywhere: 'Everywhere',
     free: 'Free',
+    help_flat:
+      '“Home delivery”, a flat price and, if you want, a “Free from” amount. Coverage: everywhere.',
+    help_flat_title: 'A flat delivery fee',
+    help_pickup:
+      '“In-store pickup”, then the place or places (create them from the form, with their address). Empty price = free. The customer picks their place.',
+    help_pickup_title: 'In-store pickup',
+    help_title: 'Setup examples',
+    help_zones:
+      'One mode per group of zones, coverage “Some zones only”. A customer zone is inferred from the postcode.',
+    help_zones_link: 'Manage zones',
+    help_zones_module: 'Zones are created with the “Trajets et lieux” module:',
+    help_zones_title: 'A price by destination',
     hint: 'What the customer picks at checkout, and its price: flat fee, free above an amount, in-store pickup.',
+    modules_link: 'System → Modules',
     no_warehouse: 'No main warehouse: deliveries start from it. Create it to add a delivery mode.',
     none_active:
       'No active mode: delivery is free and the Delivery section does not appear at checkout.',
@@ -1030,6 +1043,7 @@ const en: MessageSchema = {
     clearance: 'Customs clearance',
     code: 'Code (IATA / LOCODE, optional)',
     code_invalid: 'Letters, digits, “_” or “-” only.',
+    code_zone: 'Code (optional)',
     col_city: 'City',
     col_code: 'Code',
     col_country: 'Country',
@@ -1048,6 +1062,7 @@ const en: MessageSchema = {
     col_tariff: 'Grid / free shipping',
     col_type: 'Type',
     col_warehouse: 'Warehouse',
+    col_zone: 'Zone',
     country: 'Country',
     country_required: 'The country (ISO) is required to attach postcodes.',
     coverage: 'Coverage',
@@ -1071,6 +1086,7 @@ const en: MessageSchema = {
     edit_place: 'Edit the place',
     edit_delivery_mode: 'Edit the delivery mode',
     edit_route: 'Edit the route',
+    edit_zone: 'Edit the zone',
     ends_differ: 'Origin and destination must differ.',
     ends_required: 'Origin and destination required.',
     eta: 'Lead time (days)',
@@ -1083,7 +1099,18 @@ const en: MessageSchema = {
       'This leg becomes free once the shipped value reaches this amount. Empty = never free.',
     free_hint_short: 'Empty = never free.',
     from: 'Origin *',
-    hint: 'Logistics places and priced legs that make up delivery routes.',
+    help_modes: 'Prices and the modes offered to the customer are set in',
+    help_places:
+      'Physical points parcels leave from and arrive at: warehouses, shops, ports, airports, suppliers. The main warehouse (star) is where deliveries start.',
+    help_places_title: 'Places',
+    help_routes:
+      'Priced legs between two places (supplier → warehouse, warehouse → port…), not visible to the customer. Not needed for a shop shipping from one warehouse.',
+    help_routes_title: 'Routes',
+    help_title: 'How this screen is organised',
+    help_zones:
+      'Where your customers live: countries, regions, islands, municipalities. An address zone is inferred from its postcode; a delivery mode can be limited to some zones.',
+    help_zones_title: 'Delivery zones',
+    hint: 'Served zones, logistics places and priced legs that make up delivery routes.',
     internal_name: 'Internal name',
     internal_name_hint: 'Shown in parcel tracking. Empty = inferred from the mode and the place.',
     m_air: 'Air',
@@ -1103,12 +1130,15 @@ const en: MessageSchema = {
     new_place_title: 'New place',
     new_route: 'New route',
     new_route_title: 'New route',
+    new_zone: 'New zone',
     no_place: 'No places.',
     no_route: 'No routes.',
     no_main_warehouse:
       'No main warehouse: it is the origin of the delivery modes. Create it from Logistics → Delivery modes.',
+    no_zone: 'No zones.',
     parent: 'Parent zone (optional)',
-    parent_hint: 'E.g. municipality → island, island → archipelago, shop → municipality.',
+    parent_hint_node: 'The zone this place is in, e.g. its municipality or island.',
+    parent_hint_zone: 'E.g. municipality → island, island → archipelago, archipelago → country.',
     per_kg: 'Price / kg ({currency})',
     pickup_name_hint: 'Name shown to the customer, e.g. “Taravao shop”.',
     pickup_no_address:
@@ -1125,7 +1155,8 @@ const en: MessageSchema = {
     price_hint: 'Flat fee per order. Empty or 0 = free.',
     place_saved: 'Place saved.',
     places: 'Places',
-    places_hint: 'Warehouses, ports, airports, islands… used as leg origin / destination.',
+    places_hint:
+      'Warehouses, shops, ports, airports, suppliers…: the physical points legs leave from and arrive at.',
     postcodes: 'Postcodes of the zone',
     postcodes_hint:
       'Type a postcode then Enter (e.g. 98728). Used to infer the zone from the customer address. Country required.',
@@ -1137,6 +1168,7 @@ const en: MessageSchema = {
     pt_port: 'Port',
     pt_region: 'Region / Archipelago',
     pt_shop: 'Shop',
+    pt_supplier: 'Supplier',
     pt_warehouse: 'Warehouse',
     r_auto: 'Automatic (by country)',
     r_import: 'Import — customs and import freight',
@@ -1159,6 +1191,9 @@ const en: MessageSchema = {
     transport: 'Transport *',
     type: 'Type *',
     up_to: 'Up to (kg)',
+    view_places: 'Places ({n})',
+    view_routes: 'Routes ({n})',
+    view_zones: 'Delivery zones ({n})',
     warehouse: 'Warehouse',
     weight_pricing: 'Weight-based pricing (optional)',
     weight_pricing_hint: 'Added to the price. Products without a weight count as 0 kg.',
@@ -1168,6 +1203,9 @@ const en: MessageSchema = {
     zones_hint_short:
       'A parent zone covers its child zones (e.g. an island covers its municipalities).',
     zones_required: 'Pick at least one served zone.',
+    zones_section_hint:
+      'Tree of the served zones. A zone covers its child zones; its postcodes attach customer addresses.',
+    zones_title: 'Delivery zones',
   },
   margin: {
     commission: 'Payment commission',

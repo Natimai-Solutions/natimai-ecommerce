@@ -18,8 +18,105 @@
       <AppNotice v-if="notice" tone="success" dense>{{ notice }}</AppNotice>
     </div>
 
-    <!-- Lieux -->
-    <section class="app-section" aria-labelledby="places-title">
+    <!-- Aide : les trois notions de l'écran et ce qui se règle ailleurs. -->
+    <q-expansion-item
+      v-model="helpOpen"
+      class="app-panel logistics-help q-mb-md"
+      dense-toggle
+      icon="ph:lightbulb"
+      :label="$t('logistics.help_title')"
+      header-class="logistics-help__head"
+      @update:model-value="rememberHelp"
+    >
+      <div class="logistics-help__body">
+        <div v-for="item in helpItems" :key="item.key" class="logistics-help__item">
+          <q-icon :name="item.icon" size="20px" class="text-muted" />
+          <div>
+            <div class="text-weight-medium">{{ $t(`logistics.help_${item.key}_title`) }}</div>
+            <div class="text-caption text-muted">{{ $t(`logistics.help_${item.key}`) }}</div>
+          </div>
+        </div>
+        <div class="text-caption">
+          {{ $t('logistics.help_modes') }}
+          <router-link to="/delivery-modes" class="admin-link">{{
+            $t('layout.nav.delivery_modes')
+          }}</router-link>
+        </div>
+      </div>
+    </q-expansion-item>
+
+    <div class="admin-toolbar">
+      <q-btn-toggle
+        v-model="view"
+        no-caps
+        unelevated
+        toggle-color="primary"
+        :options="viewOptions"
+        data-testid="logistics-view"
+      />
+    </div>
+
+    <!-- Zones de livraison : l'arbre géographique (pays → région → île →
+         commune) qui porte les codes postaux et la desserte des modes. -->
+    <section v-if="view === 'zones'" class="app-section" aria-labelledby="zones-title">
+      <div class="app-section__head">
+        <h2 id="zones-title" class="app-section__title">{{ $t('logistics.zones_title') }}</h2>
+        <p class="app-section__hint">{{ $t('logistics.zones_section_hint') }}</p>
+        <q-btn
+          class="app-section__action"
+          color="primary"
+          unelevated
+          no-caps
+          icon="ph:plus"
+          :label="$t('logistics.new_zone')"
+          @click="openPlaceCreate('zone')"
+        />
+      </div>
+      <q-table
+        :rows="zoneRows"
+        :columns="zoneColumns"
+        row-key="id"
+        flat
+        bordered
+        :rows-per-page-options="[0]"
+        hide-pagination
+        :loading="loading"
+      >
+        <template #body-cell-name="props">
+          <q-td :props="props">
+            <span :style="{ paddingLeft: `${placeDepth(props.row) * 20}px` }">
+              <q-icon
+                v-if="placeDepth(props.row) > 0"
+                name="ph:arrow-elbow-down-right"
+                size="14px"
+                class="text-subtle q-mr-xs"
+              />{{ props.row.name }}
+            </span>
+          </q-td>
+        </template>
+        <template #body-cell-type="props">
+          <q-td :props="props">{{ placeTypeLabel(props.row.type) }}</q-td>
+        </template>
+        <template #body-cell-code="props">
+          <q-td :props="props" class="font-mono">{{ props.row.code ?? '' }}</q-td>
+        </template>
+        <template #body-cell-actions="props">
+          <q-td :props="props" align="right">
+            <q-btn flat round dense icon="ph:pencil-simple" @click="openPlaceEdit(props.row)">
+              <q-tooltip>{{ $t('common.edit') }}</q-tooltip>
+            </q-btn>
+          </q-td>
+        </template>
+        <template #no-data>
+          <div class="full-width text-center text-subtle q-pa-md">
+            {{ $t('logistics.no_zone') }}
+          </div>
+        </template>
+      </q-table>
+    </section>
+
+    <!-- Lieux logistiques : entrepôts, boutiques, ports, fournisseurs… -->
+    <section v-if="view === 'places'" class="app-section" aria-labelledby="places-title">
       <div class="app-section__head">
         <h2 id="places-title" class="app-section__title">{{ $t('logistics.places') }}</h2>
         <p class="app-section__hint">
@@ -32,11 +129,11 @@
           no-caps
           icon="ph:plus"
           :label="$t('logistics.new_place')"
-          @click="openPlaceCreate"
+          @click="openPlaceCreate('node')"
         />
       </div>
       <q-table
-        :rows="places"
+        :rows="nodeRows"
         :columns="placeColumns"
         row-key="id"
         flat
@@ -45,6 +142,9 @@
         hide-pagination
         :loading="loading"
       >
+        <template #body-cell-type="props">
+          <q-td :props="props">{{ placeTypeLabel(props.row.type) }}</q-td>
+        </template>
         <template #body-cell-parent="props">
           <q-td :props="props">
             <span v-if="props.row.parent_id">{{ placeName(props.row.parent_id) }}</span>
@@ -103,30 +203,30 @@
     </section>
 
     <!-- Trajets -->
-    <section class="app-section" aria-labelledby="routes-title">
+    <section v-if="view === 'routes'" class="app-section" aria-labelledby="routes-title">
       <div class="app-section__head">
         <h2 id="routes-title" class="app-section__title">{{ $t('logistics.routes') }}</h2>
         <p class="app-section__hint">
           {{ $t('logistics.routes_hint') }}
         </p>
-        <q-btn
-          class="app-section__action"
-          color="primary"
-          unelevated
-          no-caps
-          icon="ph:plus"
-          :label="$t('logistics.new_route')"
-          :disable="places.length < 2"
-          @click="openRouteCreate"
-        />
-        <q-btn
-          class="app-section__action"
-          flat
-          no-caps
-          icon="ph:package"
-          :label="$t('logistics.new_delivery_mode')"
-          @click="openDeliveryCreate"
-        />
+        <div class="app-section__action row no-wrap" style="gap: 8px">
+          <q-btn
+            flat
+            no-caps
+            icon="ph:package"
+            :label="$t('logistics.new_delivery_mode')"
+            @click="openDeliveryCreate"
+          />
+          <q-btn
+            color="primary"
+            unelevated
+            no-caps
+            icon="ph:plus"
+            :label="$t('logistics.new_route')"
+            :disable="places.length < 2"
+            @click="openRouteCreate"
+          />
+        </div>
       </div>
       <q-table
         :rows="routes"
@@ -144,6 +244,9 @@
             <q-icon name="ph:arrow-right" size="14px" class="text-subtle" />
             {{ placeName(props.row.to_place_id) }}
           </q-td>
+        </template>
+        <template #body-cell-service_level="props">
+          <q-td :props="props">{{ serviceLevelLabel(props.row.service_level) }}</q-td>
         </template>
         <template #body-cell-mode="props">
           <q-td :props="props">{{ modeLabel(props.row.mode) }}</q-td>
@@ -186,7 +289,15 @@
       <q-card class="app-dialog">
         <q-card-section class="app-dialog__head">
           <h2 class="app-dialog__title">
-            {{ placeEditId ? $t('logistics.edit_place') : $t('logistics.new_place_title') }}
+            {{
+              placeKind === 'zone'
+                ? placeEditId
+                  ? $t('logistics.edit_zone')
+                  : $t('logistics.new_zone')
+                : placeEditId
+                  ? $t('logistics.edit_place')
+                  : $t('logistics.new_place_title')
+            }}
           </h2>
         </q-card-section>
         <q-form @submit.prevent="submitPlace">
@@ -202,7 +313,7 @@
             />
             <q-select
               v-model="placeForm.type"
-              :options="placeTypeOptions"
+              :options="placeKind === 'zone' ? zoneTypeOptions : nodeTypeOptions"
               :label="$t('logistics.type')"
               outlined
               dense
@@ -221,17 +332,22 @@
               emit-value
               map-options
               clearable
-              :hint="$t('logistics.parent_hint')"
+              :hint="
+                placeKind === 'zone'
+                  ? $t('logistics.parent_hint_zone')
+                  : $t('logistics.parent_hint_node')
+              "
             />
             <q-input
               v-model="placeForm.code"
-              :label="$t('logistics.code')"
+              :label="placeKind === 'zone' ? $t('logistics.code_zone') : $t('logistics.code')"
               outlined
               dense
               bottom-slots
             />
             <div class="row" style="gap: 8px">
               <q-input
+                v-if="placeKind === 'node'"
                 v-model="placeForm.city"
                 :label="$t('logistics.city')"
                 outlined
@@ -299,9 +415,9 @@
               :options="[]"
               :hint="$t('logistics.postcodes_hint')"
             />
-            <q-toggle v-model="placeForm.is_warehouse" :label="$t('logistics.warehouse')" />
-            <q-toggle v-model="placeForm.customs_clearance" :label="$t('logistics.clearance')" />
-            <template v-if="!isGeoType(placeForm.type)">
+            <template v-if="placeKind === 'node'">
+              <q-toggle v-model="placeForm.is_warehouse" :label="$t('logistics.warehouse')" />
+              <q-toggle v-model="placeForm.customs_clearance" :label="$t('logistics.clearance')" />
               <q-select
                 v-model="placeForm.customs_regime"
                 :options="customsRegimeOptions"
@@ -487,6 +603,7 @@
 import { useI18n } from 'vue-i18n';
 import { useShopConfigStore } from '@/stores/shopConfig';
 import { computed, onMounted, reactive, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import type { QTableColumn } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
@@ -539,17 +656,74 @@ function filterCountries(val: string, update: (fn: () => void) => void) {
   });
 }
 
-const placeTypeOptions = computed(() => [
-  { label: t('logistics.pt_warehouse'), value: 'warehouse' },
-  { label: t('logistics.pt_airport'), value: 'airport' },
-  { label: t('logistics.pt_port'), value: 'seaport' },
-  { label: t('logistics.pt_shop'), value: 'shop' },
+// Zones (desserte, codes postaux) et lieux (nœuds physiques) partagent le
+// modèle Place mais pas l'écran : deux listes, deux formulaires.
+const zoneTypeOptions = computed(() => [
   { label: t('logistics.pt_country'), value: 'country' },
   { label: t('logistics.pt_region'), value: 'region' },
   { label: t('logistics.pt_island'), value: 'island' },
   { label: t('logistics.pt_municipality'), value: 'municipality' },
+]);
+const nodeTypeOptions = computed(() => [
+  { label: t('logistics.pt_warehouse'), value: 'warehouse' },
+  { label: t('logistics.pt_shop'), value: 'shop' },
+  { label: t('logistics.pt_airport'), value: 'airport' },
+  { label: t('logistics.pt_port'), value: 'seaport' },
+  { label: t('logistics.pt_supplier'), value: 'supplier' },
   { label: t('logistics.pt_address'), value: 'address' },
 ]);
+function placeTypeLabel(type: string): string {
+  return (
+    [...zoneTypeOptions.value, ...nodeTypeOptions.value].find((o) => o.value === type)?.label ??
+    type
+  );
+}
+
+// Vue affichée (Trajets / Lieux / Zones), mémorisée dans l'URL.
+type LogisticsView = 'routes' | 'places' | 'zones';
+const VIEWS: LogisticsView[] = ['routes', 'places', 'zones'];
+const currentRoute = useRoute();
+const router = useRouter();
+const view = computed<LogisticsView>({
+  get: () => {
+    const q = currentRoute.query.view;
+    return typeof q === 'string' && (VIEWS as string[]).includes(q)
+      ? (q as LogisticsView)
+      : 'routes';
+  },
+  set: (value) => {
+    void router.replace({ query: { ...currentRoute.query, view: value } });
+  },
+});
+const viewOptions = computed(() => [
+  { label: t('logistics.view_routes', { n: routes.value.length }), value: 'routes' },
+  { label: t('logistics.view_places', { n: nodeRows.value.length }), value: 'places' },
+  { label: t('logistics.view_zones', { n: zoneRows.value.length }), value: 'zones' },
+]);
+
+// Aide repliable ; ouverte tant que l'admin ne l'a pas fermée (par navigateur).
+const HELP_KEY = 'admin.logistics.help.closed';
+function readHelpClosed(): boolean {
+  try {
+    return localStorage.getItem(HELP_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+const helpOpen = ref(!readHelpClosed());
+function rememberHelp(open: boolean) {
+  try {
+    if (open) localStorage.removeItem(HELP_KEY);
+    else localStorage.setItem(HELP_KEY, '1');
+  } catch {
+    // Stockage indisponible (navigation privée) : l'aide reste juste ouverte.
+  }
+}
+const helpItems = [
+  { key: 'zones', icon: 'ph:map-trifold' },
+  { key: 'places', icon: 'ph:warehouse' },
+  { key: 'routes', icon: 'ph:path' },
+];
 // Zones géographiques : forment l'arbre de desserte + portent les codes postaux.
 const GEO_TYPES = ['country', 'region', 'island', 'municipality'];
 function isGeoType(type: string): boolean {
@@ -566,6 +740,10 @@ const serviceLevelOptions = computed(() => [
   { label: t('logistics.s_eco'), value: 'economique' },
   { label: t('logistics.s_green'), value: 'ecologique' },
 ]);
+function serviceLevelLabel(level: string | null): string {
+  if (!level) return '—';
+  return serviceLevelOptions.value.find((o) => o.value === level)?.label ?? level;
+}
 function modeLabel(mode: string): string {
   return modeOptions.value.find((o) => o.value === mode)?.label ?? mode;
 }
@@ -601,10 +779,39 @@ function placePathLabel(place: Place): string {
   return parts.join(' ‹ ');
 }
 
+// Zones triées selon l'arbre (pays, puis ses régions, puis leurs îles…).
+function placeDepth(place: Place): number {
+  let depth = 0;
+  let current = place;
+  while (current.parent_id && depth < 10) {
+    const parent = placeById.value.get(current.parent_id);
+    if (!parent) break;
+    depth += 1;
+    current = parent;
+  }
+  return depth;
+}
+function rootPath(place: Place): string {
+  return placePathLabel(place).split(' ‹ ').reverse().join(' › ');
+}
+const zoneRows = computed(() =>
+  places.value
+    .filter((p) => isGeoType(p.type))
+    .sort((a, b) => rootPath(a).localeCompare(rootPath(b))),
+);
+const nodeRows = computed(() => places.value.filter((p) => !isGeoType(p.type)));
+const zoneColumns = computed<QTableColumn[]>(() => [
+  { name: 'name', label: t('logistics.col_name'), field: 'name', align: 'left' },
+  { name: 'type', label: t('logistics.col_type'), field: 'type', align: 'left' },
+  { name: 'code', label: t('logistics.col_code'), field: 'code', align: 'left' },
+  { name: 'country', label: t('logistics.col_country'), field: 'country', align: 'left' },
+  { name: 'actions', label: '', field: 'id', align: 'right' },
+]);
+
 const placeColumns = computed<QTableColumn[]>(() => [
   { name: 'name', label: t('logistics.col_name'), field: 'name', align: 'left' },
   { name: 'type', label: t('logistics.col_type'), field: 'type', align: 'left' },
-  { name: 'parent', label: t('logistics.col_parent'), field: 'parent_id', align: 'left' },
+  { name: 'parent', label: t('logistics.col_zone'), field: 'parent_id', align: 'left' },
   { name: 'code', label: t('logistics.col_code'), field: 'code', align: 'left' },
   { name: 'city', label: t('logistics.col_city'), field: 'city', align: 'left' },
   { name: 'country', label: t('logistics.col_country'), field: 'country', align: 'left' },
@@ -708,6 +915,7 @@ const placeForm = reactive({
   dropship_enabled: false,
 });
 const placePostalCodes = ref<string[]>([]);
+const placeKind = computed<'zone' | 'node'>(() => (isGeoType(placeForm.type) ? 'zone' : 'node'));
 
 function resetPlaceForm() {
   placeForm.name = '';
@@ -726,10 +934,16 @@ function resetPlaceForm() {
   placePostalCodes.value = [];
 }
 
-function openPlaceCreate() {
+function openPlaceCreate(kind: 'zone' | 'node') {
   dialogError.value = null;
   placeEditId.value = null;
   resetPlaceForm();
+  if (kind === 'zone') {
+    // Une commune, le plus souvent ; pays repris de la zone racine.
+    placeForm.type = 'municipality';
+    placeForm.is_warehouse = false;
+    placeForm.country = zoneRows.value.find((z) => !z.parent_id)?.country ?? null;
+  }
   placeDialog.value = true;
 }
 
@@ -960,3 +1174,22 @@ async function onDeliverySaved() {
 
 onMounted(load);
 </script>
+
+<style scoped lang="scss">
+.logistics-help :deep(.logistics-help__head) {
+  font-weight: 500;
+}
+
+.logistics-help__body {
+  display: grid;
+  gap: 14px;
+  padding: 4px 16px 16px;
+}
+
+.logistics-help__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  line-height: 1.45;
+}
+</style>
