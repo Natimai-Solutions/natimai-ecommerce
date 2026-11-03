@@ -119,6 +119,14 @@
           :disable="places.length < 2"
           @click="openRouteCreate"
         />
+        <q-btn
+          class="app-section__action"
+          flat
+          no-caps
+          icon="ph:package"
+          :label="$t('logistics.new_delivery_mode')"
+          @click="openDeliveryCreate"
+        />
       </div>
       <q-table
         :rows="routes"
@@ -144,7 +152,7 @@
           <q-td :props="props">
             {{
               props.row.last_leg_delivery_type
-                ? deliveryTypeLabel(props.row.last_leg_delivery_type)
+                ? deliveryTypeLabel(props.row.last_leg_delivery_type, t)
                 : '—'
             }}
           </q-td>
@@ -323,7 +331,8 @@
       </q-card>
     </q-dialog>
 
-    <!-- Route dialog -->
+    <!-- Route dialog : tronçons logistiques. Les modes de livraison client
+         (tronçon final typé) passent par DeliveryModeDialog. -->
     <q-dialog v-model="routeDialog">
       <q-card class="app-dialog app-dialog--wide">
         <q-card-section class="app-dialog__head">
@@ -342,140 +351,64 @@
               bottom-slots
               :rules="req"
             />
-            <div class="text-caption text-muted">{{ $t('logistics.kind') }}</div>
-            <q-option-group
-              v-model="routeForm.is_to_customer"
-              :options="routeKindOptions"
-              inline
-              dense
-              @update:model-value="onRouteKindChange"
-            />
-            <div class="text-caption text-muted q-mb-sm">
-              {{
-                routeForm.is_to_customer
-                  ? $t('logistics.kind_last_leg_hint')
-                  : $t('logistics.kind_leg_hint')
-              }}
-            </div>
-
-            <!-- Tronçon logistique : deux lieux et un transport. -->
-            <template v-if="!routeForm.is_to_customer">
-              <div class="row" style="gap: 8px">
-                <q-select
-                  v-model="routeForm.from_place_id"
-                  :options="placeOptions"
-                  :label="$t('logistics.from')"
-                  outlined
-                  dense
-                  bottom-slots
-                  emit-value
-                  map-options
-                  class="col"
-                  :rules="req"
-                />
-                <q-select
-                  v-model="routeForm.to_place_id"
-                  :options="placeOptions"
-                  :label="$t('logistics.to')"
-                  outlined
-                  dense
-                  bottom-slots
-                  emit-value
-                  map-options
-                  class="col"
-                  :rules="req"
-                />
-              </div>
-              <div class="row" style="gap: 8px">
-                <q-select
-                  v-model="routeForm.mode"
-                  :options="modeOptions"
-                  :label="$t('logistics.mode')"
-                  outlined
-                  dense
-                  bottom-slots
-                  emit-value
-                  map-options
-                  class="col"
-                  :rules="req"
-                />
-                <q-select
-                  v-model="routeForm.service_level"
-                  :options="serviceLevelOptions"
-                  :label="$t('logistics.service')"
-                  outlined
-                  dense
-                  bottom-slots
-                  emit-value
-                  map-options
-                  clearable
-                  class="col"
-                />
-              </div>
-            </template>
-
-            <!-- Mode de livraison client : un mode prédéfini (le transport en
-                 découle) et, pour un retrait, le lieu dont l'adresse est
-                 affichée au checkout. Origine / destination restent en
-                 options avancées, pré-remplies. -->
-            <template v-else>
+            <div class="row" style="gap: 8px">
               <q-select
-                v-model="deliveryPreset"
-                :options="deliveryPresetOptions"
-                :label="$t('logistics.delivery_mode')"
+                v-model="routeForm.from_place_id"
+                :options="placeOptions"
+                :label="$t('logistics.from')"
                 outlined
                 dense
                 bottom-slots
                 emit-value
                 map-options
+                class="col"
                 :rules="req"
-                @update:model-value="applyDeliveryPreset"
               />
-              <div v-if="deliveryPreset === CUSTOM_DELIVERY" class="row" style="gap: 8px">
-                <q-input
-                  v-model="customDeliveryCode"
-                  :label="$t('logistics.custom_code')"
-                  outlined
-                  dense
-                  bottom-slots
-                  class="col"
-                  :rules="codeRules"
-                  :hint="$t('logistics.custom_code_hint')"
-                />
-                <q-select
-                  v-model="routeForm.mode"
-                  :options="modeOptions"
-                  :label="$t('logistics.transport')"
-                  outlined
-                  dense
-                  bottom-slots
-                  emit-value
-                  map-options
-                  class="col-4"
-                  :rules="req"
-                />
-              </div>
               <q-select
-                v-if="isPickupRoute"
                 v-model="routeForm.to_place_id"
-                :options="pickupPlaceOptions"
-                :label="$t('logistics.pickup_place')"
+                :options="placeOptions"
+                :label="$t('logistics.to')"
                 outlined
                 dense
                 bottom-slots
                 emit-value
                 map-options
+                class="col"
                 :rules="req"
-                :hint="pickupPlaceHint"
               />
-            </template>
+            </div>
+            <div class="row" style="gap: 8px">
+              <q-select
+                v-model="routeForm.mode"
+                :options="modeOptions"
+                :label="$t('logistics.mode')"
+                outlined
+                dense
+                bottom-slots
+                emit-value
+                map-options
+                class="col"
+                :rules="req"
+              />
+              <q-select
+                v-model="routeForm.service_level"
+                :options="serviceLevelOptions"
+                :label="$t('logistics.service')"
+                outlined
+                dense
+                bottom-slots
+                emit-value
+                map-options
+                clearable
+                class="col"
+              />
+            </div>
             <q-input
               v-model="routeForm.customer_label"
               :label="$t('logistics.customer_label')"
               outlined
               dense
               bottom-slots
-              :hint="routeForm.is_to_customer ? $t('logistics.customer_label_hint') : undefined"
             />
             <div class="row" style="gap: 8px">
               <q-input
@@ -508,58 +441,7 @@
                 class="col"
               />
             </div>
-            <h3 class="admin-subtitle q-mt-sm q-mb-none">
-              {{ $t('logistics.bands') }}
-            </h3>
-            <div class="text-caption text-muted">
-              {{ $t('logistics.bands_hint') }}
-            </div>
-            <div
-              v-for="(band, index) in routeBands"
-              :key="index"
-              class="row items-start"
-              style="gap: 8px"
-            >
-              <q-input
-                v-model="band.max_kg"
-                :label="$t('logistics.up_to')"
-                type="number"
-                step="0.001"
-                outlined
-                dense
-                bottom-slots
-                class="col"
-                :hint="band.max_kg.trim() ? undefined : $t('logistics.and_above')"
-              />
-              <q-input
-                v-model="band.price"
-                :label="$t('logistics.band_price', { currency: shopConfig.currency })"
-                type="number"
-                step="0.01"
-                outlined
-                dense
-                bottom-slots
-                class="col"
-              />
-              <q-btn
-                flat
-                dense
-                round
-                color="negative"
-                icon="ph:trash"
-                @click="routeBands.splice(index, 1)"
-              >
-                <q-tooltip>{{ $t('logistics.remove_band') }}</q-tooltip>
-              </q-btn>
-            </div>
-            <q-btn
-              flat
-              dense
-              no-caps
-              icon="ph:plus"
-              :label="$t('logistics.add_band')"
-              @click="routeBands.push({ max_kg: '', price: '' })"
-            />
+            <WeightBandsEditor v-model="routeBands" :currency="shopConfig.currency" />
             <q-input
               v-model="routeForm.free_shipping_threshold"
               :label="$t('logistics.free_from', { currency: shopConfig.currency })"
@@ -571,60 +453,9 @@
               clearable
               :hint="$t('logistics.free_hint')"
             />
-            <template v-if="routeForm.is_to_customer">
-              <q-toggle v-model="routeForm.always_available" :label="$t('logistics.always')" />
-              <q-select
-                v-if="!routeForm.always_available"
-                v-model="routeServedPlaceIds"
-                :options="geoPlaceOptions"
-                :label="$t('logistics.zones')"
-                outlined
-                dense
-                bottom-slots
-                multiple
-                use-chips
-                emit-value
-                map-options
-                :hint="$t('logistics.zones_hint')"
-              />
-              <q-expansion-item
-                dense
-                dense-toggle
-                switch-toggle-side
-                header-class="text-muted q-px-none"
-                :label="$t('logistics.advanced')"
-              >
-                <div class="text-caption text-muted q-mb-sm">
-                  {{ $t('logistics.advanced_hint') }}
-                </div>
-                <div class="row" style="gap: 8px">
-                  <q-select
-                    v-model="routeForm.from_place_id"
-                    :options="placeOptions"
-                    :label="$t('logistics.from')"
-                    outlined
-                    dense
-                    bottom-slots
-                    emit-value
-                    map-options
-                    class="col"
-                  />
-                  <q-select
-                    v-if="!isPickupRoute"
-                    v-model="routeForm.to_place_id"
-                    :options="placeOptions"
-                    :label="$t('logistics.to')"
-                    outlined
-                    dense
-                    bottom-slots
-                    emit-value
-                    map-options
-                    clearable
-                    class="col"
-                  />
-                </div>
-              </q-expansion-item>
-            </template>
+            <!-- Tronçon final non proposé au checkout (ex. fournisseur en
+                 dropshipping → client) : il n'a pas de mode de livraison. -->
+            <q-toggle v-model="routeForm.is_to_customer" :label="$t('logistics.final_untyped')" />
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
             <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
@@ -640,6 +471,14 @@
         </q-form>
       </q-card>
     </q-dialog>
+
+    <DeliveryModeDialog
+      v-model="deliveryDialog"
+      :route="deliveryEditing"
+      :places="places"
+      @saved="onDeliverySaved"
+      @place-created="load"
+    />
   </q-page>
 </template>
 
@@ -652,22 +491,23 @@ import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
 import { countryOptions, type CountryOption } from '@app/utils';
 import PageHeader from '@/components/PageHeader.vue';
+import DeliveryModeDialog from '@/components/DeliveryModeDialog.vue';
+import WeightBandsEditor from '@/components/WeightBandsEditor.vue';
 import {
   createPlace,
   createRoute,
   getPlacePostalCodes,
-  getRouteServedPlaces,
   listPlaces,
   listRoutes,
   setPlacePostalCodes,
-  setRouteServedPlaces,
   updatePlace,
   updateRoute,
   type Place,
   type ShippingRoute,
   setMainWarehouse,
 } from '@/api/logistics';
-import type { WeightBand } from '@/api/logistics';
+import { deliveryTypeLabel } from '@/utils/deliveryModes';
+import { bandRows, bandsPayload, type BandRow } from '@/utils/weightBands';
 import { extractApiError } from '@/api/errors';
 
 const { t } = useI18n();
@@ -728,50 +568,7 @@ const serviceLevelOptions = computed(() => [
 function modeLabel(mode: string): string {
   return modeOptions.value.find((o) => o.value === mode)?.label ?? mode;
 }
-const routeKindOptions = computed(() => [
-  { label: t('logistics.kind_leg'), value: false },
-  { label: t('logistics.kind_last_leg'), value: true },
-]);
-// Modes de livraison proposés au client. Le code (last_leg_delivery_type) est
-// ce que le checkout envoie ; le transport (mode) en découle. « Autre » laisse
-// saisir un code libre, par ex. un second point de retrait (pickup_taravao).
-const CUSTOM_DELIVERY = '__custom__';
-const DELIVERY_PRESETS: { value: string; mode: string; key: string }[] = [
-  { value: 'pickup', mode: 'pickup', key: 'dm_pickup' },
-  { value: 'home_delivery', mode: 'road', key: 'dm_home' },
-  { value: 'air_freight', mode: 'air', key: 'dm_air' },
-  { value: 'sea_freight', mode: 'sea', key: 'dm_sea' },
-];
-const deliveryPresetOptions = computed(() => [
-  ...DELIVERY_PRESETS.map((p) => ({ label: t(`logistics.${p.key}`), value: p.value })),
-  { label: t('logistics.dm_custom'), value: CUSTOM_DELIVERY },
-]);
-function deliveryTypeLabel(type: string): string {
-  const preset = DELIVERY_PRESETS.find((p) => p.value === type);
-  return preset ? t(`logistics.${preset.key}`) : type;
-}
-const codeRules = [
-  ...req,
-  (v: string | null | undefined) =>
-    /^[a-z0-9_-]+$/i.test(String(v ?? '').trim()) || t('logistics.code_invalid'),
-];
-
 const placeById = computed(() => new Map(places.value.map((p) => [p.id, p])));
-const mainWarehouse = computed(() => places.value.find((p) => p.is_main_warehouse) ?? null);
-// Lieux où un client peut venir chercher son colis : les nœuds physiques
-// (boutique, entrepôt, adresse…), pas les zones géographiques.
-const pickupPlaceOptions = computed(() =>
-  places.value
-    .filter((p) => !isGeoType(p.type))
-    .map((p) => ({ label: p.city ? `${p.name} — ${p.city}` : p.name, value: p.id }))
-    .sort((a, b) => a.label.localeCompare(b.label)),
-);
-function placeAddressSummary(place: Place): string {
-  const locality = [place.postal_code, place.city].filter((v) => !!v).join(' ');
-  return [place.address_line1, place.address_line2, locality]
-    .filter((v): v is string => !!v && v.length > 0)
-    .join(', ');
-}
 const placeOptions = computed(() =>
   places.value.map((p) => ({ label: `${p.name}${p.code ? ` (${p.code})` : ''}`, value: p.id })),
 );
@@ -1010,7 +807,7 @@ async function submitPlace() {
   }
 }
 
-// --- Route create / edit ---
+// --- Route create / edit (tronçons logistiques) ---
 const routeDialog = ref(false);
 const routeEditId = ref<string | null>(null);
 const routeForm = reactive<{
@@ -1025,7 +822,6 @@ const routeForm = reactive<{
   base_price: string;
   free_shipping_threshold: string;
   is_to_customer: boolean;
-  always_available: boolean;
 }>({
   name: '',
   from_place_id: null,
@@ -1038,65 +834,8 @@ const routeForm = reactive<{
   base_price: '',
   free_shipping_threshold: '',
   is_to_customer: false,
-  always_available: false,
 });
-const routeServedPlaceIds = ref<string[]>([]);
-// Weight grid rows edited as strings (q-input); serialized on submit.
-const routeBands = ref<{ max_kg: string; price: string }[]>([]);
-const deliveryPreset = ref<string | null>(null);
-const customDeliveryCode = ref('');
-const isPickupRoute = computed(() => routeForm.is_to_customer && routeForm.mode === 'pickup');
-
-// Le transport d'un mode prédéfini est imposé ; un code personnalisé le choisit.
-function applyDeliveryPreset(value: string | null) {
-  const preset = DELIVERY_PRESETS.find((p) => p.value === value);
-  if (preset) routeForm.mode = preset.mode;
-}
-function effectiveDeliveryType(): string | null {
-  if (deliveryPreset.value === CUSTOM_DELIVERY) {
-    return customDeliveryCode.value.trim().toLowerCase() || null;
-  }
-  return deliveryPreset.value;
-}
-// Un mode de livraison part de l'entrepôt principal et n'a pas de niveau de
-// service (réservé aux trajets d'import, cf. catalogue produit).
-function onRouteKindChange(isLastLeg: boolean) {
-  if (!isLastLeg) return;
-  routeForm.service_level = null;
-  if (!routeForm.from_place_id) routeForm.from_place_id = mainWarehouse.value?.id ?? null;
-}
-const pickupPlaceHint = computed(() => {
-  const place = routeForm.to_place_id ? placeById.value.get(routeForm.to_place_id) : undefined;
-  if (!place) return t('logistics.pickup_place_hint');
-  const summary = placeAddressSummary(place);
-  return summary
-    ? `${t('logistics.pickup_place_hint')} ${summary}`
-    : t('logistics.pickup_no_address');
-});
-// Destination implicite d'un mode de livraison (hors retrait) : la première
-// zone desservie, sinon la zone racine de l'entrepôt principal (le pays). Elle
-// ne sert qu'au suivi (« Entrepôt → Tahiti ») ; la desserte réelle vient des
-// zones. Reste modifiable dans les options avancées.
-function defaultLastLegDestination(): string | null {
-  const origin = routeForm.from_place_id;
-  const served = routeServedPlaceIds.value.find((id) => id !== origin);
-  if (!routeForm.always_available && served) return served;
-  let current = origin ? placeById.value.get(origin) : undefined;
-  let top: Place | undefined;
-  for (let depth = 0; depth < 10 && current?.parent_id; depth += 1) {
-    current = placeById.value.get(current.parent_id);
-    if (current) top = current;
-  }
-  if (top && top.id !== origin) return top.id;
-  return places.value.find((p) => isGeoType(p.type) && p.id !== origin)?.id ?? null;
-}
-
-function bandsPayload(): WeightBand[] | null {
-  const rows = routeBands.value
-    .filter((b) => b.price.trim() !== '')
-    .map((b) => ({ max_kg: b.max_kg.trim() || null, price: b.price.trim() }));
-  return rows.length > 0 ? rows : null;
-}
+const routeBands = ref<BandRow[]>([]);
 
 function tariffSummary(r: ShippingRoute): string {
   const parts: string[] = [];
@@ -1121,11 +860,7 @@ function resetRouteForm() {
   routeForm.base_price = '';
   routeForm.free_shipping_threshold = '';
   routeForm.is_to_customer = false;
-  routeForm.always_available = false;
-  routeServedPlaceIds.value = [];
   routeBands.value = [];
-  deliveryPreset.value = null;
-  customDeliveryCode.value = '';
 }
 
 function openRouteCreate() {
@@ -1136,6 +871,11 @@ function openRouteCreate() {
 }
 
 function openRouteEdit(r: ShippingRoute) {
+  // Un mode de livraison client a son propre formulaire, simplifié.
+  if (r.is_to_customer && r.last_leg_delivery_type) {
+    openDeliveryEdit(r);
+    return;
+  }
   dialogError.value = null;
   routeEditId.value = r.id;
   routeForm.name = r.name;
@@ -1148,63 +888,12 @@ function openRouteEdit(r: ShippingRoute) {
   routeForm.price_per_kg = r.price_per_kg ?? '';
   routeForm.base_price = r.base_price ?? '';
   routeForm.free_shipping_threshold = r.free_shipping_threshold ?? '';
-  routeBands.value = (r.weight_bands ?? []).map((b) => ({
-    max_kg: b.max_kg ?? '',
-    price: b.price,
-  }));
   routeForm.is_to_customer = r.is_to_customer;
-  routeForm.always_available = r.always_available;
-  const type = r.last_leg_delivery_type;
-  if (type && DELIVERY_PRESETS.some((p) => p.value === type)) {
-    deliveryPreset.value = type;
-    customDeliveryCode.value = '';
-  } else {
-    deliveryPreset.value = type ? CUSTOM_DELIVERY : null;
-    customDeliveryCode.value = type ?? '';
-  }
-  routeServedPlaceIds.value = [];
-  if (r.is_to_customer) {
-    getRouteServedPlaces(r.id)
-      .then((served) => {
-        routeServedPlaceIds.value = served.map((p) => p.id);
-      })
-      .catch(() => {
-        // Non bloquant : l'édition des autres champs reste possible.
-      });
-  }
+  routeBands.value = bandRows(r.weight_bands);
   routeDialog.value = true;
 }
 
 async function submitRoute() {
-  let deliveryType: string | null = null;
-  if (routeForm.is_to_customer) {
-    deliveryType = effectiveDeliveryType();
-    if (!deliveryType) {
-      dialogError.value = t('common.required');
-      return;
-    }
-    if (!routeForm.from_place_id) routeForm.from_place_id = mainWarehouse.value?.id ?? null;
-    if (!routeForm.from_place_id) {
-      dialogError.value = t('logistics.no_main_warehouse');
-      return;
-    }
-    if (isPickupRoute.value) {
-      if (!routeForm.to_place_id) {
-        dialogError.value = t('logistics.pickup_place_required');
-        return;
-      }
-      if (routeForm.to_place_id === routeForm.from_place_id) {
-        dialogError.value = t('logistics.pickup_same_as_origin');
-        return;
-      }
-    } else if (!routeForm.to_place_id || routeForm.to_place_id === routeForm.from_place_id) {
-      routeForm.to_place_id = defaultLastLegDestination();
-      if (!routeForm.to_place_id) {
-        dialogError.value = t('logistics.dest_unresolved');
-        return;
-      }
-    }
-  }
   if (!routeForm.from_place_id || !routeForm.to_place_id) {
     dialogError.value = t('logistics.ends_required');
     return;
@@ -1220,7 +909,7 @@ async function submitRoute() {
     from_place_id: routeForm.from_place_id,
     to_place_id: routeForm.to_place_id,
     mode: routeForm.mode,
-    service_level: routeForm.is_to_customer ? null : routeForm.service_level || null,
+    service_level: routeForm.service_level || null,
     customer_label: routeForm.customer_label.trim() || null,
     // v-model.number leaves an empty field as "" at runtime — coerce to null.
     eta_days:
@@ -1229,25 +918,18 @@ async function submitRoute() {
         : null,
     price_per_kg: routeForm.price_per_kg.trim() || null,
     base_price: routeForm.base_price.trim() || null,
-    weight_bands: bandsPayload(),
+    weight_bands: bandsPayload(routeBands.value),
     // q-input clearable sets null; keep the payload a string or null.
     free_shipping_threshold: (routeForm.free_shipping_threshold ?? '').trim() || null,
     is_to_customer: routeForm.is_to_customer,
-    last_leg_delivery_type: deliveryType,
-    always_available: routeForm.is_to_customer ? routeForm.always_available : false,
+    last_leg_delivery_type: null,
+    always_available: false,
   };
   try {
-    let saved: ShippingRoute;
     if (routeEditId.value) {
-      saved = await updateRoute(routeEditId.value, payload);
+      await updateRoute(routeEditId.value, payload);
     } else {
-      saved = await createRoute(payload);
-    }
-    if (routeForm.is_to_customer) {
-      await setRouteServedPlaces(
-        saved.id,
-        routeForm.always_available ? [] : routeServedPlaceIds.value,
-      );
+      await createRoute(payload);
     }
     routeDialog.value = false;
     notice.value = t('logistics.route_saved');
@@ -1257,6 +939,22 @@ async function submitRoute() {
   } finally {
     saving.value = false;
   }
+}
+
+// --- Modes de livraison client (dialogue partagé avec « Modes de livraison ») ---
+const deliveryDialog = ref(false);
+const deliveryEditing = ref<ShippingRoute | null>(null);
+function openDeliveryCreate() {
+  deliveryEditing.value = null;
+  deliveryDialog.value = true;
+}
+function openDeliveryEdit(r: ShippingRoute) {
+  deliveryEditing.value = r;
+  deliveryDialog.value = true;
+}
+async function onDeliverySaved() {
+  notice.value = t('logistics.route_saved');
+  await load();
 }
 
 onMounted(load);

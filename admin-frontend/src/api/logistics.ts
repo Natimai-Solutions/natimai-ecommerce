@@ -60,6 +60,8 @@ export interface ShippingRoute {
   is_to_customer: boolean;
   last_leg_delivery_type: string | null;
   always_available: boolean;
+  /** Off = kept but no longer offered (checkout) nor routed. */
+  is_active: boolean;
   status_code: string | null;
 }
 
@@ -78,6 +80,7 @@ export interface ShippingRouteCreate {
   is_to_customer?: boolean;
   last_leg_delivery_type?: string | null;
   always_available?: boolean;
+  is_active?: boolean;
 }
 
 interface Paginated<T> {
@@ -126,9 +129,10 @@ export async function setPlacePostalCodes(
 }
 
 // --- Routes (tronçons) ---------------------------------------------------- //
-export async function listRoutes(): Promise<ShippingRoute[]> {
+/** Active routes; `includeInactive` adds the switched-off ones (delivery modes screen). */
+export async function listRoutes(includeInactive = false): Promise<ShippingRoute[]> {
   const { data } = await api.get<Paginated<ShippingRoute>>('/shipping/route/', {
-    params: { limit: 500 },
+    params: includeInactive ? { limit: 500, include_archived: true } : { limit: 500 },
   });
   return data.data;
 }

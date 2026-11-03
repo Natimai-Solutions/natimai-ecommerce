@@ -94,8 +94,10 @@ SHOP_MODE=simple       # hides suppliers, customs, exchange rates and multi-leg 
 
 Then `docker compose up -d && docker compose run --rm migrate`, log into the
 admin, fill the legal identity under **Système → Paramètres**, create your
-products (fixed price, warehouse stock) and, if you charge shipping, one
-carrier and one route under **Logistique**. Cheque and bank transfer work out
+products (fixed price, warehouse stock) and, if you charge shipping, a
+delivery mode under **Logistique → Modes de livraison** (flat fee, free above
+an amount, in-store pickup). A classic shop gets its main warehouse at the
+first start; without any delivery mode, delivery is free. Cheque and bank transfer work out
 of the box; card payments need a PayZen account.
 
 ## Contributing and security

@@ -24,6 +24,10 @@ _POLYNESIA = (
     "_seed_france_papeete_import_corridor",
     "_seed_french_polynesia_geography",
 )
+_CLASSIC = (
+    "_seed_shop_country",
+    "_seed_main_warehouse",
+)
 
 
 @pytest.fixture
@@ -33,7 +37,7 @@ def anyio_backend() -> str:
 
 def _stub_all(monkeypatch: pytest.MonkeyPatch) -> dict[str, AsyncMock]:
     mocks: dict[str, AsyncMock] = {}
-    for name in (*_ALWAYS, *_POLYNESIA):
+    for name in (*_ALWAYS, *_POLYNESIA, *_CLASSIC):
         mocks[name] = AsyncMock()
         monkeypatch.setattr(seed_module, name, mocks[name])
     return mocks
@@ -52,6 +56,10 @@ async def test_classic_shop_skips_polynesia_seeds(
         mocks[name].assert_awaited_once()
     for name in _POLYNESIA:
         mocks[name].assert_not_awaited()
+    # A classic shop gets its country and a main warehouse, so the first
+    # delivery mode can be created without any prerequisite.
+    for name in _CLASSIC:
+        mocks[name].assert_awaited_once()
 
 
 @pytest.mark.anyio
@@ -63,3 +71,5 @@ async def test_default_keeps_polynesia_seeds(monkeypatch: pytest.MonkeyPatch) ->
 
     for name in (*_ALWAYS, *_POLYNESIA):
         mocks[name].assert_awaited_once()
+    for name in _CLASSIC:
+        mocks[name].assert_not_awaited()

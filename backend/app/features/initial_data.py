@@ -635,6 +635,49 @@ async def _seed_shop_country(session: AsyncSession) -> None:
     await session.commit()
 
 
+async def _seed_main_warehouse(session: AsyncSession) -> None:
+    """Main warehouse of a shop outside French Polynesia.
+
+    Delivery modes leave from the main warehouse (Logistique → Modes de
+    livraison): without one, a classic shop could not create its first
+    delivery mode. A flagged main warehouse is never touched; a single
+    existing warehouse is flagged rather than duplicated (it is already the
+    one ``get_main_warehouse`` falls back to); with several, the choice stays
+    the admin's. A created warehouse hangs under the shop country, so a
+    delivery mode's default destination is that country.
+    """
+    flagged = await session.exec(
+        select(Place).where(col(Place.is_main_warehouse).is_(True))
+    )
+    if flagged.first() is not None:
+        return
+    warehouses = list(
+        (
+            await session.exec(select(Place).where(col(Place.is_warehouse).is_(True)))
+        ).all()
+    )
+    if len(warehouses) > 1:
+        return
+    if warehouses:
+        warehouse = warehouses[0]
+    else:
+        profile = settings.territory_profile
+        country_place = (
+            await session.exec(select(Place).where(Place.code == profile.country_code))
+        ).first()
+        warehouse = Place(
+            name="Entrepôt principal",
+            type="warehouse",
+            code="MAIN_WAREHOUSE",
+            country=profile.country_code,
+            parent_id=country_place.id if country_place else None,
+            is_warehouse=True,
+        )
+    warehouse.is_main_warehouse = True
+    session.add(warehouse)
+    await session.commit()
+
+
 # Default « Comment ça marche » page: explains the grouped-departure model
 # (why the customer pays up front). Seeded once, never overwritten: the owner
 # rewrites it in the back-office.
@@ -958,6 +1001,7 @@ async def initial_data(session: AsyncSession) -> None:
         await _seed_french_polynesia_geography(session)
     else:
         await _seed_shop_country(session)
+        await _seed_main_warehouse(session)
     # The historical distributor is not territory-specific: always declared
     # (its origin warehouse is filled in only when the corridor was seeded).
     await _seed_suppliers(session)

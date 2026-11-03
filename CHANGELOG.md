@@ -9,14 +9,23 @@ takes a tag as its `ref`.
 
 ### Added
 
-- Admin → Routes and places: a delivery mode offered to the customer is now
-  set up on its own simplified form. The admin picks the leg type (logistics
-  leg or customer delivery mode), then a delivery mode with a translated
-  label (in-store pickup, home delivery, air freight, sea freight, or a custom
-  code); the transport mode follows from it, origin and destination are filled
-  in automatically (main warehouse → pickup place or served zone) and stay
-  reachable under "Advanced options". Service level is reserved to logistics
-  legs.
+- Admin → Logistique → **Modes de livraison**: a screen always shown, simple
+  mode included (it does not depend on the "Trajets et lieux" module), where a
+  shop sets what the customer picks at checkout and its price. A delivery mode
+  is a translated mode (in-store pickup, home delivery, air freight, sea
+  freight, or a custom code), a flat price, a free-shipping threshold and a
+  coverage (everywhere or some zones); weight pricing, the internal name,
+  origin and destination stay under folded sections. Origin defaults to the
+  main warehouse and the destination is inferred. Each mode can be switched
+  off without deleting it. A pickup place can be created from the dialog, and
+  pickup at the main warehouse itself is accepted.
+- "Trajets et lieux" uses the same dialog for delivery modes; its route
+  dialog now only covers logistics legs (service level stays there).
+- A classic shop (`SEED_FRENCH_POLYNESIA_LOGISTICS=false`) gets a main
+  warehouse at start-up when none is flagged: a lone existing warehouse is
+  flagged, none creates "Entrepôt principal" under the shop country, several
+  leave the choice to the admin. The delivery modes screen also offers to
+  create it.
 - Pickup modes take a pickup place; its postal address (new fields on physical
   places) is returned by the last-leg options endpoint (`pickup_place`) and
   shown to the customer at checkout under the delivery choice.
