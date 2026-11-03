@@ -142,38 +142,38 @@
         hide-pagination
         :loading="loading"
       >
+        <template #body-cell-name="props">
+          <q-td :props="props">
+            <div class="text-weight-medium">{{ props.row.name }}</div>
+            <div v-if="props.row.code" class="text-caption text-muted font-mono">
+              {{ props.row.code }}
+            </div>
+          </q-td>
+        </template>
         <template #body-cell-type="props">
           <q-td :props="props">{{ placeTypeLabel(props.row.type) }}</q-td>
         </template>
-        <template #body-cell-parent="props">
+        <template #body-cell-location="props">
           <q-td :props="props">
-            <span v-if="props.row.parent_id">{{ placeName(props.row.parent_id) }}</span>
-            <span v-else>—</span>
+            <div>{{ placeLocality(props.row) || '—' }}</div>
+            <div v-if="props.row.parent_id" class="text-caption text-muted">
+              {{ $t('logistics.in_zone', { zone: placeName(props.row.parent_id) }) }}
+            </div>
           </q-td>
         </template>
-        <template #body-cell-code="props">
-          <q-td :props="props" class="font-mono">{{ props.row.code ?? '' }}</q-td>
-        </template>
-        <template #body-cell-warehouse="props">
+        <template #body-cell-roles="props">
           <q-td :props="props">
-            <StatusTag
-              v-if="props.row.is_main_warehouse"
-              :label="$t('logistics.main')"
-              tone="ok"
-              icon="ph:star"
-            />
-            <q-icon v-else-if="props.row.is_warehouse" name="ph:check" class="text-positive" />
-            <span v-else>—</span>
+            <div class="place-roles">
+              <StatusTag
+                v-for="tag in placeTags(props.row)"
+                :key="tag.key"
+                :label="tag.label"
+                :tone="tag.tone"
+                :icon="tag.icon"
+              />
+              <span v-if="placeTags(props.row).length === 0">—</span>
+            </div>
           </q-td>
-        </template>
-        <template #body-cell-customs="props">
-          <q-td :props="props">
-            <q-icon v-if="props.row.customs_clearance" name="ph:check" class="text-positive" />
-            <span v-else>—</span>
-          </q-td>
-        </template>
-        <template #body-cell-origin="props">
-          <q-td :props="props">{{ originSummary(props.row) }}</q-td>
         </template>
         <template #body-cell-actions="props">
           <q-td :props="props" align="right">
@@ -808,26 +808,14 @@ const zoneColumns = computed<QTableColumn[]>(() => [
   { name: 'actions', label: '', field: 'id', align: 'right' },
 ]);
 
+// Cinq colonnes : code sous le nom, zone sous la ville, et les rôles du
+// lieu (entrepôt, douane, origine, dropshipping) réunis en étiquettes — le
+// tableau tient sans défilement horizontal.
 const placeColumns = computed<QTableColumn[]>(() => [
   { name: 'name', label: t('logistics.col_name'), field: 'name', align: 'left' },
   { name: 'type', label: t('logistics.col_type'), field: 'type', align: 'left' },
-  { name: 'parent', label: t('logistics.col_zone'), field: 'parent_id', align: 'left' },
-  { name: 'code', label: t('logistics.col_code'), field: 'code', align: 'left' },
-  { name: 'city', label: t('logistics.col_city'), field: 'city', align: 'left' },
-  { name: 'country', label: t('logistics.col_country'), field: 'country', align: 'left' },
-  {
-    name: 'warehouse',
-    label: t('logistics.col_warehouse'),
-    field: 'is_warehouse',
-    align: 'center',
-  },
-  {
-    name: 'customs',
-    label: t('logistics.col_customs'),
-    field: 'customs_clearance',
-    align: 'center',
-  },
-  { name: 'origin', label: t('logistics.col_origin'), field: 'customs_regime', align: 'left' },
+  { name: 'location', label: t('logistics.col_location'), field: 'city', align: 'left' },
+  { name: 'roles', label: t('logistics.col_roles'), field: 'is_warehouse', align: 'left' },
   { name: 'actions', label: '', field: 'id', align: 'right' },
 ]);
 
@@ -837,12 +825,35 @@ const customsRegimeOptions = computed(() => [
   { label: t('logistics.r_import'), value: 'import' },
 ]);
 
-function originSummary(p: Place): string {
-  const parts: string[] = [];
-  if (p.customs_regime === 'domestic') parts.push('local');
-  else if (p.customs_regime === 'import') parts.push('import');
-  if (p.dropship_enabled) parts.push('dropship');
-  return parts.length > 0 ? parts.join(' · ') : '—';
+function placeLocality(p: Place): string {
+  return [p.city, p.country].filter((v): v is string => !!v).join(', ');
+}
+
+interface PlaceTag {
+  key: string;
+  label: string;
+  tone: 'ok' | 'neutral';
+  icon?: string;
+}
+function placeTags(p: Place): PlaceTag[] {
+  const tags: PlaceTag[] = [];
+  if (p.is_main_warehouse) {
+    tags.push({ key: 'main', label: t('logistics.main'), tone: 'ok', icon: 'ph:star' });
+  } else if (p.is_warehouse) {
+    tags.push({ key: 'warehouse', label: t('logistics.pt_warehouse'), tone: 'neutral' });
+  }
+  if (p.customs_clearance) {
+    tags.push({ key: 'customs', label: t('logistics.tag_customs'), tone: 'neutral' });
+  }
+  if (p.customs_regime === 'domestic') {
+    tags.push({ key: 'regime', label: t('logistics.tag_local'), tone: 'neutral' });
+  } else if (p.customs_regime === 'import') {
+    tags.push({ key: 'regime', label: t('logistics.tag_import'), tone: 'neutral' });
+  }
+  if (p.dropship_enabled) {
+    tags.push({ key: 'dropship', label: t('logistics.tag_dropship'), tone: 'neutral' });
+  }
+  return tags;
 }
 
 async function makeMainWarehouse(p: Place) {
@@ -1176,6 +1187,12 @@ onMounted(load);
 </script>
 
 <style scoped lang="scss">
+.place-roles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
 .logistics-help :deep(.logistics-help__head) {
   font-weight: 500;
 }

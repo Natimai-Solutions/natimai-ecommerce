@@ -40,7 +40,9 @@ takes a tag as its `ref`.
   as a tree and have their own form (parent zone, postcodes); places
   (warehouse, shop, port, airport, supplier, address) keep the address,
   warehouse, customs and dropshipping fields. Place types and service levels
-  are shown translated.
+  are shown translated. The places table has five columns (code under the
+  name, zone under the city, warehouse / customs / origin / dropshipping as
+  tags) and fits without horizontal scrolling from 1024 px.
 - Help panels: "Trajets et lieux" explains zones, places and routes (folded
   once closed, remembered per browser); "Modes de livraison" shows three setup
   examples (in-store pickup, flat fee, price by destination), open while no
