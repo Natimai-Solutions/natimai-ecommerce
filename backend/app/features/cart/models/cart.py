@@ -319,6 +319,14 @@ class CheckoutRequest(SQLModel):
             "e.g. home_delivery / air_freight / sea_freight)"
         ),
     )
+    pickup_place_id: uuid.UUID | None = Field(
+        default=None,
+        description=(
+            "Pickup point chosen for a pickup delivery_type offering several "
+            "(``pickup_place.place_id`` of the last-leg option). Omitted: the "
+            "mode's first pickup point."
+        ),
+    )
     payment_method_id: uuid.UUID | None = Field(
         default=None,
         description=(
@@ -462,7 +470,9 @@ class LastLegOption(SQLModel):
         description=(
             "For pickup modes (route mode 'pickup' ending at a shop, warehouse "
             "or address): the place and address shown to the customer at "
-            "checkout. Null for home deliveries."
+            "checkout. A pickup mode with several points yields one option per "
+            "point; send its place_id as pickup_place_id. Null for home "
+            "deliveries."
         ),
     )
 

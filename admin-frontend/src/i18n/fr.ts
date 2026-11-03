@@ -1059,7 +1059,7 @@ const fr = {
     coverage_zones: 'Certaines zones seulement',
     custom_code: 'Code du mode *',
     custom_code_hint:
-      'Identifiant technique sans espace (ex. pickup_taravao). Une seule proposition par code et par destination au checkout.',
+      'Identifiant technique sans espace (ex. click_collect). Une seule proposition par code et par destination au checkout, sauf pour un retrait (une par lieu).',
     customer_label: 'Libellé client (optionnel)',
     customer_label_hint:
       'Nom du mode tel que le client le voit au checkout. Vide = libellé standard du mode.',
@@ -1120,6 +1120,10 @@ const fr = {
     pickup_place: 'Lieu de retrait *',
     pickup_place_hint: 'Son nom et son adresse sont affichés au client au checkout.',
     pickup_place_required: 'Choisissez le lieu de retrait.',
+    pickup_taken: 'déjà proposé',
+    pickup_places: 'Lieux de retrait *',
+    pickup_places_hint:
+      'Un mode de retrait est créé par lieu : le client choisit le sien au checkout.',
     postcode: 'Code postal',
     price: 'Prix ({currency})',
     price_hint: 'Forfait par commande. Vide ou 0 = gratuit.',

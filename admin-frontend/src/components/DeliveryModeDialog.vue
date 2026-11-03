@@ -52,9 +52,12 @@
 
           <!-- Retrait : le lieu dont le nom et l'adresse sont affichés au
                client au checkout. L'entrepôt principal convient (retrait sur
-               place) ; « Nouveau lieu » en crée un sans passer par Lieux. -->
+               place) ; « Nouveau lieu » en crée un sans passer par Lieux. À la
+               création, plusieurs lieux = un mode par lieu, et le client
+               choisit le sien au checkout. -->
           <div v-if="isPickup" class="row items-start" style="gap: 8px">
             <q-select
+              v-if="route"
               v-model="form.to_place_id"
               :options="pickupPlaceOptions"
               :label="$t('logistics.pickup_place')"
@@ -65,6 +68,22 @@
               map-options
               class="col"
               :rules="req"
+              :hint="pickupPlaceHint"
+            />
+            <q-select
+              v-else
+              v-model="pickupPlaceIds"
+              :options="pickupPlaceOptions"
+              :label="$t('logistics.pickup_places')"
+              outlined
+              dense
+              bottom-slots
+              multiple
+              use-chips
+              emit-value
+              map-options
+              class="col"
+              :rules="[(v: string[]) => v.length > 0 || $t('logistics.pickup_place_required')]"
               :hint="pickupPlaceHint"
             />
             <q-btn
@@ -330,6 +349,8 @@ const props = defineProps<{
   /** Trajet édité ; null = création. */
   route: ShippingRoute | null;
   places: Place[];
+  /** Trajets existants : un lieu déjà proposé en retrait n'est pas recréé. */
+  routes?: ShippingRoute[];
 }>();
 const emit = defineEmits<{ saved: [route: ShippingRoute]; 'place-created': [place: Place] }>();
 const open = defineModel<boolean>({ required: true });
@@ -381,15 +402,33 @@ const geoPlaceOptions = computed(() =>
 );
 // Lieux où un client peut venir chercher son colis : les nœuds physiques,
 // l'entrepôt principal en tête (retrait sur place).
+// Lieux ayant déjà un trajet de retrait pour ce mode (hors trajet édité) :
+// un doublon serait fusionné au checkout sans le dire.
+const takenPickupPlaces = computed(() => {
+  const type = deliveryType();
+  return new Set(
+    (props.routes ?? [])
+      .filter(
+        (r) =>
+          r.id !== props.route?.id &&
+          r.is_to_customer &&
+          r.mode === 'pickup' &&
+          r.last_leg_delivery_type === type,
+      )
+      .map((r) => r.to_place_id),
+  );
+});
 const pickupPlaceOptions = computed(() =>
   allPlaces.value
     .filter((p) => !isGeo(p))
     .map((p) => ({
       label:
         (p.city ? `${p.name} — ${p.city}` : p.name) +
-        (p.is_main_warehouse ? ` (${t('logistics.main_warehouse_tag')})` : ''),
+        (p.is_main_warehouse ? ` (${t('logistics.main_warehouse_tag')})` : '') +
+        (takenPickupPlaces.value.has(p.id) ? ` — ${t('logistics.pickup_taken')}` : ''),
       value: p.id,
       main: p.is_main_warehouse,
+      disable: takenPickupPlaces.value.has(p.id),
     }))
     .sort((a, b) => Number(b.main) - Number(a.main) || a.label.localeCompare(b.label)),
 );
@@ -430,12 +469,24 @@ const error = ref<string | null>(null);
 const saving = ref(false);
 
 const isPickup = computed(() => form.mode === 'pickup');
+// Création d'un retrait : un ou plusieurs lieux (un trajet par lieu).
+const pickupPlaceIds = ref<string[]>([]);
+// Lieux de retrait visés : la sélection multiple à la création, le lieu du
+// trajet à l'édition.
+const pickupTargets = computed<string[]>(() => {
+  if (props.route) return form.to_place_id ? [form.to_place_id] : [];
+  return pickupPlaceIds.value;
+});
 
 function applyPreset(value: string | null) {
   const found = presetOf(value);
   if (found) form.mode = found.mode;
-  if (found?.value === 'pickup' && !form.to_place_id) {
-    form.to_place_id = mainWarehouse.value?.id ?? null;
+  if (found?.value === 'pickup') {
+    if (props.route && !form.to_place_id) form.to_place_id = mainWarehouse.value?.id ?? null;
+    const main = mainWarehouse.value;
+    if (!props.route && pickupPlaceIds.value.length === 0 && main) {
+      if (!takenPickupPlaces.value.has(main.id)) pickupPlaceIds.value = [main.id];
+    }
   }
 }
 
@@ -445,6 +496,7 @@ function reset() {
   form.name = r?.name ?? '';
   form.from_place_id = r?.from_place_id ?? mainWarehouse.value?.id ?? null;
   form.to_place_id = r?.to_place_id ?? null;
+  pickupPlaceIds.value = [];
   form.mode = r?.mode ?? 'road';
   form.customer_label = r?.customer_label ?? '';
   form.eta_days = r?.eta_days ?? null;
@@ -482,7 +534,9 @@ watch(open, (value) => {
 });
 
 const pickupPlaceHint = computed(() => {
-  const place = form.to_place_id ? placeById.value.get(form.to_place_id) : undefined;
+  if (pickupTargets.value.length > 1) return t('logistics.pickup_places_hint');
+  const first = pickupTargets.value[0];
+  const place = first ? placeById.value.get(first) : undefined;
   if (!place) return t('logistics.pickup_place_hint');
   const locality = [place.postal_code, place.city].filter((v) => !!v).join(' ');
   const summary = [place.address_line1, place.address_line2, locality]
@@ -515,12 +569,14 @@ function defaultDestination(): string | null {
   return allPlaces.value.find((p) => isGeo(p) && !p.parent_id && p.id !== origin)?.id ?? null;
 }
 
-function defaultName(type: string): string {
-  const label = form.customer_label.trim();
-  if (label) return label;
+// Nom interne (suivi des colis) : saisi, sinon le libellé ou le mode, suffixé
+// du lieu de retrait — indispensable pour distinguer plusieurs lieux.
+function routeName(type: string, pickupPlaceId: string | null, several: boolean): string {
+  const place = pickupPlaceId ? placeById.value.get(pickupPlaceId) : undefined;
+  const typed = form.name.trim();
+  if (typed) return several && place ? `${typed} — ${place.name}` : typed;
   const found = presetOf(type);
-  const base = found ? t(`logistics.${found.key}`) : type;
-  const place = isPickup.value && form.to_place_id ? placeById.value.get(form.to_place_id) : null;
+  const base = form.customer_label.trim() || (found ? t(`logistics.${found.key}`) : type);
   return place ? `${base} — ${place.name}` : base;
 }
 
@@ -538,7 +594,7 @@ async function submit() {
   if (isPickup.value) {
     // Retrait à l'origine même (entrepôt principal) : un tronçon sans
     // déplacement, accepté.
-    if (!form.to_place_id) {
+    if (pickupTargets.value.length === 0) {
       error.value = t('logistics.pickup_place_required');
       return;
     }
@@ -556,10 +612,8 @@ async function submit() {
 
   saving.value = true;
   error.value = null;
-  const payload = {
-    name: form.name.trim() || defaultName(type),
+  const base = {
     from_place_id: form.from_place_id,
-    to_place_id: form.to_place_id,
     mode: form.mode,
     service_level: null,
     customer_label: form.customer_label.trim() || null,
@@ -574,15 +628,30 @@ async function submit() {
     last_leg_delivery_type: type,
     always_available: coverage.value === 'all',
   };
+  const served = coverage.value === 'all' ? [] : servedPlaceIds.value;
+  // Un trajet par lieu de retrait (le checkout les propose séparément) ;
+  // une seule cible pour une livraison ou une édition.
+  const targets: (string | null)[] = isPickup.value ? pickupTargets.value : [form.to_place_id];
+  const several = targets.length > 1;
+  let lastSaved: ShippingRoute | null = null;
   try {
-    const saved = props.route
-      ? await updateRoute(props.route.id, payload)
-      : await createRoute(payload);
-    await setRouteServedPlaces(saved.id, coverage.value === 'all' ? [] : servedPlaceIds.value);
+    for (const target of targets) {
+      const payload = {
+        ...base,
+        name: routeName(type, isPickup.value ? target : null, several),
+        to_place_id: target as string,
+      };
+      lastSaved = props.route
+        ? await updateRoute(props.route.id, payload)
+        : await createRoute(payload);
+      await setRouteServedPlaces(lastSaved.id, served);
+    }
     open.value = false;
-    emit('saved', saved);
+    if (lastSaved) emit('saved', lastSaved);
   } catch (err) {
     error.value = extractApiError(err) ?? t('common.save_failed');
+    // Des lieux ont pu être créés avant l'échec : la liste doit les montrer.
+    if (lastSaved) emit('saved', lastSaved);
   } finally {
     saving.value = false;
   }
@@ -633,7 +702,8 @@ async function submitPlace() {
       is_warehouse: false,
     });
     createdPlaces.value.push(place);
-    form.to_place_id = place.id;
+    if (props.route) form.to_place_id = place.id;
+    else pickupPlaceIds.value = [...pickupPlaceIds.value, place.id];
     placeDialog.value = false;
     emit('place-created', place);
   } catch (err) {

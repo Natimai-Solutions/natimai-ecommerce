@@ -476,6 +476,7 @@
       v-model="deliveryDialog"
       :route="deliveryEditing"
       :places="places"
+      :routes="routes"
       @saved="onDeliverySaved"
       @place-created="load"
     />

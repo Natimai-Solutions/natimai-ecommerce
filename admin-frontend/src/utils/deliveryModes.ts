@@ -2,9 +2,9 @@
  * Modes de livraison proposés au client (tronçon final, `is_to_customer`).
  *
  * Le code (`last_leg_delivery_type`) est ce que le checkout envoie ; le
- * transport (`mode`) en découle. « Autre » laisse saisir un code libre, par
- * ex. un second point de retrait (`pickup_taravao`) : le checkout ne propose
- * qu'un trajet par code et par destination.
+ * transport (`mode`) en découle. « Autre » laisse saisir un code libre. Le
+ * checkout propose un trajet par code et par destination, sauf pour un
+ * retrait : chaque lieu de retrait est une option, le client choisit.
  */
 export interface DeliveryPreset {
   value: string;

@@ -13,6 +13,12 @@ one route per delivery mode:
   configures their coverage).
 
 Per delivery mode the most specific match wins, then ``priority`` asc.
+
+Pickup modes are the exception: each pickup point is its own offer. Routes
+whose transport mode is ``pickup`` are grouped by delivery mode *and*
+destination place, so one « Retrait » mode can list several shops and the
+customer picks one (``resolve_last_leg_options``); per mode, the best of them
+is still what a checkout without a chosen place gets.
 """
 
 from __future__ import annotations
@@ -31,12 +37,38 @@ _RANK_LEGACY_UNSCOPED_OFFSET = 1  # no served zone configured → everywhere
 _RANK_ALWAYS_AVAILABLE_OFFSET = 2  # always_available → everywhere, least specific
 
 
+PICKUP_TRANSPORT_MODE = "pickup"
+
+
 @dataclass(frozen=True)
 class LastLegCandidate:
     """A last-leg route available for the destination, with its specificity."""
 
     route: ShippingRoute
     specificity: int
+
+    @property
+    def delivery_type(self) -> str:
+        return self.route.last_leg_delivery_type or ""
+
+    @property
+    def pickup_place_id(self) -> uuid.UUID | None:
+        """The pickup point of a pickup route (its destination), else None."""
+        if self.route.mode != PICKUP_TRANSPORT_MODE:
+            return None
+        return self.route.to_place_id
+
+
+def _offer_key(route: ShippingRoute) -> tuple[str, uuid.UUID | None]:
+    """One offer per delivery mode — per pickup point for pickup routes."""
+    mode = route.last_leg_delivery_type or ""
+    if route.mode == PICKUP_TRANSPORT_MODE:
+        return (mode, route.to_place_id)
+    return (mode, None)
+
+
+def _rank(candidate: LastLegCandidate) -> tuple[int, int]:
+    return (candidate.specificity, candidate.route.priority or 0)
 
 
 async def resolve_last_leg_candidates(
@@ -47,7 +79,23 @@ async def resolve_last_leg_candidates(
 
     ``destination_chain`` is ordered nearest-first (île, archipel, pays) and
     may be empty (unknown destination → only always_available and legacy
-    unscoped routes are offered).
+    unscoped routes are offered). With several pickup points for one mode,
+    the most specific (then highest-priority) one stands for the mode.
+    """
+    best_by_mode: dict[str, LastLegCandidate] = {}
+    for candidate in await resolve_last_leg_options(session, destination_chain):
+        current = best_by_mode.get(candidate.delivery_type)
+        if current is None or _rank(candidate) < _rank(current):
+            best_by_mode[candidate.delivery_type] = candidate
+    return best_by_mode
+
+
+async def resolve_last_leg_options(
+    session: AsyncSession,
+    destination_chain: list[uuid.UUID],
+) -> list[LastLegCandidate]:
+    """Every offer for a destination: one per delivery mode, one per pickup
+    point for pickup modes. Ordered by mode, then specificity and priority.
     """
     routes_result = await session.exec(
         select(ShippingRoute)
@@ -60,7 +108,7 @@ async def resolve_last_leg_candidates(
     )
     routes = list(routes_result.all())
     if not routes:
-        return {}
+        return []
 
     served_result = await session.exec(
         select(RouteServedPlace).where(
@@ -74,10 +122,9 @@ async def resolve_last_leg_candidates(
     chain_rank = {place_id: index for index, place_id in enumerate(destination_chain)}
     chain_length = len(destination_chain)
 
-    best_by_mode: dict[str, LastLegCandidate] = {}
+    best_by_offer: dict[tuple[str, uuid.UUID | None], LastLegCandidate] = {}
     for route in routes:
-        mode = route.last_leg_delivery_type
-        if not mode:
+        if not route.last_leg_delivery_type:
             continue
 
         served = served_by_route.get(route.id, set())
@@ -93,9 +140,13 @@ async def resolve_last_leg_candidates(
         if specificity is None:
             continue  # scoped route that does not serve this destination
 
-        current = best_by_mode.get(mode)
+        key = _offer_key(route)
+        current = best_by_offer.get(key)
         # Routes arrive priority-ordered, so on equal specificity the first wins.
         if current is None or specificity < current.specificity:
-            best_by_mode[mode] = LastLegCandidate(route=route, specificity=specificity)
+            best_by_offer[key] = LastLegCandidate(route=route, specificity=specificity)
 
-    return best_by_mode
+    return sorted(
+        best_by_offer.values(),
+        key=lambda c: (c.delivery_type, *_rank(c), c.route.name),
+    )

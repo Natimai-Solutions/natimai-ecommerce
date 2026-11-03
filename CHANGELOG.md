@@ -26,6 +26,14 @@ takes a tag as its `ref`.
   flagged, none creates "Entrepôt principal" under the shop country, several
   leave the choice to the admin. The delivery modes screen also offers to
   create it.
+- Several pickup points for one pickup mode: each pickup route (transport
+  mode `pickup`) is its own offer at checkout, one per pickup place, and the
+  customer picks theirs. The last-leg options list one entry per point,
+  `GET /cart/me/checkout-quote` and `POST /cart/checkout` take the chosen
+  `pickup_place_id` (omitted: the mode's best point, as before). Other modes
+  keep one offer per mode. In the admin, creating a pickup mode accepts
+  several places (one route per place); a place already offered for that
+  mode cannot be picked again.
 - Pickup modes take a pickup place; its postal address (new fields on physical
   places) is returned by the last-leg options endpoint (`pickup_place`) and
   shown to the customer at checkout under the delivery choice.

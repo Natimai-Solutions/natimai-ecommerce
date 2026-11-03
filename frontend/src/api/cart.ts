@@ -20,6 +20,8 @@ type CheckoutRequest = Omit<
   return_url?: string | null;
   /** Last-leg delivery mode: pickup | home_delivery | air_freight. */
   delivery_type?: string | null;
+  /** Pickup point chosen when the pickup mode offers several. */
+  pickup_place_id?: string | null;
   /** Id of the saved shipping address to link (avoids duplicate creation). */
   shipping_address_id?: string | null;
   /** Promo code validated server-side (the one the quote accepted). */
@@ -295,6 +297,7 @@ export interface CheckoutQuote extends DepositTerms {
 export async function getCheckoutQuote(params: {
   addressId?: string | null;
   deliveryType?: string | null;
+  pickupPlaceId?: string | null;
   paymentMethodId?: string | null;
   discountCode?: string | null;
   paymentPlan?: string | null;
@@ -304,6 +307,7 @@ export async function getCheckoutQuote(params: {
   const query: Record<string, string> = {};
   if (params.addressId) query.address_id = params.addressId;
   if (params.deliveryType) query.delivery_type = params.deliveryType;
+  if (params.pickupPlaceId) query.pickup_place_id = params.pickupPlaceId;
   if (params.paymentMethodId) query.payment_method_id = params.paymentMethodId;
   if (params.discountCode) query.discount_code = params.discountCode;
   if (params.paymentPlan) query.payment_plan = params.paymentPlan;

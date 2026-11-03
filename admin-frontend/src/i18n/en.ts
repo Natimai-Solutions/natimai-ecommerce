@@ -1055,7 +1055,7 @@ const en: MessageSchema = {
     coverage_zones: 'Some zones only',
     custom_code: 'Mode code *',
     custom_code_hint:
-      'Technical identifier without spaces (e.g. pickup_taravao). One offer per code and destination at checkout.',
+      'Technical identifier without spaces (e.g. click_collect). One offer per code and destination at checkout, except pickup (one per place).',
     customer_label: 'Customer label (optional)',
     customer_label_hint:
       'Name of the mode as the customer sees it at checkout. Empty = the standard label of the mode.',
@@ -1116,6 +1116,10 @@ const en: MessageSchema = {
     pickup_place: 'Pickup place *',
     pickup_place_hint: 'Its name and address are shown to the customer at checkout.',
     pickup_place_required: 'Pick the pickup place.',
+    pickup_taken: 'already offered',
+    pickup_places: 'Pickup places *',
+    pickup_places_hint:
+      'One pickup mode is created per place: the customer picks theirs at checkout.',
     postcode: 'Postcode',
     price: 'Price ({currency})',
     price_hint: 'Flat fee per order. Empty or 0 = free.',

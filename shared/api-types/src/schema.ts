@@ -11240,6 +11240,11 @@ export interface components {
              */
             delivery_type?: string | null;
             /**
+             * Pickup Place Id
+             * @description Pickup point chosen for a pickup delivery_type offering several (``pickup_place.place_id`` of the last-leg option). Omitted: the mode's first pickup point.
+             */
+            pickup_place_id?: string | null;
+            /**
              * Payment Method Id
              * @description Payment method to initiate in the same transaction (single-payment flow). When omitted, a pending placeholder payment is created instead.
              */
@@ -14401,7 +14406,7 @@ export interface components {
             eta_days?: number | null;
             /** Route Name */
             route_name?: string | null;
-            /** @description For pickup modes (route mode 'pickup' ending at a shop, warehouse or address): the place and address shown to the customer at checkout. Null for home deliveries. */
+            /** @description For pickup modes (route mode 'pickup' ending at a shop, warehouse or address): the place and address shown to the customer at checkout. A pickup mode with several points yields one option per point; send its place_id as pickup_place_id. Null for home deliveries. */
             pickup_place?: components["schemas"]["PickupPlaceInfo"] | null;
         };
         /**
@@ -31834,6 +31839,8 @@ export interface operations {
                 delivery_type?: string | null;
                 /** @description Chosen payment method (its fee is added) */
                 payment_method_id?: string | null;
+                /** @description Chosen pickup point, for a mode offering several */
+                pickup_place_id?: string | null;
                 /** @description Promo code to price */
                 discount_code?: string | null;
                 /** @description « deposit » to quote a deposit at checkout */

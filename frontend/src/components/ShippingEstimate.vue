@@ -28,11 +28,14 @@
       <ul v-if="estimate.options.length > 0" class="ship-estimate__rows">
         <li
           v-for="option in estimate.options"
-          :key="option.delivery_type"
+          :key="`${option.delivery_type}@${option.pickup_place?.place_id ?? ''}`"
           class="ship-estimate__row"
         >
           <span>
             {{ option.label || deliveryModeLabel(option.delivery_type, t) }}
+            <span v-if="option.pickup_place" class="text-subtle">
+              · {{ option.pickup_place.name }}
+            </span>
             <span v-if="option.eta_days" class="text-subtle">
               · {{ $t('ship_estimate.eta', { n: option.eta_days }, option.eta_days) }}
             </span>

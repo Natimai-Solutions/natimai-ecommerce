@@ -115,6 +115,7 @@
       v-model="dialog"
       :route="editing"
       :places="places"
+      :routes="routes"
       @saved="onSaved"
       @place-created="load"
     />
