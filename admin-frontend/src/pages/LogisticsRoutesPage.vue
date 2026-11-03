@@ -238,34 +238,40 @@
         hide-pagination
         :loading="loading"
       >
+        <template #body-cell-name="props">
+          <q-td :props="props" class="cell-wrap">
+            <div class="text-weight-medium">{{ props.row.name }}</div>
+            <div class="text-caption text-muted">{{ routeTransportSummary(props.row) }}</div>
+          </q-td>
+        </template>
         <template #body-cell-path="props">
-          <q-td :props="props">
+          <q-td :props="props" class="cell-wrap">
             {{ placeName(props.row.from_place_id) }}
             <q-icon name="ph:arrow-right" size="14px" class="text-subtle" />
             {{ placeName(props.row.to_place_id) }}
           </q-td>
         </template>
-        <template #body-cell-service_level="props">
-          <q-td :props="props">{{ serviceLevelLabel(props.row.service_level) }}</q-td>
-        </template>
-        <template #body-cell-mode="props">
-          <q-td :props="props">{{ modeLabel(props.row.mode) }}</q-td>
-        </template>
-        <template #body-cell-delivery_mode="props">
+        <template #body-cell-tariff="props">
           <q-td :props="props">
-            {{
-              props.row.last_leg_delivery_type
-                ? deliveryTypeLabel(props.row.last_leg_delivery_type, t)
-                : '—'
-            }}
+            <div class="font-mono">{{ routePriceSummary(props.row) }}</div>
+            <div v-if="props.row.free_shipping_threshold" class="text-caption text-muted">
+              {{ $t('logistics.free_ge', { amount: props.row.free_shipping_threshold }) }}
+            </div>
           </q-td>
         </template>
-        <template #body-cell-tariff="props">
-          <q-td :props="props" class="font-mono">{{ tariffSummary(props.row) }}</q-td>
-        </template>
-        <template #body-cell-to_customer="props">
+        <template #body-cell-customer="props">
           <q-td :props="props">
-            <q-icon v-if="props.row.is_to_customer" name="ph:check" class="text-positive" />
+            <StatusTag
+              v-if="props.row.is_to_customer && props.row.last_leg_delivery_type"
+              :label="deliveryTypeLabel(props.row.last_leg_delivery_type, t)"
+              tone="ok"
+              icon="ph:package"
+            />
+            <StatusTag
+              v-else-if="props.row.is_to_customer"
+              :label="$t('logistics.tag_final')"
+              tone="neutral"
+            />
             <span v-else>—</span>
           </q-td>
         </template>
@@ -866,31 +872,19 @@ async function makeMainWarehouse(p: Place) {
     error.value = extractApiError(err) ?? t('common.op_failed');
   }
 }
+// Cinq colonnes : transport, service et délai sous le nom, franco sous le
+// tarif, et
+// le rôle client (mode de livraison ou tronçon final) en étiquette — le
+// tableau tient sans défilement horizontal.
 const routeColumns = computed<QTableColumn[]>(() => [
   { name: 'name', label: t('logistics.col_name'), field: 'name', align: 'left' },
   { name: 'path', label: t('logistics.col_path'), field: 'from_place_id', align: 'left' },
-  { name: 'mode', label: t('logistics.col_mode'), field: 'mode', align: 'left' },
+  { name: 'tariff', label: t('logistics.col_tariff'), field: 'base_price', align: 'left' },
   {
-    name: 'service_level',
-    label: t('logistics.col_service'),
-    field: 'service_level',
-    align: 'left',
-  },
-  { name: 'eta', label: t('logistics.col_eta'), field: 'eta_days', align: 'left' },
-  { name: 'price_per_kg', label: t('logistics.col_per_kg'), field: 'price_per_kg', align: 'left' },
-  { name: 'base_price', label: t('logistics.col_flat'), field: 'base_price', align: 'left' },
-  { name: 'tariff', label: t('logistics.col_tariff'), field: 'weight_bands', align: 'left' },
-  {
-    name: 'delivery_mode',
-    label: t('logistics.col_last_leg'),
+    name: 'customer',
+    label: t('logistics.col_customer'),
     field: 'last_leg_delivery_type',
     align: 'left',
-  },
-  {
-    name: 'to_customer',
-    label: t('logistics.col_final'),
-    field: 'is_to_customer',
-    align: 'center',
   },
   { name: 'actions', label: '', field: 'id', align: 'right' },
 ]);
@@ -1063,15 +1057,24 @@ const routeForm = reactive<{
 });
 const routeBands = ref<BandRow[]>([]);
 
-function tariffSummary(r: ShippingRoute): string {
+function routeTransportSummary(r: ShippingRoute): string {
+  return [
+    modeLabel(r.mode),
+    r.service_level ? serviceLevelLabel(r.service_level) : null,
+    r.eta_days != null ? t('delivery_modes.days', { n: r.eta_days }) : null,
+  ]
+    .filter((v): v is string => !!v)
+    .join(' · ');
+}
+
+// Forfait + prix au kg + grille ; rien de tarifé = gratuit.
+function routePriceSummary(r: ShippingRoute): string {
   const parts: string[] = [];
-  if (r.weight_bands && r.weight_bands.length > 0) {
-    parts.push(`${r.weight_bands.length} tranche${r.weight_bands.length > 1 ? 's' : ''}`);
-  }
-  if (r.free_shipping_threshold) {
-    parts.push(t('logistics.free_ge', { amount: r.free_shipping_threshold }));
-  }
-  return parts.length > 0 ? parts.join(' · ') : '—';
+  if (Number(r.base_price ?? 0) > 0) parts.push(r.base_price ?? '');
+  if (Number(r.price_per_kg ?? 0) > 0) parts.push(`${r.price_per_kg}/kg`);
+  const n = r.weight_bands?.length ?? 0;
+  if (n > 0) parts.push(t('delivery_modes.bands', { n }, n));
+  return parts.length > 0 ? parts.join(' + ') : t('delivery_modes.free');
 }
 
 function resetRouteForm() {
@@ -1187,6 +1190,13 @@ onMounted(load);
 </script>
 
 <style scoped lang="scss">
+// q-table ne coupe pas les cellules : les noms et trajets longs passent à
+// la ligne plutôt que d'élargir le tableau.
+.cell-wrap {
+  white-space: normal;
+  min-width: 140px;
+}
+
 .place-roles {
   display: flex;
   flex-wrap: wrap;

@@ -42,7 +42,10 @@ takes a tag as its `ref`.
   warehouse, customs and dropshipping fields. Place types and service levels
   are shown translated. The places table has five columns (code under the
   name, zone under the city, warehouse / customs / origin / dropshipping as
-  tags) and fits without horizontal scrolling from 1024 px.
+  tags) and fits without horizontal scrolling from 1024 px. The routes table
+  has five columns (transport, service level and lead time under the name;
+  free-shipping threshold under the tariff; the delivery mode or "final leg"
+  as a tag) and fits from 1024 px too.
 - Help panels: "Trajets et lieux" explains zones, places and routes (folded
   once closed, remembered per browser); "Modes de livraison" shows three setup
   examples (in-store pickup, flat fee, price by destination), open while no
