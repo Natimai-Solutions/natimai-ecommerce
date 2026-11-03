@@ -32,7 +32,7 @@
           class="ship-estimate__row"
         >
           <span>
-            {{ option.label || option.delivery_type }}
+            {{ option.label || deliveryModeLabel(option.delivery_type, t) }}
             <span v-if="option.eta_days" class="text-subtle">
               · {{ $t('ship_estimate.eta', { n: option.eta_days }, option.eta_days) }}
             </span>
@@ -41,7 +41,9 @@
         </li>
       </ul>
       <p v-else class="ship-estimate__hint">{{ $t('ship_estimate.none') }}</p>
-      <p v-if="productId && estimate.options.length > 0" class="ship-estimate__hint">{{ $t('ship_estimate.for_product') }}</p>
+      <p v-if="productId && estimate.options.length > 0" class="ship-estimate__hint">
+        {{ $t('ship_estimate.for_product') }}
+      </p>
       <p v-if="customsFee > 0" class="ship-estimate__hint">
         {{ $t('ship_estimate.customs', { amount: money(estimate.customs_declaration_fee) }) }}
       </p>
@@ -61,6 +63,7 @@ import {
 } from '@/api/cart';
 import { getGeoTree, type PlaceTreeNode } from '@/api/addresses';
 import { useAuthStore } from '@/stores/auth';
+import { deliveryModeLabel } from '@/utils/deliveryMode';
 import { currentGuestToken, useCartStore } from '@/stores/cart';
 import { useCurrencyStore } from '@/stores/currency';
 import { useShopModulesStore } from '@/stores/shopModules';

@@ -9,6 +9,20 @@ takes a tag as its `ref`.
 
 ### Added
 
+- Admin → Routes and places: a delivery mode offered to the customer is now
+  set up on its own simplified form. The admin picks the leg type (logistics
+  leg or customer delivery mode), then a delivery mode with a translated
+  label (in-store pickup, home delivery, air freight, sea freight, or a custom
+  code); the transport mode follows from it, origin and destination are filled
+  in automatically (main warehouse → pickup place or served zone) and stay
+  reachable under "Advanced options". Service level is reserved to logistics
+  legs.
+- Pickup modes take a pickup place; its postal address (new fields on physical
+  places) is returned by the last-leg options endpoint (`pickup_place`) and
+  shown to the customer at checkout under the delivery choice.
+- Storefront: delivery modes without a customer label are shown with a
+  translated label instead of their technical code.
+
 - `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, issue and pull
   request templates, `CODEOWNERS`: the repository is ready to be worked on one
   part at a time.

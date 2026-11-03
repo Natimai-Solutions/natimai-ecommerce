@@ -37,6 +37,7 @@ from app.features.cart.models.cart import (
     CheckoutShippingPreference,
     LastLegOption,
     LastLegOptionsResponse,
+    PickupPlaceInfo,
 )
 from app.features.cart.models.quote_request import (
     GuestQuoteRequestResponse,
@@ -106,7 +107,7 @@ from app.features.payment.services.payment_initiation import (
     initiate_payment_for_method,
 )
 from app.features.place.crud import crud_place
-from app.features.place.models import Place
+from app.features.place.models import NODE_PLACE_TYPES, Place
 from app.features.product.models.product import (
     BACKORDER_MODES,
     AvailabilityMode,
@@ -2979,6 +2980,30 @@ async def _priced_last_leg_options(
     )
 
 
+def _pickup_place_info(route: ShippingRoute) -> PickupPlaceInfo | None:
+    """The pickup point of a last-leg route, for the checkout.
+
+    A pickup route (``mode == "pickup"``) ends where the customer collects the
+    parcel: its destination place. Only a physical node (shop, warehouse,
+    address…) is shown — a geographic zone left as destination by an older
+    setup is not an address the customer can go to.
+    """
+    if route.mode != "pickup":
+        return None
+    place = route.to_place
+    if place is None or place.type not in NODE_PLACE_TYPES:
+        return None
+    return PickupPlaceInfo(
+        place_id=place.id,
+        name=place.name,
+        address_line1=place.address_line1 or None,
+        address_line2=place.address_line2 or None,
+        postal_code=place.postal_code or None,
+        city=place.city or None,
+        country=place.country or None,
+    )
+
+
 async def _price_last_legs(
     session: SessionDep,
     *,
@@ -3016,6 +3041,7 @@ async def _price_last_legs(
                 currency=currency,
                 eta_days=route.eta_days,
                 route_name=route.name,
+                pickup_place=_pickup_place_info(route),
             )
         )
 

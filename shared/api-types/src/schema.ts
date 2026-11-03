@@ -14401,6 +14401,8 @@ export interface components {
             eta_days?: number | null;
             /** Route Name */
             route_name?: string | null;
+            /** @description For pickup modes (route mode 'pickup' ending at a shop, warehouse or address): the place and address shown to the customer at checkout. Null for home deliveries. */
+            pickup_place?: components["schemas"]["PickupPlaceInfo"] | null;
         };
         /**
          * LastLegOptionsResponse
@@ -17444,6 +17446,32 @@ export interface components {
              * @default 0
              */
             count: number;
+        };
+        /**
+         * PickupPlaceInfo
+         * @description Where the customer collects the parcel for a pickup delivery option.
+         *
+         *     The last-leg route's destination place, with its postal address as the
+         *     admin typed it in Logistics → Places (lines left empty are ``None``).
+         */
+        PickupPlaceInfo: {
+            /**
+             * Place Id
+             * Format: uuid
+             */
+            place_id: string;
+            /** Name */
+            name: string;
+            /** Address Line1 */
+            address_line1?: string | null;
+            /** Address Line2 */
+            address_line2?: string | null;
+            /** Postal Code */
+            postal_code?: string | null;
+            /** City */
+            city?: string | null;
+            /** Country */
+            country?: string | null;
         };
         /**
          * PlaceCreate

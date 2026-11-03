@@ -7,6 +7,10 @@ export interface Place {
   code: string | null;
   country: string | null;
   city: string | null;
+  /** Postal address — shown to the customer when the place is a pickup point. */
+  address_line1: string | null;
+  address_line2: string | null;
+  postal_code: string | null;
   parent_id: string | null;
   is_warehouse: boolean;
   /** The one warehouse supplier goods converge to (set via setMainWarehouse). */
@@ -24,6 +28,9 @@ export interface PlaceCreate {
   code?: string | null;
   country?: string | null;
   city?: string | null;
+  address_line1?: string | null;
+  address_line2?: string | null;
+  postal_code?: string | null;
   parent_id?: string | null;
   is_warehouse?: boolean;
   customs_clearance?: boolean;

@@ -173,6 +173,17 @@ export async function checkoutMyCart(payload: CheckoutRequest): Promise<Checkout
   return data;
 }
 
+/** Where the customer collects a pickup delivery (the route's destination place). */
+export interface PickupPlaceInfo {
+  place_id: string;
+  name: string;
+  address_line1: string | null;
+  address_line2: string | null;
+  postal_code: string | null;
+  city: string | null;
+  country: string | null;
+}
+
 export interface LastLegOption {
   delivery_type: string;
   /** Customer-facing label (route's customer_label); falls back to the mode key. */
@@ -181,6 +192,8 @@ export interface LastLegOption {
   currency: string;
   eta_days: number | null;
   route_name: string | null;
+  /** Pickup modes only: the place (and its address) shown to the customer. */
+  pickup_place?: PickupPlaceInfo | null;
 }
 interface LastLegOptionsResponse {
   currency: string;
@@ -226,10 +239,9 @@ export async function estimateProductShipping(
   placeId: string,
   quantity = 1,
 ): Promise<LastLegOptionsResponse> {
-  const { data } = await api.get<LastLegOptionsResponse>(
-    `/cart/estimate/product/${productId}`,
-    { params: { place_id: placeId, quantity } },
-  );
+  const { data } = await api.get<LastLegOptionsResponse>(`/cart/estimate/product/${productId}`, {
+    params: { place_id: placeId, quantity },
+  });
   return data;
 }
 

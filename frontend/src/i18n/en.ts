@@ -255,6 +255,7 @@ const en: MessageSchema = {
     manage_addresses: 'Manage my addresses',
     step_delivery: 'Delivery',
     delivery_mode: 'Delivery mode',
+    pickup_at: 'Pick up at',
     step_plan: 'Payment plan',
     deposit_required:
       'A {pct}% deposit is due when ordering; the balance is due when your items arrive.',
@@ -310,6 +311,12 @@ const en: MessageSchema = {
     method_unavailable:
       'The selected payment method is not available at the moment. Please try again.',
     failed: 'Something went wrong while placing the order.',
+  },
+  delivery_mode: {
+    pickup: 'In-store pickup',
+    home_delivery: 'Home delivery',
+    air_freight: 'Air freight',
+    sea_freight: 'Sea freight',
   },
   ship_estimate: {
     customs: 'Plus {amount} of customs clearance, once per shipment.',

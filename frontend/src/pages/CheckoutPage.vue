@@ -163,10 +163,7 @@
               <button type="button" class="text-link" @click="addressDialog = true">
                 {{ $t('checkout.add_address') }}
               </button>
-              <router-link
-                :to="{ name: 'account', query: { tab: 'addresses' } }"
-                class="text-link"
-              >
+              <router-link :to="{ name: 'account', query: { tab: 'addresses' } }" class="text-link">
                 {{ $t('checkout.manage_addresses') }}
               </router-link>
             </div>
@@ -181,6 +178,25 @@
               :label="$t('checkout.delivery_mode')"
               :options="deliveryChoices"
             />
+            <!-- Retrait : le lieu où le client vient chercher son colis, tel que
+                 l'admin l'a saisi dans Logistique → Lieux. -->
+            <div
+              v-if="selectedPickupPlace"
+              class="app-panel pickup-place"
+              data-testid="checkout-pickup-place"
+            >
+              <q-icon name="ph:map-pin" size="20px" class="text-muted" />
+              <div class="pickup-place__text">
+                <span class="pickup-place__title">{{ $t('checkout.pickup_at') }}</span>
+                <span class="pickup-place__name">{{ selectedPickupPlace.name }}</span>
+                <span
+                  v-for="line in pickupAddressLines(selectedPickupPlace)"
+                  :key="line"
+                  class="pickup-place__line"
+                  >{{ line }}</span
+                >
+              </div>
+            </div>
           </section>
 
           <section v-if="quote?.deposit_available" class="step">
@@ -449,6 +465,7 @@ import { useI18n } from 'vue-i18n';
 import { useDepartureLabels } from '@/composables/useDepartureLabels';
 import { useRoute } from 'vue-router';
 import { countryLabel, formatMoney as formatInCurrency, orderRef } from '@app/utils';
+import { deliveryModeLabel } from '@/utils/deliveryMode';
 
 import AppNotice from '@app/ui/AppNotice.vue';
 import AddressDialog from '@/components/AddressDialog.vue';
@@ -472,6 +489,7 @@ import {
   checkoutMyCart,
   getCheckoutQuote,
   getLastLegOptions,
+  type PickupPlaceInfo,
   replaceMyCartItems,
   type CheckoutQuote,
 } from '@/api/cart';
@@ -540,9 +558,22 @@ interface DeliveryChoice {
   icon: string;
   amount: string;
   etaDays: number | null;
+  pickupPlace: PickupPlaceInfo | null;
 }
 const deliveryOptions = ref<DeliveryChoice[]>([]);
 const selectedDeliveryType = ref<string | null>(null);
+const selectedPickupPlace = computed(
+  () =>
+    deliveryOptions.value.find((d) => d.value === selectedDeliveryType.value)?.pickupPlace ?? null,
+);
+function pickupAddressLines(place: PickupPlaceInfo): string[] {
+  const locality = [place.postal_code, place.city].filter(Boolean).join(' ');
+  return [
+    place.address_line1,
+    place.address_line2,
+    [locality, place.country ? countryLabel(place.country) : null].filter(Boolean).join(', '),
+  ].filter((line): line is string => !!line && line.length > 0);
+}
 // Frais de dédouanement : facturés une fois par expédition, indépendamment du
 // mode de livraison et du nombre d'articles.
 const customsDeclarationFee = ref('0');
@@ -692,9 +723,6 @@ function iconForMode(mode: string): string {
   if (mode === 'air_freight') return 'ph:airplane-tilt';
   if (mode === 'sea_freight') return 'ph:boat';
   return 'ph:truck';
-}
-function prettifyMode(mode: string): string {
-  return mode.replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 function deliveryPriceLabel(amount: string): string {
   const n = Number.parseFloat(amount);
@@ -924,10 +952,11 @@ async function loadDeliveryOptions() {
     customsDeclarationFee.value = String(res.customs_declaration_fee ?? '0');
     deliveryOptions.value = res.options.map((o) => ({
       value: o.delivery_type,
-      label: o.label || prettifyMode(o.delivery_type),
+      label: o.label || deliveryModeLabel(o.delivery_type, t),
       icon: iconForMode(o.delivery_type),
       amount: o.amount,
       etaDays: o.eta_days,
+      pickupPlace: o.pickup_place ?? null,
     }));
     // Keep the current choice when the new destination still offers it.
     if (!deliveryOptions.value.some((d) => d.value === selectedDeliveryType.value)) {
@@ -1248,6 +1277,37 @@ async function uploadDocument() {
 .credit-toggle__text {
   flex-grow: 1;
   font-size: 14px;
+}
+
+.pickup-place {
+  margin-top: 12px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.pickup-place__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.pickup-place__title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--n-ink-2);
+}
+
+.pickup-place__name {
+  font-weight: 500;
+}
+
+.pickup-place__line {
+  color: var(--n-ink-2);
 }
 
 .checkout__confirm {
