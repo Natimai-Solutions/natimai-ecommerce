@@ -362,7 +362,7 @@ watch(
   max-width: 560px;
   padding: 20px;
   border: 1px solid var(--n-line);
-  border-radius: 8px;
+  border-radius: var(--n-radius);
 }
 
 .reviews__form-title {
@@ -395,7 +395,7 @@ watch(
   &:focus-visible {
     outline: 2px solid var(--n-accent);
     outline-offset: 2px;
-    border-radius: 4px;
+    border-radius: var(--n-radius-sm);
   }
 }
 

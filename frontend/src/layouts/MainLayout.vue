@@ -441,7 +441,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 10px;
   border: 1px solid var(--n-line);
-  border-radius: 8px;
+  border-radius: var(--n-radius);
   background: var(--n-bg);
   transition:
     border-color 0.2s ease,
@@ -484,7 +484,7 @@ onBeforeUnmount(() => {
 .search-field__kbd {
   padding: 1px 6px;
   border: 1px solid var(--n-line);
-  border-radius: 4px;
+  border-radius: var(--n-radius-sm);
   font-size: 11px;
   color: var(--n-ink-3);
   cursor: help;
@@ -523,7 +523,7 @@ onBeforeUnmount(() => {
   height: 40px;
   padding: 0 8px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--n-radius);
   background: transparent;
   color: var(--n-ink-2);
   font-size: 13px;
@@ -549,7 +549,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 999px;
+  border-radius: var(--n-radius-pill);
   background: var(--n-accent);
   color: var(--n-on-accent);
   font-size: 11px;
@@ -573,7 +573,7 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: space-between;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--n-radius);
   background: transparent;
   color: var(--n-ink);
   font: inherit;
@@ -616,7 +616,8 @@ onBeforeUnmount(() => {
   gap: 16px;
   font-size: 13px;
 
-  @media (max-width: 767px) {
+  // Empilé jusqu'à la tablette : en ligne, le copyright se coupe en deux.
+  @media (max-width: 1023px) {
     flex-direction: column-reverse;
     align-items: flex-start;
     gap: 14px;

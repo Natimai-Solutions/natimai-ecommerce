@@ -29,8 +29,8 @@ $typography-font-family:
   sans-serif;
 
 // Forme : un seul rayon de 8px pour cartes, champs et boutons
-$generic-border-radius: 8px;
-$button-border-radius: 8px;
+$generic-border-radius: var(--n-radius);
+$button-border-radius: var(--n-radius);
 $button-font-weight: 500;
 $button-shadow: none;
 $button-shadow-active: none;

@@ -171,12 +171,12 @@ onMounted(loadAddresses);
   flex-direction: column;
   gap: 12px;
   border: 1px solid var(--n-line);
-  border-radius: 8px;
+  border-radius: var(--n-radius);
   background: var(--n-surface);
 }
 
 .address-card__skeleton {
-  border-radius: 8px;
+  border-radius: var(--n-radius);
 }
 
 .address-card__head {

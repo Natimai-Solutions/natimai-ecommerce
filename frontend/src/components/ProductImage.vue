@@ -57,7 +57,7 @@ watch(
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  border-radius: 8px;
+  border-radius: var(--n-radius);
   background: var(--n-photo);
   transition: background-color 0.25s ease;
 }

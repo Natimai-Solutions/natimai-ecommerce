@@ -637,7 +637,7 @@ onMounted(load);
   width: 240px;
   height: 160px;
   object-fit: cover;
-  border-radius: 8px;
+  border-radius: var(--n-radius);
   background: var(--n-tile);
 }
 </style>

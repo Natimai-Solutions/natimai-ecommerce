@@ -188,7 +188,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .margin-panel {
   border: 1px solid var(--n-line);
-  border-radius: 8px;
+  border-radius: var(--n-radius);
   background: var(--n-tile);
   padding: 12px 14px;
   margin: 4px 0 12px;

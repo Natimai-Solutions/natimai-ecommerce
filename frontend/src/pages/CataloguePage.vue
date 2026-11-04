@@ -861,7 +861,7 @@ onMounted(async () => {
     display: none;
   }
 
-  @media (max-width: 767px) {
+  @media (max-width: 599px) {
     margin: 0 -16px;
     padding: 0 16px 4px;
   }
@@ -879,7 +879,7 @@ onMounted(async () => {
   height: 36px;
   padding: 0 16px;
   border: 1px solid var(--n-line);
-  border-radius: 999px;
+  border-radius: var(--n-radius-pill);
   background: transparent;
   color: var(--n-ink-2);
   font: inherit;
@@ -1083,7 +1083,7 @@ onMounted(async () => {
   height: 40px;
   padding: 0 10px;
   border: 1px solid var(--n-line-2);
-  border-radius: 8px;
+  border-radius: var(--n-radius);
   background: var(--n-surface);
   color: var(--n-ink);
   font: inherit;
@@ -1165,7 +1165,7 @@ onMounted(async () => {
   align-items: center;
   gap: 6px;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--n-radius-pill);
   background: var(--n-accent-soft);
   color: var(--n-accent);
   font: inherit;
@@ -1226,7 +1226,7 @@ onMounted(async () => {
   gap: 16px;
   font-size: 13px;
 
-  @media (max-width: 767px) {
+  @media (max-width: 599px) {
     flex-direction: column;
   }
 }

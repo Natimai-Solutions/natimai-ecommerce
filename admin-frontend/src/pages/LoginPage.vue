@@ -139,7 +139,7 @@ async function onSubmit() {
   height: 30px;
   display: grid;
   place-items: center;
-  border-radius: 8px;
+  border-radius: var(--n-radius);
   background: var(--n-ink);
   color: var(--n-on-ink);
   font-weight: 700;

@@ -94,6 +94,19 @@ takes a tag as its `ref`.
 
 ### Changed
 
+- Front: one source for the Quasar Sass variables and the theme preference
+  (`shared/ui`); each app keeps its own storage (cookie for the SSR
+  storefront, localStorage for the admin). Radius and spacing tokens
+  (`--n-radius*`, `--n-space-*`, Quasar's spacing scale) replace 83 hard-coded
+  radii, pixel-identical.
+- Front: breakpoints on Quasar's scale only (600 / 1024 / 1440 px). Phone
+  tweaks moved from 767 to 599 px, so a portrait tablet (600–767 px) gets the
+  wider layout (3-column product grid, side-by-side banners); the product grid
+  and product page switch to 3 columns / the narrower buy column under
+  1440 px instead of 1280; the storefront footer stays stacked up to 1023 px;
+  the admin product form stacks under 1024 px. The admin order detail and
+  settings navigation follow the width left by the side menu (container
+  queries) instead of a screen width.
 - Admin: the 20 form fields that had no label (placeholder only, or nothing
   in a table cell) now have one for screen readers: the four list searches,
   and the table inputs of margins, reception, deposits, price groups, product

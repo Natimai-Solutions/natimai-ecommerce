@@ -4,6 +4,21 @@
 // sombre (classe body--dark posée par le plugin Dark de Quasar). Les
 // composants utilisent ces variables plutôt que des couleurs en dur.
 
+// Forme et espacement : mêmes valeurs dans les deux thèmes. Le rayon suit
+// $generic-border-radius (quasar.variables.scss) ; l'espacement reprend
+// l'échelle de Quasar ($space-*, classes q-pa-md, q-gutter-sm…).
+:root {
+  --n-radius-sm: 4px;
+  --n-radius: 8px;
+  --n-radius-lg: 12px;
+  --n-radius-pill: 999px;
+  --n-space-xs: 4px;
+  --n-space-sm: 8px;
+  --n-space-md: 16px;
+  --n-space-lg: 24px;
+  --n-space-xl: 48px;
+}
+
 body.body--light,
 body:not(.body--dark) {
   --n-bg: #fafafa;

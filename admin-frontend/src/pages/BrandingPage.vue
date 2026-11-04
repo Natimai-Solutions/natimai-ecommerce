@@ -179,7 +179,7 @@ onMounted(load);
   align-items: center;
   justify-content: center;
   border: 1px solid var(--n-line);
-  border-radius: 8px;
+  border-radius: var(--n-radius);
   background: var(--n-tile);
   overflow: hidden;
 
@@ -197,7 +197,7 @@ onMounted(load);
     width: 64px;
     height: 64px;
     object-fit: cover;
-    border-radius: 12px;
+    border-radius: var(--n-radius-lg);
   }
 }
 </style>

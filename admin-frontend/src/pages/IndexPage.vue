@@ -376,7 +376,7 @@ onMounted(() => {
   margin: 0;
   padding: 0;
   border: 1px solid var(--n-line);
-  border-radius: 8px;
+  border-radius: var(--n-radius);
   overflow: hidden;
 
   li + li {
@@ -439,7 +439,7 @@ onMounted(() => {
 
 .todo-skeleton {
   height: 132px;
-  border-radius: 8px;
+  border-radius: var(--n-radius);
 }
 
 .todo-tile {
@@ -461,7 +461,7 @@ onMounted(() => {
   font-size: 12px;
   color: var(--n-ink-3);
   border: 1px solid var(--n-line);
-  border-radius: 8px;
+  border-radius: var(--n-radius);
   background: var(--n-surface);
   color: var(--n-ink);
   text-decoration: none;
@@ -560,7 +560,7 @@ onMounted(() => {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   border-top: 1px solid var(--n-line);
   border-left: 1px solid var(--n-line);
-  border-radius: 8px;
+  border-radius: var(--n-radius);
   overflow: hidden;
 }
 
@@ -614,7 +614,7 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   border: 1px solid var(--n-line);
-  border-radius: 8px;
+  border-radius: var(--n-radius);
   color: var(--n-ink);
   font-size: 13.5px;
   text-decoration: none;

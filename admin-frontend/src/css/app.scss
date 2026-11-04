@@ -17,7 +17,7 @@
   margin: 0 auto;
   padding: 28px 32px 72px;
 
-  @media (max-width: 767px) {
+  @media (max-width: 599px) {
     padding: 20px 16px 56px;
   }
 }
@@ -121,7 +121,7 @@ body .q-table__container {
 
 body .q-table--bordered {
   border: 1px solid var(--n-line);
-  border-radius: 8px;
+  border-radius: var(--n-radius);
 }
 
 body .q-table {
@@ -158,7 +158,7 @@ body .q-table__bottom {
 
 body .q-table__card,
 body .q-table__middle {
-  border-radius: 8px;
+  border-radius: var(--n-radius);
 }
 
 // Codes et références en chasse fixe : un cran plus petits que le texte.
@@ -207,7 +207,7 @@ body .q-menu {
 }
 
 body .q-dialog .q-card:not(.q-dialog__inner--maximized .q-card) {
-  border-radius: 12px;
+  border-radius: var(--n-radius-lg);
 }
 
 body .q-dialog__backdrop {
@@ -232,7 +232,7 @@ body .q-separator {
 }
 
 body .q-expansion-item--standard > .q-expansion-item__container > .q-item {
-  border-radius: 8px;
+  border-radius: var(--n-radius);
 }
 
 body .q-list--bordered,

@@ -106,7 +106,7 @@ const status = computed(() => props.statusOf(props.modelValue));
 
 .lang-tabs__toggle {
   border: 1px solid var(--n-border);
-  border-radius: 8px;
+  border-radius: var(--n-radius);
 }
 
 .lang-tabs__hint {

@@ -1797,7 +1797,7 @@ onMounted(() => {
 
 .fulfilment-link {
   text-decoration: none;
-  border-radius: 999px;
+  border-radius: var(--n-radius-pill);
 
   &:hover :deep(.status-tag) {
     border-color: var(--n-ink-3);
@@ -1810,7 +1810,7 @@ onMounted(() => {
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   border-top: 1px solid var(--n-line);
   border-left: 1px solid var(--n-line);
-  border-radius: 8px;
+  border-radius: var(--n-radius);
   overflow: hidden;
 }
 

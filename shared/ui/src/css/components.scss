@@ -36,7 +36,7 @@
 
 .app-panel {
   padding: 24px;
-  border-radius: 8px;
+  border-radius: var(--n-radius);
   background: var(--n-tile);
 
   @media (max-width: 599px) {
@@ -133,7 +133,7 @@ a.app-row__title:hover {
   align-items: center;
   gap: 8px;
   text-align: center;
-  border-radius: 8px;
+  border-radius: var(--n-radius);
   background: var(--n-tile);
 
   h3 {
@@ -194,7 +194,7 @@ a.app-row__title:hover {
 .app-dialog {
   width: 520px;
   max-width: calc(100vw - 32px);
-  border-radius: 12px;
+  border-radius: var(--n-radius-lg);
 
   &--narrow {
     width: 420px;
@@ -343,7 +343,7 @@ a.app-row__title:hover {
   img {
     max-width: 100%;
     height: auto;
-    border-radius: 8px;
+    border-radius: var(--n-radius);
   }
 
   table {

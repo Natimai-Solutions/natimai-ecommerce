@@ -47,7 +47,7 @@
       <q-spinner size="2em" />
     </div>
 
-    <template v-else-if="order">
+    <div v-else-if="order" class="order-layout-container">
       <div class="order-layout">
         <!-- Contenu principal : articles, paiements, transport -->
         <div class="order-main">
@@ -836,7 +836,7 @@
           </q-form>
         </q-card>
       </q-dialog>
-    </template>
+    </div>
   </q-page>
 </template>
 
@@ -1342,13 +1342,19 @@ onMounted(load);
 
 <style scoped lang="scss">
 // Fiche commande : contenu principal à gauche, récapitulatif et client à droite.
+// La place dépend du menu latéral (affiché dès 1024 px) : la colonne de
+// droite suit la largeur disponible, pas celle de l'écran.
+.order-layout-container {
+  container-type: inline-size;
+}
+
 .order-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 360px;
   gap: 40px;
   align-items: start;
 
-  @media (max-width: 1199px) {
+  @container (max-width: 879px) {
     grid-template-columns: minmax(0, 1fr);
   }
 }
