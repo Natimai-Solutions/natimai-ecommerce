@@ -92,15 +92,6 @@ takes a tag as its `ref`.
   published image, ClamAV stays off.
 - `shared/README.md`; `backend/README.md` now explains how to run the API alone.
 
-### Removed
-
-- Generic CRUD routes no frontend calls: analytics (products, sales, users),
-  partners, stock movements (`/inventory/stock-movements`) and user
-  notifications (`/notification/users/…`). Their models and tables stay: stock
-  movements are still written by checkout and the admin inventory screen,
-  and account deletion still purges notifications. `group_security` stays
-  (superuser-only), as the base of the future fine-grained roles.
-
 ### Changed
 
 - Admin: the « modifications non enregistrées » guard now covers the form
@@ -125,6 +116,15 @@ takes a tag as its `ref`.
   moved to `docs/internal/`. The root `README.md` is now a map of the repository.
 - Root `package.json` is named `natimai-ecommerce` and carries the repository
   metadata.
+
+### Removed
+
+- Generic CRUD routes no frontend calls: analytics (products, sales, users),
+  partners, stock movements (`/inventory/stock-movements`) and user
+  notifications (`/notification/users/…`). Their models and tables stay: stock
+  movements are still written by checkout and the admin inventory screen,
+  and account deletion still purges notifications. `group_security` stays
+  (superuser-only), as the base of the future fine-grained roles.
 
 ### Fixed
 
