@@ -112,8 +112,10 @@ PR skips pytest and the end-to-end suite. Skipped jobs count as passed. On
   documents every variable, gitleaks runs in CI.
 
 Backend conventions (module layout, CRUD, error shape) are in
-[`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md); frontend conventions and the
-admin screen charter are in each app's README.
+[`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md); interface rules shared by both apps
+(colours, theme, breakpoints, formats, the design skill and what overrides it)
+are in [`docs/GUIDE_INTERFACE.md`](docs/GUIDE_INTERFACE.md); the admin screen
+charter is in its README.
 
 ## Pull requests
 

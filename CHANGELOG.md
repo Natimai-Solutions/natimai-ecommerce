@@ -9,6 +9,10 @@ takes a tag as its `ref`.
 
 ### Added
 
+- `docs/GUIDE_INTERFACE.md`: the interface rules shared by the storefront and
+  the admin, on the model of natimai-paie, and the design skill they override
+  (`design-taste-frontend`, frozen copy under `.claude/skills/`, recorded in
+  `skills-lock.json`; `.gitignore` now keeps `.claude/skills/`).
 - Admin home → « Mise en route »: a start-up checklist computed from the data
   (`GET /admin/setup-checklist`): seller legal identity, shop e-mail for
   alerts, an active payment method, an online catalogue, products hidden for

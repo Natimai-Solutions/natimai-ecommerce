@@ -20,6 +20,9 @@ configurations possibles : [`CONTRIBUTING.md`](../CONTRIBUTING.md).
 
 ## Charte des écrans (R9 / T8)
 
+Les règles communes à la vitrine (couleurs, thème, points de rupture, formats,
+états) sont dans [`docs/GUIDE_INTERFACE.md`](../docs/GUIDE_INTERFACE.md).
+
 Courte, pour que les 37 écrans se lisent de la même façon. Quand un cas n'est
 pas prévu ici, copier l'écran le plus proche plutôt qu'inventer.
 
@@ -52,7 +55,7 @@ pas prévu ici, copier l'écran le plus proche plutôt qu'inventer.
 | Télécharger          | `ph:download-simple`            |                                                                 |
 
 Les statuts ne sont jamais une couleur Quasar brute (`color="green"`) :
-`StatusTag` avec un `tone` (`ok`, `warn`, `error`, `neutral`, `info`).
+`StatusTag` avec un `tone` (`ok`, `warn`, `danger`, `neutral`).
 
 ### Suppressions et confirmations
 
