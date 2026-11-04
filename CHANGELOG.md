@@ -160,8 +160,8 @@ takes a tag as its `ref`.
 ### Fixed
 
 - Admin → Paiements: the status tag was always grey (a payment status name
-  was read as a colour); settled, pending and failed payments now show their
-  tone.
+  was read as a colour); settled payments, payments to capture or validate
+  and failed payments now show their tone.
 - Admin: four borders and backgrounds used tokens that do not exist
   (`--n-border`, `--n-surface-2`) and fell back to a fixed grey, or drew no
   border at all (content language tabs, product link kind): they use

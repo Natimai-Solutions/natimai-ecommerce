@@ -244,11 +244,12 @@ const PAYMENT_STATUS_TONES: Record<string, StatusTone> = {
   DocumentRequired: 'warn',
   DocumentUploaded: 'warn',
   UnderReview: 'warn',
-  Pending: 'warn',
   Failed: 'danger',
 };
 /** Encaissé : ok ; à capturer ou à valider : warn ; refusé : danger ; le reste
- * (annulé, remboursé, abandonné) est clos sans incident : neutre. */
+ * est neutre : clos sans incident (annulé, remboursé) ou simplement en attente
+ * (« Pending », l'état de repos de tout formulaire de carte ouvert puis
+ * abandonné : une alerte là-dessus noierait celles qui comptent). */
 function paymentStatusTone(status: string): StatusTone {
   return PAYMENT_STATUS_TONES[status] ?? 'neutral';
 }

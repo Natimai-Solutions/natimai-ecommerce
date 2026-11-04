@@ -58,11 +58,16 @@ def genesis_hash(series: Series, fiscal_year: int) -> str:
     return hashlib.sha256(seed.encode()).hexdigest()
 
 
+class NaiveIssuanceDate(ValueError):
+    """``issued_at`` has no time zone: hashed as one instant, stored as another."""
+
+
 def _canonical_datetime(value: datetime) -> str:
-    # Stored as timestamptz: the same instant reads back in UTC. A naive value
-    # is a UTC one (the application never writes local times).
+    # Stored as timestamptz, the same instant reads back in UTC. A naive value
+    # would be hashed as UTC here but stored in the session's time zone by
+    # PostgreSQL: the document would read back altered. Refuse it.
     if value.tzinfo is None:
-        value = value.replace(tzinfo=UTC)
+        raise NaiveIssuanceDate(f"issued_at must be time-zone aware: {value!r}")
     return value.astimezone(UTC).isoformat(timespec="microseconds")
 
 
@@ -108,14 +113,44 @@ def compute_hash(document: Document, previous_hash: str) -> str:
 
 
 async def _year_documents(
-    session: AsyncSession, series: Series, fiscal_year: int, *, before: int | None
+    session: AsyncSession,
+    series: Series,
+    fiscal_year: int,
+    *,
+    before: int | None = None,
+    after: int | None = None,
 ) -> list[Document]:
     model = _model_of(series)
     statement = select(model).where(col(model.fiscal_year) == fiscal_year)
     if before is not None:
         statement = statement.where(col(model.sequence_number) < before)
+    if after is not None:
+        statement = statement.where(col(model.sequence_number) > after)
     result = await session.exec(statement.order_by(col(model.sequence_number)))
     return [cast(Document, row) for row in result.all()]
+
+
+async def _last_sealed_before(
+    session: AsyncSession, series: Series, fiscal_year: int, before: int
+) -> tuple[int, str] | None:
+    """Sequence number and hash of the last sealed document before ``before``."""
+    model = _model_of(series)
+    row = (
+        await session.exec(
+            select(model.sequence_number, model.chain_hash)
+            .where(
+                col(model.fiscal_year) == fiscal_year,
+                col(model.sequence_number) < before,
+                col(model.chain_hash).is_not(None),
+            )
+            .order_by(col(model.sequence_number).desc())
+            .limit(1)
+        )
+    ).first()
+    if row is None:
+        return None
+    sequence, chain_hash = row
+    return int(sequence), str(chain_hash)
 
 
 async def seal_document(session: AsyncSession, document: Document) -> None:
@@ -125,11 +160,24 @@ async def seal_document(session: AsyncSession, document: Document) -> None:
     issuing transaction: the year's counter lock is held, so no other document
     of the series and year can be issued in between. Earlier documents of the
     year still unsealed (issued before the chain existed) are sealed first.
+
+    Only the last sealed document's hash is read (two columns); the full rows
+    are loaded only for the unsealed tail, which is empty once the chain is
+    established.
     """
     series = _series_of(document)
-    previous = genesis_hash(series, document.fiscal_year)
+    last = await _last_sealed_before(
+        session, series, document.fiscal_year, document.sequence_number
+    )
+    after, previous = last if last is not None else (None, None)
+    if previous is None:
+        previous = genesis_hash(series, document.fiscal_year)
     for earlier in await _year_documents(
-        session, series, document.fiscal_year, before=document.sequence_number
+        session,
+        series,
+        document.fiscal_year,
+        before=document.sequence_number,
+        after=after,
     ):
         if earlier.chain_hash is None:
             earlier.previous_hash = previous
@@ -169,7 +217,7 @@ async def verify_chain(
       deleted, inserted or re-sealed);
     * ``gap``: a sequence number is missing.
     """
-    documents = await _year_documents(session, series, fiscal_year, before=None)
+    documents = await _year_documents(session, series, fiscal_year)
     report = ChainReport(
         series=series,
         fiscal_year=fiscal_year,
@@ -218,6 +266,7 @@ async def verify_chains(session: AsyncSession) -> list[ChainReport]:
 __all__ = [
     "ChainBreak",
     "ChainReport",
+    "NaiveIssuanceDate",
     "compute_hash",
     "document_content",
     "genesis_hash",

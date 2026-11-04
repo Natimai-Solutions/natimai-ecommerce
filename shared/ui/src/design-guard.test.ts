@@ -58,7 +58,10 @@ const RULES: Rule[] = [
   },
   {
     why: 'couleur en dur (#hex, rgb()) : la définir comme jeton dans tokens.scss',
-    pattern: /#[0-9a-fA-F]{3,8}\b(?![\w-])|\brgba?\(\s*\d/,
+    // Une valeur CSS : précédée de « : », d'un espace, de « ( », « , » ou
+    // d'une apostrophe, suivie de « ; », « ) », « , », d'un blanc ou d'une
+    // apostrophe. Ni un slot (`<template #add>`) ni une ancre (`href="#cafe"`).
+    pattern: /(?:^|[\s:(,'])#[0-9a-fA-F]{3,8}(?=[;\s,)']|$)|\brgba?\(\s*\d/,
     tokensExempt: true,
   },
   {

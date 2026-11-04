@@ -156,9 +156,6 @@ class WebhookEventAlreadyRecorded(Exception):
     """The provider event was already processed (same provider, same id)."""
 
 
-_AlreadyRecorded = WebhookEventAlreadyRecorded
-
-
 async def record_webhook_event(
     session: AsyncSession,
     *,
@@ -280,7 +277,7 @@ async def apply_provider_outcome(
             await _record_event(
                 session, outcome, payment_id=None, result=RESULT_UNKNOWN_PAYMENT
             )
-        except _AlreadyRecorded:
+        except WebhookEventAlreadyRecorded:
             return PipelineResult(RESULT_DUPLICATE)
         await _commit(session)
         return PipelineResult(RESULT_UNKNOWN_PAYMENT)
@@ -297,7 +294,7 @@ async def apply_provider_outcome(
         event = await _record_event(
             session, outcome, payment_id=payment_id, result=_pending_result(outcome)
         )
-    except _AlreadyRecorded:
+    except WebhookEventAlreadyRecorded:
         return done(RESULT_DUPLICATE)
 
     def mark(result: str) -> None:

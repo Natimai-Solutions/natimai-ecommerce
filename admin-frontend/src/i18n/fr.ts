@@ -465,13 +465,13 @@ const fr = {
     setup: 'Mise en route',
     setup_catalogue: 'Catalogue en ligne',
     setup_catalogue_hint:
-      'Aucun produit enrichi et actif : synchronisez un fournisseur ou créez des produits.',
+      'Aucun produit publiable (actif, avec son contenu) : synchronisez un fournisseur ou créez des produits.',
     setup_customs_declaration_fees: 'Frais par déclaration en douane',
     setup_customs_declaration_fees_hint:
       "{n} lieu(x) de dédouanement sans frais par déclaration : rien ne sera facturé. À confirmer si c'est voulu.",
     setup_customs_rates: 'Taux de douane',
     setup_customs_rates_hint:
-      '{n} produit(s) masqué(s) : taux de douane introuvable pour leur catégorie.',
+      '{n} produit(s) importé(s) masqué(s) : taux de douane introuvable pour leur catégorie.',
     setup_insurance_rate: "Taux d'assurance transport",
     setup_insurance_rate_hint:
       "À 0 %, la prime d'assurance n'est jamais récupérée sur les ventes. À confirmer si c'est voulu.",
@@ -489,7 +489,7 @@ const fr = {
       'Sans adresse, les nouvelles commandes à valider et les incidents de paiement ne préviennent personne.',
     setup_weights: 'Poids des produits',
     setup_weights_hint:
-      '{n} produit(s) masqué(s) : poids manquant, le transport ne peut pas être calculé.',
+      '{n} produit(s) importé(s) masqué(s) : poids manquant, le fret ne peut pas être calculé.',
     shortcuts: 'Raccourcis',
     t_groups: 'Demandes de groupe',
     t_groups_hint: 'Clients qui demandent un tarif professionnel',

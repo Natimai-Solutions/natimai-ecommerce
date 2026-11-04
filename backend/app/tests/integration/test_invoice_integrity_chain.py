@@ -16,6 +16,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.invoice.models.invoice import Invoice
 from app.features.invoice.services.integrity import (
+    NaiveIssuanceDate,
+    compute_hash,
     genesis_hash,
     verify_chain,
     verify_chains,
@@ -142,3 +144,23 @@ async def test_invoices_issued_before_the_chain_are_sealed_by_the_next_one(
     assert [(r.series, r.fiscal_year, r.sealed, r.intact) for r in reports] == [
         ("invoice", 2026, 2, True)
     ]
+
+
+def test_a_naive_issuance_date_is_refused() -> None:
+    """Hashed as UTC but stored in the session time zone, a naive date would
+    read back as an altered document: it is refused at seal time."""
+    naive = Invoice(
+        invoice_number="FAC-2026-00001",
+        fiscal_year=2026,
+        sequence_number=1,
+        order_id=uuid.uuid4(),
+        user_id=uuid.uuid4(),
+        issued_at=_ISSUED.replace(tzinfo=None),
+        currency="XPF",
+        total_excl_tax=Decimal("100"),
+        total_tax=Decimal("16"),
+        total_incl_tax=Decimal("116"),
+        snapshot={},
+    )
+    with pytest.raises(NaiveIssuanceDate):
+        compute_hash(naive, genesis_hash("invoice", 2026))

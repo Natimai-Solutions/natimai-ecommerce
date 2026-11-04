@@ -11,6 +11,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.routes import admin_setup_checklist as checklist
 from app.features.payment.models.payment_method import PaymentMethod
 from app.features.place.models import Place
+from app.features.product.models.product import PricingMode, Product
 from app.features.system.legal_identity import REQUIRED_FOR_INVOICING
 from app.features.user.models.user import User
 
@@ -87,3 +88,41 @@ async def test_a_configured_shop_only_misses_its_catalogue(
     # The empty catalogue is the only thing left.
     assert [k for k, (s, _) in statuses.items() if s == "todo"] == ["catalogue"]
     assert not result.ready
+
+
+@pytest.mark.asyncio
+async def test_the_catalogue_is_counted_as_the_storefront_publishes_it(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A classic shop: products entered by hand (never enriched by Icecat),
+    sold at a fixed price. They are online, and neither a customs rate nor a
+    weight is needed for them: the checklist must not ask for one."""
+    _settings(monkeypatch, {})
+    _legal(monkeypatch, {})
+    db_session.add_all(
+        [
+            Product(
+                name="Câble HDMI",
+                description="",
+                base_price=Decimal("2500"),
+                pricing_mode=PricingMode.FIXED,
+                is_supplier_managed=False,
+            ),
+            # A supplier line still waiting for Icecat: not online yet.
+            Product(
+                name="SKU-IM-1",
+                description="",
+                base_price=Decimal("1"),
+                is_supplier_managed=True,
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    statuses = _statuses(
+        await checklist.get_setup_checklist(db_session, cast(User, None))
+    )
+
+    assert statuses["catalogue"] == ("done", 1)
+    assert statuses["customs_rates"] == ("done", 0)
+    assert statuses["weights"] == ("done", 0)

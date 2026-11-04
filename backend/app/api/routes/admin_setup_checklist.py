@@ -9,19 +9,20 @@ declaration fees): the admin confirms it by looking, the item stays visible.
 from __future__ import annotations
 
 from decimal import Decimal, InvalidOperation
-from typing import Any, Literal
+from typing import Literal
 
 from fastapi import APIRouter
 from pydantic import BaseModel
-from sqlalchemy import func
-from sqlmodel import col, select
+from sqlmodel import col
 
 from app.api.deps import CurrentSuperUser, SessionDep
+from app.api.routes.admin_dashboard import _count
 from app.core import runtime_settings
 from app.features.payment.models.payment_method import PaymentMethod
 from app.features.place.models import Place
-from app.features.product.models.product import Product
+from app.features.product.models.product import PricingMode, Product
 from app.features.product.services.publication import (
+    content_ready_condition,
     customs_rate_condition,
     weight_condition,
 )
@@ -51,11 +52,6 @@ class SetupChecklist(BaseModel):
     total: int
     #: Every item is done (``check`` items do not block).
     ready: bool
-
-
-async def _count(session: SessionDep, model: Any, *conditions: Any) -> int:
-    statement = select(func.count()).select_from(model).where(*conditions)
-    return int((await session.exec(statement)).one())
 
 
 def _is_zero(value: object) -> bool:
@@ -109,23 +105,26 @@ async def get_setup_checklist(
         )
     )
 
-    # The catalogue: a product whose customs rate or weight does not resolve
-    # is hidden from the storefront.
+    # The catalogue, as the storefront sees it (publication.py): a product
+    # with content (enriched, manual, or published as it stands) and not a
+    # draft. The customs rate and the weight only block an imported product.
     catalogue = [
         col(Product.is_active).is_(True),
         col(Product.is_admin_active).is_(True),
-        col(Product.is_enriched).is_(True),
+        col(Product.is_draft).is_(False),
+        content_ready_condition(),
     ]
-    enriched = await _count(session, Product, *catalogue)
+    imported = [*catalogue, col(Product.pricing_mode) == PricingMode.IMPORT.value]
+    with_content = await _count(session, Product, *catalogue)
     blocked_customs = await _count(
-        session, Product, *catalogue, ~customs_rate_condition()
+        session, Product, *imported, ~customs_rate_condition()
     )
-    blocked_weight = await _count(session, Product, *catalogue, ~weight_condition())
+    blocked_weight = await _count(session, Product, *imported, ~weight_condition())
     items.append(
         SetupChecklistItem(
             key="catalogue",
-            status="done" if enriched else "todo",
-            count=enriched,
+            status="done" if with_content else "todo",
+            count=with_content,
             to="/products",
         )
     )

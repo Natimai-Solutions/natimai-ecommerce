@@ -464,12 +464,14 @@ const en: MessageSchema = {
     s_settings: 'Settings',
     setup: 'Getting started',
     setup_catalogue: 'Catalogue online',
-    setup_catalogue_hint: 'No enriched, active product: sync a supplier or create products.',
+    setup_catalogue_hint:
+      'No publishable product (active, with its content): sync a supplier or create products.',
     setup_customs_declaration_fees: 'Fees per customs declaration',
     setup_customs_declaration_fees_hint:
       '{n} clearance place(s) without a fee per declaration: nothing will be charged. Confirm it is intended.',
     setup_customs_rates: 'Customs rates',
-    setup_customs_rates_hint: '{n} product(s) hidden: no customs rate found for their category.',
+    setup_customs_rates_hint:
+      '{n} imported product(s) hidden: no customs rate found for their category.',
     setup_insurance_rate: 'Transport insurance rate',
     setup_insurance_rate_hint:
       'At 0 %, the insurance premium is never recovered on sales. Confirm it is intended.',
@@ -485,7 +487,7 @@ const en: MessageSchema = {
     setup_support_email_hint:
       'Without an address, new orders to validate and payment incidents notify no one.',
     setup_weights: 'Product weights',
-    setup_weights_hint: '{n} product(s) hidden: weight missing, shipping cannot be priced.',
+    setup_weights_hint: '{n} imported product(s) hidden: weight missing, freight cannot be priced.',
     shortcuts: 'Shortcuts',
     t_groups: 'Group requests',
     t_groups_hint: 'Customers asking for professional pricing',
