@@ -249,7 +249,7 @@
             no-caps
             icon="ph:plus"
             :label="$t('departures.add_po')"
-            @click="poDialog = true"
+            @click="openPo"
           />
         </div>
         <q-list
@@ -624,7 +624,11 @@
     </q-dialog>
 
     <!-- Supplier purchase order -->
-    <q-dialog v-model="poDialog">
+    <q-dialog
+      :model-value="poDialog"
+      :persistent="poGuard.persistent.value"
+      @update:model-value="poGuard.onToggle"
+    >
       <q-card class="app-dialog">
         <q-card-section class="app-dialog__head">
           <h2 class="app-dialog__title">{{ $t('departures.po_dialog') }}</h2>
@@ -675,7 +679,7 @@
             <q-input v-model="poForm.notes" :label="$t('departures.notes')" outlined dense />
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
+            <q-btn flat no-caps :label="$t('common.cancel')" @click="poGuard.requestClose()" />
             <q-btn
               type="submit"
               color="primary"
@@ -690,7 +694,11 @@
     </q-dialog>
 
     <!-- Reminder -->
-    <q-dialog v-model="reminderDialog">
+    <q-dialog
+      :model-value="reminderDialog"
+      :persistent="reminderGuard.persistent.value"
+      @update:model-value="reminderGuard.onToggle"
+    >
       <q-card class="app-dialog">
         <q-card-section class="app-dialog__head">
           <h2 class="app-dialog__title">
@@ -742,7 +750,12 @@
             />
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
+            <q-btn
+              flat
+              no-caps
+              :label="$t('common.cancel')"
+              @click="reminderGuard.requestClose()"
+            />
             <q-btn
               type="submit"
               color="primary"
@@ -757,7 +770,11 @@
     </q-dialog>
 
     <!-- Create / edit -->
-    <q-dialog v-model="dialog">
+    <q-dialog
+      :model-value="dialog"
+      :persistent="guard.persistent.value"
+      @update:model-value="guard.onToggle"
+    >
       <q-card class="app-dialog">
         <q-card-section class="app-dialog__head">
           <h2 class="app-dialog__title">
@@ -849,7 +866,7 @@
             />
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
+            <q-btn flat no-caps :label="$t('common.cancel')" @click="guard.requestClose()" />
             <q-btn
               type="submit"
               color="primary"
@@ -922,6 +939,7 @@ import {
 } from '@/api/orders';
 import { extractApiError } from '@/api/errors';
 import { useConfirm } from '@/composables/useConfirm';
+import { useDialogGuard, useFormSnapshot } from '@/composables/useUnsavedGuard';
 import { listSystemSettings, updateSystemSetting } from '@/api/systemSettings';
 import { useShopConfigStore } from '@/stores/shopConfig';
 import { setOrderStatus } from '@/api/orders';
@@ -1364,6 +1382,18 @@ const poForm = reactive({
   currency: shopConfig.currency,
   notes: '',
 });
+// Unsaved edits are not lost on Escape, backdrop or navigation (R9 / T5).
+const poSnapshot = useFormSnapshot(() => poForm);
+const poGuard = useDialogGuard({
+  isOpen: () => poDialog.value,
+  close: () => (poDialog.value = false),
+  isDirty: poSnapshot.isDirty,
+});
+
+function openPo() {
+  poSnapshot.take();
+  poDialog.value = true;
+}
 
 async function submitPo() {
   if (!selected.value) return;
@@ -1419,6 +1449,13 @@ const reminderForm = reactive<{
   message_template: string;
   image_url: string | null;
 }>({ offset_days: 2, anchor: 'cutoff', message_template: '', image_url: '' });
+// Unsaved edits are not lost on Escape, backdrop or navigation (R9 / T5).
+const reminderSnapshot = useFormSnapshot(() => reminderForm);
+const reminderGuard = useDialogGuard({
+  isOpen: () => reminderDialog.value,
+  close: () => (reminderDialog.value = false),
+  isDirty: reminderSnapshot.isDirty,
+});
 
 const reminderColumns = computed<QTableColumn[]>(() => [
   {
@@ -1494,6 +1531,7 @@ function openReminder(r?: Reminder) {
     message_template: r?.message_template ?? t('departures.default_message'),
     image_url: r?.image_url ?? '',
   });
+  reminderSnapshot.take();
   reminderDialog.value = true;
 }
 
@@ -1615,6 +1653,13 @@ interface DepartureForm {
 }
 
 const form = reactive<DepartureForm>(blankForm());
+// Unsaved edits are not lost on Escape, backdrop or navigation (R9 / T5).
+const snapshot = useFormSnapshot(() => form);
+const guard = useDialogGuard({
+  isOpen: () => dialog.value,
+  close: () => (dialog.value = false),
+  isDirty: snapshot.isDirty,
+});
 
 function blankForm(): DepartureForm {
   return {
@@ -1655,6 +1700,7 @@ function numOrNull(value: number | string | null): number | null {
 function openCreate() {
   editId.value = null;
   Object.assign(form, blankForm());
+  snapshot.take();
   dialogError.value = null;
   dialog.value = true;
 }
@@ -1673,6 +1719,7 @@ function openEdit(d: Departure) {
     recurrence_days: d.recurrence_days,
     notes: d.notes ?? '',
   });
+  snapshot.take();
   dialogError.value = null;
   dialog.value = true;
 }

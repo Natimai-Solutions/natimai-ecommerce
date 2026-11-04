@@ -151,7 +151,11 @@
     </q-table>
 
     <!-- Create dialog -->
-    <q-dialog v-model="createDialog">
+    <q-dialog
+      :model-value="createDialog"
+      :persistent="createGuard.persistent.value"
+      @update:model-value="createGuard.onToggle"
+    >
       <q-card class="app-dialog">
         <q-card-section class="app-dialog__head">
           <h2 class="app-dialog__title">{{ $t('tax.new_title') }}</h2>
@@ -201,7 +205,7 @@
             />
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
+            <q-btn flat no-caps :label="$t('common.cancel')" @click="createGuard.requestClose()" />
             <q-btn
               type="submit"
               color="primary"
@@ -216,7 +220,11 @@
     </q-dialog>
 
     <!-- Edit dialog (label + valid_until only) -->
-    <q-dialog v-model="editDialog">
+    <q-dialog
+      :model-value="editDialog"
+      :persistent="editGuard.persistent.value"
+      @update:model-value="editGuard.onToggle"
+    >
       <q-card class="app-dialog">
         <q-card-section class="app-dialog__head">
           <h2 class="app-dialog__title">{{ $t('tax.edit_title', { code: editing?.code }) }}</h2>
@@ -238,7 +246,7 @@
             />
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
+            <q-btn flat no-caps :label="$t('common.cancel')" @click="editGuard.requestClose()" />
             <q-btn
               type="submit"
               color="primary"
@@ -273,6 +281,7 @@ import {
 } from '@/api/taxRates';
 import { useShopConfigStore } from '@/stores/shopConfig';
 import { extractApiError } from '@/api/errors';
+import { useDialogGuard, useFormSnapshot } from '@/composables/useUnsavedGuard';
 
 const { t } = useI18n();
 
@@ -388,6 +397,13 @@ const form = reactive({
   valid_from: '',
   valid_until: '',
 });
+// Unsaved edits are not lost on Escape, backdrop or navigation (R9 / T5).
+const createSnapshot = useFormSnapshot(() => form);
+const createGuard = useDialogGuard({
+  isOpen: () => createDialog.value,
+  close: () => (createDialog.value = false),
+  isDirty: createSnapshot.isDirty,
+});
 
 function openCreate() {
   dialogError.value = null;
@@ -397,6 +413,7 @@ function openCreate() {
   form.territory_code = shopTerritory.value;
   form.valid_from = todayLocal();
   form.valid_until = '';
+  createSnapshot.take();
   createDialog.value = true;
 }
 
@@ -428,12 +445,19 @@ const editForm = reactive<{ label: string; valid_until: string | null }>({
   label: '',
   valid_until: '',
 });
+const editSnapshot = useFormSnapshot(() => editForm);
+const editGuard = useDialogGuard({
+  isOpen: () => editDialog.value,
+  close: () => (editDialog.value = false),
+  isDirty: editSnapshot.isDirty,
+});
 
 function openEdit(rate: TaxRate) {
   dialogError.value = null;
   editing.value = rate;
   editForm.label = rate.label;
   editForm.valid_until = rate.valid_until ?? '';
+  editSnapshot.take();
   editDialog.value = true;
 }
 

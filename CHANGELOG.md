@@ -87,6 +87,12 @@ takes a tag as its `ref`.
 
 ### Changed
 
+- Admin: the « modifications non enregistrées » guard now covers the form
+  dialogs of Codes promo, Cartes cadeaux, Transporteurs, Taux de TVA, Douanes,
+  Utilisateurs, Fournisseurs (supplier form, SKU allowlist), Trajets et lieux
+  (place, route), Modes de livraison (delivery mode, new pickup place) and
+  Départs groupés (departure, purchase order, reminder). Escape, a backdrop
+  click, Cancel or leaving the screen asks before dropping typed edits.
 - A transfer, cash or cheque order (and a purchase order) reaches the shop as
   « Nouvelle commande à traiter » (support e-mail and Slack) with its order
   number and amount, instead of the raw `payment.awaiting_validation` /

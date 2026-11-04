@@ -88,7 +88,11 @@
       </template>
     </q-table>
 
-    <q-dialog v-model="dialog">
+    <q-dialog
+      :model-value="dialog"
+      :persistent="guard.persistent.value"
+      @update:model-value="guard.onToggle"
+    >
       <q-card class="app-dialog">
         <q-card-section class="app-dialog__head">
           <h2 class="app-dialog__title">
@@ -227,7 +231,7 @@
             <q-input v-model="form.description" :label="$t('discounts.internal')" outlined dense />
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
+            <q-btn flat no-caps :label="$t('common.cancel')" @click="guard.requestClose()" />
             <q-btn
               type="submit"
               color="primary"
@@ -265,6 +269,7 @@ import {
 } from '@/api/discounts';
 import { listCategories, type Category } from '@/api/categories';
 import { extractApiError } from '@/api/errors';
+import { useDialogGuard, useFormSnapshot } from '@/composables/useUnsavedGuard';
 import { useShopConfigStore } from '@/stores/shopConfig';
 
 const { t } = useI18n();
@@ -393,6 +398,14 @@ const form = reactive<{
   applies_to_promoted: true,
 });
 
+// Unsaved edits are not lost on Escape, backdrop or navigation (R9 / T5).
+const snapshot = useFormSnapshot(() => form);
+const guard = useDialogGuard({
+  isOpen: () => dialog.value,
+  close: () => (dialog.value = false),
+  isDirty: snapshot.isDirty,
+});
+
 function resetForm(source?: Discount) {
   form.name = source?.name ?? '';
   form.code = source?.code ?? '';
@@ -414,6 +427,7 @@ function openCreate() {
   editing.value = null;
   dialogError.value = null;
   resetForm();
+  snapshot.take();
   dialog.value = true;
 }
 
@@ -421,6 +435,7 @@ function openEdit(discount: Discount) {
   editing.value = discount;
   dialogError.value = null;
   resetForm(discount);
+  snapshot.take();
   dialog.value = true;
 }
 
