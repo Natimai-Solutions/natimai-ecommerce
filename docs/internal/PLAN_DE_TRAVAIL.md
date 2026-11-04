@@ -16,7 +16,7 @@ sur le serveur, chez un tiers ou une décision.
 - **Sauvegardes réelles** : planifier le cron de `scripts/backup/backup.sh`, configurer la copie hors site (rclone / scp), **exécuter une restauration réelle** avant la première commande (DEPLOYMENT.md §12).
 - **`ALERT_WEBHOOK_URL`** à renseigner (`.env` et cron) : sans lui, un événement outbox perdu après 8 tentatives, un health-check en erreur, un échec de sauvegarde ou une identité légale incomplète ne préviennent personne.
 - **Quota d'artefacts GitHub** atteint : les envois sont devenus non bloquants et leur rétention réduite à 7–14 j ; purger les anciens artefacts (*Settings → Actions → Artifacts* ou l'API) pour retrouver les rapports de couverture.
-- **Dependabot security updates** à activer sur le dépôt amont `Natimai-Solutions/fastapi-ecommerce` (*Settings → Code security*), avec *Grouped security updates*.
+- **Dependabot security updates** à activer sur le dépôt `Natimai-Solutions/natimai-ecommerce` (*Settings → Code security*), avec *Grouped security updates*.
 - Variables GitHub `VITE_PUBLIC_SITE_URL`, `VITE_SENTRY_DSN`, `CODEQL_ENABLED`.
 - **CSP en observation sur staging** (`CSP_HEADER=Content-Security-Policy-Report-Only`), puis l'imposer.
 - Clés **Turnstile** (Paramètres → Sécurité) si les limites de fréquence ne suffisent plus.
@@ -69,7 +69,7 @@ sur le serveur, chez un tiers ou une décision.
 - **Fiche client** (commandes, avoir, points), recherche globale (n° de commande, client, SKU) — M.
 - **Rôles fins** (préparateur, comptable) à la place du seul superuser — M.
 - **Checklist de mise en route** de la boutique (identité légale, taux de douane, frais, prestataires de paiement) — S.
-- Pagination serveur sur les autres tableaux (32 sur 35 masquent encore la pagination) — M.
+- Pagination serveur sur les autres tableaux (30 fichiers masquent encore la pagination ; 3 seulement paginent côté serveur) — M.
 - Garde « modifications non enregistrées » sur Codes promo, Cartes cadeaux, Fournisseurs, Transporteurs, Taux TVA, Douanes, Routes logistiques, Départs, Utilisateurs — S.
 - Alerte « nouvelle commande à traiter » pour les virements et espèces (seuls les événements de paiement préviennent aujourd'hui) — S.
 - Chaîne d'intégrité des factures (empreinte chaînée et contrôle, comme natimai-paie) — S.
@@ -102,11 +102,11 @@ sur le serveur, chez un tiers ou une décision.
 
 ## 7. Design et interface
 
-- **Garde-fou Vitest des couleurs** (`no-fixed-light-backgrounds.test.ts` de natimai-paie) sur les deux applications et `shared/ui`, puis retrait des surcharges `!important` et des 29 couleurs Material passées en JS — M.
+- **Garde-fou Vitest des couleurs** (`no-fixed-light-backgrounds.test.ts` de natimai-paie) sur les deux applications et `shared/ui`, puis retrait des 28 surcharges `!important` et des 29 couleurs Material passées en JS — M.
 - `quasar.variables.scss` et `theme.ts` dans `shared/ui` ; jetons de rayon et d'espacement ; points de rupture Quasar seulement — S.
 - `docs/GUIDE_INTERFACE.md` (sur le modèle de natimai-paie), avec la compétence de design retenue en copie figée sous `.claude/skills/` (les skills « Taste » ont été retirés du dépôt) — S.
 - Densité admin : tables `dense`, squelettes plutôt que spinners, `app-empty` partout ; tableaux larges qui défilent (fournisseurs, paramètres) — M.
-- Vitrine : vrais **404 en SSR** (aujourd'hui HTTP 200), décalage d'hydratation du `min-height` de `QPage`, flash de thème à la première visite, police d'icônes chargée en entier, `srcset` des photos fournisseur, parité fr / en testée — M.
+- Vitrine : vrais **404 en SSR** (aujourd'hui HTTP 200 : la route catch-all court-circuite le 404 de `src-ssr/middlewares/render.ts`), décalage d'hydratation du `min-height` de `QPage`, flash de thème à la première visite, police d'icônes chargée en entier, `srcset` des photos fournisseur, parité fr / en testée — M.
 - 21 champs sans libellé (placeholder seul) — S.
 - Médias publics derrière un CDN ou un bucket public si le trafic le demande ; recadrage d'image dans l'admin.
 
@@ -115,7 +115,7 @@ sur le serveur, chez un tiers ou une décision.
 ## 8. Factorisation
 
 - `CrudBase` + `BaseRouter` → socle de natimai-paie (`Policy`, `sortable_fields`, `Page[T]`), puis migration des routeurs `admin_*` qui paginent à la main — L.
-- La commande hors de `api/routes/cart.py` (3 400 lignes) → `features/order/services/checkout.py` ; une seule `get_or_create_status` (8 copies) ; code fournisseurs regroupé dans `features/integrations/` — L.
+- La commande hors de `api/routes/cart.py` (3 700 lignes) → `features/order/services/checkout.py` ; une seule `get_or_create_status` (3 copies : `admin_shipping`, `manual_payment`, `document_payment`) ; code fournisseurs regroupé dans `features/integrations/` — L.
 - Un seul `split_incl_tax(amount, rate, currency)` pour la facture, l'avoir et la marge (la marge arrondit à 0,01 quelle que soit la devise) — M.
 - Front : `BaseApi` / `verifyResult` et un extracteur d'erreur unique traduisant le code ; `useResource` et `<CrudPage>` pour l'admin ; `formatDate` / `formatMoney` locaux remplacés par `@app/utils` — M.
 - Tests : fabriques partagées (`tests/factories.py`), test générique sur les routeurs (authentification, tri refusé, propriétaire → 404) — M.

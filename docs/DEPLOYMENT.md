@@ -1070,7 +1070,7 @@ the script warns and **skips the rotation entirely** rather than deleting
 archives that never left this disk.
 
 ```bash
-0 2 * * * cd /opt/fastapi-ecommerce && OFFSITE_RCLONE_REMOTE=remote:ecommerce-backups \
+0 2 * * * cd /opt/natimai-ecommerce && OFFSITE_RCLONE_REMOTE=remote:ecommerce-backups \
   ./scripts/backup/backup.sh >> /var/log/ecommerce-backup.log 2>&1
 ```
 
