@@ -1003,6 +1003,17 @@ const fr = {
     col_tax: 'Taxes',
     count: '{n} facture(s) — la numérotation est continue par exercice (aucun trou).',
     hint: "Une facture émise n'est jamais modifiée : toute correction passe par un avoir.",
+    integrity_broken:
+      "Chaîne d'intégrité rompue : ces documents ont été modifiés, supprimés ou insérés après leur émission.",
+    integrity_check: "Vérifier l'intégrité",
+    integrity_failed: "La vérification de l'intégrité a échoué.",
+    integrity_ok:
+      "Chaîne d'intégrité intacte : {n} facture(s) et avoir(s), aucun modifié, supprimé ou inséré depuis l'émission.",
+    integrity_reason_altered: 'contenu modifié après émission',
+    integrity_reason_gap: 'numéro manquant avant ce document',
+    integrity_reason_relinked: 'ne suit plus le document précédent (suppression ou insertion)',
+    integrity_unsealed:
+      '{n} document(s) émis avant la chaîne seront scellés à la prochaine émission de leur série et de leur exercice.',
     load_failed: 'Impossible de charger les factures.',
     none: 'Aucune facture{suffix}.',
     title: 'Factures',

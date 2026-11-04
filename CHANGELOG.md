@@ -9,6 +9,14 @@ takes a tag as its `ref`.
 
 ### Added
 
+- Integrity chain of the accounting documents: each invoice and credit note
+  stores the SHA-256 of the previous document of its series and fiscal year
+  and of its own frozen content (`previous_hash`, `chain_hash`, migration
+  `f6a7b8c9d0e1`). `GET /admin/invoices/integrity` recomputes every chain and
+  names the documents changed, deleted or inserted after issuance; Admin →
+  Factures → « Vérifier l'intégrité » shows the result. Documents issued
+  before the chain are sealed, in number order, by the next issuance of their
+  series and year.
 - Admin → Logistique → **Modes de livraison**: a screen always shown, simple
   mode included (it does not depend on the "Trajets et lieux" module), where a
   shop sets what the customer picks at checkout and its price. A delivery mode

@@ -11,6 +11,15 @@
           @click="load"
         />
         <q-btn
+          flat
+          no-caps
+          icon="ph:shield-check"
+          :label="$t('invoices.integrity_check')"
+          :loading="checking"
+          data-testid="invoices-integrity-check"
+          @click="onCheckIntegrity"
+        />
+        <q-btn
           color="primary"
           unelevated
           no-caps
@@ -36,9 +45,30 @@
       />
     </div>
 
-    <div v-if="error || notice" class="admin-notices">
+    <div v-if="error || notice || integrity" class="admin-notices">
       <AppNotice v-if="error" tone="error" dense>{{ error }}</AppNotice>
       <AppNotice v-if="notice" tone="info" dense>{{ notice }}</AppNotice>
+      <AppNotice
+        v-if="integrity"
+        :tone="integrity.intact ? 'success' : 'error'"
+        dense
+        data-testid="invoices-integrity-result"
+      >
+        <template v-if="integrity.intact">
+          {{ $t('invoices.integrity_ok', { n: integrityDocuments }) }}
+          <template v-if="integrityUnsealed">
+            {{ $t('invoices.integrity_unsealed', { n: integrityUnsealed }) }}
+          </template>
+        </template>
+        <template v-else>
+          {{ $t('invoices.integrity_broken') }}
+          <ul class="q-my-xs q-pl-md">
+            <li v-for="item in integrityBreaks" :key="`${item.number}-${item.reason}`">
+              {{ item.number }} — {{ $t(`invoices.integrity_reason_${item.reason}`) }}
+            </li>
+          </ul>
+        </template>
+      </AppNotice>
     </div>
 
     <q-table
@@ -107,9 +137,11 @@ import type { QTableColumn } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
 import PageHeader from '@/components/PageHeader.vue';
 import {
+  checkInvoicesIntegrity,
   downloadInvoicePdf,
   downloadInvoicesCsv,
   listInvoices,
+  type IntegrityReport,
   type Invoice,
 } from '@/api/invoices';
 import { extractApiError } from '@/api/errors';
@@ -123,6 +155,18 @@ const error = ref<string | null>(null);
 const notice = ref<string | null>(null);
 const downloadingId = ref<string | null>(null);
 const fiscalYear = ref<number | null>(null);
+const checking = ref(false);
+const integrity = ref<IntegrityReport | null>(null);
+
+const integrityDocuments = computed(() =>
+  (integrity.value?.chains ?? []).reduce((sum, chain) => sum + chain.documents, 0),
+);
+const integrityUnsealed = computed(() =>
+  (integrity.value?.chains ?? []).reduce((sum, chain) => sum + chain.documents - chain.sealed, 0),
+);
+const integrityBreaks = computed(() =>
+  (integrity.value?.chains ?? []).flatMap((chain) => chain.breaks),
+);
 
 /** Current year plus the four previous ones — enough for an active shop. */
 const yearOptions = computed(() => {
@@ -223,6 +267,19 @@ async function onExport() {
     error.value = extractApiError(err) ?? t('common.export_failed');
   } finally {
     exporting.value = false;
+  }
+}
+
+async function onCheckIntegrity() {
+  checking.value = true;
+  error.value = null;
+  integrity.value = null;
+  try {
+    integrity.value = await checkInvoicesIntegrity();
+  } catch (err) {
+    error.value = extractApiError(err) ?? t('invoices.integrity_failed');
+  } finally {
+    checking.value = false;
   }
 }
 

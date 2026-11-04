@@ -31,6 +31,7 @@ from app.core import runtime_settings
 from app.core.alerting import send_alert
 from app.core.config import settings
 from app.features.invoice.models.invoice import Invoice
+from app.features.invoice.services.integrity import seal_document
 from app.features.invoice.services.numbering import allocate_invoice_number
 from app.features.order.models.order import Order
 from app.features.order.models.order_line import OrderLine
@@ -418,6 +419,8 @@ async def issue_invoice_for_order(
         total_incl_tax=Decimal(totals["incl_tax"]),
         snapshot=snapshot,
     )
+    # Under the year's counter lock taken by the allocation above.
+    await seal_document(session, invoice)
     session.add(invoice)
 
     if commit:

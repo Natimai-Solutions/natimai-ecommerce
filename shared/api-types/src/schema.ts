@@ -1812,6 +1812,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/invoices/integrity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Check Integrity
+         * @description Recompute the integrity chain of every invoice and credit note.
+         *
+         *     One chain per series (invoices, credit notes) and fiscal year. Documents
+         *     issued before the chain existed count as unsealed until the next issuance
+         *     of their series and year seals them.
+         */
+        get: operations["admin-invoices-check_integrity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/invoices/{invoice_id}": {
         parameters: {
             query?: never;
@@ -13937,6 +13961,35 @@ export interface components {
              * @default []
              */
             banners: components["schemas"]["HomepageBlockPublic"][];
+        };
+        /** IntegrityBreakPublic */
+        IntegrityBreakPublic: {
+            /** Number */
+            number: string;
+            /** Reason */
+            reason: string;
+        };
+        /** IntegrityChainPublic */
+        IntegrityChainPublic: {
+            /** Series */
+            series: string;
+            /** Fiscal Year */
+            fiscal_year: number;
+            /** Documents */
+            documents: number;
+            /** Sealed */
+            sealed: number;
+            /** Intact */
+            intact: boolean;
+            /** Breaks */
+            breaks: components["schemas"]["IntegrityBreakPublic"][];
+        };
+        /** IntegrityReportPublic */
+        IntegrityReportPublic: {
+            /** Intact */
+            intact: boolean;
+            /** Chains */
+            chains: components["schemas"]["IntegrityChainPublic"][];
         };
         /**
          * InventoriesPublic
@@ -27128,6 +27181,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-invoices-check_integrity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntegrityReportPublic"];
                 };
             };
         };

@@ -998,6 +998,17 @@ const en: MessageSchema = {
     col_tax: 'Taxes',
     count: '{n} invoice(s) — numbering is continuous within a fiscal year (no gaps).',
     hint: 'An issued invoice is never changed: any correction goes through a credit note.',
+    integrity_broken:
+      'Integrity chain broken: these documents were changed, deleted or inserted after issuance.',
+    integrity_check: 'Check integrity',
+    integrity_failed: 'The integrity check failed.',
+    integrity_ok:
+      'Integrity chain intact: {n} invoice(s) and credit note(s), none changed, deleted or inserted since issuance.',
+    integrity_reason_altered: 'content changed after issuance',
+    integrity_reason_gap: 'a number is missing before this document',
+    integrity_reason_relinked: 'no longer follows the previous document (deletion or insertion)',
+    integrity_unsealed:
+      '{n} document(s) issued before the chain will be sealed by the next issuance of their series and fiscal year.',
     load_failed: 'Could not load the invoices.',
     none: 'No invoices{suffix}.',
     title: 'Invoices',
