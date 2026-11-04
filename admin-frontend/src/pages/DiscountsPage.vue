@@ -62,8 +62,8 @@
         <q-td :props="props" align="center">
           <StatusTag
             :label="stateOf(props.row).label"
-            :tone="toneOf(stateOf(props.row).color)"
-            :icon="toneIcon(toneOf(stateOf(props.row).color))"
+            :tone="stateOf(props.row).tone"
+            :icon="toneIcon(stateOf(props.row).tone)"
           />
         </q-td>
       </template>
@@ -254,7 +254,7 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
-import { toneIcon, toneOf } from '@app/ui/statusTone';
+import { toneIcon, type StatusTone } from '@app/ui/statusTone';
 import PageHeader from '@/components/PageHeader.vue';
 import HelpPanel from '@/components/HelpPanel.vue';
 import { pricingHelp } from '@/utils/helpTopics';
@@ -310,16 +310,16 @@ function valueLabel(d: Discount): string {
   return `${base} · ${scope}${min}${stack}`;
 }
 
-function stateOf(d: Discount): { label: string; color: string } {
-  if (!d.is_active) return { label: t('discounts.st_disabled'), color: 'grey-6' };
+function stateOf(d: Discount): { label: string; tone: StatusTone } {
+  if (!d.is_active) return { label: t('discounts.st_disabled'), tone: 'neutral' };
   const now = Date.now();
   if (d.start_date && new Date(d.start_date).getTime() > now)
-    return { label: t('discounts.st_upcoming'), color: 'blue-6' };
+    return { label: t('discounts.st_upcoming'), tone: 'neutral' };
   if (d.end_date && new Date(d.end_date).getTime() < now)
-    return { label: t('discounts.st_expired'), color: 'orange-8' };
+    return { label: t('discounts.st_expired'), tone: 'warn' };
   if (d.max_uses !== null && d.current_uses >= d.max_uses)
-    return { label: t('discounts.st_exhausted'), color: 'orange-8' };
-  return { label: t('discounts.st_active'), color: 'positive' };
+    return { label: t('discounts.st_exhausted'), tone: 'warn' };
+  return { label: t('discounts.st_active'), tone: 'ok' };
 }
 
 const columns = computed<QTableColumn<Discount>[]>(() => [

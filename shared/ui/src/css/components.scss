@@ -109,8 +109,10 @@ a.app-row__title:hover {
     margin-top: 10px;
   }
 
-  &--total {
-    margin-top: 14px !important;
+  // « .x + .x--total » : plus spécifique que la règle d'espacement ci-dessus.
+  &--total,
+  & + &--total {
+    margin-top: 14px;
     padding-top: 14px;
     border-top: 1px solid var(--n-line-2);
     color: var(--n-ink);
@@ -206,9 +208,10 @@ a.app-row__title:hover {
   }
 }
 
-.app-dialog__head {
-  padding-top: 24px !important;
-  padding-bottom: 8px !important;
+// Deux classes : plus spécifique que le padding de .q-card__section--vert.
+.q-card__section.app-dialog__head {
+  padding-top: 24px;
+  padding-bottom: 8px;
 }
 
 .app-dialog__title {
@@ -225,8 +228,9 @@ a.app-row__title:hover {
   color: var(--n-ink-2);
 }
 
-.app-dialog__actions {
-  padding: 8px 24px 24px !important;
+// Deux classes : plus spécifique que le padding de .q-card__actions.
+.q-card__actions.app-dialog__actions {
+  padding: 8px 24px 24px;
   gap: 8px;
 }
 
@@ -369,8 +373,9 @@ a.app-row__title:hover {
   }
 }
 
-.prose__meta {
-  margin: 0 0 40px !important;
+// Plus spécifique que « .prose p ».
+.prose .prose__meta {
+  margin: 0 0 40px;
   font-size: 14px;
   color: var(--n-ink-3);
 }

@@ -195,8 +195,8 @@
             <q-td :props="props">
               <StatusTag
                 :label="orderStatusLabel(props.row.status)"
-                :tone="toneOf(orderStatusColor(props.row.status))"
-                :icon="toneIcon(toneOf(orderStatusColor(props.row.status)))"
+                :tone="orderStatusTone(props.row.status)"
+                :icon="toneIcon(orderStatusTone(props.row.status))"
               />
             </q-td>
           </template>
@@ -397,8 +397,8 @@
                     fulfilment: fulfilmentLabel(o.fulfilment),
                   })
                 "
-                :tone="toneOf(fulfilmentColor(o.fulfilment))"
-                :icon="toneIcon(toneOf(fulfilmentColor(o.fulfilment)))"
+                :tone="fulfilmentTone(o.fulfilment)"
+                :icon="toneIcon(fulfilmentTone(o.fulfilment))"
               />
               <q-tooltip>
                 <div v-for="ln in o.lines" :key="ln.product_id">
@@ -506,8 +506,8 @@
             <q-td :props="props">
               <StatusTag
                 :label="reminderLabel(props.row.status)"
-                :tone="toneOf(reminderColor(props.row.status))"
-                :icon="toneIcon(toneOf(reminderColor(props.row.status)))"
+                :tone="reminderTone(props.row.status)"
+                :icon="toneIcon(reminderTone(props.row.status))"
               />
               <span v-if="props.row.error" class="text-caption text-negative q-ml-xs">
                 {{ props.row.error }}
@@ -892,7 +892,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue';
 import type { QTableColumn } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
-import { toneIcon, toneOf, type StatusTone } from '@app/ui/statusTone';
+import { toneIcon, type StatusTone } from '@app/ui/statusTone';
 import {
   DEPARTURE_STATUSES,
   departureCutoffLabel,
@@ -933,7 +933,7 @@ import {
   downloadOrdersCsv,
   downloadSkuSummaryCsv,
   listOrders,
-  orderStatusColor,
+  orderStatusTone,
   orderStatusLabel,
   skuSummary,
   type AdminOrderListItem,
@@ -1175,8 +1175,8 @@ function missingOf(row: ReceiptLine): number {
 }
 
 const fulfilmentLabel = (s: string) => FULFILMENT_LABELS[s] ?? s;
-const fulfilmentColor = (s: string) =>
-  s === 'served' ? 'green' : s === 'partial' ? 'orange-8' : 'grey-7';
+const fulfilmentTone = (s: string): StatusTone =>
+  s === 'served' ? 'ok' : s === 'partial' ? 'warn' : 'neutral';
 
 function applyReception(report: ReceiptReport) {
   reception.value = report;
@@ -1492,8 +1492,8 @@ const REMINDER_LABELS: Record<string, string> = labels({
   cancelled: 'departures.r_cancelled',
 });
 const reminderLabel = (s: string) => REMINDER_LABELS[s] ?? s;
-const reminderColor = (s: string) =>
-  s === 'sent' ? 'green' : s === 'failed' ? 'negative' : s === 'cancelled' ? 'grey-6' : 'primary';
+const reminderTone = (s: string): StatusTone =>
+  s === 'sent' ? 'ok' : s === 'failed' ? 'danger' : 'neutral';
 
 async function loadReminders() {
   if (!selected.value) return;

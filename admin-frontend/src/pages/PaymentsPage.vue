@@ -130,8 +130,8 @@
         <q-td :props="props">
           <StatusTag
             v-if="props.row.status"
-            :tone="toneOf(props.row.status)"
-            :icon="toneIcon(toneOf(props.row.status))"
+            :tone="paymentStatusTone(props.row.status)"
+            :icon="toneIcon(paymentStatusTone(props.row.status))"
             :label="statusLabel(props.row.status)"
           />
           <span v-else class="text-subtle">—</span>
@@ -201,7 +201,7 @@ import type { QTableColumn } from 'quasar';
 import { useI18n } from 'vue-i18n';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
-import { toneIcon, toneOf } from '@app/ui/statusTone';
+import { toneIcon, type StatusTone } from '@app/ui/statusTone';
 import { formatDateTime, formatMoney as money } from '@app/utils';
 import PageHeader from '@/components/PageHeader.vue';
 import { extractApiError } from '@/api/errors';
@@ -235,6 +235,23 @@ const filters = reactive({
   date_from: null as string | null,
   date_to: null as string | null,
 });
+
+const PAYMENT_STATUS_TONES: Record<string, StatusTone> = {
+  Completed: 'ok',
+  DepositPaid: 'ok',
+  Authorized: 'warn',
+  AwaitingValidation: 'warn',
+  DocumentRequired: 'warn',
+  DocumentUploaded: 'warn',
+  UnderReview: 'warn',
+  Pending: 'warn',
+  Failed: 'danger',
+};
+/** Encaissé : ok ; à capturer ou à valider : warn ; refusé : danger ; le reste
+ * (annulé, remboursé, abandonné) est clos sans incident : neutre. */
+function paymentStatusTone(status: string): StatusTone {
+  return PAYMENT_STATUS_TONES[status] ?? 'neutral';
+}
 
 /** The order screens already translate the payment statuses; reuse them. */
 function statusLabel(status: string): string {

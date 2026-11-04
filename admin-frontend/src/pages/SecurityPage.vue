@@ -323,7 +323,7 @@ onMounted(() => void load());
 .setup__qr {
   width: 200px;
   height: 200px;
-  background: #fff;
+  background: var(--n-paper);
   border-radius: var(--n-radius);
 }
 
@@ -336,7 +336,7 @@ onMounted(() => void load());
   word-break: break-all;
   padding: 2px 6px;
   border-radius: var(--n-radius-sm);
-  background: var(--n-surface-2, rgba(127, 127, 127, 0.12));
+  background: var(--n-tile);
 }
 
 .recovery-grid {

@@ -97,7 +97,6 @@ sur le serveur, chez un tiers ou une décision.
 
 ## 7. Design et interface
 
-- **Garde-fou Vitest des couleurs** (`no-fixed-light-backgrounds.test.ts` de natimai-paie) sur les deux applications et `shared/ui`, puis retrait des 28 surcharges `!important` et des 29 couleurs Material passées en JS — M.
 - Densité admin : tables `dense`, squelettes plutôt que spinners, `app-empty` partout ; tableaux larges qui défilent (fournisseurs, paramètres) — M.
 - Vitrine : vrais **404 en SSR** (aujourd'hui HTTP 200 : la route catch-all court-circuite le 404 de `src-ssr/middlewares/render.ts`), décalage d'hydratation du `min-height` de `QPage`, flash de thème à la première visite, police d'icônes chargée en entier, `srcset` des photos fournisseur, parité fr / en testée — M.
 - Médias publics derrière un CDN ou un bucket public si le trafic le demande ; recadrage d'image dans l'admin.

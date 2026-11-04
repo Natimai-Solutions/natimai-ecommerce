@@ -9,8 +9,8 @@
         <StatusTag
           data-testid="order-status"
           :label="orderStatusLabel(order.status)"
-          :tone="toneOf(orderStatusColor(order.status))"
-          :icon="toneIcon(toneOf(orderStatusColor(order.status)))"
+          :tone="orderStatusTone(order.status)"
+          :icon="toneIcon(orderStatusTone(order.status))"
         />
         <template v-if="order.payment_plan === 'deposit'">
           <StatusTag
@@ -847,14 +847,14 @@ import { computed, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
-import { toneIcon, toneOf } from '@app/ui/statusTone';
+import { toneIcon } from '@app/ui/statusTone';
 import { formatMoney as money, intlLocale } from '@app/utils';
 import { useShopConfigStore } from '@/stores/shopConfig';
 import PageHeader from '@/components/PageHeader.vue';
 import {
   getOrder,
   listOrderStatuses,
-  orderStatusColor,
+  orderStatusTone,
   orderStatusLabel,
   PAYMENT_KIND_LABELS,
   requestBalance,

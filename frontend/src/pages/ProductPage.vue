@@ -279,10 +279,9 @@
             />
             <q-btn
               outline
-              color="primary"
+              :color="inWishlist ? 'accent' : 'primary'"
               icon="ph:heart"
               class="product__wish"
-              :class="{ 'product__wish--on': inWishlist }"
               :aria-pressed="inWishlist"
               :aria-label="inWishlist ? $t('product.wish_remove') : $t('product.wish_add')"
               :loading="wishSaving"
@@ -295,10 +294,9 @@
             </q-btn>
             <q-btn
               outline
-              color="primary"
+              :color="inCompare ? 'accent' : 'primary'"
               icon="ph:scales"
               class="product__wish"
-              :class="{ 'product__wish--on': inCompare }"
               :aria-pressed="inCompare"
               :aria-label="
                 inCompare
@@ -1620,10 +1618,6 @@ watch(
   flex-shrink: 0;
   width: 48px;
   min-height: 48px;
-
-  &--on {
-    color: var(--n-accent) !important;
-  }
 }
 
 .product__added {

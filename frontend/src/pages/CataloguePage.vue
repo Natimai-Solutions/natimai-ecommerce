@@ -356,7 +356,7 @@
             boundary-numbers
             direction-links
             flat
-            color="grey-7"
+            color="secondary"
             active-design="unelevated"
             active-color="primary"
             active-text-color="white"

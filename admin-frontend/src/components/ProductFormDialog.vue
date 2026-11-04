@@ -1807,7 +1807,7 @@ onMounted(() => {
 }
 
 .product-form__body {
-  padding-top: 12px !important;
+  padding-top: 12px;
 }
 
 .product-form__locks {
@@ -2082,7 +2082,7 @@ onMounted(() => {
 
 .product-form__link-kind {
   flex: none;
-  border: 1px solid var(--n-border);
+  border: 1px solid var(--n-line);
   border-radius: var(--n-radius);
 }
 

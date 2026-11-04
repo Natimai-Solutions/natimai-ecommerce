@@ -1,9 +1,16 @@
 import { labels } from '@/i18n/global';
 import { api } from '@/boot/api';
+import type { StatusTone } from '@app/ui/statusTone';
 
 /** Cycle de vie d'une demande, aligné sur QuoteRequestStatus côté backend. */
 export type QuoteRequestStatus =
-  'requested' | 'email_failed' | 'in_progress' | 'quoted' | 'won' | 'lost' | 'cancelled';
+  | 'requested'
+  | 'email_failed'
+  | 'in_progress'
+  | 'quoted'
+  | 'won'
+  | 'lost'
+  | 'cancelled';
 
 export interface AdminQuoteRequestListItem {
   quote_request_id: string;
@@ -139,14 +146,13 @@ export function quoteStatusLabel(status: QuoteRequestStatus): string {
   return STATUS_LABELS[status] ?? status;
 }
 
-export function quoteStatusColor(status: QuoteRequestStatus): string {
+export function quoteStatusTone(status: QuoteRequestStatus): StatusTone {
   // `email_failed` en rouge : c'est la demande que personne n'a vue passer,
   // celle qu'il faut rattraper en priorité.
-  if (status === 'email_failed') return 'negative';
-  if (status === 'won') return 'positive';
-  if (status === 'lost' || status === 'cancelled') return 'grey-7';
-  if (status === 'quoted') return 'primary';
-  return 'orange';
+  if (status === 'email_failed') return 'danger';
+  if (status === 'won') return 'ok';
+  if (status === 'lost' || status === 'cancelled' || status === 'quoted') return 'neutral';
+  return 'warn';
 }
 
 /** Statuts proposés dans le sélecteur de suivi. */

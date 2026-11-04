@@ -98,6 +98,15 @@ takes a tag as its `ref`.
 
 ### Changed
 
+- Front: a Vitest design guard (`shared/ui/src/design-guard.test.ts`) over
+  both apps and `shared/ui` refuses Material colours, `bg-white`, colours picked
+  from `$q.dark`, hard-coded colours and `!important` outside the token files,
+  and breakpoints off Quasar's scale. Status screens return a `StatusTag` tone
+  (`orderStatusTone`, `quoteStatusTone`…) instead of a Material colour
+  translated by `toneOf`, which is gone; 20 of the 28 `!important` are removed
+  (more specific selectors, or the `--q-*` variable Quasar reads), the 8 left
+  are justified in `tokens.scss`. New tokens: `--n-paper` (QR code background,
+  white in both themes), `--n-shadow-up`.
 - Front: one source for the Quasar Sass variables and the theme preference
   (`shared/ui`); each app keeps its own storage (cookie for the SSR
   storefront, localStorage for the admin). Radius and spacing tokens
@@ -150,6 +159,13 @@ takes a tag as its `ref`.
 
 ### Fixed
 
+- Admin → Paiements: the status tag was always grey (a payment status name
+  was read as a colour); settled, pending and failed payments now show their
+  tone.
+- Admin: four borders and backgrounds used tokens that do not exist
+  (`--n-border`, `--n-surface-2`) and fell back to a fixed grey, or drew no
+  border at all (content language tabs, product link kind): they use
+  `--n-line` and `--n-tile`.
 - Images: the Alpine / Debian security upgrade layer is rebuilt every day.
   The GitHub Actions layer cache kept serving an old `apk upgrade` layer as
   long as the base image did not change, so the admin image shipped

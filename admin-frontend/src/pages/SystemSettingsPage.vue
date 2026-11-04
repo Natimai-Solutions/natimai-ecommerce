@@ -385,11 +385,11 @@ onMounted(load);
 }
 
 .settings-nav__item:hover {
-  background: var(--n-surface-2, rgba(127, 127, 127, 0.08));
+  background: var(--n-tile);
 }
 
 .settings-nav__item--active {
-  background: var(--n-surface-2, rgba(127, 127, 127, 0.14));
+  background: var(--n-tile-hover);
   font-weight: 600;
 }
 
@@ -408,7 +408,7 @@ onMounted(load);
   flex-wrap: wrap;
   gap: 12px 24px;
   padding: 14px 0;
-  border-top: 1px solid var(--n-border, rgba(127, 127, 127, 0.18));
+  border-top: 1px solid var(--n-line);
 }
 
 .setting__text {

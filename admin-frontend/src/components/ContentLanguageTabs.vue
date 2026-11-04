@@ -105,7 +105,7 @@ const status = computed(() => props.statusOf(props.modelValue));
 }
 
 .lang-tabs__toggle {
-  border: 1px solid var(--n-border);
+  border: 1px solid var(--n-line);
   border-radius: var(--n-radius);
 }
 
@@ -117,6 +117,6 @@ const status = computed(() => props.statusOf(props.modelValue));
 }
 
 .lang-tabs__stale {
-  color: var(--n-warn, #a15c00);
+  color: var(--n-warn);
 }
 </style>

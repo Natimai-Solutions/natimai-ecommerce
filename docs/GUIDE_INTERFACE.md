@@ -96,8 +96,21 @@
 - Éléments manipulés par un test de bout en bout : `data-testid` en
   kebab-case, préfixé par l'écran.
 
-## À venir
+## Garde-fou
 
-Le garde-fou Vitest des couleurs (comme `no-fixed-light-backgrounds.test.ts`
-de natimai-paie) attend le retrait des 29 couleurs Material passées en JS et
-des 28 surcharges `!important` (plan de travail, §7).
+`shared/ui/src/design-guard.test.ts` (Vitest, `pnpm test`) parcourt les deux
+applications et `shared/ui` et refuse, fichier et ligne à l'appui :
+
+- une couleur Material (`bg-grey-2`, `text-green-7`, `color="orange"`, `'teal'`
+  renvoyé par une fonction) : un ton `StatusTag` ou une couleur de marque ;
+- `bg-white`, `bg-black`, une couleur choisie selon `$q.dark.isActive` ;
+- une couleur en dur (`#hex`, `rgb()`) ou un `!important` hors des fichiers de
+  jetons (`tokens.scss`, `quasar.variables.scss`) ;
+- un point de rupture hors de l'échelle Quasar.
+
+Les seuls `!important` restants sont dans `tokens.scss` : les utilitaires
+sémantiques (`text-muted`…, comme ceux de Quasar), le texte d'un bouton sur fond
+de marque en sombre (Quasar pose `text-white` en `!important`) et le mouvement
+réduit. Pour battre un style Quasar ailleurs : une classe de plus
+(`.q-card__section.app-dialog__head`) ou la variable qu'il lit
+(`--q-negative`), jamais `!important`.
