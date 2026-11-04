@@ -138,10 +138,24 @@ async def update_departure(
     """Partial update: dates, publication, status, thresholds, notes.
 
     A status change is pushed to the orders that follow the departure
-    (paid or already on the way) and each one e-mails its customer.
+    (paid or already on the way) and each one e-mails its customer. Closing
+    a draft or open departure is refused here: it goes through
+    ``POST /{id}/close``.
     """
     departure = await _get_or_404(session, departure_id)
     previous_status = departure.status
+    # Closing an open departure is the assisted close (thresholds, live stock,
+    # recurrence): a bare status change would skip all of it.
+    if body.status == "closed" and previous_status in ("draft", "open"):
+        raise AppError(
+            code="grouped_departure.close_required",
+            status_code=409,
+            message=(
+                "Clôturez ce départ avec « Clôturer le départ » : seuils, "
+                "stock fournisseur et départ suivant y sont traités"
+            ),
+            details={"departure_id": str(departure_id), "status": previous_status},
+        )
     admin_id = admin.id
     departure = await crud_grouped_departure.update(
         session,

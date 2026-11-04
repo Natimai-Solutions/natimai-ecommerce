@@ -159,7 +159,8 @@ async def test_close_reports_shortages_and_unpaid_and_spawns_the_next_departure(
     assert set(shortage.order_ids) == set(seed.paid_ids)
 
     closed = await db_session.get(GroupedDeparture, seed.departure_id)
-    assert closed is not None and closed.status == "closed" and not closed.is_published
+    # Still published: its customers keep following it after the close.
+    assert closed is not None and closed.status == "closed" and closed.is_published
 
     # Recurring: the next departure is open, published, 30 days later.
     assert result.next_departure_id is not None

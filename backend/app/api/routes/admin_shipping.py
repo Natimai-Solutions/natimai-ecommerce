@@ -536,22 +536,8 @@ async def create_consolidation(
     _admin: CurrentLogisticsAdmin,
 ) -> AdminConsolidationItem:
     """Create an empty consolidation for a route (then attach trackings)."""
-    pending_status = await _get_or_create_status(
-        session, entity=_ENTITY_CONSOLIDATION, code="pending", name="En attente"
-    )
-    code = f"CONS-{uuid.uuid4().hex[:8].upper()}"
-    consolidation = await crud_shipping_route_tracking_consolidation.create_draft(
-        session=session,
-        data=ShippingRouteTrackingConsolidationCreate(
-            route_id=body.route_id,
-            name=body.name,
-            consolidation_code=code,
-            status_id=pending_status.id,
-            tracking_ref=None,
-            total_orders=0,
-            notes=body.notes,
-        ),
-        user=None,
+    consolidation, pending_status = await _new_consolidation(
+        session, route_id=body.route_id, name=body.name, notes=body.notes
     )
     await session.commit()
     await session.refresh(consolidation)
@@ -565,6 +551,34 @@ async def create_consolidation(
         total_orders=consolidation.total_orders,
         tracking_ref=consolidation.tracking_ref,
     )
+
+
+async def _new_consolidation(
+    session: SessionDep,
+    *,
+    route_id: uuid.UUID,
+    name: str,
+    notes: str | None,
+) -> tuple[ShippingRouteTrackingConsolidation, StatusDefinition]:
+    """An empty « En attente » consolidation with a fresh code (no commit)."""
+    pending_status = await _get_or_create_status(
+        session, entity=_ENTITY_CONSOLIDATION, code="pending", name="En attente"
+    )
+    code = f"CONS-{uuid.uuid4().hex[:8].upper()}"
+    consolidation = await crud_shipping_route_tracking_consolidation.create_draft(
+        session=session,
+        data=ShippingRouteTrackingConsolidationCreate(
+            route_id=route_id,
+            name=name,
+            consolidation_code=code,
+            status_id=pending_status.id,
+            tracking_ref=None,
+            total_orders=0,
+            notes=notes,
+        ),
+        user=None,
+    )
+    return consolidation, pending_status
 
 
 async def _get_consolidation_or_404(
@@ -787,8 +801,14 @@ async def advance_consolidation(
 
     ``ungroup=True`` first detaches each parcel from the consolidation, so it
     continues individually (e.g. into its own last-leg delivery).
+
+    Otherwise the grouping is kept for the next leg: when the parcels' next
+    legs share one route, they are attached to a new consolidation on that
+    route (the finished legs stay in this one, for the record). Next legs on
+    different routes cannot travel together and continue individually.
     """
-    await _get_consolidation_or_404(session, consolidation_id)
+    current = await _get_consolidation_or_404(session, consolidation_id)
+    lot_name, lot_notes = current.name, current.notes
     trackings = await crud_shipping_route_tracking.get_trackings_for_consolidation(
         session=session, consolidation_id=consolidation_id
     )
@@ -798,6 +818,9 @@ async def advance_consolidation(
     admin_id = admin.id
 
     advanced = 0
+    # (next tracking id, its route) — read right away: the next iteration's
+    # commit expires the row.
+    next_legs: list[tuple[uuid.UUID, uuid.UUID]] = []
     for tid in tracking_ids:
         if body.ungroup:
             await crud_shipping_route_tracking_consolidation.remove_tracking_from_consolidation(
@@ -810,6 +833,7 @@ async def advance_consolidation(
         )
         if next_tracking is not None:
             advanced += 1
+            next_legs.append((next_tracking.id, next_tracking.route_id))
             # Notify the customer; read next_tracking now (this iteration's
             # activate_next_route refreshed it, the next one will expire it).
             await _publish_tracking_status_changed(
@@ -821,10 +845,46 @@ async def advance_consolidation(
                 changed_by=admin_id,
             )
 
-    await session.commit()
-    return OkResponse(
-        message=f"{advanced}/{len(tracking_ids)} colis passé(s) au tronçon suivant"
+    message = f"{advanced}/{len(tracking_ids)} colis passé(s) au tronçon suivant"
+    regrouped = await _regroup_next_legs(
+        session,
+        next_legs=[] if body.ungroup else next_legs,
+        name=lot_name,
+        notes=lot_notes,
     )
+    if regrouped is not None:
+        message += f", regroupés dans {regrouped}"
+    elif not body.ungroup and len(next_legs) > 1:
+        message += " ; trajets suivants différents : colis non regroupés"
+    await session.commit()
+    return OkResponse(message=message)
+
+
+async def _regroup_next_legs(
+    session: SessionDep,
+    *,
+    next_legs: list[tuple[uuid.UUID, uuid.UUID]],
+    name: str,
+    notes: str | None,
+) -> str | None:
+    """Keep a lot together on its next leg: a new consolidation on the next
+    legs' common route, holding them. Returns its code, or ``None`` when there
+    is nothing to group or the next legs do not share a route."""
+    routes = {route_id for _, route_id in next_legs}
+    if not next_legs or len(routes) != 1:
+        return None
+    consolidation, _ = await _new_consolidation(
+        session, route_id=routes.pop(), name=name, notes=notes
+    )
+    code = consolidation.consolidation_code
+    consolidation_id = consolidation.id
+    for tracking_id, _route in next_legs:
+        await crud_shipping_route_tracking_consolidation.add_tracking_to_consolidation(
+            session=session,
+            consolidation_id=consolidation_id,
+            tracking_id=tracking_id,
+        )
+    return code
 
 
 @router.post(

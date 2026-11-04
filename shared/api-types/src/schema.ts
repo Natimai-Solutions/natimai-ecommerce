@@ -1518,7 +1518,9 @@ export interface paths {
          * @description Partial update: dates, publication, status, thresholds, notes.
          *
          *     A status change is pushed to the orders that follow the departure
-         *     (paid or already on the way) and each one e-mails its customer.
+         *     (paid or already on the way) and each one e-mails its customer. Closing
+         *     a draft or open departure is refused here: it goes through
+         *     ``POST /{id}/close``.
          */
         patch: operations["admin-grouped-departures-update_departure"];
         trace?: never;
@@ -2143,6 +2145,11 @@ export interface paths {
          *
          *     ``ungroup=True`` first detaches each parcel from the consolidation, so it
          *     continues individually (e.g. into its own last-leg delivery).
+         *
+         *     Otherwise the grouping is kept for the next leg: when the parcels' next
+         *     legs share one route, they are attached to a new consolidation on that
+         *     route (the finished legs stay in this one, for the record). Next legs on
+         *     different routes cannot travel together and continue individually.
          */
         post: operations["admin-shipping-advance_consolidation"];
         delete?: never;

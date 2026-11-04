@@ -853,7 +853,7 @@ const fr = {
   },
   help: {
     departures_close:
-      "Le bouton « Clôturer le départ » vérifie les seuils (montant, unités) et le stock fournisseur, retire le départ de la vitrine et crée le suivant s'il est récurrent. Passez par lui : « Passer à l'étape suivante » ne fait pas ces contrôles.",
+      "Le bouton « Clôturer le départ » vérifie les seuils (montant, unités) et le stock fournisseur, puis arrête les commandes : le départ quitte le bandeau mais reste visible des clients qui y ont commandé. S'il est récurrent, le suivant est créé. L'étape suivante d'un départ ouvert lance cette même clôture.",
     departures_close_title: 'Clôturer le départ',
     departures_distributed:
       'Les commandes passent à « Disponible » : le client peut venir chercher ses articles.',
@@ -881,7 +881,7 @@ const fr = {
     payment_paid_title: 'Paiement validé',
     payment_title: "Le parcours d'un paiement manuel",
     payment_validation:
-      "À réception de l'argent ou du document, validez le paiement. Un encaissement partiel laisse la commande partiellement payée.",
+      "À réception de l'argent ou du document, validez le paiement ; un bon de commande ne se valide qu'une fois son document déposé. Un encaissement partiel laisse la commande partiellement payée.",
     payment_validation_title: 'Validation',
     pricing_coupon:
       "Saisi au checkout, il s'applique aux prix déjà réduits, jamais à la livraison. Chaque code peut exclure les articles en promotion.",
@@ -906,7 +906,7 @@ const fr = {
       'Transporteur et numéro de suivi, tous deux facultatifs. Le client reçoit l’e-mail « expédié ». Le colis reste sur ce tronçon.',
     shipping_hand_over_title: 'Remettre au transporteur',
     shipping_next:
-      "À l'arrivée au lieu suivant : ce tronçon se termine, le suivant démarre et le client est prévenu. Le tronçon suivant d'un colis groupé revient dans « Colis à grouper / traiter ».",
+      "À l'arrivée au lieu suivant : ce tronçon se termine, le suivant démarre et le client est prévenu. Pour un lot, « Garder le groupage » regroupe les tronçons suivants dans un nouveau lot quand leur trajet est commun.",
     shipping_next_title: 'Tronçon suivant',
     shipping_note:
       'Ces actions ne changent pas le statut de la commande. Les e-mails suivent les préférences de notification du client.',

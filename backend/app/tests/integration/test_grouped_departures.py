@@ -233,11 +233,20 @@ async def test_admin_lifecycle_and_order_attachment(db_session: AsyncSession) ->
     # Partial update: status change + unpublish.
     updated = await update_departure(
         created.id,
-        GroupedDepartureUpdate(status="closed", is_published=False),
+        GroupedDepartureUpdate(status="draft", is_published=False),
         db_session,
         seed.admin,
     )
-    assert (updated.status, updated.is_published) == ("closed", False)
+    assert (updated.status, updated.is_published) == ("draft", False)
+    # Closing goes through the assisted close, never a bare status change.
+    with pytest.raises(AppError) as bare_close:
+        await update_departure(
+            created.id,
+            GroupedDepartureUpdate(status="closed"),
+            db_session,
+            seed.admin,
+        )
+    assert bare_close.value.code == "grouped_departure.close_required"
     with pytest.raises(ValueError):
         GroupedDepartureUpdate(status="lost_at_sea")
 

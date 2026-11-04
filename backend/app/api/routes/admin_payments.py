@@ -37,6 +37,7 @@ from app.features.payment.services.capture_service import capture_payment
 from app.features.payment.services.document_payment import (
     DOCUMENT_PROVIDER_CODES,
     DocumentValidationOutcome,
+    PaymentDocumentMissingError,
     PaymentNotDocumentValidatedError,
     approve_document_payment,
     reject_document_payment,
@@ -411,6 +412,17 @@ async def approve_payment(
                     "payment_id": str(payment_id),
                     "provider_code": payment.provider_code,
                 },
+            ) from e
+        except PaymentDocumentMissingError as e:
+            await session.rollback()
+            raise AppError(
+                code="payment.document_missing",
+                status_code=409,
+                message=(
+                    "Aucun document déposé pour ce bon de commande : il ne peut "
+                    "pas être validé"
+                ),
+                details={"payment_id": str(payment_id)},
             ) from e
     else:
         if not (payment.provider_code or "").startswith("manual_"):

@@ -850,7 +850,7 @@ const en: MessageSchema = {
   },
   help: {
     departures_close:
-      'The “Close” button checks the thresholds (amount, units) and the supplier stock, takes the departure off the storefront and creates the next one if it recurs. Use it: moving to the next step skips these checks.',
+      'The “Close” button checks the thresholds (amount, units) and the supplier stock, then stops the orders: the departure leaves the banner but stays visible to the customers who ordered. If it recurs, the next one is created. The next step of an open departure runs this same close.',
     departures_close_title: 'Close',
     departures_distributed: 'Orders move to “Available”: the customer can collect their items.',
     departures_distributed_title: 'Distributed',
@@ -877,7 +877,7 @@ const en: MessageSchema = {
     payment_paid_title: 'Payment validated',
     payment_title: 'The path of a manual payment',
     payment_validation:
-      'When the money or the document arrives, validate the payment. A partial receipt leaves the order partially paid.',
+      'When the money or the document arrives, validate the payment; a purchase order can only be validated once its document is uploaded. A partial receipt leaves the order partially paid.',
     payment_validation_title: 'Validation',
     pricing_coupon:
       'Entered at checkout, it applies to the already reduced prices, never to shipping. Each code can exclude items on promotion.',
@@ -902,7 +902,7 @@ const en: MessageSchema = {
       'Carrier and tracking number, both optional. The customer gets the “shipped” email. The parcel stays on this leg.',
     shipping_hand_over_title: 'Hand over to the carrier',
     shipping_next:
-      'On arrival at the next place: this leg ends, the next one starts and the customer is told. The next leg of a grouped parcel comes back under the parcels to group.',
+      'On arrival at the next place: this leg ends, the next one starts and the customer is told. For a lot, “Keep the grouping” groups the next legs into a new lot when they share a route.',
     shipping_next_title: 'Next leg',
     shipping_note:
       'These actions do not change the order status. Emails follow the customer notification preferences.',

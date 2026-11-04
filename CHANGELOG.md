@@ -88,6 +88,23 @@ takes a tag as its `ref`.
 
 ### Fixed
 
+- Grouped departures: a draft or open departure is closed only through the
+  assisted close (thresholds, live supplier stock, next recurring departure).
+  `PATCH /admin/grouped-departures/{id}` with `status=closed` is refused
+  (`grouped_departure.close_required`), the admin "next step" of an open
+  departure runs the assisted close, and the edit form no longer offers
+  "Clôturé" for it.
+- Grouped departures: closing no longer unpublishes the departure, so its
+  customers keep following it through `GET /grouped-departures/{id}` until it
+  is distributed. The banner and the checkout still only pick open
+  departures. Departures closed before this change stay unpublished until an
+  admin publishes them again.
+- Shipping: "Garder le groupage" on a lot's next leg now groups the next legs
+  into a new consolidation on their common route (the finished legs stay in
+  the old lot). Next legs on different routes continue individually, and the
+  response says so.
+- Payments: a purchase-order payment cannot be approved until an active,
+  non-infected document is attached (`payment.document_missing`, 409).
 - The Security workflow, red on `main` since its creation: `trivy-action`
   pinned to an existing tag (`v0.36.0`), gitleaks run from its released binary
   (the GitHub action requires a paid licence for organisations), and two
