@@ -21,9 +21,14 @@
       </template>
     </PageHeader>
 
-    <p class="admin-hint">
-      {{ $t('departures.intro') }}
-    </p>
+    <HelpPanel
+      :title="$t('help.departures_title')"
+      :items="helpItems"
+      steps
+      storage-key="departures"
+    >
+      {{ $t('help.departures_reminders') }}
+    </HelpPanel>
 
     <div v-if="error || notice" class="admin-notices">
       <AppNotice v-if="error" tone="error" dense>{{ error }}</AppNotice>
@@ -877,6 +882,7 @@ import {
   nextDepartureStatus,
 } from '@app/utils';
 import PageHeader from '@/components/PageHeader.vue';
+import HelpPanel, { type HelpItem } from '@/components/HelpPanel.vue';
 import {
   addSupplierOrder,
   assignOrders,
@@ -921,6 +927,14 @@ import { useShopConfigStore } from '@/stores/shopConfig';
 import { setOrderStatus } from '@/api/orders';
 
 const { t } = useI18n();
+// Aide : le cycle d'un départ et ce que chaque étape déclenche.
+const helpItems = computed<HelpItem[]>(() => [
+  { title: t('help.departures_open_title'), text: t('help.departures_open') },
+  { title: t('help.departures_close_title'), text: t('help.departures_close') },
+  { title: t('help.departures_ordered_title'), text: t('help.departures_ordered') },
+  { title: t('help.departures_transit_title'), text: t('help.departures_transit') },
+  { title: t('help.departures_distributed_title'), text: t('help.departures_distributed') },
+]);
 const { confirmDelete } = useConfirm();
 const departureStatusLabel = (status: string) => t(`departure_status.${status}`);
 

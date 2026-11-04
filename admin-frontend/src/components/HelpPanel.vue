@@ -20,7 +20,12 @@
           }}</span>
           <q-icon v-else-if="item.icon" :name="item.icon" size="20px" class="text-muted" />
           <div>
-            <div class="text-weight-medium">{{ item.title }}</div>
+            <div class="text-weight-medium">
+              {{ item.title }}
+              <span v-if="item.current" class="help-panel__here">{{
+                $t('common.this_screen')
+              }}</span>
+            </div>
             <div class="text-caption text-muted">{{ item.text }}</div>
           </div>
         </li>
@@ -47,6 +52,8 @@ export interface HelpItem {
   title: string;
   text: string;
   icon?: string;
+  /** Étape traitée par l'écran courant (encart partagé entre plusieurs écrans). */
+  current?: boolean;
 }
 
 const props = withDefaults(
@@ -136,6 +143,17 @@ function toggle(value: boolean) {
   align-items: flex-start;
   gap: 12px;
   line-height: 1.45;
+}
+
+.help-panel__here {
+  margin-left: 6px;
+  padding: 1px 8px;
+  border: 1px solid var(--n-line-2);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--n-ink-2);
+  vertical-align: 1px;
 }
 
 .help-panel__step {

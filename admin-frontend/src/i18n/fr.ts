@@ -348,6 +348,7 @@ const fr = {
     save: 'Enregistrer',
     save_failed: 'Enregistrement impossible.',
     status: 'Statut',
+    this_screen: 'Cet écran',
     unsaved_leave: 'Quitter sans enregistrer',
     unsaved_message:
       'Les modifications de cet écran ne sont pas enregistrées. Quitter et les perdre ?',
@@ -594,8 +595,6 @@ const fr = {
     force_close: 'Forcer la clôture',
     freight: 'Fret réel ({currency})',
     image: "URL d'image (optionnel)",
-    intro:
-      "Un départ = une date limite de commande affichée en vitrine, les commandes qui s'y rattachent (automatiquement au checkout, déplaçables ici) et le bon de commande fournisseur agrégé par SKU. Un seul départ « ouvert » et publié à la fois.",
     mark_shortage: 'Marquer en rupture',
     matching: "Rapprochement des commandes (servies par ordre d'arrivée)",
     message: 'Message *',
@@ -851,6 +850,79 @@ const fr = {
     st_pending: 'En attente',
     st_rejected: 'Rejetée',
     title: 'Demandes de groupe',
+  },
+  help: {
+    departures_close:
+      "Le bouton « Clôturer le départ » vérifie les seuils (montant, unités) et le stock fournisseur, retire le départ de la vitrine et crée le suivant s'il est récurrent. Passez par lui : « Passer à l'étape suivante » ne fait pas ces contrôles.",
+    departures_close_title: 'Clôturer le départ',
+    departures_distributed:
+      'Les commandes passent à « Disponible » : le client peut venir chercher ses articles.',
+    departures_distributed_title: 'Distribué',
+    departures_open:
+      "Publié, il apparaît dans le bandeau de la vitrine avec sa date limite, et les commandes s'y rattachent au checkout. Un seul départ à la fois : le prochain ouvert et publié.",
+    departures_open_title: 'Ouvert et publié',
+    departures_ordered:
+      '« Enregistrer un BC » pour le bon de commande passé au fournisseur : le départ passe à « Commandé » et les commandes payées suivent.',
+    departures_ordered_title: 'Commandé au fournisseur',
+    departures_reminders:
+      'Les rappels J-7, J-2 et dernier jour sont publiés sur le webhook social, pas envoyés aux clients.',
+    departures_title: "Le cycle d'un départ",
+    departures_transit:
+      'À chaque étape, les commandes payées suivent et le client reçoit un e-mail. À « Reçu », le solde est demandé aux commandes avec acompte.',
+    departures_transit_title: 'En transit, en douane, reçu',
+    payment_methods:
+      "Chaque moyen s'active ici, s'ouvre à tous les groupes tarifaires ou à certains, et peut avoir un montant maximum. L'acompte se règle par groupe.",
+    payment_methods_title: 'Moyens de paiement',
+    payment_order:
+      "Pour un chèque, un virement ou un bon de commande, la commande attend son paiement ; le client trouve vos instructions dans l'e-mail de commande.",
+    payment_order_title: 'Commande',
+    payment_paid:
+      'La commande passe à payée, la facture part au client, et la commande fournisseur aussi si elle est automatique. Un refus met la commande en échec de paiement et libère le stock.',
+    payment_paid_title: 'Paiement validé',
+    payment_title: "Le parcours d'un paiement manuel",
+    payment_validation:
+      "À réception de l'argent ou du document, validez le paiement. Un encaissement partiel laisse la commande partiellement payée.",
+    payment_validation_title: 'Validation',
+    pricing_coupon:
+      "Saisi au checkout, il s'applique aux prix déjà réduits, jamais à la livraison. Chaque code peut exclure les articles en promotion.",
+    pricing_coupon_title: 'Code promo',
+    pricing_gift_card:
+      'Créditée sur le compte du client, elle se dépense au paiement, après le code promo, et peut régler la livraison. Le reste passe par le moyen de paiement choisi.',
+    pricing_gift_card_title: 'Carte cadeau',
+    pricing_group:
+      'Prix de référence moins la remise du groupe tarifaire du client ; un prix saisi pour le groupe sur un article la remplace. Visiteur ou client sans groupe : groupe par défaut.',
+    pricing_group_title: 'Prix du groupe',
+    pricing_promotion:
+      'Calculée sur le prix de référence, elle ne compte que si elle fait mieux que le prix du groupe : le client paie le plus bas des deux, jamais les deux cumulés.',
+    pricing_promotion_title: 'Promotion',
+    pricing_title: 'Ce que paie le client',
+    shipping_deliver:
+      'Sur le dernier tronçon, remettez au transporteur, puis « Livrer » quand le client a reçu ou retiré son colis. Il reçoit l’e-mail de livraison.',
+    shipping_deliver_title: 'Livrer',
+    shipping_group:
+      'Sélectionnez des tronçons du même trajet pour créer une consolidation : un envoi, un numéro de suivi. Aucun e-mail au client.',
+    shipping_group_title: 'Grouper (facultatif)',
+    shipping_hand_over:
+      'Transporteur et numéro de suivi, tous deux facultatifs. Le client reçoit l’e-mail « expédié ». Le colis reste sur ce tronçon.',
+    shipping_hand_over_title: 'Remettre au transporteur',
+    shipping_next:
+      "À l'arrivée au lieu suivant : ce tronçon se termine, le suivant démarre et le client est prévenu. Le tronçon suivant d'un colis groupé revient dans « Colis à grouper / traiter ».",
+    shipping_next_title: 'Tronçon suivant',
+    shipping_note:
+      'Ces actions ne changent pas le statut de la commande. Les e-mails suivent les préférences de notification du client.',
+    shipping_title: "Le parcours d'un colis",
+    suppliers_api:
+      "Le catalogue se synchronise seul à la cadence choisie ; la commande fournisseur peut partir d'elle-même au paiement du client.",
+    suppliers_api_title: 'Intégration API',
+    suppliers_file:
+      'Déposez le fichier du fournisseur et associez ses colonnes à nos champs : chaque dépôt crée ou met à jour les articles. Des seuils de stock ou de prix retirent un article de la vitrine.',
+    suppliers_file_title: 'Fichier CSV / Excel',
+    suppliers_manual:
+      "Les articles se créent à la main ou par un import ponctuel ; rien n'est synchronisé.",
+    suppliers_manual_title: 'Manuel',
+    suppliers_note:
+      "Un fournisseur local n'ajoute ni douane ni fret d'import au prix des articles créés. Le dropshipping se règle sur le lieu du fournisseur, dans",
+    suppliers_title: "Trois façons d'approvisionner",
   },
   homepage: {
     add_banner: 'Ajouter une bannière',

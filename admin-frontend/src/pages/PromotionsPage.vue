@@ -26,6 +26,8 @@
       </template>
     </PageHeader>
 
+    <HelpPanel :title="$t('help.pricing_title')" :items="helpItems" steps storage-key="pricing" />
+
     <AppNotice v-if="error" tone="error" dense class="q-mb-md">{{ error }}</AppNotice>
 
     <q-table
@@ -215,6 +217,8 @@ import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
 import { toneIcon, type StatusTone } from '@app/ui/statusTone';
 import PageHeader from '@/components/PageHeader.vue';
+import HelpPanel from '@/components/HelpPanel.vue';
+import { pricingHelp } from '@/utils/helpTopics';
 import {
   createDiscount,
   getProductName,
@@ -229,6 +233,8 @@ import { extractApiError } from '@/api/errors';
 import { useShopConfigStore } from '@/stores/shopConfig';
 
 const { t } = useI18n();
+// Aide partagée par les quatre écrans de prix, cet écran marqué.
+const helpItems = computed(() => pricingHelp(t, 'promotion'));
 
 type PromotionTarget = 'product' | 'category';
 interface Choice {

@@ -50,6 +50,16 @@ takes a tag as its `ref`.
   once closed, remembered per browser); "Modes de livraison" shows three setup
   examples (in-store pickup, flat fee, price by destination), open while no
   mode exists.
+- Help panels on more admin screens, all built on one `HelpPanel` component
+  (collapsible, numbered steps or icons, a closed panel stays closed per
+  browser): the path of a parcel on Expéditions; the life of a grouped
+  departure (open, close, ordered, transit, distributed) on Départs groupés;
+  the three supply methods on Fournisseurs; "what the customer pays" (group
+  price, promotion, discount code, gift card) shared by the four pricing
+  screens; the path of a manual payment shared by Moyens de paiement and
+  Validation des paiements. A shared panel marks the step of the current
+  screen and folds on all its screens at once. The texts follow the code
+  (pricing, checkout discount, shipping and departure services).
 - Pickup modes take a pickup place; its postal address (new fields on physical
   places) is returned by the last-leg options endpoint (`pickup_place`) and
   shown to the customer at checkout under the delivery choice.

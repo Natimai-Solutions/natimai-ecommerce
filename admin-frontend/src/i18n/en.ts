@@ -350,6 +350,7 @@ const en: MessageSchema = {
     save: 'Save',
     save_failed: 'Saving failed.',
     status: 'Status',
+    this_screen: 'This screen',
     unsaved_leave: 'Leave without saving',
     unsaved_message: 'The changes on this screen are not saved. Leave and lose them?',
     unsaved_stay: 'Stay',
@@ -592,8 +593,6 @@ const en: MessageSchema = {
     force_close: 'Force closing',
     freight: 'Actual freight ({currency})',
     image: 'Image URL (optional)',
-    intro:
-      'A departure = an order deadline shown in the shop, the orders attached to it (automatically at checkout, movable here) and the supplier purchase order aggregated by SKU. Only one “open” and published departure at a time.',
     mark_shortage: 'Mark as out of stock',
     matching: 'Order matching (served in order of arrival)',
     message: 'Message *',
@@ -848,6 +847,77 @@ const en: MessageSchema = {
     st_pending: 'Pending',
     st_rejected: 'Rejected',
     title: 'Group requests',
+  },
+  help: {
+    departures_close:
+      'The “Close” button checks the thresholds (amount, units) and the supplier stock, takes the departure off the storefront and creates the next one if it recurs. Use it: moving to the next step skips these checks.',
+    departures_close_title: 'Close',
+    departures_distributed: 'Orders move to “Available”: the customer can collect their items.',
+    departures_distributed_title: 'Distributed',
+    departures_open:
+      'Once published, it shows in the storefront banner with its cutoff, and orders attach to it at checkout. One departure at a time: the next open and published one.',
+    departures_open_title: 'Open and published',
+    departures_ordered:
+      'Record the purchase order placed with the supplier: the departure moves to “Ordered” and paid orders follow.',
+    departures_ordered_title: 'Ordered from the supplier',
+    departures_reminders:
+      'The D-7, D-2 and last-day reminders are posted to the social webhook, not sent to customers.',
+    departures_title: 'The life of a departure',
+    departures_transit:
+      'At each step, paid orders follow and the customer gets an email. At “Received”, the balance is requested from deposit orders.',
+    departures_transit_title: 'In transit, at customs, received',
+    payment_methods:
+      'Each method is switched on here, opened to all price groups or some, and can have a maximum amount. The deposit is set per group.',
+    payment_methods_title: 'Payment methods',
+    payment_order:
+      'For a cheque, a transfer or a purchase order, the order waits for its payment; the customer finds your instructions in the order email.',
+    payment_order_title: 'Order',
+    payment_paid:
+      'The order becomes paid, the invoice goes to the customer, and so does the supplier order when it is automatic. A rejection marks the order as payment failed and releases the stock.',
+    payment_paid_title: 'Payment validated',
+    payment_title: 'The path of a manual payment',
+    payment_validation:
+      'When the money or the document arrives, validate the payment. A partial receipt leaves the order partially paid.',
+    payment_validation_title: 'Validation',
+    pricing_coupon:
+      'Entered at checkout, it applies to the already reduced prices, never to shipping. Each code can exclude items on promotion.',
+    pricing_coupon_title: 'Discount code',
+    pricing_gift_card:
+      'Credited to the customer account, it is spent at payment, after the discount code, and can pay for shipping. The rest goes through the chosen payment method.',
+    pricing_gift_card_title: 'Gift card',
+    pricing_group:
+      'Reference price minus the customer price group discount; a price typed for the group on an item replaces it. Visitors and customers without a group: default group.',
+    pricing_group_title: 'Group price',
+    pricing_promotion:
+      'Computed on the reference price, it only counts when it beats the group price: the customer pays the lower of the two, never both combined.',
+    pricing_promotion_title: 'Promotion',
+    pricing_title: 'What the customer pays',
+    shipping_deliver:
+      'On the last leg, hand over to the carrier, then “Deliver” once the customer has received or collected the parcel. They get the delivery email.',
+    shipping_deliver_title: 'Deliver',
+    shipping_group:
+      'Select legs of the same route to create a consolidation: one shipment, one tracking number. No email to the customer.',
+    shipping_group_title: 'Group (optional)',
+    shipping_hand_over:
+      'Carrier and tracking number, both optional. The customer gets the “shipped” email. The parcel stays on this leg.',
+    shipping_hand_over_title: 'Hand over to the carrier',
+    shipping_next:
+      'On arrival at the next place: this leg ends, the next one starts and the customer is told. The next leg of a grouped parcel comes back under the parcels to group.',
+    shipping_next_title: 'Next leg',
+    shipping_note:
+      'These actions do not change the order status. Emails follow the customer notification preferences.',
+    shipping_title: 'The path of a parcel',
+    suppliers_api:
+      'The catalogue syncs by itself at the chosen interval; the supplier order can go out on its own when the customer pays.',
+    suppliers_api_title: 'API integration',
+    suppliers_file:
+      'Upload the supplier file and map its columns to our fields: each upload creates or updates items. Stock or price thresholds take an item off the storefront.',
+    suppliers_file_title: 'CSV / Excel file',
+    suppliers_manual: 'Items are created by hand or through a one-off import; nothing is synced.',
+    suppliers_manual_title: 'Manual',
+    suppliers_note:
+      'A local supplier adds no customs and no import freight to the price of the items it creates. Dropshipping is set on the supplier place, in',
+    suppliers_title: 'Three ways to source',
   },
   homepage: {
     add_banner: 'Add a banner',

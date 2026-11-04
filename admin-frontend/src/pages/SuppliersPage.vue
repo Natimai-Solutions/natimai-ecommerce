@@ -24,6 +24,18 @@
       </template>
     </PageHeader>
 
+    <HelpPanel :title="$t('help.suppliers_title')" :items="helpItems" storage-key="suppliers">
+      {{ $t('help.suppliers_note') }}
+      <router-link
+        v-if="shopConfig.moduleOn('logistics_multileg')"
+        to="/logistics-routes?view=places"
+        class="admin-link"
+        >{{ $t('layout.nav.routes') }}</router-link
+      >
+      <template v-else>{{ $t('layout.nav.routes') }}</template
+      >.
+    </HelpPanel>
+
     <div v-if="error || notice" class="admin-notices">
       <AppNotice v-if="error" tone="error" dense>{{ error }}</AppNotice>
       <AppNotice v-if="notice" tone="success" dense>{{ notice }}</AppNotice>
@@ -961,6 +973,7 @@ import type { QTableColumn } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
 import PageHeader from '@/components/PageHeader.vue';
+import HelpPanel, { type HelpItem } from '@/components/HelpPanel.vue';
 import {
   MAPPING_TARGET_LABELS,
   MATCH_KEY_LABELS,
@@ -1015,6 +1028,16 @@ import {
 } from '@/utils/settingsSchema';
 
 const { t } = useI18n();
+// Aide : les trois méthodes d'approvisionnement.
+const helpItems = computed<HelpItem[]>(() => [
+  { title: t('help.suppliers_manual_title'), text: t('help.suppliers_manual'), icon: 'ph:hand' },
+  { title: t('help.suppliers_file_title'), text: t('help.suppliers_file'), icon: 'ph:file-csv' },
+  {
+    title: t('help.suppliers_api_title'),
+    text: t('help.suppliers_api'),
+    icon: 'ph:plugs-connected',
+  },
+]);
 const { ask } = useConfirm();
 
 const shopConfig = useShopConfigStore();

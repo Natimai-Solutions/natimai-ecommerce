@@ -13,6 +13,8 @@
       </template>
     </PageHeader>
 
+    <HelpPanel :title="$t('help.pricing_title')" :items="helpItems" steps storage-key="pricing" />
+
     <AppNotice v-if="error" tone="error" class="q-mb-md">{{ error }}</AppNotice>
     <AppNotice v-if="notice" tone="success" dense class="q-mb-md">{{ notice }}</AppNotice>
 
@@ -99,15 +101,19 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
-import { onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
 import PageHeader from '@/components/PageHeader.vue';
+import HelpPanel from '@/components/HelpPanel.vue';
+import { pricingHelp } from '@/utils/helpTopics';
 import { extractApiError } from '@/api/errors';
 import { listPriceGroups, updatePriceGroup, type PriceGroup } from '@/api/eligibility';
 import { useUnsavedGuard } from '@/composables/useUnsavedGuard';
 
 const { t } = useI18n();
+// Aide partagée par les quatre écrans de prix, cet écran marqué.
+const helpItems = computed(() => pricingHelp(t, 'group'));
 
 const groups = ref<PriceGroup[]>([]);
 const loading = ref(false);
