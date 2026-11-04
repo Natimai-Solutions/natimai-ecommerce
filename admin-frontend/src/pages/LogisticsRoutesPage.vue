@@ -19,31 +19,12 @@
     </div>
 
     <!-- Aide : les trois notions de l'écran et ce qui se règle ailleurs. -->
-    <q-expansion-item
-      v-model="helpOpen"
-      class="app-panel logistics-help q-mb-md"
-      dense-toggle
-      icon="ph:lightbulb"
-      :label="$t('logistics.help_title')"
-      header-class="logistics-help__head"
-      @update:model-value="rememberHelp"
-    >
-      <div class="logistics-help__body">
-        <div v-for="item in helpItems" :key="item.key" class="logistics-help__item">
-          <q-icon :name="item.icon" size="20px" class="text-muted" />
-          <div>
-            <div class="text-weight-medium">{{ $t(`logistics.help_${item.key}_title`) }}</div>
-            <div class="text-caption text-muted">{{ $t(`logistics.help_${item.key}`) }}</div>
-          </div>
-        </div>
-        <div class="text-caption">
-          {{ $t('logistics.help_modes') }}
-          <router-link to="/delivery-modes" class="admin-link">{{
-            $t('layout.nav.delivery_modes')
-          }}</router-link>
-        </div>
-      </div>
-    </q-expansion-item>
+    <HelpPanel :title="$t('logistics.help_title')" :items="helpItems" storage-key="logistics">
+      {{ $t('logistics.help_modes') }}
+      <router-link to="/delivery-modes" class="admin-link">{{
+        $t('layout.nav.delivery_modes')
+      }}</router-link>
+    </HelpPanel>
 
     <div class="admin-toolbar">
       <q-btn-toggle
@@ -615,6 +596,7 @@ import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
 import { countryOptions, type CountryOption } from '@app/utils';
 import PageHeader from '@/components/PageHeader.vue';
+import HelpPanel, { type HelpItem } from '@/components/HelpPanel.vue';
 import DeliveryModeDialog from '@/components/DeliveryModeDialog.vue';
 import WeightBandsEditor from '@/components/WeightBandsEditor.vue';
 import {
@@ -707,30 +689,18 @@ const viewOptions = computed(() => [
   { label: t('logistics.view_zones', { n: zoneRows.value.length }), value: 'zones' },
 ]);
 
-// Aide repliable ; ouverte tant que l'admin ne l'a pas fermée (par navigateur).
-const HELP_KEY = 'admin.logistics.help.closed';
-function readHelpClosed(): boolean {
-  try {
-    return localStorage.getItem(HELP_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
-const helpOpen = ref(!readHelpClosed());
-function rememberHelp(open: boolean) {
-  try {
-    if (open) localStorage.removeItem(HELP_KEY);
-    else localStorage.setItem(HELP_KEY, '1');
-  } catch {
-    // Stockage indisponible (navigation privée) : l'aide reste juste ouverte.
-  }
-}
-const helpItems = [
-  { key: 'zones', icon: 'ph:map-trifold' },
-  { key: 'places', icon: 'ph:warehouse' },
-  { key: 'routes', icon: 'ph:path' },
-];
-// Zones géographiques : forment l'arbre de desserte + portent les codes postaux.
+// Aide : les trois notions de l'écran.
+const helpItems = computed<HelpItem[]>(() =>
+  [
+    { key: 'zones', icon: 'ph:map-trifold' },
+    { key: 'places', icon: 'ph:warehouse' },
+    { key: 'routes', icon: 'ph:path' },
+  ].map(({ key, icon }) => ({
+    icon,
+    title: t(`logistics.help_${key}_title`),
+    text: t(`logistics.help_${key}`),
+  })),
+); // Zones géographiques : forment l'arbre de desserte + portent les codes postaux.
 const GEO_TYPES = ['country', 'region', 'island', 'municipality'];
 function isGeoType(type: string): boolean {
   return GEO_TYPES.includes(type);
@@ -1201,22 +1171,5 @@ onMounted(load);
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-}
-
-.logistics-help :deep(.logistics-help__head) {
-  font-weight: 500;
-}
-
-.logistics-help__body {
-  display: grid;
-  gap: 14px;
-  padding: 4px 16px 16px;
-}
-
-.logistics-help__item {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  line-height: 1.45;
 }
 </style>
