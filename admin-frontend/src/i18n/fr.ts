@@ -462,6 +462,34 @@ const fr = {
     s_orders: 'Commandes',
     s_products: 'Produits',
     s_settings: 'Paramètres',
+    setup: 'Mise en route',
+    setup_catalogue: 'Catalogue en ligne',
+    setup_catalogue_hint:
+      'Aucun produit enrichi et actif : synchronisez un fournisseur ou créez des produits.',
+    setup_customs_declaration_fees: 'Frais par déclaration en douane',
+    setup_customs_declaration_fees_hint:
+      "{n} lieu(x) de dédouanement sans frais par déclaration : rien ne sera facturé. À confirmer si c'est voulu.",
+    setup_customs_rates: 'Taux de douane',
+    setup_customs_rates_hint:
+      '{n} produit(s) masqué(s) : taux de douane introuvable pour leur catégorie.',
+    setup_insurance_rate: "Taux d'assurance transport",
+    setup_insurance_rate_hint:
+      "À 0 %, la prime d'assurance n'est jamais récupérée sur les ventes. À confirmer si c'est voulu.",
+    setup_legal_identity: 'Identité légale du vendeur',
+    setup_legal_identity_hint:
+      '{n} champ(s) obligatoire(s) vide(s) : aucune facture ne peut être émise.',
+    setup_payment_methods: 'Moyens de paiement',
+    setup_payment_methods_hint: 'Aucun moyen de paiement actif : le client ne peut pas commander.',
+    setup_progress: '{done} point(s) sur {total} réglé(s)',
+    setup_status_check: 'À confirmer',
+    setup_status_done: 'Fait',
+    setup_status_todo: 'À faire',
+    setup_support_email: 'E-mail de la boutique pour les alertes',
+    setup_support_email_hint:
+      'Sans adresse, les nouvelles commandes à valider et les incidents de paiement ne préviennent personne.',
+    setup_weights: 'Poids des produits',
+    setup_weights_hint:
+      '{n} produit(s) masqué(s) : poids manquant, le transport ne peut pas être calculé.',
     shortcuts: 'Raccourcis',
     t_groups: 'Demandes de groupe',
     t_groups_hint: 'Clients qui demandent un tarif professionnel',

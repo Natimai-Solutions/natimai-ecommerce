@@ -9,6 +9,13 @@ takes a tag as its `ref`.
 
 ### Added
 
+- Admin home → « Mise en route »: a start-up checklist computed from the data
+  (`GET /admin/setup-checklist`): seller legal identity, shop e-mail for
+  alerts, an active payment method, an online catalogue, products hidden for
+  a missing customs rate or weight, and two zeros to confirm (transport
+  insurance rate, clearance places without a fee per declaration). Each line
+  links to the screen that settles it; the section disappears once every
+  point is done. The settings screen opens a category from `?category=`.
 - Integrity chain of the accounting documents: each invoice and credit note
   stores the SHA-256 of the previous document of its series and fiscal year
   and of its own frozen content (`previous_hash`, `chain_hash`, migration

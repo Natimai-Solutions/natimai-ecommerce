@@ -10,3 +10,12 @@ export async function getDashboard(): Promise<AdminDashboard> {
   const { data } = await api.get<AdminDashboard>('/admin/dashboard');
   return data;
 }
+
+/** `GET /admin/setup-checklist` — ce qui manque avant la première commande. */
+export type SetupChecklist = components['schemas']['SetupChecklist'];
+export type SetupChecklistItem = components['schemas']['SetupChecklistItem'];
+
+export async function getSetupChecklist(): Promise<SetupChecklist> {
+  const { data } = await api.get<SetupChecklist>('/admin/setup-checklist');
+  return data;
+}

@@ -67,7 +67,6 @@ sur le serveur, chez un tiers ou une décision.
 - **Bons de préparation, étiquettes**, changement de statut en masse — M.
 - **Fiche client** (commandes, avoir, points), recherche globale (n° de commande, client, SKU) — M.
 - **Rôles fins** (préparateur, comptable) à la place du seul superuser — M.
-- **Checklist de mise en route** de la boutique (identité légale, taux de douane, frais, prestataires de paiement) — S.
 - Pagination serveur sur les autres tableaux (30 fichiers masquent encore la pagination ; 3 seulement paginent côté serveur) — M.
 
 ---

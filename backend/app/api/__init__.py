@@ -27,6 +27,7 @@ from app.api.routes.admin_payments import router as admin_payments_router
 from app.api.routes.admin_price_groups import router as admin_price_groups_router
 from app.api.routes.admin_product import router as admin_product_router
 from app.api.routes.admin_quote_requests import router as admin_quote_requests_router
+from app.api.routes.admin_setup_checklist import router as admin_setup_checklist_router
 from app.api.routes.admin_shipping import router as admin_shipping_router
 from app.api.routes.admin_spec_definitions import (
     router as admin_spec_definitions_router,
@@ -112,6 +113,7 @@ api_router.include_router(payment_router)
 api_router.include_router(payment_method_router)
 api_router.include_router(payments_router)
 api_router.include_router(admin_dashboard_router)
+api_router.include_router(admin_setup_checklist_router)
 api_router.include_router(admin_payments_router)
 api_router.include_router(admin_payment_providers_router)
 api_router.include_router(admin_payment_methods_router)

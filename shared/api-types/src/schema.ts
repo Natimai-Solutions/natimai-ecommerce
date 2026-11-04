@@ -855,6 +855,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/setup-checklist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Setup Checklist
+         * @description The start-up checklist, computed from the current data.
+         */
+        get: operations["admin-dashboard-get_setup_checklist"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/payments": {
         parameters: {
             query?: never;
@@ -20505,6 +20525,34 @@ export interface components {
             /** Hint */
             hint: string;
         };
+        /** SetupChecklist */
+        SetupChecklist: {
+            /** Items */
+            items: components["schemas"]["SetupChecklistItem"][];
+            /** Done */
+            done: number;
+            /** Total */
+            total: number;
+            /** Ready */
+            ready: boolean;
+        };
+        /** SetupChecklistItem */
+        SetupChecklistItem: {
+            /** Key */
+            key: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "done" | "todo" | "check";
+            /**
+             * Count
+             * @default 0
+             */
+            count: number;
+            /** To */
+            to: string;
+        };
         /**
          * ShipRequest
          * @description Carrier + reference for a shipment (both optional — may be self-managed).
@@ -25504,6 +25552,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminDashboard"];
+                };
+            };
+        };
+    };
+    "admin-dashboard-get_setup_checklist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetupChecklist"];
                 };
             };
         };

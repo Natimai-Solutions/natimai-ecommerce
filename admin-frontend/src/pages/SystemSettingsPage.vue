@@ -181,6 +181,7 @@
 import { useI18n } from 'vue-i18n';
 import { intlLocale } from '@app/utils';
 import { computed, onMounted, reactive, ref } from 'vue';
+import { useRoute } from 'vue-router';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
 import PageHeader from '@/components/PageHeader.vue';
@@ -211,7 +212,11 @@ const busy = ref<string | null>(null);
 const error = ref<string | null>(null);
 const notice = ref<string | null>(null);
 const search = ref<string | null>('');
-const activeCategory = ref<string>('');
+// `?category=legal` opens that category (links from the start-up checklist).
+const route = useRoute();
+const activeCategory = ref<string>(
+  typeof route.query.category === 'string' ? route.query.category : '',
+);
 
 function byCategory(key: string): RuntimeSetting[] {
   return rows.value.filter((r) => r.category === key).sort((a, b) => a.order - b.order);
