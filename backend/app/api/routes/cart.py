@@ -37,6 +37,7 @@ from app.features.cart.models.cart import (
     CheckoutShippingPreference,
     LastLegOption,
     LastLegOptionsResponse,
+    PickupPlaceInfo,
 )
 from app.features.cart.models.quote_request import (
     GuestQuoteRequestResponse,
@@ -106,7 +107,7 @@ from app.features.payment.services.payment_initiation import (
     initiate_payment_for_method,
 )
 from app.features.place.crud import crud_place
-from app.features.place.models import Place
+from app.features.place.models import NODE_PLACE_TYPES, Place
 from app.features.product.models.product import (
     BACKORDER_MODES,
     AvailabilityMode,
@@ -144,7 +145,7 @@ from app.features.shipping.services import (
     calculate_shipping_for_routes,
     serialize_shipping_cost_summary,
 )
-from app.features.shipping.services.last_leg import resolve_last_leg_candidates
+from app.features.shipping.services.last_leg import resolve_last_leg_options
 from app.features.shipping.services.origin import (
     get_main_warehouse,
     load_origin_context,
@@ -427,11 +428,12 @@ async def _last_legs_serving(
     session: SessionDep, destination_chain: list[uuid.UUID]
 ) -> set[uuid.UUID]:
     """Ids of the last-leg routes the checkout may bill for this destination:
-    the ones the storefront offers (``resolve_last_leg_candidates``)."""
-    candidates = await resolve_last_leg_candidates(
+    the ones the storefront offers (``resolve_last_leg_options``), every
+    pickup point included."""
+    options = await resolve_last_leg_options(
         session, destination_chain=destination_chain
     )
-    return {candidate.route.id for candidate in candidates.values()}
+    return {option.route.id for option in options}
 
 
 async def _resolve_selected_checkout_routes(
@@ -736,6 +738,7 @@ async def _resolve_last_leg_route(
     *,
     delivery_type: str | None,
     destination_chain: list[uuid.UUID] | None = None,
+    pickup_place_id: uuid.UUID | None = None,
 ) -> ShippingRoute | None:
     """Active last-leg route (``is_to_customer``) priced for the chosen delivery mode.
 
@@ -746,15 +749,25 @@ async def _resolve_last_leg_route(
     enum — any value an admin configures on a route becomes a selectable mode.
 
     When a ``destination_chain`` is given, only routes serving that destination
-    qualify (most specific zone first) — see ``resolve_last_leg_candidates``.
+    qualify (most specific zone first) — see ``resolve_last_leg_options``.
+
+    A pickup mode may list several pickup points: ``pickup_place_id`` picks
+    one (``None`` when it is not offered). Without it, the mode's best offer
+    is used, as before pickup points could be chosen.
     """
     if not delivery_type:
         return None
-    candidates = await resolve_last_leg_candidates(
-        session, destination_chain=destination_chain or []
-    )
-    candidate = candidates.get(delivery_type)
-    return candidate.route if candidate is not None else None
+    options = [
+        option
+        for option in await resolve_last_leg_options(
+            session, destination_chain=destination_chain or []
+        )
+        if option.delivery_type == delivery_type
+    ]
+    if pickup_place_id is not None:
+        options = [o for o in options if o.pickup_place_id == pickup_place_id]
+    # Options come best-first within a mode.
+    return options[0].route if options else None
 
 
 async def _resolve_tracking_path_for_segment(
@@ -2591,6 +2604,7 @@ async def _quote_checkout(
     shipping_address_id: uuid.UUID | None,
     delivery_type: str | None,
     payment_method_id: uuid.UUID | None,
+    pickup_place_id: uuid.UUID | None = None,
     shipping_route_ids: list[uuid.UUID] | None = None,
     shipping_preference: CheckoutShippingPreference | None = None,
     discount: AppliedDiscount | None = None,
@@ -2632,6 +2646,7 @@ async def _quote_checkout(
         session,
         delivery_type=delivery_type,
         destination_chain=destination_chain,
+        pickup_place_id=pickup_place_id,
     )
     if delivery_type and last_leg_route is None:
         raise AppError(
@@ -2642,6 +2657,7 @@ async def _quote_checkout(
             ),
             details={
                 "delivery_type": delivery_type,
+                "pickup_place_id": str(pickup_place_id) if pickup_place_id else None,
                 "shipping_address_id": (
                     str(shipping_address_id) if shipping_address_id else None
                 ),
@@ -2822,6 +2838,10 @@ async def get_checkout_quote(
     payment_method_id: uuid.UUID | None = Query(
         default=None, description="Chosen payment method (its fee is added)"
     ),
+    pickup_place_id: Annotated[
+        uuid.UUID | None,
+        Query(description="Chosen pickup point, for a mode offering several"),
+    ] = None,
     # Annotated so a direct call (tests, other routes) gets real defaults
     # rather than the Query markers for the parameters it omits.
     discount_code: Annotated[
@@ -2900,6 +2920,10 @@ async def get_checkout_quote(
         shipping_address_id=address_id,
         delivery_type=delivery_type,
         payment_method_id=payment_method_id,
+        # isinstance: called directly (tests) the FastAPI default is a Query.
+        pickup_place_id=(
+            pickup_place_id if isinstance(pickup_place_id, uuid.UUID) else None
+        ),
         discount=applied_discount,
         deposit_policy=policy,
         payment_plan=payment_plan,
@@ -2979,6 +3003,30 @@ async def _priced_last_leg_options(
     )
 
 
+def _pickup_place_info(route: ShippingRoute) -> PickupPlaceInfo | None:
+    """The pickup point of a last-leg route, for the checkout.
+
+    A pickup route (``mode == "pickup"``) ends where the customer collects the
+    parcel: its destination place. Only a physical node (shop, warehouse,
+    address…) is shown — a geographic zone left as destination by an older
+    setup is not an address the customer can go to.
+    """
+    if route.mode != "pickup":
+        return None
+    place = route.to_place
+    if place is None or place.type not in NODE_PLACE_TYPES:
+        return None
+    return PickupPlaceInfo(
+        place_id=place.id,
+        name=place.name,
+        address_line1=place.address_line1 or None,
+        address_line2=place.address_line2 or None,
+        postal_code=place.postal_code or None,
+        city=place.city or None,
+        country=place.country or None,
+    )
+
+
 async def _price_last_legs(
     session: SessionDep,
     *,
@@ -2991,7 +3039,7 @@ async def _price_last_legs(
     """Price every delivery mode serving the destination for this shipment."""
     # Delivery modes are driven by the admin's configured last-leg routes, not a
     # fixed enum: any mode whose route serves this destination appears.
-    candidates = await resolve_last_leg_candidates(
+    offers = await resolve_last_leg_options(
         session, destination_chain=destination_chain
     )
     declaration_fee_total = sum(
@@ -3000,8 +3048,8 @@ async def _price_last_legs(
     )
 
     options: list[LastLegOption] = []
-    for mode in sorted(candidates):
-        route = candidates[mode].route
+    for offer in offers:
+        route = offer.route
         summary = calculate_shipping_for_routes(
             routes=[route],
             total_weight_kg=total_weight_kg,
@@ -3010,12 +3058,13 @@ async def _price_last_legs(
         )
         options.append(
             LastLegOption(
-                delivery_type=mode,
+                delivery_type=offer.delivery_type,
                 label=route.customer_label,
                 amount=summary.total_fee,
                 currency=currency,
                 eta_days=route.eta_days,
                 route_name=route.name,
+                pickup_place=_pickup_place_info(route),
             )
         )
 
@@ -3226,6 +3275,7 @@ async def checkout_my_cart(
         shipping_address_id=payload.shipping_address_id,
         delivery_type=payload.delivery_type,
         payment_method_id=payload.payment_method_id,
+        pickup_place_id=payload.pickup_place_id,
         shipping_route_ids=payload.shipping_route_ids,
         shipping_preference=payload.shipping_preference,
         discount=applied_discount,

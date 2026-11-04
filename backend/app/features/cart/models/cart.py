@@ -319,6 +319,14 @@ class CheckoutRequest(SQLModel):
             "e.g. home_delivery / air_freight / sea_freight)"
         ),
     )
+    pickup_place_id: uuid.UUID | None = Field(
+        default=None,
+        description=(
+            "Pickup point chosen for a pickup delivery_type offering several "
+            "(``pickup_place.place_id`` of the last-leg option). Omitted: the "
+            "mode's first pickup point."
+        ),
+    )
     payment_method_id: uuid.UUID | None = Field(
         default=None,
         description=(
@@ -432,6 +440,22 @@ class CheckoutResponse(DepositTerms):
     message: str = Field(default="Checkout completed")
 
 
+class PickupPlaceInfo(SQLModel):
+    """Where the customer collects the parcel for a pickup delivery option.
+
+    The last-leg route's destination place, with its postal address as the
+    admin typed it in Logistics → Places (lines left empty are ``None``).
+    """
+
+    place_id: uuid.UUID
+    name: str
+    address_line1: str | None = None
+    address_line2: str | None = None
+    postal_code: str | None = None
+    city: str | None = None
+    country: str | None = None
+
+
 class LastLegOption(SQLModel):
     """Priced last-leg (zone C) delivery option for the current cart."""
 
@@ -441,6 +465,16 @@ class LastLegOption(SQLModel):
     currency: str
     eta_days: int | None = None
     route_name: str | None = None
+    pickup_place: PickupPlaceInfo | None = Field(
+        default=None,
+        description=(
+            "For pickup modes (route mode 'pickup' ending at a shop, warehouse "
+            "or address): the place and address shown to the customer at "
+            "checkout. A pickup mode with several points yields one option per "
+            "point; send its place_id as pickup_place_id. Null for home "
+            "deliveries."
+        ),
+    )
 
 
 class CheckoutQuoteResponse(DepositTerms):

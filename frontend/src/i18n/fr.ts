@@ -256,6 +256,7 @@ const fr = {
     manage_addresses: 'Gérer mes adresses',
     step_delivery: 'Livraison',
     delivery_mode: 'Mode de livraison',
+    pickup_at: 'Retrait à',
     step_plan: 'Règlement',
     deposit_required:
       'Un acompte de {pct} % est demandé à la commande ; le solde vous sera demandé à la réception de vos articles.',
@@ -313,6 +314,12 @@ const fr = {
     method_unavailable:
       "Le moyen de paiement sélectionné n'est pas disponible pour le moment. Veuillez réessayer.",
     failed: 'Une erreur est survenue lors de la finalisation de la commande.',
+  },
+  delivery_mode: {
+    pickup: 'Retrait sur place',
+    home_delivery: 'Livraison à domicile',
+    air_freight: 'Fret aérien',
+    sea_freight: 'Fret maritime',
   },
   ship_estimate: {
     customs: 'Plus {amount} de frais de dédouanement, une fois par envoi.',

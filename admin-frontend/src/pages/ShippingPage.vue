@@ -14,6 +14,10 @@
       </template>
     </PageHeader>
 
+    <HelpPanel :title="$t('help.shipping_title')" :items="helpItems" steps storage-key="shipping">
+      {{ $t('help.shipping_note') }}
+    </HelpPanel>
+
     <div v-if="error || notice" class="admin-notices">
       <AppNotice v-if="error" tone="error" dense>{{ error }}</AppNotice>
       <AppNotice v-if="notice" tone="success" dense>{{ notice }}</AppNotice>
@@ -381,6 +385,7 @@ import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
 import { toneIcon, toneOf } from '@app/ui/statusTone';
 import PageHeader from '@/components/PageHeader.vue';
+import HelpPanel, { type HelpItem } from '@/components/HelpPanel.vue';
 import {
   addTrackings,
   advanceConsolidation,
@@ -403,6 +408,13 @@ import {
 import { extractApiError } from '@/api/errors';
 
 const { t } = useI18n();
+// Aide : le parcours d'un colis, étape par étape.
+const helpItems = computed<HelpItem[]>(() => [
+  { title: t('help.shipping_group_title'), text: t('help.shipping_group') },
+  { title: t('help.shipping_hand_over_title'), text: t('help.shipping_hand_over') },
+  { title: t('help.shipping_next_title'), text: t('help.shipping_next') },
+  { title: t('help.shipping_deliver_title'), text: t('help.shipping_deliver') },
+]);
 
 const $q = useQuasar();
 

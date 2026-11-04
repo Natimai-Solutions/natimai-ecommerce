@@ -22,6 +22,8 @@
       </template>
     </PageHeader>
 
+    <HelpPanel :title="$t('help.pricing_title')" :items="helpItems" steps storage-key="pricing" />
+
     <div class="admin-toolbar">
       <q-input
         v-model="filters.q"
@@ -286,6 +288,8 @@ import StatusTag from '@app/ui/StatusTag.vue';
 import { toneIcon, type StatusTone } from '@app/ui/statusTone';
 import { dayBounds, formatDateTime, formatMoney as money } from '@app/utils';
 import PageHeader from '@/components/PageHeader.vue';
+import HelpPanel from '@/components/HelpPanel.vue';
+import { pricingHelp } from '@/utils/helpTopics';
 import { extractApiError } from '@/api/errors';
 import {
   GIFT_CARD_KIND_LABELS,
@@ -305,6 +309,8 @@ import { useShopConfigStore } from '@/stores/shopConfig';
  * into store credit. Cards bought in the shop appear here too (« achetée »).
  */
 const { t } = useI18n();
+// Aide partagée par les quatre écrans de prix, cet écran marqué.
+const helpItems = computed(() => pricingHelp(t, 'gift_card'));
 const shopConfig = useShopConfigStore();
 const currency = computed(() => shopConfig.currency);
 

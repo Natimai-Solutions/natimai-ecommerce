@@ -24,6 +24,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'quote-requests', component: () => import('@/pages/QuoteRequestsPage.vue') },
       { path: 'shipping', component: () => import('@/pages/ShippingPage.vue') },
       { path: 'carriers', component: () => import('@/pages/CarriersPage.vue') },
+      { path: 'delivery-modes', component: () => import('@/pages/DeliveryModesPage.vue') },
       {
         path: 'logistics-routes',
         component: () => import('@/pages/LogisticsRoutesPage.vue'),

@@ -11,6 +11,7 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.payment.crud.payment_status import crud_payment_status
@@ -48,6 +49,28 @@ ACTION_REJECT = "reject"
 
 class PaymentNotDocumentValidatedError(RuntimeError):
     """Raised when a payment's provider does not match a document workflow."""
+
+
+class PaymentDocumentMissingError(RuntimeError):
+    """Raised when a document payment is approved before any usable document
+    (uploaded, active, not flagged infected) is attached to it."""
+
+
+async def has_usable_document(session: AsyncSession, payment_id: uuid.UUID) -> bool:
+    """Whether the payment carries a document the admin can rely on: active
+    and not flagged infected by the antivirus."""
+    row = (
+        await session.exec(
+            select(PaymentAttachment.id)
+            .where(
+                col(PaymentAttachment.payment_id) == payment_id,
+                col(PaymentAttachment.is_active).is_(True),
+                col(PaymentAttachment.av_clean).is_not(False),
+            )
+            .limit(1)
+        )
+    ).first()
+    return row is not None
 
 
 DOCUMENT_PROVIDER_CODES = {"po_public"}
@@ -209,10 +232,16 @@ async def approve_document_payment(
     admin: User,
     comment: str | None,
 ) -> DocumentValidationOutcome:
-    """Execute approve document payment."""
+    """Approve a document payment (purchase order): the same capture as a
+    manual payment. Refused while no usable document is attached — the
+    document is what the admin validates."""
     if not _is_document_provider(payment.provider_code):
         raise PaymentNotDocumentValidatedError(
             f"Payment {payment.id} provider '{payment.provider_code}' is not document-validated"
+        )
+    if not await has_usable_document(session, payment.id):
+        raise PaymentDocumentMissingError(
+            f"Payment {payment.id} has no uploaded document to approve"
         )
 
     status = await _get_or_create_status(session, name=DOCUMENT_STATUS_APPROVED)

@@ -127,6 +127,7 @@ async def test_approve_payment_routes_document_provider_to_document_service(
         "app.features.payment.services.document_payment.outbox_registry.publish",
         publish,
     )
+    monkeypatch.setattr(dp, "has_usable_document", AsyncMock(return_value=True))
 
     response = await approve_payment(
         payment_id=payment.id,
@@ -138,6 +139,29 @@ async def test_approve_payment_routes_document_provider_to_document_service(
     assert response.payment_status_id == approved_status.id
     kwargs = publish.call_args.kwargs
     assert kwargs["event_type"] == dp.EVENT_DOCUMENT_APPROVED
+
+
+@pytest.mark.anyio
+async def test_approve_purchase_order_without_document_is_refused(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = AsyncMock()
+    session.add = Mock()
+    payment = _make_payment(provider_code="po_public")
+    monkeypatch.setattr(crud_payment, "read", AsyncMock(return_value=payment))
+    monkeypatch.setattr(dp, "has_usable_document", AsyncMock(return_value=False))
+
+    with pytest.raises(AppError) as refused:
+        await approve_payment(
+            payment_id=payment.id,
+            body=PaymentApproveRequest(comment=None),
+            session=session,
+            admin=cast(Any, _make_admin()),
+        )
+
+    assert refused.value.code == "payment.document_missing"
+    assert refused.value.status_code == 409
+    session.rollback.assert_awaited()
 
 
 @pytest.mark.anyio

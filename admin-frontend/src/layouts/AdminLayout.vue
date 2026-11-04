@@ -204,6 +204,7 @@ const allNav: NavSection[] = [
     label: 'layout.nav.logistics',
     links: [
       { label: 'layout.nav.departures', icon: 'ph:calendar-check', to: '/grouped-departures' },
+      { label: 'layout.nav.delivery_modes', icon: 'ph:package', to: '/delivery-modes' },
       { label: 'layout.nav.shipping', icon: 'ph:truck', to: '/shipping' },
       { label: 'layout.nav.inventory', icon: 'ph:warehouse', to: '/inventory' },
       { label: 'layout.nav.routes', icon: 'ph:path', to: '/logistics-routes' },

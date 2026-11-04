@@ -163,10 +163,7 @@
               <button type="button" class="text-link" @click="addressDialog = true">
                 {{ $t('checkout.add_address') }}
               </button>
-              <router-link
-                :to="{ name: 'account', query: { tab: 'addresses' } }"
-                class="text-link"
-              >
+              <router-link :to="{ name: 'account', query: { tab: 'addresses' } }" class="text-link">
                 {{ $t('checkout.manage_addresses') }}
               </router-link>
             </div>
@@ -177,10 +174,29 @@
               <span class="step__num font-mono">2</span>{{ $t('checkout.step_delivery') }}
             </h2>
             <ChoiceList
-              v-model="selectedDeliveryType"
+              v-model="selectedDeliveryKey"
               :label="$t('checkout.delivery_mode')"
               :options="deliveryChoices"
             />
+            <!-- Retrait : le lieu où le client vient chercher son colis, tel que
+                 l'admin l'a saisi dans Logistique → Lieux. -->
+            <div
+              v-if="selectedPickupPlace"
+              class="app-panel pickup-place"
+              data-testid="checkout-pickup-place"
+            >
+              <q-icon name="ph:map-pin" size="20px" class="text-muted" />
+              <div class="pickup-place__text">
+                <span class="pickup-place__title">{{ $t('checkout.pickup_at') }}</span>
+                <span class="pickup-place__name">{{ selectedPickupPlace.name }}</span>
+                <span
+                  v-for="line in pickupAddressLines(selectedPickupPlace)"
+                  :key="line"
+                  class="pickup-place__line"
+                  >{{ line }}</span
+                >
+              </div>
+            </div>
           </section>
 
           <section v-if="quote?.deposit_available" class="step">
@@ -270,7 +286,7 @@
                 !cgvAccepted ||
                 (!selectedMethodId && !creditCoversEverything) ||
                 !selectedAddressId ||
-                (deliveryOptions.length > 0 && !selectedDeliveryType) ||
+                (deliveryOptions.length > 0 && !selectedDelivery) ||
                 quoteLoading ||
                 !quote
               "
@@ -311,7 +327,7 @@
               <span>{{ $t('checkout.items') }}</span>
               <span class="font-mono">{{ formatMoney(quote.subtotal_amount) }}</span>
             </div>
-            <div v-if="selectedDeliveryType" class="app-kv">
+            <div v-if="selectedDelivery" class="app-kv">
               <span>{{ $t('checkout.shipping') }}</span>
               <span class="font-mono" data-testid="checkout-quote-shipping">{{
                 shippingOnlyAmount(quote) > 0
@@ -449,6 +465,7 @@ import { useI18n } from 'vue-i18n';
 import { useDepartureLabels } from '@/composables/useDepartureLabels';
 import { useRoute } from 'vue-router';
 import { countryLabel, formatMoney as formatInCurrency, orderRef } from '@app/utils';
+import { deliveryModeLabel } from '@/utils/deliveryMode';
 
 import AppNotice from '@app/ui/AppNotice.vue';
 import AddressDialog from '@/components/AddressDialog.vue';
@@ -472,6 +489,7 @@ import {
   checkoutMyCart,
   getCheckoutQuote,
   getLastLegOptions,
+  type PickupPlaceInfo,
   replaceMyCartItems,
   type CheckoutQuote,
 } from '@/api/cart';
@@ -535,14 +553,29 @@ const selectedAddress = computed(
 // fixed list: they are loaded from the backend so new modes (e.g. sea freight)
 // appear automatically with their price.
 interface DeliveryChoice {
+  /** Clé de l'option : le mode, suivi du lieu pour un retrait (plusieurs points). */
   value: string;
+  deliveryType: string;
   label: string;
   icon: string;
   amount: string;
   etaDays: number | null;
+  pickupPlace: PickupPlaceInfo | null;
 }
 const deliveryOptions = ref<DeliveryChoice[]>([]);
-const selectedDeliveryType = ref<string | null>(null);
+const selectedDeliveryKey = ref<string | null>(null);
+const selectedDelivery = computed(
+  () => deliveryOptions.value.find((d) => d.value === selectedDeliveryKey.value) ?? null,
+);
+const selectedPickupPlace = computed(() => selectedDelivery.value?.pickupPlace ?? null);
+function pickupAddressLines(place: PickupPlaceInfo): string[] {
+  const locality = [place.postal_code, place.city].filter(Boolean).join(' ');
+  return [
+    place.address_line1,
+    place.address_line2,
+    [locality, place.country ? countryLabel(place.country) : null].filter(Boolean).join(', '),
+  ].filter((line): line is string => !!line && line.length > 0);
+}
 // Frais de dédouanement : facturés une fois par expédition, indépendamment du
 // mode de livraison et du nombre d'articles.
 const customsDeclarationFee = ref('0');
@@ -635,7 +668,8 @@ async function loadQuote() {
   try {
     const next = await getCheckoutQuote({
       addressId: selectedAddressId.value,
-      deliveryType: selectedDeliveryType.value,
+      deliveryType: selectedDelivery.value?.deliveryType ?? null,
+      pickupPlaceId: selectedPickupPlace.value?.place_id ?? null,
       paymentMethodId: selectedMethodId.value,
       discountCode: discountCode.value,
       paymentPlan: paymentPlan.value,
@@ -692,9 +726,6 @@ function iconForMode(mode: string): string {
   if (mode === 'air_freight') return 'ph:airplane-tilt';
   if (mode === 'sea_freight') return 'ph:boat';
   return 'ph:truck';
-}
-function prettifyMode(mode: string): string {
-  return mode.replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 function deliveryPriceLabel(amount: string): string {
   const n = Number.parseFloat(amount);
@@ -787,7 +818,14 @@ const deliveryChoices = computed<ChoiceOption[]>(() =>
   deliveryOptions.value.map((d) => ({
     value: d.value,
     title: d.label,
-    caption: d.etaDays != null ? t('checkout.eta', { n: d.etaDays }) : null,
+    // Plusieurs lieux de retrait : le lieu distingue les options.
+    caption:
+      [
+        d.pickupPlace ? [d.pickupPlace.name, d.pickupPlace.city].filter(Boolean).join(', ') : null,
+        d.etaDays != null ? t('checkout.eta', { n: d.etaDays }) : null,
+      ]
+        .filter(Boolean)
+        .join(' · ') || null,
     icon: d.icon,
     aside: deliveryPriceLabel(d.amount),
     testid: `checkout-delivery-${d.value}`,
@@ -923,20 +961,22 @@ async function loadDeliveryOptions() {
     const res = await getLastLegOptions(selectedAddressId.value);
     customsDeclarationFee.value = String(res.customs_declaration_fee ?? '0');
     deliveryOptions.value = res.options.map((o) => ({
-      value: o.delivery_type,
-      label: o.label || prettifyMode(o.delivery_type),
+      value: o.pickup_place ? `${o.delivery_type}@${o.pickup_place.place_id}` : o.delivery_type,
+      deliveryType: o.delivery_type,
+      label: o.label || deliveryModeLabel(o.delivery_type, t),
       icon: iconForMode(o.delivery_type),
       amount: o.amount,
       etaDays: o.eta_days,
+      pickupPlace: o.pickup_place ?? null,
     }));
     // Keep the current choice when the new destination still offers it.
-    if (!deliveryOptions.value.some((d) => d.value === selectedDeliveryType.value)) {
-      selectedDeliveryType.value = deliveryOptions.value[0]?.value ?? null;
+    if (!deliveryOptions.value.some((d) => d.value === selectedDeliveryKey.value)) {
+      selectedDeliveryKey.value = deliveryOptions.value[0]?.value ?? null;
     }
   } catch {
     // Non-blocking: the delivery section is hidden if options can't be loaded.
     deliveryOptions.value = [];
-    selectedDeliveryType.value = null;
+    selectedDeliveryKey.value = null;
     customsDeclarationFee.value = '0';
   }
 }
@@ -946,7 +986,7 @@ watch(selectedAddressId, async () => {
   await loadDeliveryOptions();
   await loadQuote();
 });
-watch(selectedDeliveryType, () => {
+watch(selectedDeliveryKey, () => {
   if (!isAuthenticated.value) return;
   void loadQuote();
 });
@@ -983,7 +1023,8 @@ async function startPayment() {
     // No shipping_preference here: the delivery mode chosen above is the only
     // last leg; a preference on top of it used to bill a second one.
     const checkout = await checkoutMyCart({
-      delivery_type: selectedDeliveryType.value,
+      delivery_type: selectedDelivery.value?.deliveryType ?? null,
+      pickup_place_id: selectedPickupPlace.value?.place_id ?? null,
       shipping_address: formatAddress(selectedAddress.value),
       shipping_address_id: selectedAddressId.value,
       payment_method_id: creditCoversEverything.value ? null : (method?.id ?? null),
@@ -1248,6 +1289,37 @@ async function uploadDocument() {
 .credit-toggle__text {
   flex-grow: 1;
   font-size: 14px;
+}
+
+.pickup-place {
+  margin-top: 12px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.pickup-place__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.pickup-place__title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--n-ink-2);
+}
+
+.pickup-place__name {
+  font-weight: 500;
+}
+
+.pickup-place__line {
+  color: var(--n-ink-2);
 }
 
 .checkout__confirm {

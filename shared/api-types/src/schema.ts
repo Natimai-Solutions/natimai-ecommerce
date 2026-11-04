@@ -1518,7 +1518,9 @@ export interface paths {
          * @description Partial update: dates, publication, status, thresholds, notes.
          *
          *     A status change is pushed to the orders that follow the departure
-         *     (paid or already on the way) and each one e-mails its customer.
+         *     (paid or already on the way) and each one e-mails its customer. Closing
+         *     a draft or open departure is refused here: it goes through
+         *     ``POST /{id}/close``.
          */
         patch: operations["admin-grouped-departures-update_departure"];
         trace?: never;
@@ -2143,6 +2145,11 @@ export interface paths {
          *
          *     ``ungroup=True`` first detaches each parcel from the consolidation, so it
          *     continues individually (e.g. into its own last-leg delivery).
+         *
+         *     Otherwise the grouping is kept for the next leg: when the parcels' next
+         *     legs share one route, they are attached to a new consolidation on that
+         *     route (the finished legs stay in this one, for the record). Next legs on
+         *     different routes cannot travel together and continue individually.
          */
         post: operations["admin-shipping-advance_consolidation"];
         delete?: never;
@@ -11240,6 +11247,11 @@ export interface components {
              */
             delivery_type?: string | null;
             /**
+             * Pickup Place Id
+             * @description Pickup point chosen for a pickup delivery_type offering several (``pickup_place.place_id`` of the last-leg option). Omitted: the mode's first pickup point.
+             */
+            pickup_place_id?: string | null;
+            /**
              * Payment Method Id
              * @description Payment method to initiate in the same transaction (single-payment flow). When omitted, a pending placeholder payment is created instead.
              */
@@ -14401,6 +14413,8 @@ export interface components {
             eta_days?: number | null;
             /** Route Name */
             route_name?: string | null;
+            /** @description For pickup modes (route mode 'pickup' ending at a shop, warehouse or address): the place and address shown to the customer at checkout. A pickup mode with several points yields one option per point; send its place_id as pickup_place_id. Null for home deliveries. */
+            pickup_place?: components["schemas"]["PickupPlaceInfo"] | null;
         };
         /**
          * LastLegOptionsResponse
@@ -17444,6 +17458,32 @@ export interface components {
              * @default 0
              */
             count: number;
+        };
+        /**
+         * PickupPlaceInfo
+         * @description Where the customer collects the parcel for a pickup delivery option.
+         *
+         *     The last-leg route's destination place, with its postal address as the
+         *     admin typed it in Logistics → Places (lines left empty are ``None``).
+         */
+        PickupPlaceInfo: {
+            /**
+             * Place Id
+             * Format: uuid
+             */
+            place_id: string;
+            /** Name */
+            name: string;
+            /** Address Line1 */
+            address_line1?: string | null;
+            /** Address Line2 */
+            address_line2?: string | null;
+            /** Postal Code */
+            postal_code?: string | null;
+            /** City */
+            city?: string | null;
+            /** Country */
+            country?: string | null;
         };
         /**
          * PlaceCreate
@@ -31806,6 +31846,8 @@ export interface operations {
                 delivery_type?: string | null;
                 /** @description Chosen payment method (its fee is added) */
                 payment_method_id?: string | null;
+                /** @description Chosen pickup point, for a mode offering several */
+                pickup_place_id?: string | null;
                 /** @description Promo code to price */
                 discount_code?: string | null;
                 /** @description « deposit » to quote a deposit at checkout */

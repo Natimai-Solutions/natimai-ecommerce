@@ -161,7 +161,8 @@ async def close_departure(
     departure: GroupedDeparture,
     force: bool = False,
 ) -> CloseResult:
-    """Close a departure: live stock check, thresholds, recurrence.
+    """Close a departure: live stock check, thresholds, recurrence. The
+    departure stays published so its customers can still follow it.
 
     Without ``force`` the departure stays open when a threshold is not met
     (the admin sees the numbers and decides). Does not commit.
@@ -191,8 +192,10 @@ async def close_departure(
     closed = reached or force
     next_id: uuid.UUID | None = None
     if closed and departure.status in ("draft", "open"):
+        # Stays published: the banner and the checkout only pick an open
+        # departure, and the customers who ordered keep following this one
+        # (public GET /grouped-departures/{id}) until it is distributed.
         departure.status = "closed"
-        departure.is_published = False
         session.add(departure)
         if departure.recurrence_days:
             next_id = (await spawn_next_departure(session, departure)).id

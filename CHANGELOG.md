@@ -9,6 +9,63 @@ takes a tag as its `ref`.
 
 ### Added
 
+- Admin → Logistique → **Modes de livraison**: a screen always shown, simple
+  mode included (it does not depend on the "Trajets et lieux" module), where a
+  shop sets what the customer picks at checkout and its price. A delivery mode
+  is a translated mode (in-store pickup, home delivery, air freight, sea
+  freight, or a custom code), a flat price, a free-shipping threshold and a
+  coverage (everywhere or some zones); weight pricing, the internal name,
+  origin and destination stay under folded sections. Origin defaults to the
+  main warehouse and the destination is inferred. Each mode can be switched
+  off without deleting it. A pickup place can be created from the dialog, and
+  pickup at the main warehouse itself is accepted.
+- "Trajets et lieux" uses the same dialog for delivery modes; its route
+  dialog now only covers logistics legs (service level stays there).
+- A classic shop (`SEED_FRENCH_POLYNESIA_LOGISTICS=false`) gets a main
+  warehouse at start-up when none is flagged: a lone existing warehouse is
+  flagged, none creates "Entrepôt principal" under the shop country, several
+  leave the choice to the admin. The delivery modes screen also offers to
+  create it.
+- Several pickup points for one pickup mode: each pickup route (transport
+  mode `pickup`) is its own offer at checkout, one per pickup place, and the
+  customer picks theirs. The last-leg options list one entry per point,
+  `GET /cart/me/checkout-quote` and `POST /cart/checkout` take the chosen
+  `pickup_place_id` (omitted: the mode's best point, as before). Other modes
+  keep one offer per mode. In the admin, creating a pickup mode accepts
+  several places (one route per place); a place already offered for that
+  mode cannot be picked again.
+- Admin → Trajets et lieux is split into three views (Trajets, Lieux, Zones de
+  livraison) chosen with a segmented control and kept in the URL
+  (`?view=zones`). Zones (country, region, island, municipality) are listed
+  as a tree and have their own form (parent zone, postcodes); places
+  (warehouse, shop, port, airport, supplier, address) keep the address,
+  warehouse, customs and dropshipping fields. Place types and service levels
+  are shown translated. The places table has five columns (code under the
+  name, zone under the city, warehouse / customs / origin / dropshipping as
+  tags) and fits without horizontal scrolling from 1024 px. The routes table
+  has five columns (transport, service level and lead time under the name;
+  free-shipping threshold under the tariff; the delivery mode or "final leg"
+  as a tag) and fits from 1024 px too.
+- Help panels: "Trajets et lieux" explains zones, places and routes (folded
+  once closed, remembered per browser); "Modes de livraison" shows three setup
+  examples (in-store pickup, flat fee, price by destination), open while no
+  mode exists.
+- Help panels on more admin screens, all built on one `HelpPanel` component
+  (collapsible, numbered steps or icons, a closed panel stays closed per
+  browser): the path of a parcel on Expéditions; the life of a grouped
+  departure (open, close, ordered, transit, distributed) on Départs groupés;
+  the three supply methods on Fournisseurs; "what the customer pays" (group
+  price, promotion, discount code, gift card) shared by the four pricing
+  screens; the path of a manual payment shared by Moyens de paiement and
+  Validation des paiements. A shared panel marks the step of the current
+  screen and folds on all its screens at once. The texts follow the code
+  (pricing, checkout discount, shipping and departure services).
+- Pickup modes take a pickup place; its postal address (new fields on physical
+  places) is returned by the last-leg options endpoint (`pickup_place`) and
+  shown to the customer at checkout under the delivery choice.
+- Storefront: delivery modes without a customer label are shown with a
+  translated label instead of their technical code.
+
 - `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, issue and pull
   request templates, `CODEOWNERS`: the repository is ready to be worked on one
   part at a time.
@@ -31,6 +88,23 @@ takes a tag as its `ref`.
 
 ### Fixed
 
+- Grouped departures: a draft or open departure is closed only through the
+  assisted close (thresholds, live supplier stock, next recurring departure).
+  `PATCH /admin/grouped-departures/{id}` with `status=closed` is refused
+  (`grouped_departure.close_required`), the admin "next step" of an open
+  departure runs the assisted close, and the edit form no longer offers
+  "Clôturé" for it.
+- Grouped departures: closing no longer unpublishes the departure, so its
+  customers keep following it through `GET /grouped-departures/{id}` until it
+  is distributed. The banner and the checkout still only pick open
+  departures. Departures closed before this change stay unpublished until an
+  admin publishes them again.
+- Shipping: "Garder le groupage" on a lot's next leg now groups the next legs
+  into a new consolidation on their common route (the finished legs stay in
+  the old lot). Next legs on different routes continue individually, and the
+  response says so.
+- Payments: a purchase-order payment cannot be approved until an active,
+  non-infected document is attached (`payment.document_missing`, 409).
 - The Security workflow, red on `main` since its creation: `trivy-action`
   pinned to an existing tag (`v0.36.0`), gitleaks run from its released binary
   (the GitHub action requires a paid licence for organisations), and two

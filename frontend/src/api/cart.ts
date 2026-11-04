@@ -20,6 +20,8 @@ type CheckoutRequest = Omit<
   return_url?: string | null;
   /** Last-leg delivery mode: pickup | home_delivery | air_freight. */
   delivery_type?: string | null;
+  /** Pickup point chosen when the pickup mode offers several. */
+  pickup_place_id?: string | null;
   /** Id of the saved shipping address to link (avoids duplicate creation). */
   shipping_address_id?: string | null;
   /** Promo code validated server-side (the one the quote accepted). */
@@ -173,6 +175,17 @@ export async function checkoutMyCart(payload: CheckoutRequest): Promise<Checkout
   return data;
 }
 
+/** Where the customer collects a pickup delivery (the route's destination place). */
+export interface PickupPlaceInfo {
+  place_id: string;
+  name: string;
+  address_line1: string | null;
+  address_line2: string | null;
+  postal_code: string | null;
+  city: string | null;
+  country: string | null;
+}
+
 export interface LastLegOption {
   delivery_type: string;
   /** Customer-facing label (route's customer_label); falls back to the mode key. */
@@ -181,6 +194,8 @@ export interface LastLegOption {
   currency: string;
   eta_days: number | null;
   route_name: string | null;
+  /** Pickup modes only: the place (and its address) shown to the customer. */
+  pickup_place?: PickupPlaceInfo | null;
 }
 interface LastLegOptionsResponse {
   currency: string;
@@ -226,10 +241,9 @@ export async function estimateProductShipping(
   placeId: string,
   quantity = 1,
 ): Promise<LastLegOptionsResponse> {
-  const { data } = await api.get<LastLegOptionsResponse>(
-    `/cart/estimate/product/${productId}`,
-    { params: { place_id: placeId, quantity } },
-  );
+  const { data } = await api.get<LastLegOptionsResponse>(`/cart/estimate/product/${productId}`, {
+    params: { place_id: placeId, quantity },
+  });
   return data;
 }
 
@@ -283,6 +297,7 @@ export interface CheckoutQuote extends DepositTerms {
 export async function getCheckoutQuote(params: {
   addressId?: string | null;
   deliveryType?: string | null;
+  pickupPlaceId?: string | null;
   paymentMethodId?: string | null;
   discountCode?: string | null;
   paymentPlan?: string | null;
@@ -292,6 +307,7 @@ export async function getCheckoutQuote(params: {
   const query: Record<string, string> = {};
   if (params.addressId) query.address_id = params.addressId;
   if (params.deliveryType) query.delivery_type = params.deliveryType;
+  if (params.pickupPlaceId) query.pickup_place_id = params.pickupPlaceId;
   if (params.paymentMethodId) query.payment_method_id = params.paymentMethodId;
   if (params.discountCode) query.discount_code = params.discountCode;
   if (params.paymentPlan) query.payment_plan = params.paymentPlan;

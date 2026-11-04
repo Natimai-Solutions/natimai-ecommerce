@@ -13,6 +13,8 @@
       </template>
     </PageHeader>
 
+    <HelpPanel :title="$t('help.payment_title')" :items="helpItems" steps storage-key="payment" />
+
     <div v-if="error || notice" class="admin-notices">
       <AppNotice v-if="error" tone="error" dense>{{ error }}</AppNotice>
       <AppNotice v-if="notice" tone="success" dense>{{ notice }}</AppNotice>
@@ -285,6 +287,8 @@ import { toneIcon, toneOf } from '@app/ui/statusTone';
 import { formatMoney as money } from '@app/utils';
 import { useShopConfigStore } from '@/stores/shopConfig';
 import PageHeader from '@/components/PageHeader.vue';
+import HelpPanel from '@/components/HelpPanel.vue';
+import { paymentHelp } from '@/utils/helpTopics';
 import {
   approvePayment,
   type ReceiptMethod,
@@ -299,6 +303,8 @@ import {
 import { extractApiError } from '@/api/errors';
 
 const { t } = useI18n();
+// Aide partagée par les écrans de paiement, cet écran marqué.
+const helpItems = computed(() => paymentHelp(t, 'validation'));
 
 const rows = ref<PendingPayment[]>([]);
 const loading = ref(false);

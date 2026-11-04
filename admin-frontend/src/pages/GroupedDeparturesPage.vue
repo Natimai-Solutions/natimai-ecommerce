@@ -21,9 +21,14 @@
       </template>
     </PageHeader>
 
-    <p class="admin-hint">
-      {{ $t('departures.intro') }}
-    </p>
+    <HelpPanel
+      :title="$t('help.departures_title')"
+      :items="helpItems"
+      steps
+      storage-key="departures"
+    >
+      {{ $t('help.departures_reminders') }}
+    </HelpPanel>
 
     <div v-if="error || notice" class="admin-notices">
       <AppNotice v-if="error" tone="error" dense>{{ error }}</AppNotice>
@@ -131,7 +136,7 @@
             icon="ph:lock"
             :label="$t('departures.close')"
             :loading="closing"
-            @click="closeSelected(false)"
+            @click="closeSelected(false, selected)"
           >
             <q-tooltip>
               {{ $t('departures.close_tip') }}
@@ -877,6 +882,7 @@ import {
   nextDepartureStatus,
 } from '@app/utils';
 import PageHeader from '@/components/PageHeader.vue';
+import HelpPanel, { type HelpItem } from '@/components/HelpPanel.vue';
 import {
   addSupplierOrder,
   assignOrders,
@@ -921,6 +927,14 @@ import { useShopConfigStore } from '@/stores/shopConfig';
 import { setOrderStatus } from '@/api/orders';
 
 const { t } = useI18n();
+// Aide : le cycle d'un départ et ce que chaque étape déclenche.
+const helpItems = computed<HelpItem[]>(() => [
+  { title: t('help.departures_open_title'), text: t('help.departures_open') },
+  { title: t('help.departures_close_title'), text: t('help.departures_close') },
+  { title: t('help.departures_ordered_title'), text: t('help.departures_ordered') },
+  { title: t('help.departures_transit_title'), text: t('help.departures_transit') },
+  { title: t('help.departures_distributed_title'), text: t('help.departures_distributed') },
+]);
 const { confirmDelete } = useConfirm();
 const departureStatusLabel = (status: string) => t(`departure_status.${status}`);
 
@@ -1305,13 +1319,18 @@ async function moveSelected() {
 const closing = ref(false);
 const closeDialog = ref(false);
 const closeResult = ref<CloseResult | null>(null);
+// Departure the close dialog is about (the selected one, or the row whose
+// « next step » is the close) — « Forcer » re-runs the close on it.
+const closeTarget = ref<Departure | null>(null);
 
-async function closeSelected(force: boolean) {
-  if (!selected.value) return;
+async function closeSelected(force: boolean, target?: Departure | null) {
+  const departure = target ?? closeTarget.value;
+  if (!departure) return;
+  closeTarget.value = departure;
   closing.value = true;
   error.value = null;
   try {
-    closeResult.value = await closeDeparture(selected.value.id, force);
+    closeResult.value = await closeDeparture(departure.id, force);
     closeDialog.value = true;
     await load();
     await loadOrders();
@@ -1532,6 +1551,12 @@ async function removeReminder(r: Reminder) {
 async function advance(d: Departure) {
   const next = nextDepartureStatus(d.status);
   if (!next) return;
+  // Closing is the assisted close (thresholds, stock, next departure), never
+  // a bare status change — the API refuses one.
+  if (next === 'closed') {
+    await closeSelected(false, d);
+    return;
+  }
   error.value = null;
   try {
     const updated = await updateDeparture(d.id, { status: next });
@@ -1565,9 +1590,16 @@ const dialog = ref(false);
 const editId = ref<string | null>(null);
 const saving = ref(false);
 const dialogError = ref<string | null>(null);
-const statusOptions = computed(() =>
-  DEPARTURE_STATUSES.map((s) => ({ label: departureStatusLabel(s), value: s })),
-);
+// A draft or open departure is closed with « Clôturer le départ », not from
+// the edit form: « Clôturé » is not offered for it.
+const statusOptions = computed(() => {
+  const current = editId.value ? departures.value.find((d) => d.id === editId.value) : null;
+  const closable = !current || current.status === 'draft' || current.status === 'open';
+  return DEPARTURE_STATUSES.filter((s) => !(closable && s === 'closed')).map((s) => ({
+    label: departureStatusLabel(s),
+    value: s,
+  }));
+});
 
 interface DepartureForm {
   name: string;

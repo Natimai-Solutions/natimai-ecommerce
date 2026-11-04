@@ -165,6 +165,8 @@ async def test_approve_document_payment_publishes_captured_event(
         publish,
     )
 
+    monkeypatch.setattr(dp, "has_usable_document", AsyncMock(return_value=True))
+
     payment = _make_payment()
     admin = cast(Any, SimpleNamespace(id=uuid4()))
 
@@ -175,6 +177,34 @@ async def test_approve_document_payment_publishes_captured_event(
     assert outcome.payment.payment_status_id == status.id
     kwargs = publish.call_args.kwargs
     assert kwargs["event_type"] == dp.EVENT_DOCUMENT_APPROVED
+
+
+@pytest.mark.anyio
+async def test_approve_document_payment_refuses_without_a_document(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The document is what the admin validates: no document, no capture.
+    session = AsyncMock()
+    session.add = Mock()
+    monkeypatch.setattr(dp, "has_usable_document", AsyncMock(return_value=False))
+    publish = AsyncMock()
+    monkeypatch.setattr(
+        "app.features.payment.services.document_payment.outbox_registry.publish",
+        publish,
+    )
+    payment = _make_payment()
+    status_before = payment.payment_status_id
+
+    with pytest.raises(dp.PaymentDocumentMissingError):
+        await dp.approve_document_payment(
+            session,
+            payment=payment,
+            admin=cast(Any, SimpleNamespace(id=uuid4())),
+            comment=None,
+        )
+
+    assert payment.payment_status_id == status_before
+    publish.assert_not_awaited()
 
 
 @pytest.mark.anyio

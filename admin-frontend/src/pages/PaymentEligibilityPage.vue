@@ -22,6 +22,8 @@
       </template>
     </PageHeader>
 
+    <HelpPanel :title="$t('help.payment_title')" :items="helpItems" steps storage-key="payment" />
+
     <AppNotice v-if="error" tone="error" class="q-mb-md">{{ error }}</AppNotice>
 
     <div v-if="loading" class="text-center q-pa-xl">
@@ -281,10 +283,12 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import { useShopConfigStore } from '@/stores/shopConfig';
-import { onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
 import PageHeader from '@/components/PageHeader.vue';
+import HelpPanel from '@/components/HelpPanel.vue';
+import { paymentHelp } from '@/utils/helpTopics';
 import PaymentMethodDialog from '@/components/PaymentMethodDialog.vue';
 import {
   addEligibility,
@@ -307,6 +311,8 @@ import { extractApiError } from '@/api/errors';
 import { formatMoney } from '@app/utils';
 
 const { t } = useI18n();
+// Aide partagée par les écrans de paiement, cet écran marqué.
+const helpItems = computed(() => paymentHelp(t, 'methods'));
 const shopConfig = useShopConfigStore();
 
 // --- Deposit policy per group ---
