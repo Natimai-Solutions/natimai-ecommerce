@@ -79,6 +79,11 @@ takes a tag as its `ref`.
 
 ### Changed
 
+- A transfer, cash or cheque order (and a purchase order) reaches the shop as
+  « Nouvelle commande à traiter » (support e-mail and Slack) with its order
+  number and amount, instead of the raw `payment.awaiting_validation` /
+  `payment.document_required` event. The admin payment e-mail never showed
+  the amount (it read `amount`, the events carry `total_amount`): fixed.
 - The PayZen IPN records its events in the shared provider journal
   (`payment_webhook_events`), like PayPal: one row per transaction status
   (`<trans_uuid>:<trans_status>`) with what was done with it (applied,

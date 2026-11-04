@@ -18,6 +18,7 @@ from app.features.notification.providers import (
     UnknownNotificationProviderError,
     get_notification_provider,
 )
+from app.features.order.models.order import Order
 from app.features.user.models.user import User
 
 logger = logging.getLogger(__name__)
@@ -36,7 +37,16 @@ _EVENT_LABELS = {
     "payment.refunded": "Remboursement effectué",
     "payment.cancelled": "Paiement annulé",
     "payment.amount_mismatch": "⚠ Montant encaissé incohérent — action requise",
+    "payment.awaiting_validation": "Nouvelle commande à traiter — paiement à valider",
+    "payment.document_required": "Nouvelle commande à traiter — bon de commande attendu",
 }
+
+# Events that announce an order the shop must act on: a manual payment
+# (transfer, cash, cheque) to match, or a purchase order to receive. Card
+# payments announce themselves when they are captured.
+_NEW_ORDER_EVENTS = frozenset(
+    {"payment.awaiting_validation", "payment.document_required"}
+)
 
 # EmailStr validates user emails at write time, but payload values (UUIDs) and
 # settings (EMAIL_SUPPORT) still pass through this guard so a malformed value
@@ -76,6 +86,8 @@ def _build_notification_message(event_type: str, payload: dict[str, Any]) -> str
     if reason:
         fragments.append(f"reason={reason}")
 
+    if event_type in _NEW_ORDER_EVENTS:
+        return f"{_EVENT_LABELS[event_type]}: " + " ".join(fragments)
     return "Payment event: " + " ".join(fragments)
 
 
@@ -86,21 +98,45 @@ def _build_notification_subject(event_type: str, payload: dict[str, Any]) -> str
 
 
 def _build_admin_email_context(
-    event_type: str, payload: dict[str, Any]
+    event_type: str, payload: dict[str, Any], *, order_number: str | None = None
 ) -> dict[str, Any]:
     """Context for the admin_payment_event email template (shared visual style)."""
     return {
         "event_type": event_type,
         "event_label": _EVENT_LABELS.get(event_type, event_type),
+        "new_order": event_type in _NEW_ORDER_EVENTS,
+        "order_number": order_number or "",
         "payment_id": _as_non_empty_str(payload.get("payment_id")) or "—",
         "order_id": _as_non_empty_str(payload.get("order_id")) or "—",
         "provider_code": _as_non_empty_str(payload.get("provider_code")) or "—",
-        "amount": _as_non_empty_str(payload.get("amount")) or "",
+        # Payment events carry ``total_amount``; ``amount`` is the older key.
+        "amount": _as_non_empty_str(
+            payload.get("total_amount") or payload.get("amount")
+        )
+        or "",
         "currency": _as_non_empty_str(payload.get("currency")) or "",
         "reference": _as_non_empty_str(payload.get("provider_reference")) or "",
         "reason": _as_non_empty_str(payload.get("reason")) or "",
         "shop_name": runtime_settings.peek("shop_name"),
     }
+
+
+async def _resolve_order_number(
+    session: AsyncSession, payload: dict[str, Any]
+) -> str | None:
+    """The order number the shop knows the order by (payload, else the order)."""
+    number = _as_non_empty_str(payload.get("order_number"))
+    if number is not None:
+        return number
+    raw_id = _as_non_empty_str(payload.get("order_id"))
+    if raw_id is None:
+        return None
+    try:
+        order_uuid = uuid.UUID(raw_id)
+    except ValueError:
+        return None
+    order = await session.get(Order, order_uuid)
+    return _as_non_empty_str(getattr(order, "order_number", None))
 
 
 async def _resolve_user_email(
@@ -208,7 +244,12 @@ async def _send_email_notifications(
 
     # Same styled HTML shell as the customer-facing emails.
     email = render_email(
-        "admin_payment_event", **_build_admin_email_context(event_type, payload)
+        "admin_payment_event",
+        **_build_admin_email_context(
+            event_type,
+            payload,
+            order_number=await _resolve_order_number(session, payload),
+        ),
     )
 
     for target in targets:

@@ -70,7 +70,6 @@ sur le serveur, chez un tiers ou une décision.
 - **Checklist de mise en route** de la boutique (identité légale, taux de douane, frais, prestataires de paiement) — S.
 - Pagination serveur sur les autres tableaux (30 fichiers masquent encore la pagination ; 3 seulement paginent côté serveur) — M.
 - Garde « modifications non enregistrées » sur Codes promo, Cartes cadeaux, Fournisseurs, Transporteurs, Taux TVA, Douanes, Routes logistiques, Départs, Utilisateurs — S.
-- Alerte « nouvelle commande à traiter » pour les virements et espèces (seuls les événements de paiement préviennent aujourd'hui) — S.
 - Chaîne d'intégrité des factures (empreinte chaînée et contrôle, comme natimai-paie) — S.
 
 ---
