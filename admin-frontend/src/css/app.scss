@@ -17,7 +17,7 @@
   margin: 0 auto;
   padding: 28px 32px 72px;
 
-  @media (max-width: 767px) {
+  @media (max-width: 599px) {
     padding: 20px 16px 56px;
   }
 }
@@ -121,7 +121,7 @@ body .q-table__container {
 
 body .q-table--bordered {
   border: 1px solid var(--n-line);
-  border-radius: 8px;
+  border-radius: var(--n-radius);
 }
 
 body .q-table {
@@ -158,7 +158,7 @@ body .q-table__bottom {
 
 body .q-table__card,
 body .q-table__middle {
-  border-radius: 8px;
+  border-radius: var(--n-radius);
 }
 
 // Codes et références en chasse fixe : un cran plus petits que le texte.
@@ -168,8 +168,9 @@ body .q-table .font-mono {
 
 // Actions destructives en icône seule (supprimer, désactiver) : discrètes au
 // repos, rouges au survol ou au focus, pour ne pas crier sur chaque ligne.
+// Quasar colore .text-negative par var(--q-negative) : on change la variable.
 body .q-btn--flat.q-btn--round.text-negative:not(:hover):not(:focus-visible) {
-  color: var(--n-ink-2) !important;
+  --q-negative: var(--n-ink-2);
 }
 
 // Tableau secondaire dans une fiche (lignes d'une commande…) : sans cadre.
@@ -207,7 +208,7 @@ body .q-menu {
 }
 
 body .q-dialog .q-card:not(.q-dialog__inner--maximized .q-card) {
-  border-radius: 12px;
+  border-radius: var(--n-radius-lg);
 }
 
 body .q-dialog__backdrop {
@@ -232,7 +233,7 @@ body .q-separator {
 }
 
 body .q-expansion-item--standard > .q-expansion-item__container > .q-item {
-  border-radius: 8px;
+  border-radius: var(--n-radius);
 }
 
 body .q-list--bordered,
@@ -261,72 +262,6 @@ body .q-chip:not([class*='bg-']) {
   &:hover {
     color: var(--n-accent);
     text-decoration-color: currentColor;
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Filet de sécurité : couleurs Material restantes ramenées sur les jetons.
-// Les écrans refondus utilisent AppNotice, StatusTag et les classes
-// sémantiques ; ces règles évitent un bleu ou un vert criard là où un
-// composant garde une couleur Quasar (ex. q-btn color="positive").
-// ---------------------------------------------------------------------------
-
-body {
-  .text-green,
-  .text-green-7,
-  .text-green-8,
-  .text-green-9,
-  .text-green-10,
-  .text-positive {
-    color: var(--n-ok) !important;
-  }
-
-  .text-red,
-  .text-red-7,
-  .text-red-8,
-  .text-red-9,
-  .text-red-10,
-  .text-negative {
-    color: var(--n-danger) !important;
-  }
-
-  .text-orange,
-  .text-orange-8,
-  .text-orange-9,
-  .text-orange-10,
-  .text-amber-8,
-  .text-warning {
-    color: var(--n-warn) !important;
-  }
-
-  .text-blue,
-  .text-blue-8,
-  .text-blue-9,
-  .text-blue-10,
-  .text-indigo-9,
-  .text-teal-10 {
-    color: var(--n-ink) !important;
-  }
-
-  .bg-green-1,
-  .bg-green-2 {
-    background: color-mix(in srgb, var(--n-ok) 8%, var(--n-surface)) !important;
-  }
-
-  .bg-red-1 {
-    background: color-mix(in srgb, var(--n-danger) 8%, var(--n-surface)) !important;
-  }
-
-  .bg-orange-1,
-  .bg-orange-2,
-  .bg-amber-1 {
-    background: color-mix(in srgb, var(--n-warn) 8%, var(--n-surface)) !important;
-  }
-
-  .bg-blue-1,
-  .bg-indigo-1,
-  .bg-teal-2 {
-    background: var(--n-tile) !important;
   }
 }
 

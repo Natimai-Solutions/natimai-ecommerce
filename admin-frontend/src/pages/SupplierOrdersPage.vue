@@ -55,8 +55,8 @@
         <q-td :props="props">
           <StatusTag
             :label="props.row.status"
-            :tone="toneOf(statusColor(props.row.status))"
-            :icon="toneIcon(toneOf(statusColor(props.row.status)))"
+            :tone="statusTone(props.row.status)"
+            :icon="toneIcon(statusTone(props.row.status))"
           />
         </q-td>
       </template>
@@ -110,7 +110,7 @@ import { computed, onMounted, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
-import { toneIcon, toneOf } from '@app/ui/statusTone';
+import { toneIcon, type StatusTone } from '@app/ui/statusTone';
 import PageHeader from '@/components/PageHeader.vue';
 import {
   listSupplierOrders,
@@ -178,11 +178,11 @@ const columns = computed<QTableColumn[]>(() => [
   { name: 'actions', label: '', field: 'id', align: 'right' },
 ]);
 
-function statusColor(status: SupplierOrderStatus): string {
-  if (status === 'submitted') return 'green';
-  if (status === 'error') return 'negative';
-  if (status === 'pending') return 'orange';
-  return 'blue-grey';
+function statusTone(status: SupplierOrderStatus): StatusTone {
+  if (status === 'submitted') return 'ok';
+  if (status === 'error') return 'danger';
+  if (status === 'pending') return 'warn';
+  return 'neutral';
 }
 
 async function load() {

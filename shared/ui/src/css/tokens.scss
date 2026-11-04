@@ -4,6 +4,23 @@
 // sombre (classe body--dark posée par le plugin Dark de Quasar). Les
 // composants utilisent ces variables plutôt que des couleurs en dur.
 
+// Forme et espacement : mêmes valeurs dans les deux thèmes. Le rayon suit
+// $generic-border-radius (quasar.variables.scss) ; l'espacement reprend
+// l'échelle de Quasar ($space-*, classes q-pa-md, q-gutter-sm…).
+:root {
+  --n-radius-sm: 4px;
+  --n-radius: 8px;
+  --n-radius-lg: 12px;
+  --n-radius-pill: 999px;
+  // Toujours blanc, même en sombre : un QR code se lit sur blanc.
+  --n-paper: #ffffff;
+  --n-space-xs: 4px;
+  --n-space-sm: 8px;
+  --n-space-md: 16px;
+  --n-space-lg: 24px;
+  --n-space-xl: 48px;
+}
+
 body.body--light,
 body:not(.body--dark) {
   --n-bg: #fafafa;
@@ -31,6 +48,8 @@ body:not(.body--dark) {
   --n-photo-glyph: #a1a1aa;
   --n-scrim: rgb(24 24 27 / 32%);
   --n-shadow: 0 24px 64px -24px rgb(24 24 27 / 28%);
+  // Barre collée en bas d'écran (comparateur) : ombre portée vers le haut.
+  --n-shadow-up: 0 -8px 24px rgb(24 24 27 / 8%);
 }
 
 body.body--dark {
@@ -60,6 +79,7 @@ body.body--dark {
   --n-photo-glyph: #8e8e98;
   --n-scrim: rgb(0 0 0 / 55%);
   --n-shadow: 0 24px 64px -24px rgb(0 0 0 / 80%);
+  --n-shadow-up: 0 -8px 24px rgb(0 0 0 / 40%);
 
   // Couleurs de marque Quasar recalées pour le fond sombre.
   --q-primary: #f4f4f5;
@@ -73,6 +93,8 @@ body.body--dark {
   --q-dark-page: #0b0b0d;
 
   // Un fond clair (encre inversée, accent, états) garde un texte sombre.
+  // q-btn pose lui-même « text-white », en !important chez Quasar : seule
+  // une règle !important peut le reprendre.
   .bg-primary.text-white,
   .bg-accent.text-white,
   .bg-positive.text-white,
@@ -90,31 +112,6 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-// Palette unique : les gris Quasar (Material) sont ramenés sur l'échelle zinc,
-// dans les deux modes. Transitoire : les pages passent progressivement aux
-// classes sémantiques ci-dessous.
-body {
-  .bg-grey-1,
-  .bg-grey-2 {
-    background: var(--n-tile) !important;
-  }
-
-  .bg-grey-3 {
-    background: var(--n-line) !important;
-  }
-
-  .text-grey-5,
-  .text-grey-6 {
-    color: var(--n-ink-3) !important;
-  }
-
-  .text-grey-7,
-  .text-grey-8,
-  .text-grey-9 {
-    color: var(--n-ink-2) !important;
-  }
-}
-
 // Masqué à l'écran, lu par les lecteurs d'écran.
 .sr-only {
   position: absolute;
@@ -128,7 +125,8 @@ body {
   border: 0;
 }
 
-// Classes sémantiques
+// Classes sémantiques. Ce sont des utilitaires : comme ceux de Quasar
+// (.text-*, .bg-*), elles l'emportent sur la couleur d'un composant.
 .text-ink {
   color: var(--n-ink) !important;
 }

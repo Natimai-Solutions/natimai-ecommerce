@@ -81,7 +81,7 @@ const { nextCutoff, nextDelivery } = useDepartureLabels();
   color: var(--n-ink-3);
 }
 
-@media (max-width: 767px) {
+@media (max-width: 599px) {
   .departure-strip__text {
     font-size: 12px;
   }

@@ -69,8 +69,8 @@
           <q-td :props="props">
             <StatusTag
               :label="props.row.status_name || props.row.status_code || '—'"
-              :tone="toneOf(statusColor(props.row.status_code))"
-              :icon="toneIcon(toneOf(statusColor(props.row.status_code)))"
+              :tone="statusTone(props.row.status_code)"
+              :icon="toneIcon(statusTone(props.row.status_code))"
             />
           </q-td>
         </template>
@@ -158,8 +158,8 @@
           <q-td :props="props">
             <StatusTag
               :label="props.row.status_name || props.row.status_code || '—'"
-              :tone="toneOf(statusColor(props.row.status_code))"
-              :icon="toneIcon(toneOf(statusColor(props.row.status_code)))"
+              :tone="statusTone(props.row.status_code)"
+              :icon="toneIcon(statusTone(props.row.status_code))"
             />
           </q-td>
         </template>
@@ -316,8 +316,8 @@
               <div class="row items-center q-gutter-sm">
                 <StatusTag
                   :label="leg.status_name || leg.status_code || '—'"
-                  :tone="toneOf(legColor(leg))"
-                  :icon="toneIcon(toneOf(legColor(leg)))"
+                  :tone="legTone(leg)"
+                  :icon="toneIcon(legTone(leg))"
                 />
                 <span v-if="leg.mode" class="text-caption text-muted">{{ leg.mode }}</span>
                 <span v-if="leg.tracking_ref" class="text-caption"
@@ -383,7 +383,7 @@ import { useQuasar } from 'quasar';
 import type { QTableColumn } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
-import { toneIcon, toneOf } from '@app/ui/statusTone';
+import { toneIcon, type StatusTone } from '@app/ui/statusTone';
 import PageHeader from '@/components/PageHeader.vue';
 import HelpPanel, { type HelpItem } from '@/components/HelpPanel.vue';
 import {
@@ -624,18 +624,16 @@ const journeyLoading = ref(false);
 const journeyError = ref<string | null>(null);
 const journeyOrderId = ref<string | null>(null);
 
-const _legColors: Record<string, string> = {
-  delivered: 'green',
-  completed: 'teal',
-  shipped: 'indigo',
-  in_progress: 'blue',
-  pending: 'grey',
+const _legTones: Record<string, StatusTone> = {
+  delivered: 'ok',
+  completed: 'ok',
 };
-function statusColor(code: string | null): string {
-  return _legColors[code ?? ''] ?? 'grey-7';
+/** Livré ou terminé : ok ; en cours, expédié, en attente : neutre. */
+function statusTone(code: string | null): StatusTone {
+  return _legTones[code ?? ''] ?? 'neutral';
 }
-function legColor(leg: JourneyLeg): string {
-  return statusColor(leg.status_code);
+function legTone(leg: JourneyLeg): StatusTone {
+  return statusTone(leg.status_code);
 }
 function legPath(leg: JourneyLeg): string {
   return `${leg.from_place ?? '?'} → ${leg.to_place ?? '?'}`;

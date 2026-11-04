@@ -272,7 +272,11 @@
     </section>
 
     <!-- Place dialog -->
-    <q-dialog v-model="placeDialog">
+    <q-dialog
+      :model-value="placeDialog"
+      :persistent="placeGuard.persistent.value"
+      @update:model-value="placeGuard.onToggle"
+    >
       <q-card class="app-dialog">
         <q-card-section class="app-dialog__head">
           <h2 class="app-dialog__title">
@@ -420,7 +424,7 @@
             </template>
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
+            <q-btn flat no-caps :label="$t('common.cancel')" @click="placeGuard.requestClose()" />
             <q-btn
               type="submit"
               color="primary"
@@ -436,7 +440,11 @@
 
     <!-- Route dialog : tronçons logistiques. Les modes de livraison client
          (tronçon final typé) passent par DeliveryModeDialog. -->
-    <q-dialog v-model="routeDialog">
+    <q-dialog
+      :model-value="routeDialog"
+      :persistent="routeGuard.persistent.value"
+      @update:model-value="routeGuard.onToggle"
+    >
       <q-card class="app-dialog app-dialog--wide">
         <q-card-section class="app-dialog__head">
           <h2 class="app-dialog__title">
@@ -561,7 +569,7 @@
             <q-toggle v-model="routeForm.is_to_customer" :label="$t('logistics.final_untyped')" />
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
+            <q-btn flat no-caps :label="$t('common.cancel')" @click="routeGuard.requestClose()" />
             <q-btn
               type="submit"
               color="primary"
@@ -615,6 +623,7 @@ import {
 import { deliveryTypeLabel } from '@/utils/deliveryModes';
 import { bandRows, bandsPayload, type BandRow } from '@/utils/weightBands';
 import { extractApiError } from '@/api/errors';
+import { useDialogGuard, useFormSnapshot } from '@/composables/useUnsavedGuard';
 
 const { t } = useI18n();
 const shopConfig = useShopConfigStore();
@@ -890,6 +899,13 @@ const placeForm = reactive({
   dropship_enabled: false,
 });
 const placePostalCodes = ref<string[]>([]);
+// Unsaved edits are not lost on Escape, backdrop or navigation (R9 / T5).
+const placeSnapshot = useFormSnapshot(() => ({ placeForm, codes: placePostalCodes.value }));
+const placeGuard = useDialogGuard({
+  isOpen: () => placeDialog.value,
+  close: () => (placeDialog.value = false),
+  isDirty: placeSnapshot.isDirty,
+});
 const placeKind = computed<'zone' | 'node'>(() => (isGeoType(placeForm.type) ? 'zone' : 'node'));
 
 function resetPlaceForm() {
@@ -919,6 +935,7 @@ function openPlaceCreate(kind: 'zone' | 'node') {
     placeForm.is_warehouse = false;
     placeForm.country = zoneRows.value.find((z) => !z.parent_id)?.country ?? null;
   }
+  placeSnapshot.take();
   placeDialog.value = true;
 }
 
@@ -942,12 +959,16 @@ function openPlaceEdit(p: Place) {
   if (isGeoType(p.type)) {
     getPlacePostalCodes(p.id)
       .then((codes) => {
+        // Loaded after opening: part of the initial state unless already edited.
+        const clean = !placeSnapshot.isDirty();
         placePostalCodes.value = codes;
+        if (clean) placeSnapshot.take();
       })
       .catch(() => {
         // Non bloquant : l'édition des autres champs reste possible.
       });
   }
+  placeSnapshot.take();
   placeDialog.value = true;
 }
 
@@ -1026,6 +1047,13 @@ const routeForm = reactive<{
   is_to_customer: false,
 });
 const routeBands = ref<BandRow[]>([]);
+// Unsaved edits are not lost on Escape, backdrop or navigation (R9 / T5).
+const routeSnapshot = useFormSnapshot(() => ({ routeForm, bands: routeBands.value }));
+const routeGuard = useDialogGuard({
+  isOpen: () => routeDialog.value,
+  close: () => (routeDialog.value = false),
+  isDirty: routeSnapshot.isDirty,
+});
 
 function routeTransportSummary(r: ShippingRoute): string {
   return [
@@ -1066,6 +1094,7 @@ function openRouteCreate() {
   dialogError.value = null;
   routeEditId.value = null;
   resetRouteForm();
+  routeSnapshot.take();
   routeDialog.value = true;
 }
 
@@ -1089,6 +1118,7 @@ function openRouteEdit(r: ShippingRoute) {
   routeForm.free_shipping_threshold = r.free_shipping_threshold ?? '';
   routeForm.is_to_customer = r.is_to_customer;
   routeBands.value = bandRows(r.weight_bands);
+  routeSnapshot.take();
   routeDialog.value = true;
 }
 

@@ -143,8 +143,8 @@
         <q-td :props="props">
           <StatusTag
             :label="orderStatusLabel(props.row.status)"
-            :tone="toneOf(orderStatusColor(props.row.status))"
-            :icon="toneIcon(toneOf(orderStatusColor(props.row.status)))"
+            :tone="orderStatusTone(props.row.status)"
+            :icon="toneIcon(orderStatusTone(props.row.status))"
           />
         </q-td>
       </template>
@@ -176,7 +176,7 @@ import { computed, onMounted, ref } from 'vue';
 import type { QTableColumn, QTableProps } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
-import { toneIcon, toneOf } from '@app/ui/statusTone';
+import { toneIcon } from '@app/ui/statusTone';
 import { dayBounds, formatDate, formatMoney as money } from '@app/utils';
 import { useShopConfigStore } from '@/stores/shopConfig';
 import PageHeader from '@/components/PageHeader.vue';
@@ -184,7 +184,7 @@ import {
   downloadOrdersCsv,
   listOrdersPage,
   listOrderStatuses,
-  orderStatusColor,
+  orderStatusTone,
   orderStatusLabel,
   type AdminOrderListItem,
   type OrderFilters,

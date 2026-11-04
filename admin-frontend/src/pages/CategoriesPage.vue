@@ -895,6 +895,6 @@ const mediaPickerOpen = ref(false);
   width: 32px;
   height: 32px;
   object-fit: cover;
-  border-radius: 4px;
+  border-radius: var(--n-radius-sm);
 }
 </style>

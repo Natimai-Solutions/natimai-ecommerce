@@ -66,7 +66,7 @@ const emit = defineEmits<{ 'update:modelValue': [value: T] }>();
   align-items: center;
   gap: 14px;
   border: 1px solid var(--n-line-2);
-  border-radius: 8px;
+  border-radius: var(--n-radius);
   background: var(--n-surface);
   color: var(--n-ink);
   font: inherit;
@@ -100,7 +100,7 @@ const emit = defineEmits<{ 'update:modelValue': [value: T] }>();
   width: 18px;
   height: 18px;
   border: 1.5px solid var(--n-line-2);
-  border-radius: 999px;
+  border-radius: var(--n-radius-pill);
   transition: border 0.15s ease;
 
   .choice--selected & {

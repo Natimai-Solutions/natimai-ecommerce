@@ -1,0 +1,42 @@
+// Quasar Sass (& SCSS) Variables — vitrine et admin (importées par
+// src/css/quasar.variables.scss de chaque application).
+// --------------------------------------------------
+// Natimai « Précision » : neutres zinc, encre comme couleur principale,
+// un seul accent (orange signal). Les valeurs du mode sombre sont posées en
+// variables CSS dans app.scss (body.body--dark), car ces variables Sass ne
+// servent qu'au mode clair et aux couleurs compilées par Quasar.
+
+// Couleurs de marque
+$primary: #18181b; // encre : boutons principaux, état sélectionné
+$secondary: #52525b; // encre secondaire
+$accent: #c2410c; // orange signal : focus, badge panier, filtres actifs
+
+$dark: #131316; // surfaces (cartes, menus) en mode sombre
+$dark-page: #0b0b0d; // fond de page en mode sombre
+
+// États sémantiques (uniquement pour une information réelle)
+$positive: #15803d;
+$negative: #b91c1c;
+$info: #52525b;
+$warning: #a16207;
+
+// Typographie
+$typography-font-family:
+  'Geist Variable',
+  system-ui,
+  -apple-system,
+  'Segoe UI',
+  sans-serif;
+
+// Forme : un seul rayon de 8px pour cartes, champs et boutons
+$generic-border-radius: var(--n-radius);
+$button-border-radius: var(--n-radius);
+$button-font-weight: 500;
+$button-shadow: none;
+$button-shadow-active: none;
+
+// Ombres teintées zinc, jamais noir pur
+$shadow-color: #18181b;
+
+$separator-color: #e4e4e7;
+$separator-dark-color: #26262b;

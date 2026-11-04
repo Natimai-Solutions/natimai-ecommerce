@@ -224,7 +224,7 @@ onMounted(async () => {
   column-gap: 12px;
   row-gap: 2px;
   align-items: center;
-  border-radius: 8px;
+  border-radius: var(--n-radius);
   background: var(--n-tile);
   color: var(--n-ink);
   text-decoration: none;

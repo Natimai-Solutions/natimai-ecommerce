@@ -45,6 +45,7 @@
           <td class="text-left">
             <span v-if="g.default" class="text-muted">{{ $t('price_groups.is_reference') }}</span>
             <q-input
+              :aria-label="`${$t('price_groups.col_discount')} — ${g.label}`"
               v-else
               v-model="edit(g).discount_pct"
               type="number"
@@ -60,6 +61,7 @@
           </td>
           <td class="text-left">
             <q-input
+              :aria-label="`${$t('price_groups.col_margin')} — ${g.label}`"
               v-if="g.default"
               v-model="edit(g).margin_rate_pct"
               type="number"

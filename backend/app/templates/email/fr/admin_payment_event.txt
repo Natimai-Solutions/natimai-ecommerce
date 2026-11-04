@@ -1,11 +1,13 @@
 {{ event_label }}
 
-Un événement de paiement vient d'être enregistré.
+{% if new_order %}Une nouvelle commande attend votre action dans l'administration
+(Paiements → Validation des paiements) : paiement à rapprocher ou bon de
+commande à recevoir, puis à valider.{% else %}Un événement de paiement vient d'être enregistré.{% endif %}
 
 Événement   : {{ event_type }}
 Paiement    : {{ payment_id | short_ref }}
-Commande    : {{ order_id | short_ref }}
-Fournisseur : {{ provider_code }}
+Commande    : {% if order_number %}{{ order_number }}{% else %}{{ order_id | short_ref }}{% endif %}
+Moyen       : {{ provider_code }}
 {% if amount %}Montant     : {{ amount }} {{ currency }}
 {% endif %}{% if reference %}Référence   : {{ reference }}
 {% endif %}{% if reason %}Motif       : {{ reason }}

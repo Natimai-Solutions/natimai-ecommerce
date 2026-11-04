@@ -149,7 +149,7 @@ function toggle(value: boolean) {
   margin-left: 6px;
   padding: 1px 8px;
   border: 1px solid var(--n-line-2);
-  border-radius: 999px;
+  border-radius: var(--n-radius-pill);
   font-size: 11px;
   font-weight: 500;
   color: var(--n-ink-2);
@@ -163,7 +163,7 @@ function toggle(value: boolean) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 999px;
+  border-radius: var(--n-radius-pill);
   background: var(--n-ink);
   color: var(--n-surface);
   font-size: 12px;

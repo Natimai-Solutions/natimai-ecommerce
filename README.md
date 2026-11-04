@@ -22,7 +22,7 @@ a `SHOP_MODE=simple` profile for a shop that sells its own stock.
 | [`shared/`](shared/README.md) | API types generated from the OpenAPI schema, HTTP client, UI kit, utilities | TypeScript, pnpm workspace |
 | [`e2e/`](e2e/README.md) | Storefront and admin journeys against the real stack | Playwright |
 | `infra/`, `docker-compose*.yml` | Caddy reverse proxy, compose layers (dev, prod, images, frontend-only) | Docker Compose |
-| [`docs/`](docs/) | [`DEVELOPMENT.md`](docs/DEVELOPMENT.md): day-to-day work · [`DEPLOYMENT.md`](docs/DEPLOYMENT.md): variables, first deployment, runbook | |
+| [`docs/`](docs/) | [`DEVELOPMENT.md`](docs/DEVELOPMENT.md): day-to-day work · [`DEPLOYMENT.md`](docs/DEPLOYMENT.md): variables, first deployment, runbook · [`GUIDE_INTERFACE.md`](docs/GUIDE_INTERFACE.md): interface rules | |
 
 Each folder's README explains how to run **that part alone**.
 [`CONTRIBUTING.md`](CONTRIBUTING.md) walks through the three setups: API only

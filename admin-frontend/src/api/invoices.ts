@@ -1,3 +1,4 @@
+import type { components } from '@app/api-types';
 import { api } from '@/boot/api';
 
 /** Invoice metadata as returned by `GET /admin/invoices` (`InvoicePublic`). */
@@ -62,4 +63,12 @@ export async function downloadInvoicesCsv(fiscalYear: number | null): Promise<vo
     filename,
     fiscalYear ? { fiscal_year: fiscalYear } : undefined,
   );
+}
+
+export type IntegrityReport = components['schemas']['IntegrityReportPublic'];
+
+/** Recompute the integrity chain of every invoice and credit note. */
+export async function checkInvoicesIntegrity(): Promise<IntegrityReport> {
+  const { data } = await api.get<IntegrityReport>('/admin/invoices/integrity');
+  return data;
 }

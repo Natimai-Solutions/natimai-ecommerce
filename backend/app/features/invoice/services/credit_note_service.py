@@ -25,6 +25,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.invoice.models.credit_note import CreditNote, CreditNotePublic
 from app.features.invoice.models.invoice import Invoice
+from app.features.invoice.services.integrity import seal_document
 from app.features.invoice.services.numbering import allocate_credit_note_number
 from app.features.payment.models.refund import Refund
 from app.utils.money import quantize_amount
@@ -242,6 +243,8 @@ async def issue_credit_note_for_refund(
             invoice=invoice, refund=refund, breakdown=breakdown
         ),
     )
+    # Under the year's counter lock taken by the allocation above.
+    await seal_document(session, credit_note)
     session.add(credit_note)
 
     # Read what the log needs BEFORE the commit: a commit expires every loaded

@@ -322,7 +322,7 @@ function chooseTheme(value: ThemePreference) {
 
 .admin-topbar__account {
   padding: 4px 8px 4px 4px;
-  border-radius: 999px;
+  border-radius: var(--n-radius-pill);
 
   :deep(.q-btn__content) {
     gap: 8px;
@@ -334,7 +334,7 @@ function chooseTheme(value: ThemePreference) {
   height: 28px;
   display: inline-grid;
   place-items: center;
-  border-radius: 999px;
+  border-radius: var(--n-radius-pill);
   background: var(--n-ink);
   color: var(--n-on-ink);
   font-size: 11px;
@@ -404,7 +404,7 @@ function chooseTheme(value: ThemePreference) {
   flex-shrink: 0;
   display: grid;
   place-items: center;
-  border-radius: 8px;
+  border-radius: var(--n-radius);
   background: var(--n-ink);
   color: var(--n-on-ink);
   font-weight: 700;
@@ -506,7 +506,7 @@ function chooseTheme(value: ThemePreference) {
   align-items: center;
   gap: 8px;
   border: 1px solid var(--n-line);
-  border-radius: 8px;
+  border-radius: var(--n-radius);
   font-size: 12px;
   color: var(--n-ink-2);
   text-decoration: none;

@@ -1,6 +1,7 @@
 """Generic handling of provider notifications and confirmations (R3-P4).
 
-PayZen keeps its historical IPN (``payzen_ipn``); every other API provider
+PayZen keeps its historical IPN (``payzen_ipn``), which records its events in
+the same journal (:func:`record_webhook_event`); every other API provider
 (PayPal today, Stripe later) goes through here. The provider authenticates
 and normalizes its notification into a :class:`ProviderOutcome`; this module
 applies it to the payment with the same guarantees as the PayZen IPN:
@@ -151,8 +152,48 @@ async def _status_name(session: AsyncSession, payment: Payment) -> str | None:
     return record.name if record is not None else None
 
 
-class _AlreadyRecorded(Exception):
-    pass
+class WebhookEventAlreadyRecorded(Exception):
+    """The provider event was already processed (same provider, same id)."""
+
+
+async def record_webhook_event(
+    session: AsyncSession,
+    *,
+    provider_code: str,
+    event_id: str | None,
+    event_type: str | None,
+    payment_id: uuid.UUID | None,
+    outcome: str,
+) -> PaymentWebhookEvent | None:
+    """Remember a provider event in the shared journal (None when it has no id).
+
+    Every provider goes through here, the PayZen IPN included: one journal of
+    what was received and what was done with it. The caller updates
+    ``event.outcome`` once it knows. Raises :class:`WebhookEventAlreadyRecorded`
+    when the event was already processed.
+    """
+    if not event_id:
+        return None
+    event_id = event_id[:255]
+    already = (
+        await session.exec(
+            select(PaymentWebhookEvent.id).where(
+                col(PaymentWebhookEvent.provider_code) == provider_code,
+                col(PaymentWebhookEvent.event_id) == event_id,
+            )
+        )
+    ).first()
+    if already is not None:
+        raise WebhookEventAlreadyRecorded
+    event = PaymentWebhookEvent(
+        provider_code=provider_code,
+        event_id=event_id,
+        event_type=(event_type or "")[:100] or None,
+        payment_id=payment_id,
+        outcome=outcome,
+    )
+    session.add(event)
+    return event
 
 
 async def _record_event(
@@ -162,31 +203,14 @@ async def _record_event(
     payment_id: uuid.UUID | None,
     result: str,
 ) -> PaymentWebhookEvent | None:
-    """Remember a provider event (None when it has no id).
-
-    Raises :class:`_AlreadyRecorded` when the event was already processed.
-    """
-    if not outcome.event_id:
-        return None
-    already = (
-        await session.exec(
-            select(PaymentWebhookEvent.id).where(
-                col(PaymentWebhookEvent.provider_code) == outcome.provider_code,
-                col(PaymentWebhookEvent.event_id) == outcome.event_id,
-            )
-        )
-    ).first()
-    if already is not None:
-        raise _AlreadyRecorded
-    event = PaymentWebhookEvent(
+    return await record_webhook_event(
+        session,
         provider_code=outcome.provider_code,
         event_id=outcome.event_id,
-        event_type=(outcome.event_type or "")[:100] or None,
+        event_type=outcome.event_type,
         payment_id=payment_id,
         outcome=result,
     )
-    session.add(event)
-    return event
 
 
 async def _publish(
@@ -253,7 +277,7 @@ async def apply_provider_outcome(
             await _record_event(
                 session, outcome, payment_id=None, result=RESULT_UNKNOWN_PAYMENT
             )
-        except _AlreadyRecorded:
+        except WebhookEventAlreadyRecorded:
             return PipelineResult(RESULT_DUPLICATE)
         await _commit(session)
         return PipelineResult(RESULT_UNKNOWN_PAYMENT)
@@ -270,7 +294,7 @@ async def apply_provider_outcome(
         event = await _record_event(
             session, outcome, payment_id=payment_id, result=_pending_result(outcome)
         )
-    except _AlreadyRecorded:
+    except WebhookEventAlreadyRecorded:
         return done(RESULT_DUPLICATE)
 
     def mark(result: str) -> None:
@@ -392,6 +416,8 @@ async def _commit(session: AsyncSession) -> None:
 
 
 __all__ = [
+    "WebhookEventAlreadyRecorded",
+    "record_webhook_event",
     "PipelineResult",
     "RESULT_AMOUNT_MISMATCH",
     "RESULT_APPLIED",

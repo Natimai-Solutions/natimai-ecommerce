@@ -88,7 +88,7 @@ function detailOf(offer: ProductOfferPublic): string {
   justify-content: space-between;
   gap: 16px;
   border: 1px solid var(--n-line);
-  border-radius: 8px;
+  border-radius: var(--n-radius);
   color: var(--n-ink);
   text-decoration: none;
   transition:

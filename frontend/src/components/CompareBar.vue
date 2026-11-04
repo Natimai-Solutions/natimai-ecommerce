@@ -56,7 +56,7 @@ onMounted(() => compareStore.load());
   z-index: 1500;
   background: var(--n-surface);
   border-top: 1px solid var(--n-line);
-  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--n-shadow-up);
 }
 
 .compare-bar__inner {

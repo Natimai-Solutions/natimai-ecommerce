@@ -244,7 +244,7 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 10px;
-  border-radius: 8px;
+  border-radius: var(--n-radius);
   color: var(--n-ink-2);
   font-size: 14px;
   font-weight: 500;

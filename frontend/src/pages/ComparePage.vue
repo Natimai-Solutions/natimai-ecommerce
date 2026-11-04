@@ -339,7 +339,7 @@ onMounted(load);
   display: block;
   aspect-ratio: 1;
   overflow: hidden;
-  border-radius: 8px;
+  border-radius: var(--n-radius);
   background: var(--n-tile);
 }
 
@@ -371,7 +371,7 @@ onMounted(load);
   font-weight: 600;
 }
 
-@media (max-width: 767px) {
+@media (max-width: 599px) {
   .compare__table tbody th,
   .compare__corner {
     width: 120px;

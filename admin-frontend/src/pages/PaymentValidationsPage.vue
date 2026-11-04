@@ -247,8 +247,8 @@
               <q-item-section side>
                 <StatusTag
                   :label="avLabel(att)"
-                  :tone="toneOf(avColor(att))"
-                  :icon="toneIcon(toneOf(avColor(att)))"
+                  :tone="avTone(att)"
+                  :icon="toneIcon(avTone(att))"
                 />
               </q-item-section>
               <q-item-section side>
@@ -283,7 +283,7 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
-import { toneIcon, toneOf } from '@app/ui/statusTone';
+import { toneIcon, type StatusTone } from '@app/ui/statusTone';
 import { formatMoney as money } from '@app/utils';
 import { useShopConfigStore } from '@/stores/shopConfig';
 import PageHeader from '@/components/PageHeader.vue';
@@ -466,10 +466,10 @@ function avLabel(att: PaymentAttachment): string {
   if (att.av_clean) return t('payments.av_clean');
   return t('payments.av_infected');
 }
-function avColor(att: PaymentAttachment): string {
-  if (!att.av_scanned) return 'orange';
-  if (att.av_clean) return 'green';
-  return 'negative';
+function avTone(att: PaymentAttachment): StatusTone {
+  if (!att.av_scanned) return 'warn';
+  if (att.av_clean) return 'ok';
+  return 'danger';
 }
 
 onMounted(load);

@@ -26,6 +26,7 @@
 
     <div class="admin-toolbar">
       <q-input
+        :aria-label="$t('gift_cards.search')"
         v-model="filters.q"
         dense
         outlined
@@ -198,7 +199,11 @@
       />
     </div>
 
-    <q-dialog v-model="dialog">
+    <q-dialog
+      :model-value="dialog"
+      :persistent="guard.persistent.value"
+      @update:model-value="guard.onToggle"
+    >
       <q-card class="app-dialog">
         <q-card-section class="app-dialog__head">
           <h2 class="app-dialog__title">{{ $t('gift_cards.new_title') }}</h2>
@@ -262,7 +267,7 @@
             <q-input v-model="form.note" :label="$t('gift_cards.note')" outlined dense />
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
+            <q-btn flat no-caps :label="$t('common.cancel')" @click="guard.requestClose()" />
             <q-btn
               type="submit"
               color="primary"
@@ -291,6 +296,7 @@ import PageHeader from '@/components/PageHeader.vue';
 import HelpPanel from '@/components/HelpPanel.vue';
 import { pricingHelp } from '@/utils/helpTopics';
 import { extractApiError } from '@/api/errors';
+import { useDialogGuard, useFormSnapshot } from '@/composables/useUnsavedGuard';
 import {
   GIFT_CARD_KIND_LABELS,
   GIFT_CARD_STATE_LABELS,
@@ -418,6 +424,13 @@ const form = reactive({
   expires_at: '',
   note: '',
 });
+// Unsaved edits are not lost on Escape, backdrop or navigation (R9 / T5).
+const snapshot = useFormSnapshot(() => form);
+const guard = useDialogGuard({
+  isOpen: () => dialog.value,
+  close: () => (dialog.value = false),
+  isDirty: snapshot.isDirty,
+});
 
 function openIssue() {
   Object.assign(form, {
@@ -429,6 +442,7 @@ function openIssue() {
     note: '',
   });
   dialogError.value = null;
+  snapshot.take();
   dialog.value = true;
 }
 

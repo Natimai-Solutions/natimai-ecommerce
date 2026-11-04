@@ -146,6 +146,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: docker/setup-buildx-action@v4
+      # Jour UTC : invalide chaque jour la couche « apk/apt upgrade » du cache
+      # (ARG SECURITY_UPDATES_DATE des Dockerfile).
+      - id: today
+        run: echo "date=$(date -u +%F)" >> "$GITHUB_OUTPUT"
       # Même recette que le déploiement (deploy.yml), sans publication : une
       # image qui ne se construit plus est détectée sur la PR, pas le jour du
       # déploiement.
@@ -158,6 +162,7 @@ jobs:
           pull: true
           build-args: |
             VITE_API_URL=https://api.example.invalid
+            SECURITY_UPDATES_DATE=${{ steps.today.outputs.date }}
           tags: natimai/${{ matrix.image }}:ci
           cache-from: type=gha,scope=ci-${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=ci-${{ matrix.image }}

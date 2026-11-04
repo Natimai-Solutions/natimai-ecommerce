@@ -59,7 +59,10 @@ coverage.xml
 *.swo
 *~
 .DS_Store
-.claude
+# Claude Code : réglages locaux et worktrees ignorés ; la copie figée des
+# compétences (.claude/skills) est versionnée.
+.claude/*
+!.claude/skills/
 
 # Jupyter Notebook
 .ipynb_checkpoints

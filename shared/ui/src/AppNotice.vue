@@ -43,7 +43,7 @@ function defaultIcon(tone: NoticeTone): string {
   gap: 12px;
   padding: 14px 16px;
   border: 1px solid color-mix(in srgb, var(--notice-tone) 30%, var(--n-line));
-  border-radius: 8px;
+  border-radius: var(--n-radius);
   background: color-mix(in srgb, var(--notice-tone) 6%, var(--n-surface));
   color: var(--n-ink);
   font-size: 14px;

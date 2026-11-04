@@ -111,6 +111,22 @@ class CreditNote(SQLModel, table=True):
             "d'origine, ventilation de taxes) — source de vérité du rendu PDF"
         ),
     )
+    previous_hash: str | None = Field(
+        default=None,
+        max_length=64,
+        description=(
+            "Empreinte du document précédent de la série et de l'exercice "
+            "(chaîne d'intégrité, services/integrity.py)"
+        ),
+    )
+    chain_hash: str | None = Field(
+        default=None,
+        max_length=64,
+        description=(
+            "SHA-256 de l'empreinte précédente et du contenu figé du document : "
+            "toute modification après émission rompt la chaîne"
+        ),
+    )
     emailed_at: datetime | None = Field(
         default=None,
         description="Date d'envoi de l'avoir au client (idempotence de l'email)",

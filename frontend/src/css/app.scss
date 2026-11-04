@@ -15,7 +15,7 @@
   padding-left: 40px;
   padding-right: 40px;
 
-  @media (max-width: 767px) {
+  @media (max-width: 599px) {
     padding-left: 16px;
     padding-right: 16px;
   }
@@ -29,7 +29,7 @@
   line-height: 1.1;
   letter-spacing: -0.025em;
 
-  @media (max-width: 767px) {
+  @media (max-width: 599px) {
     font-size: 26px;
   }
 }
@@ -39,7 +39,7 @@
   flex-shrink: 0;
   width: 7px;
   height: 7px;
-  border-radius: 999px;
+  border-radius: var(--n-radius-pill);
   background: var(--n-ok);
 
   // En stock chez le fournisseur seulement : disponible, délai plus long.
@@ -116,11 +116,11 @@
   column-gap: 20px;
   row-gap: 48px;
 
-  @media (max-width: 1279px) {
+  @media (max-width: 1439px) {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  @media (max-width: 767px) {
+  @media (max-width: 599px) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     column-gap: 12px;
     row-gap: 32px;
@@ -137,7 +137,7 @@
   aspect-ratio: 1;
   height: auto;
   margin-bottom: 8px;
-  border-radius: 8px;
+  border-radius: var(--n-radius);
 }
 
 // Pages de lecture (légales, pages éditées depuis l'admin) : une colonne de

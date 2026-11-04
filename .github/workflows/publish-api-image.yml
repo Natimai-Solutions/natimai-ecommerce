@@ -57,6 +57,10 @@ jobs:
 
       - uses: docker/setup-buildx-action@v4
 
+      # Jour UTC : invalide chaque jour la couche « apk/apt upgrade » du cache
+      # (ARG SECURITY_UPDATES_DATE des Dockerfile).
+      - id: today
+        run: echo "date=$(date -u +%F)" >> "$GITHUB_OUTPUT"
       - uses: docker/build-push-action@v7
         with:
           context: ./backend
@@ -64,6 +68,8 @@ jobs:
           push: true
           # --pull : l'image de base est un tag flottant.
           pull: true
+          build-args: |
+            SECURITY_UPDATES_DATE=${{ steps.today.outputs.date }}
           tags: |
             ${{ steps.image.outputs.name }}:main
             ${{ steps.image.outputs.name }}:sha-${{ steps.image.outputs.short }}

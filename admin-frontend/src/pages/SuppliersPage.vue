@@ -238,7 +238,11 @@
     </q-dialog>
 
     <!-- Création / édition -->
-    <q-dialog v-model="formDialog">
+    <q-dialog
+      :model-value="formDialog"
+      :persistent="formGuard.persistent.value"
+      @update:model-value="formGuard.onToggle"
+    >
       <q-card class="app-dialog app-dialog--wide">
         <q-card-section class="app-dialog__head">
           <h2 class="app-dialog__title">
@@ -541,7 +545,7 @@
             />
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
+            <q-btn flat no-caps :label="$t('common.cancel')" @click="formGuard.requestClose()" />
             <q-btn
               type="submit"
               color="primary"
@@ -556,7 +560,11 @@
     </q-dialog>
 
     <!-- Références suivies (liste blanche de SKU) -->
-    <q-dialog v-model="allowlistDialog">
+    <q-dialog
+      :model-value="allowlistDialog"
+      :persistent="allowlistGuard.persistent.value"
+      @update:model-value="allowlistGuard.onToggle"
+    >
       <q-card class="app-dialog app-dialog--wide">
         <q-card-section class="app-dialog__head">
           <h2 class="app-dialog__title">
@@ -575,6 +583,8 @@
             dense
             autogrow
             :input-style="{ minHeight: '160px', fontFamily: 'monospace' }"
+            :label="$t('suppliers.allowlist_title_tip')"
+            stack-label
             placeholder="IM-12345&#10;IM-67890"
             data-testid="allowlist-text"
           />
@@ -630,7 +640,7 @@
           </q-expansion-item>
         </q-card-section>
         <q-card-actions align="right" class="app-dialog__actions">
-          <q-btn flat no-caps :label="$t('common.close')" v-close-popup />
+          <q-btn flat no-caps :label="$t('common.close')" @click="allowlistGuard.requestClose()" />
           <q-btn
             color="primary"
             unelevated
@@ -1020,6 +1030,7 @@ import { useShopConfigStore } from '@/stores/shopConfig';
 import { listPlaces, type Place } from '@/api/logistics';
 import { extractApiError } from '@/api/errors';
 import { useConfirm } from '@/composables/useConfirm';
+import { useDialogGuard, useFormSnapshot } from '@/composables/useUnsavedGuard';
 import {
   fieldsFromSchema,
   fromFormValue,
@@ -1171,6 +1182,14 @@ const editing = ref<Supplier | null>(null);
 const saving = ref(false);
 const dialogError = ref<string | null>(null);
 const form = reactive<FormState>(emptyForm());
+// Unsaved edits are not lost on Escape, backdrop or navigation (R9 / T5).
+// The feed credentials typed in this dialog count too (saved separately).
+const formSnapshot = useFormSnapshot(() => ({ form, credentials }));
+const formGuard = useDialogGuard({
+  isOpen: () => formDialog.value,
+  close: () => (formDialog.value = false),
+  isDirty: formSnapshot.isDirty,
+});
 
 const selectedAdapter = computed(
   () => adapters.value.find((a) => a.key === form.adapter_key) ?? null,
@@ -1180,6 +1199,7 @@ function openCreate() {
   editing.value = null;
   dialogError.value = null;
   Object.assign(form, emptyForm());
+  formSnapshot.take();
   formDialog.value = true;
 }
 
@@ -1218,6 +1238,7 @@ function openEdit(supplier: Supplier) {
     contact_phone: supplier.contact_phone ?? '',
     notes: supplier.notes ?? '',
   });
+  formSnapshot.take();
   formDialog.value = true;
 }
 
@@ -1296,12 +1317,20 @@ const allowlistText = ref('');
 const allowlistView = ref<AllowlistView | null>(null);
 const allowlistError = ref<string | null>(null);
 const allowlistSaving = ref(false);
+// Unsaved edits are not lost on Escape, backdrop or navigation (R9 / T5).
+const allowlistSnapshot = useFormSnapshot(() => allowlistText.value);
+const allowlistGuard = useDialogGuard({
+  isOpen: () => allowlistDialog.value,
+  close: () => (allowlistDialog.value = false),
+  isDirty: allowlistSnapshot.isDirty,
+});
 
 async function openAllowlist(supplier: Supplier) {
   allowlistSupplier.value = supplier;
   allowlistError.value = null;
   allowlistView.value = null;
   allowlistText.value = (supplier.sku_allowlist ?? []).join('\n');
+  allowlistSnapshot.take();
   allowlistDialog.value = true;
   try {
     allowlistView.value = await getSkuAllowlist(supplier.code);
@@ -1323,6 +1352,7 @@ async function saveAllowlist() {
     const view = await saveSkuAllowlist(supplier.code, skus);
     allowlistView.value = view;
     allowlistText.value = view.entries.map((e) => e.supplier_sku).join('\n');
+    allowlistSnapshot.take();
     notice.value = view.entries.length
       ? `${supplier.name} : ${view.entries.length} référence(s) suivie(s), ${view.deactivated} article(s) retiré(s) de la vitrine.`
       : `${supplier.name} : liste vidée, tout le catalogue synchronisé est suivi.`;

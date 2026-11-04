@@ -7,7 +7,14 @@ import type { MediaKind } from '@/api/media';
  * at a few widths, so a large original is what matters, not a small one.
  */
 export type ImageFormatKey =
-  'hero' | 'banner' | 'category' | 'product' | 'page' | 'logo' | 'icon' | 'other';
+  | 'hero'
+  | 'banner'
+  | 'category'
+  | 'product'
+  | 'page'
+  | 'logo'
+  | 'icon'
+  | 'other';
 
 /** The i18n key of the recommendation shown next to an upload. */
 export function imageFormatLabelKey(format: ImageFormatKey): string {

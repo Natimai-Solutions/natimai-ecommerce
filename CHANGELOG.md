@@ -9,6 +9,25 @@ takes a tag as its `ref`.
 
 ### Added
 
+- `docs/GUIDE_INTERFACE.md`: the interface rules shared by the storefront and
+  the admin, on the model of natimai-paie, and the design skill they override
+  (`design-taste-frontend`, frozen copy under `.claude/skills/`, recorded in
+  `skills-lock.json`; `.gitignore` now keeps `.claude/skills/`).
+- Admin home → « Mise en route »: a start-up checklist computed from the data
+  (`GET /admin/setup-checklist`): seller legal identity, shop e-mail for
+  alerts, an active payment method, an online catalogue, products hidden for
+  a missing customs rate or weight, and two zeros to confirm (transport
+  insurance rate, clearance places without a fee per declaration). Each line
+  links to the screen that settles it; the section disappears once every
+  point is done. The settings screen opens a category from `?category=`.
+- Integrity chain of the accounting documents: each invoice and credit note
+  stores the SHA-256 of the previous document of its series and fiscal year
+  and of its own frozen content (`previous_hash`, `chain_hash`, migration
+  `f6a7b8c9d0e1`). `GET /admin/invoices/integrity` recomputes every chain and
+  names the documents changed, deleted or inserted after issuance; Admin →
+  Factures → « Vérifier l'intégrité » shows the result. Documents issued
+  before the chain are sealed, in number order, by the next issuance of their
+  series and year.
 - Admin → Logistique → **Modes de livraison**: a screen always shown, simple
   mode included (it does not depend on the "Trajets et lieux" module), where a
   shop sets what the customer picks at checkout and its price. A delivery mode
@@ -79,6 +98,49 @@ takes a tag as its `ref`.
 
 ### Changed
 
+- Front: a Vitest design guard (`shared/ui/src/design-guard.test.ts`) over
+  both apps and `shared/ui` refuses Material colours, `bg-white`, colours picked
+  from `$q.dark`, hard-coded colours and `!important` outside the token files,
+  and breakpoints off Quasar's scale. Status screens return a `StatusTag` tone
+  (`orderStatusTone`, `quoteStatusTone`…) instead of a Material colour
+  translated by `toneOf`, which is gone; 20 of the 28 `!important` are removed
+  (more specific selectors, or the `--q-*` variable Quasar reads), the 8 left
+  are justified in `tokens.scss`. New tokens: `--n-paper` (QR code background,
+  white in both themes), `--n-shadow-up`.
+- Front: one source for the Quasar Sass variables and the theme preference
+  (`shared/ui`); each app keeps its own storage (cookie for the SSR
+  storefront, localStorage for the admin). Radius and spacing tokens
+  (`--n-radius*`, `--n-space-*`, Quasar's spacing scale) replace 83 hard-coded
+  radii, pixel-identical.
+- Front: breakpoints on Quasar's scale only (600 / 1024 / 1440 px). Phone
+  tweaks moved from 767 to 599 px, so a portrait tablet (600–767 px) gets the
+  wider layout (3-column product grid, side-by-side banners); the product grid
+  and product page switch to 3 columns / the narrower buy column under
+  1440 px instead of 1280; the storefront footer stays stacked up to 1023 px;
+  the admin product form stacks under 1024 px. The admin order detail and
+  settings navigation follow the width left by the side menu (container
+  queries) instead of a screen width.
+- Admin: the 20 form fields that had no label (placeholder only, or nothing
+  in a table cell) now have one for screen readers: the four list searches,
+  and the table inputs of margins, reception, deposits, price groups, product
+  origin, quote lines and category pairs (column label and row, e.g.
+  « Acompte (%) — Professionnels »). The SKU allowlist gets a visible label.
+- Admin: the « modifications non enregistrées » guard now covers the form
+  dialogs of Codes promo, Cartes cadeaux, Transporteurs, Taux de TVA, Douanes,
+  Utilisateurs, Fournisseurs (supplier form, SKU allowlist), Trajets et lieux
+  (place, route), Modes de livraison (delivery mode, new pickup place) and
+  Départs groupés (departure, purchase order, reminder). Escape, a backdrop
+  click, Cancel or leaving the screen asks before dropping typed edits.
+- A transfer, cash or cheque order (and a purchase order) reaches the shop as
+  « Nouvelle commande à traiter » (support e-mail and Slack) with its order
+  number and amount, instead of the raw `payment.awaiting_validation` /
+  `payment.document_required` event. The admin payment e-mail never showed
+  the amount (it read `amount`, the events carry `total_amount`): fixed.
+- The PayZen IPN records its events in the shared provider journal
+  (`payment_webhook_events`), like PayPal: one row per transaction status
+  (`<trans_uuid>:<trans_status>`) with what was done with it (applied,
+  duplicate, conflict, amount_mismatch, ignored). A replay of a recorded IPN
+  is acknowledged without being looked at again.
 - CI runs only the jobs whose files a pull request touches (`dorny/paths-filter`);
   everything still runs on `main`.
 - `DEVELOPMENT.md` and `DEPLOYMENT.md` moved to `docs/`; the internal work plan
@@ -86,8 +148,31 @@ takes a tag as its `ref`.
 - Root `package.json` is named `natimai-ecommerce` and carries the repository
   metadata.
 
+### Removed
+
+- Generic CRUD routes no frontend calls: analytics (products, sales, users),
+  partners, stock movements (`/inventory/stock-movements`) and user
+  notifications (`/notification/users/…`). Their models and tables stay: stock
+  movements are still written by checkout and the admin inventory screen,
+  and account deletion still purges notifications. `group_security` stays
+  (superuser-only), as the base of the future fine-grained roles.
+
 ### Fixed
 
+- Admin → Paiements: the status tag was always grey (a payment status name
+  was read as a colour); settled payments, payments to capture or validate
+  and failed payments now show their tone.
+- Admin: four borders and backgrounds used tokens that do not exist
+  (`--n-border`, `--n-surface-2`) and fell back to a fixed grey, or drew no
+  border at all (content language tabs, product link kind): they use
+  `--n-line` and `--n-tile`.
+- Images: the Alpine / Debian security upgrade layer is rebuilt every day.
+  The GitHub Actions layer cache kept serving an old `apk upgrade` layer as
+  long as the base image did not change, so the admin image shipped
+  libexpat 2.9.0 (CVE-2026-117610, CVE-2026-118370) while 2.10.0 was
+  published, and Trivy failed. The three Dockerfiles take a
+  `SECURITY_UPDATES_DATE` build argument (the UTC day) that `security.yml`,
+  `deploy.yml` and `publish-api-image.yml` pass.
 - Grouped departures: a draft or open departure is closed only through the
   assisted close (thresholds, live supplier stock, next recurring departure).
   `PATCH /admin/grouped-departures/{id}` with `status=closed` is refused

@@ -4,13 +4,17 @@
 {% block heading %}{{ event_label }}{% endblock %}
 {% block content %}
       <span class="badge">Notification interne</span>
+      {% if new_order %}
+      <p>Une nouvelle commande attend votre action dans l'administration (Paiements → Validation des paiements) : paiement à rapprocher ou bon de commande à recevoir, puis à valider.</p>
+      {% else %}
       <p>Un événement de paiement vient d'être enregistré.</p>
+      {% endif %}
       <div class="summary">
         <table>
           <tr><td>Événement</td><td>{{ event_type }}</td></tr>
           <tr><td>Paiement</td><td>{{ payment_id | short_ref }}</td></tr>
-          <tr><td>Commande</td><td>{{ order_id | short_ref }}</td></tr>
-          <tr><td>Fournisseur</td><td>{{ provider_code }}</td></tr>
+          <tr><td>Commande</td><td>{% if order_number %}{{ order_number }}{% else %}{{ order_id | short_ref }}{% endif %}</td></tr>
+          <tr><td>Moyen de paiement</td><td>{{ provider_code }}</td></tr>
           {% if amount %}<tr><td>Montant</td><td>{{ amount }} {{ currency }}</td></tr>{% endif %}
           {% if reference %}<tr><td>Référence</td><td>{{ reference }}</td></tr>{% endif %}
           {% if reason %}<tr><td>Motif</td><td>{{ reason }}</td></tr>{% endif %}
