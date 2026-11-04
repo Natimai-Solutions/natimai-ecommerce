@@ -48,7 +48,6 @@ sur le serveur, chez un tiers ou une décision.
 
 ## 2. Sécurité et performance
 
-- **IPN PayZen** par `payment_webhook_events` (unicité, statuts terminaux), comme les autres prestataires : les livraisons concurrentes sont déjà sérialisées par un verrou sur le paiement, reste le journal d'événements commun — S.
 - **À décider** : refuser (et non accepter) le captcha quand Cloudflare ne répond pas ; chiffrer les codes de cartes cadeaux en base (ils restent en clair pour pouvoir être réimprimés : un chiffrement réversible ou un hachage + code affiché une seule fois).
 
 ---

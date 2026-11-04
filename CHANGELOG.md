@@ -79,6 +79,11 @@ takes a tag as its `ref`.
 
 ### Changed
 
+- The PayZen IPN records its events in the shared provider journal
+  (`payment_webhook_events`), like PayPal: one row per transaction status
+  (`<trans_uuid>:<trans_status>`) with what was done with it (applied,
+  duplicate, conflict, amount_mismatch, ignored). A replay of a recorded IPN
+  is acknowledged without being looked at again.
 - CI runs only the jobs whose files a pull request touches (`dorny/paths-filter`);
   everything still runs on `main`.
 - `DEVELOPMENT.md` and `DEPLOYMENT.md` moved to `docs/`; the internal work plan
