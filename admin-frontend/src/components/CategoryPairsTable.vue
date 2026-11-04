@@ -38,6 +38,7 @@
           </td>
           <td class="text-left" style="min-width: 180px">
             <q-select
+              :aria-label="`${$t('pairs.action')} — ${pair.source_category || '—'}`"
               :model-value="edit(pair).action"
               :options="actionOptions"
               dense

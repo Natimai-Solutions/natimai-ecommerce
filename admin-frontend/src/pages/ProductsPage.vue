@@ -179,6 +179,7 @@
       <template #body-cell-origin="props">
         <q-td :props="props">
           <q-select
+            :aria-label="`${$t('products.col_origin')} — ${props.row.name}`"
             :model-value="props.row.supplier_place_id ?? null"
             :options="placeOptions"
             dense

@@ -18,6 +18,7 @@
 
     <div class="row items-center q-mb-md" style="gap: 8px">
       <q-input
+        :aria-label="$t('settings.search')"
         v-model="search"
         outlined
         dense

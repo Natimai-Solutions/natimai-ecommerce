@@ -583,6 +583,8 @@
             dense
             autogrow
             :input-style="{ minHeight: '160px', fontFamily: 'monospace' }"
+            :label="$t('suppliers.allowlist_title_tip')"
+            stack-label
             placeholder="IM-12345&#10;IM-67890"
             data-testid="allowlist-text"
           />

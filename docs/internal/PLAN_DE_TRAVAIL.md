@@ -102,7 +102,6 @@ sur le serveur, chez un tiers ou une décision.
 - `docs/GUIDE_INTERFACE.md` (sur le modèle de natimai-paie), avec la compétence de design retenue en copie figée sous `.claude/skills/` (les skills « Taste » ont été retirés du dépôt) — S.
 - Densité admin : tables `dense`, squelettes plutôt que spinners, `app-empty` partout ; tableaux larges qui défilent (fournisseurs, paramètres) — M.
 - Vitrine : vrais **404 en SSR** (aujourd'hui HTTP 200 : la route catch-all court-circuite le 404 de `src-ssr/middlewares/render.ts`), décalage d'hydratation du `min-height` de `QPage`, flash de thème à la première visite, police d'icônes chargée en entier, `srcset` des photos fournisseur, parité fr / en testée — M.
-- 21 champs sans libellé (placeholder seul) — S.
 - Médias publics derrière un CDN ou un bucket public si le trafic le demande ; recadrage d'image dans l'admin.
 
 ---

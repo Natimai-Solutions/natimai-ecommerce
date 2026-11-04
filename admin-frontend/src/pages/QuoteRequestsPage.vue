@@ -15,6 +15,7 @@
 
     <div class="admin-toolbar">
       <q-input
+        :aria-label="$t('quotes.search')"
         v-model="search"
         dense
         outlined
@@ -209,13 +210,19 @@
               <tbody>
                 <tr v-for="(line, index) in issueLines" :key="index">
                   <td>
-                    <q-input v-model="line.product_name" dense outlined />
+                    <q-input
+                      v-model="line.product_name"
+                      dense
+                      outlined
+                      :aria-label="`${$t('quotes.designation')} — ${index + 1}`"
+                    />
                     <div v-if="!line.product_id" class="text-caption text-warning">
                       {{ $t('quotes.off_catalogue') }}
                     </div>
                   </td>
                   <td>
                     <q-input
+                      :aria-label="`${$t('quotes.qty')} — ${index + 1}`"
                       v-model.number="line.quantity"
                       type="number"
                       min="1"
@@ -226,6 +233,7 @@
                   </td>
                   <td>
                     <q-input
+                      :aria-label="`${$t('quotes.unit_ttc')} — ${index + 1}`"
                       v-model="line.unit_price"
                       type="number"
                       min="0"

@@ -72,6 +72,7 @@
               </td>
               <td>
                 <q-input
+                  :aria-label="`${$t('margin.entered')} — ${line.label}`"
                   v-if="!line.is_default"
                   :model-value="groupPrices?.[line.price_group_id] ?? ''"
                   type="number"

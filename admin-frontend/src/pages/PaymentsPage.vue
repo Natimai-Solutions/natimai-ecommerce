@@ -15,6 +15,7 @@
 
     <div class="admin-toolbar">
       <q-input
+        :aria-label="$t('payments_list.search')"
         v-model="filters.q"
         dense
         outlined

@@ -221,6 +221,7 @@
               <td class="text-left">{{ g.label }}</td>
               <td>
                 <q-input
+                  :aria-label="`${$t('eligibility.deposit_pct')} — ${g.label}`"
                   v-model="depositEdit(g).deposit_pct"
                   type="number"
                   min="1"
@@ -233,6 +234,7 @@
               </td>
               <td>
                 <q-input
+                  :aria-label="`${$t('eligibility.fee_pct')} — ${g.label}`"
                   v-model="depositEdit(g).deposit_fee_pct"
                   type="number"
                   min="0"
@@ -244,6 +246,7 @@
               </td>
               <td>
                 <q-input
+                  :aria-label="`${$t('eligibility.fee_fixed', { currency: shopConfig.currency })} — ${g.label}`"
                   v-model="depositEdit(g).deposit_fee_fixed"
                   type="number"
                   min="0"

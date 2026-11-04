@@ -94,6 +94,11 @@ takes a tag as its `ref`.
 
 ### Changed
 
+- Admin: the 20 form fields that had no label (placeholder only, or nothing
+  in a table cell) now have one for screen readers: the four list searches,
+  and the table inputs of margins, reception, deposits, price groups, product
+  origin, quote lines and category pairs (column label and row, e.g.
+  « Acompte (%) — Professionnels »). The SKU allowlist gets a visible label.
 - Admin: the « modifications non enregistrées » guard now covers the form
   dialogs of Codes promo, Cartes cadeaux, Transporteurs, Taux de TVA, Douanes,
   Utilisateurs, Fournisseurs (supplier form, SKU allowlist), Trajets et lieux

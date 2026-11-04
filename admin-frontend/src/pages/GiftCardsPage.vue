@@ -26,6 +26,7 @@
 
     <div class="admin-toolbar">
       <q-input
+        :aria-label="$t('gift_cards.search')"
         v-model="filters.q"
         dense
         outlined

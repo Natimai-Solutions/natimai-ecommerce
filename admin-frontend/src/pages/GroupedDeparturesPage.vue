@@ -313,6 +313,7 @@
           <template #body-cell-received="props">
             <q-td :props="props">
               <q-input
+                :aria-label="`${$t('departures.col_received')} — ${props.row.product_name}`"
                 v-model.number="receiptEdit(props.row).quantity_received"
                 type="number"
                 min="0"
@@ -325,6 +326,7 @@
           <template #body-cell-damaged="props">
             <q-td :props="props">
               <q-input
+                :aria-label="`${$t('departures.col_damaged')} — ${props.row.product_name}`"
                 v-model.number="receiptEdit(props.row).quantity_damaged"
                 type="number"
                 min="0"
@@ -337,6 +339,7 @@
           <template #body-cell-serials="props">
             <q-td :props="props">
               <q-input
+                :aria-label="`${$t('departures.col_serials')} — ${props.row.product_name}`"
                 v-model="receiptEdit(props.row).serials"
                 dense
                 outlined
