@@ -88,6 +88,13 @@ takes a tag as its `ref`.
 
 ### Fixed
 
+- Images: the Alpine / Debian security upgrade layer is rebuilt every day.
+  The GitHub Actions layer cache kept serving an old `apk upgrade` layer as
+  long as the base image did not change, so the admin image shipped
+  libexpat 2.9.0 (CVE-2026-117610, CVE-2026-118370) while 2.10.0 was
+  published, and Trivy failed. The three Dockerfiles take a
+  `SECURITY_UPDATES_DATE` build argument (the UTC day) that `security.yml`,
+  `deploy.yml` and `publish-api-image.yml` pass.
 - Grouped departures: a draft or open departure is closed only through the
   assisted close (thresholds, live supplier stock, next recurring departure).
   `PATCH /admin/grouped-departures/{id}` with `status=closed` is refused

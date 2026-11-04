@@ -61,7 +61,13 @@ ENV PYTHONUNBUFFERED=1 \
 # `apt-get upgrade` : l'image de base suit les versions ponctuelles de Debian,
 # pas ses correctifs de sécurité ; Trivy (security.yml) bloque sur ceux qui
 # manquent.
-RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
+# SECURITY_UPDATES_DATE (jour UTC, passé par la CI) : sans lui, le cache de
+# couches de GitHub Actions resservirait la couche d'une mise à jour plus
+# ancienne tant que l'image de base ne bouge pas, et les correctifs publiés
+# depuis n'arriveraient jamais (Trivy les signale alors).
+ARG SECURITY_UPDATES_DATE=
+RUN echo "security updates: ${SECURITY_UPDATES_DATE:-local}" \
+    && apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
     libpango-1.0-0 \
     libpangocairo-1.0-0 \
     libgdk-pixbuf-xlib-2.0-0 \
