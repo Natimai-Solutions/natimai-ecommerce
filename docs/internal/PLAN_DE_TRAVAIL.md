@@ -20,7 +20,7 @@ sur le serveur, chez un tiers ou une décision.
 - Variables GitHub `VITE_PUBLIC_SITE_URL`, `VITE_SENTRY_DSN`, `CODEQL_ENABLED`.
 - **CSP en observation sur staging** (`CSP_HEADER=Content-Security-Policy-Report-Only`), puis l'imposer.
 - Clés **Turnstile** (Paramètres → Sécurité) si les limites de fréquence ne suffisent plus.
-- `ENABLE_GROUP_PERMISSIONS` : décider de l'activer (aujourd'hui seul `is_superuser` protège l'admin) — ou le retirer au profit des rôles fins (§4).
+- `ENABLE_GROUP_PERMISSIONS` : décidé le 04/11/2026, gardé désactivé comme base des rôles fins (§4) ; aujourd'hui seul `is_superuser` protège l'admin.
 - Commande automatique Ingram : passer `INGRAM_ORDER_CREATION_ENABLED=true` seulement avec l'adresse de livraison complète, réglée **sur le worker**.
 
 ### Paiement (identifiants de test à fournir)
@@ -114,7 +114,6 @@ sur le serveur, chez un tiers ou une décision.
 - Un seul `split_incl_tax(amount, rate, currency)` pour la facture, l'avoir et la marge (la marge arrondit à 0,01 quelle que soit la devise) — M.
 - Front : `BaseApi` / `verifyResult` et un extracteur d'erreur unique traduisant le code ; `useResource` et `<CrudPage>` pour l'admin ; `formatDate` / `formatMoney` locaux remplacés par `@app/utils` — M.
 - Tests : fabriques partagées (`tests/factories.py`), test générique sur les routeurs (authentification, tri refusé, propriétaire → 404) — M.
-- Routes jamais appelées par les fronts (analytics, partner, stock-movement, group_security, notifications) : retirer ou réserver à l'admin — S.
 
 ---
 

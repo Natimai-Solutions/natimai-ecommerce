@@ -38,9 +38,6 @@ from app.api.routes.admin_supplier_orders import (
 from app.api.routes.admin_suppliers import router as admin_suppliers_router
 from app.api.routes.admin_tax_rates import router as admin_tax_rates_router
 from app.api.routes.admin_users import router as admin_users_router
-from app.api.routes.analytics_product import router as analytics_product_router
-from app.api.routes.analytics_sale import router as analytics_sale_router
-from app.api.routes.analytics_user import router as analytics_user_router
 from app.api.routes.brand import router as brand_router
 from app.api.routes.branding import router as branding_router
 from app.api.routes.cart import router as cart_router
@@ -67,7 +64,6 @@ from app.api.routes.order import router as order_router
 from app.api.routes.order_line import router as order_line_router
 from app.api.routes.order_status import router as order_status_router
 from app.api.routes.orders_me import router as orders_me_router
-from app.api.routes.partner import router as partner_router
 from app.api.routes.password_reset import router as password_reset_router
 from app.api.routes.payment import router as payment_router
 from app.api.routes.payment_method import (
@@ -83,14 +79,10 @@ from app.api.routes.reviews import router as reviews_router
 from app.api.routes.shipping import shipping_router
 from app.api.routes.signup import router as signup_router
 from app.api.routes.stock_alerts import router as stock_alerts_router
-from app.api.routes.stock_movement import router as stock_movement_router
 from app.api.routes.store_credit import router as store_credit_router
 from app.api.routes.suppliers import router as suppliers_router
 from app.api.routes.system_settings import router as system_settings_router
 from app.api.routes.two_factor import router as two_factor_router
-from app.api.routes.user_notification import (
-    router as user_notification_router,
-)
 from app.api.routes.user_preferences import router as user_preferences_router
 from app.api.routes.user_review import (
     router as user_review_router,
@@ -107,7 +99,6 @@ api_router.include_router(two_factor_router)
 api_router.include_router(password_reset_router)
 api_router.include_router(oauth_router)
 api_router.include_router(signup_router)
-api_router.include_router(partner_router)
 api_router.include_router(place_router)
 api_router.include_router(payment_router)
 api_router.include_router(payment_method_router)
@@ -160,7 +151,6 @@ api_router.include_router(order_line_router)
 api_router.include_router(address_router)
 api_router.include_router(user_review_router)
 api_router.include_router(reviews_router)
-api_router.include_router(user_notification_router)
 api_router.include_router(user_wishlist_router)
 api_router.include_router(user_preferences_router)
 api_router.include_router(users_me_router)
@@ -190,9 +180,5 @@ api_router.include_router(suppliers_router)
 api_router.include_router(icecat_router, prefix="/icecat", tags=["icecat"])
 
 # Analytics routes
-api_router.include_router(analytics_user_router)
-api_router.include_router(analytics_sale_router)
-api_router.include_router(analytics_product_router)
 # Inventory routes
 api_router.include_router(inventory_router)
-api_router.include_router(stock_movement_router)
