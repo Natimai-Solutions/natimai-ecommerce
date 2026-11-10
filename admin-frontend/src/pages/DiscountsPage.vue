@@ -62,8 +62,8 @@
         <q-td :props="props" align="center">
           <StatusTag
             :label="stateOf(props.row).label"
-            :tone="toneOf(stateOf(props.row).color)"
-            :icon="toneIcon(toneOf(stateOf(props.row).color))"
+            :tone="stateOf(props.row).tone"
+            :icon="toneIcon(stateOf(props.row).tone)"
           />
         </q-td>
       </template>
@@ -88,7 +88,11 @@
       </template>
     </q-table>
 
-    <q-dialog v-model="dialog">
+    <q-dialog
+      :model-value="dialog"
+      :persistent="guard.persistent.value"
+      @update:model-value="guard.onToggle"
+    >
       <q-card class="app-dialog">
         <q-card-section class="app-dialog__head">
           <h2 class="app-dialog__title">
@@ -227,7 +231,7 @@
             <q-input v-model="form.description" :label="$t('discounts.internal')" outlined dense />
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
+            <q-btn flat no-caps :label="$t('common.cancel')" @click="guard.requestClose()" />
             <q-btn
               type="submit"
               color="primary"
@@ -250,7 +254,7 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
-import { toneIcon, toneOf } from '@app/ui/statusTone';
+import { toneIcon, type StatusTone } from '@app/ui/statusTone';
 import PageHeader from '@/components/PageHeader.vue';
 import HelpPanel from '@/components/HelpPanel.vue';
 import { pricingHelp } from '@/utils/helpTopics';
@@ -265,6 +269,7 @@ import {
 } from '@/api/discounts';
 import { listCategories, type Category } from '@/api/categories';
 import { extractApiError } from '@/api/errors';
+import { useDialogGuard, useFormSnapshot } from '@/composables/useUnsavedGuard';
 import { useShopConfigStore } from '@/stores/shopConfig';
 
 const { t } = useI18n();
@@ -305,16 +310,16 @@ function valueLabel(d: Discount): string {
   return `${base} · ${scope}${min}${stack}`;
 }
 
-function stateOf(d: Discount): { label: string; color: string } {
-  if (!d.is_active) return { label: t('discounts.st_disabled'), color: 'grey-6' };
+function stateOf(d: Discount): { label: string; tone: StatusTone } {
+  if (!d.is_active) return { label: t('discounts.st_disabled'), tone: 'neutral' };
   const now = Date.now();
   if (d.start_date && new Date(d.start_date).getTime() > now)
-    return { label: t('discounts.st_upcoming'), color: 'blue-6' };
+    return { label: t('discounts.st_upcoming'), tone: 'neutral' };
   if (d.end_date && new Date(d.end_date).getTime() < now)
-    return { label: t('discounts.st_expired'), color: 'orange-8' };
+    return { label: t('discounts.st_expired'), tone: 'warn' };
   if (d.max_uses !== null && d.current_uses >= d.max_uses)
-    return { label: t('discounts.st_exhausted'), color: 'orange-8' };
-  return { label: t('discounts.st_active'), color: 'positive' };
+    return { label: t('discounts.st_exhausted'), tone: 'warn' };
+  return { label: t('discounts.st_active'), tone: 'ok' };
 }
 
 const columns = computed<QTableColumn<Discount>[]>(() => [
@@ -393,6 +398,14 @@ const form = reactive<{
   applies_to_promoted: true,
 });
 
+// Unsaved edits are not lost on Escape, backdrop or navigation (R9 / T5).
+const snapshot = useFormSnapshot(() => form);
+const guard = useDialogGuard({
+  isOpen: () => dialog.value,
+  close: () => (dialog.value = false),
+  isDirty: snapshot.isDirty,
+});
+
 function resetForm(source?: Discount) {
   form.name = source?.name ?? '';
   form.code = source?.code ?? '';
@@ -414,6 +427,7 @@ function openCreate() {
   editing.value = null;
   dialogError.value = null;
   resetForm();
+  snapshot.take();
   dialog.value = true;
 }
 
@@ -421,6 +435,7 @@ function openEdit(discount: Discount) {
   editing.value = discount;
   dialogError.value = null;
   resetForm(discount);
+  snapshot.take();
   dialog.value = true;
 }
 

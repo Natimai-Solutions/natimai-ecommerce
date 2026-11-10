@@ -18,6 +18,7 @@
 
     <div class="row items-center q-mb-md" style="gap: 8px">
       <q-input
+        :aria-label="$t('settings.search')"
         v-model="search"
         outlined
         dense
@@ -34,144 +35,152 @@
       <q-spinner size="2.5em" />
     </div>
 
-    <div v-else class="settings-layout">
-      <nav v-if="!search" class="settings-nav" :aria-label="$t('settings.categories')">
-        <button
-          v-for="cat in visibleCategories"
-          :key="cat.key"
-          type="button"
-          class="settings-nav__item"
-          :class="{ 'settings-nav__item--active': cat.key === activeCategory }"
-          @click="activeCategory = cat.key"
-        >
-          {{ cat.label }}
-          <span class="settings-nav__count">{{ byCategory(cat.key).length }}</span>
-        </button>
-      </nav>
-
-      <div class="settings-main">
-        <section v-for="cat in shownCategories" :key="cat.key" class="app-section">
-          <div class="app-section__head">
-            <h2 class="app-section__title">{{ cat.label }}</h2>
-          </div>
-          <p class="admin-hint q-mt-none">{{ cat.hint }}</p>
-
-          <div
-            v-for="setting in filtered(cat.key)"
-            :key="setting.key"
-            class="setting"
-            :data-testid="`setting-${setting.key}`"
+    <div v-else class="settings-layout-container">
+      <div class="settings-layout">
+        <nav v-if="!search" class="settings-nav" :aria-label="$t('settings.categories')">
+          <button
+            v-for="cat in visibleCategories"
+            :key="cat.key"
+            type="button"
+            class="settings-nav__item"
+            :class="{ 'settings-nav__item--active': cat.key === activeCategory }"
+            @click="activeCategory = cat.key"
           >
-            <div class="setting__text">
-              <div class="setting__label">
-                {{ setting.label }}
-                <StatusTag
-                  :label="$t(SOURCE_LABELS[setting.source])"
-                  :tone="setting.source === 'db' ? 'ok' : 'neutral'"
-                />
-                <StatusTag v-if="setting.reprices" :label="$t('settings.reprices')" tone="warn" />
-                <StatusTag
-                  v-if="setting.restart_required"
-                  :label="$t('settings.restart')"
-                  tone="warn"
-                />
-                <StatusTag v-if="setting.public" :label="$t('settings.public')" tone="neutral" />
-              </div>
-              <div v-if="setting.description" class="setting__help">{{ setting.description }}</div>
-              <div class="setting__meta text-subtle">
-                <span class="font-mono">{{ setting.key }}</span>
-                <template v-if="setting.env_var">
-                  {{ $t('settings.env_var') }}
-                  <span class="font-mono">{{ setting.env_var }}</span></template
-                >
-                <template v-if="setting.source === 'db' && setting.fallback">
-                  {{ $t('settings.fallback', { value: setting.fallback || '—' }) }}</template
-                >
-                <template v-if="setting.updated_at && setting.source === 'db'">
-                  {{ $t('settings.modified', { date: formatDate(setting.updated_at) }) }}
-                  <template v-if="setting.updated_by_email">
-                    {{ $t('settings.by', { email: setting.updated_by_email }) }}</template
-                  >
-                </template>
-              </div>
-              <AppNotice v-if="setting.stored_invalid" tone="warning" dense class="q-mt-xs">
-                {{ $t('settings.invalid') }}
-              </AppNotice>
-            </div>
+            {{ cat.label }}
+            <span class="settings-nav__count">{{ byCategory(cat.key).length }}</span>
+          </button>
+        </nav>
 
-            <div class="setting__control">
-              <q-toggle
-                v-if="setting.type === 'bool'"
-                :model-value="draft[setting.key] === 'true'"
-                :disable="busy === setting.key"
-                :aria-label="setting.label"
-                @update:model-value="(on: boolean) => save(setting, on ? 'true' : 'false')"
-              />
-              <div v-else class="setting__row">
-                <q-select
-                  v-if="setting.choices && setting.type === 'list'"
-                  :model-value="listValue(setting)"
-                  :options="setting.choices"
-                  multiple
-                  use-chips
-                  outlined
-                  dense
-                  :placeholder="listValue(setting).length ? undefined : setting.fallback"
+        <div class="settings-main">
+          <section v-for="cat in shownCategories" :key="cat.key" class="app-section">
+            <div class="app-section__head">
+              <h2 class="app-section__title">{{ cat.label }}</h2>
+            </div>
+            <p class="admin-hint q-mt-none">{{ cat.hint }}</p>
+
+            <div
+              v-for="setting in filtered(cat.key)"
+              :key="setting.key"
+              class="setting"
+              :data-testid="`setting-${setting.key}`"
+            >
+              <div class="setting__text">
+                <div class="setting__label">
+                  {{ setting.label }}
+                  <StatusTag
+                    :label="$t(SOURCE_LABELS[setting.source])"
+                    :tone="setting.source === 'db' ? 'ok' : 'neutral'"
+                  />
+                  <StatusTag v-if="setting.reprices" :label="$t('settings.reprices')" tone="warn" />
+                  <StatusTag
+                    v-if="setting.restart_required"
+                    :label="$t('settings.restart')"
+                    tone="warn"
+                  />
+                  <StatusTag v-if="setting.public" :label="$t('settings.public')" tone="neutral" />
+                </div>
+                <div v-if="setting.description" class="setting__help">
+                  {{ setting.description }}
+                </div>
+                <div class="setting__meta text-subtle">
+                  <span class="font-mono">{{ setting.key }}</span>
+                  <template v-if="setting.env_var">
+                    {{ $t('settings.env_var') }}
+                    <span class="font-mono">{{ setting.env_var }}</span></template
+                  >
+                  <template v-if="setting.source === 'db' && setting.fallback">
+                    {{ $t('settings.fallback', { value: setting.fallback || '—' }) }}</template
+                  >
+                  <template v-if="setting.updated_at && setting.source === 'db'">
+                    {{ $t('settings.modified', { date: formatDate(setting.updated_at) }) }}
+                    <template v-if="setting.updated_by_email">
+                      {{ $t('settings.by', { email: setting.updated_by_email }) }}</template
+                    >
+                  </template>
+                </div>
+                <AppNotice v-if="setting.stored_invalid" tone="warning" dense class="q-mt-xs">
+                  {{ $t('settings.invalid') }}
+                </AppNotice>
+              </div>
+
+              <div class="setting__control">
+                <q-toggle
+                  v-if="setting.type === 'bool'"
+                  :model-value="draft[setting.key] === 'true'"
+                  :disable="busy === setting.key"
                   :aria-label="setting.label"
-                  class="setting__input"
-                  @update:model-value="(items: string[]) => (draft[setting.key] = items.join(', '))"
+                  @update:model-value="(on: boolean) => save(setting, on ? 'true' : 'false')"
                 />
-                <q-select
-                  v-else-if="setting.choices"
-                  v-model="draft[setting.key]"
-                  :options="setting.choices"
-                  outlined
-                  dense
-                  :aria-label="setting.label"
-                  class="setting__input"
-                />
-                <q-input
-                  v-else
-                  v-model="draft[setting.key]"
-                  outlined
-                  dense
-                  :type="inputType(setting)"
-                  :autogrow="setting.type === 'text'"
-                  :inputmode="isNumeric(setting) ? 'decimal' : undefined"
-                  :placeholder="setting.secret ? $t('settings.not_set') : setting.fallback"
-                  :suffix="setting.unit ?? undefined"
-                  :maxlength="setting.max_length ?? undefined"
-                  :hint="rangeHint(setting)"
-                  :aria-label="setting.label"
-                  class="setting__input"
-                  @keyup.enter="setting.type !== 'text' && save(setting, draft[setting.key] ?? '')"
-                />
+                <div v-else class="setting__row">
+                  <q-select
+                    v-if="setting.choices && setting.type === 'list'"
+                    :model-value="listValue(setting)"
+                    :options="setting.choices"
+                    multiple
+                    use-chips
+                    outlined
+                    dense
+                    :placeholder="listValue(setting).length ? undefined : setting.fallback"
+                    :aria-label="setting.label"
+                    class="setting__input"
+                    @update:model-value="
+                      (items: string[]) => (draft[setting.key] = items.join(', '))
+                    "
+                  />
+                  <q-select
+                    v-else-if="setting.choices"
+                    v-model="draft[setting.key]"
+                    :options="setting.choices"
+                    outlined
+                    dense
+                    :aria-label="setting.label"
+                    class="setting__input"
+                  />
+                  <q-input
+                    v-else
+                    v-model="draft[setting.key]"
+                    outlined
+                    dense
+                    :type="inputType(setting)"
+                    :autogrow="setting.type === 'text'"
+                    :inputmode="isNumeric(setting) ? 'decimal' : undefined"
+                    :placeholder="setting.secret ? $t('settings.not_set') : setting.fallback"
+                    :suffix="setting.unit ?? undefined"
+                    :maxlength="setting.max_length ?? undefined"
+                    :hint="rangeHint(setting)"
+                    :aria-label="setting.label"
+                    class="setting__input"
+                    @keyup.enter="
+                      setting.type !== 'text' && save(setting, draft[setting.key] ?? '')
+                    "
+                  />
+                  <q-btn
+                    color="primary"
+                    unelevated
+                    no-caps
+                    :label="$t('common.save')"
+                    :disable="!isDirty(setting)"
+                    :loading="busy === setting.key"
+                    class="setting__save"
+                    @click="save(setting, draft[setting.key] ?? '')"
+                  />
+                </div>
                 <q-btn
-                  color="primary"
-                  unelevated
+                  v-if="setting.source === 'db' || setting.stored_invalid"
+                  flat
                   no-caps
-                  :label="$t('common.save')"
-                  :disable="!isDirty(setting)"
-                  :loading="busy === setting.key"
-                  class="setting__save"
-                  @click="save(setting, draft[setting.key] ?? '')"
+                  dense
+                  size="sm"
+                  icon="ph:arrow-counter-clockwise"
+                  :label="$t('settings.reset')"
+                  :disable="busy === setting.key"
+                  @click="reset(setting)"
                 />
               </div>
-              <q-btn
-                v-if="setting.source === 'db' || setting.stored_invalid"
-                flat
-                no-caps
-                dense
-                size="sm"
-                icon="ph:arrow-counter-clockwise"
-                :label="$t('settings.reset')"
-                :disable="busy === setting.key"
-                @click="reset(setting)"
-              />
             </div>
-          </div>
-          <p v-if="!filtered(cat.key).length" class="text-subtle">{{ $t('settings.none') }}</p>
-        </section>
+            <p v-if="!filtered(cat.key).length" class="text-subtle">{{ $t('settings.none') }}</p>
+          </section>
+        </div>
       </div>
     </div>
   </q-page>
@@ -181,6 +190,7 @@
 import { useI18n } from 'vue-i18n';
 import { intlLocale } from '@app/utils';
 import { computed, onMounted, reactive, ref } from 'vue';
+import { useRoute } from 'vue-router';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
 import PageHeader from '@/components/PageHeader.vue';
@@ -211,7 +221,11 @@ const busy = ref<string | null>(null);
 const error = ref<string | null>(null);
 const notice = ref<string | null>(null);
 const search = ref<string | null>('');
-const activeCategory = ref<string>('');
+// `?category=legal` opens that category (links from the start-up checklist).
+const route = useRoute();
+const activeCategory = ref<string>(
+  typeof route.query.category === 'string' ? route.query.category : '',
+);
 
 function byCategory(key: string): RuntimeSetting[] {
   return rows.value.filter((r) => r.category === key).sort((a, b) => a.order - b.order);
@@ -371,11 +385,11 @@ onMounted(load);
 }
 
 .settings-nav__item:hover {
-  background: var(--n-surface-2, rgba(127, 127, 127, 0.08));
+  background: var(--n-tile);
 }
 
 .settings-nav__item--active {
-  background: var(--n-surface-2, rgba(127, 127, 127, 0.14));
+  background: var(--n-tile-hover);
   font-weight: 600;
 }
 
@@ -394,7 +408,7 @@ onMounted(load);
   flex-wrap: wrap;
   gap: 12px 24px;
   padding: 14px 0;
-  border-top: 1px solid var(--n-border, rgba(127, 127, 127, 0.18));
+  border-top: 1px solid var(--n-line);
 }
 
 .setting__text {
@@ -446,7 +460,12 @@ onMounted(load);
   height: 40px;
 }
 
-@media (max-width: 760px) {
+/* Selon la place laissée par le menu latéral, pas selon l'écran. */
+.settings-layout-container {
+  container-type: inline-size;
+}
+
+@container (max-width: 639px) {
   .settings-layout {
     flex-direction: column;
   }

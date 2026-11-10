@@ -20,6 +20,42 @@
       </template>
     </AppNotice>
 
+    <section
+      v-if="checklist && !checklistComplete"
+      class="app-section"
+      aria-labelledby="setup-title"
+      data-testid="dashboard-setup"
+    >
+      <div class="app-section__head">
+        <h2 id="setup-title" class="app-section__title">{{ $t('dashboard.setup') }}</h2>
+        <p class="app-section__hint">
+          {{ $t('dashboard.setup_progress', { done: checklist.done, total: checklist.total }) }}
+        </p>
+      </div>
+      <ul class="setup-list">
+        <li v-for="item in checklist.items" :key="item.key">
+          <router-link
+            :to="item.to"
+            class="setup-item"
+            :class="`setup-item--${item.status}`"
+            :data-testid="`setup-${item.key}`"
+          >
+            <q-icon :name="SETUP_ICONS[item.status]" size="18px" class="setup-item__icon" />
+            <span class="setup-item__text">
+              <span class="setup-item__label">{{ $t(`dashboard.setup_${item.key}`) }}</span>
+              <span v-if="item.status !== 'done'" class="setup-item__hint">
+                {{ $t(`dashboard.setup_${item.key}_hint`, { n: item.count }) }}
+              </span>
+            </span>
+            <StatusTag
+              :label="$t(`dashboard.setup_status_${item.status}`)"
+              :tone="SETUP_TONES[item.status]"
+            />
+          </router-link>
+        </li>
+      </ul>
+    </section>
+
     <section class="app-section" aria-labelledby="todo-title">
       <div class="app-section__head">
         <h2 id="todo-title" class="app-section__title">{{ $t('dashboard.todo') }}</h2>
@@ -143,7 +179,14 @@ import StatusTag from '@app/ui/StatusTag.vue';
 import { formatDate, formatDateTime, formatMoney, intlLocale } from '@app/utils';
 import PageHeader from '@/components/PageHeader.vue';
 import { extractApiError } from '@/api/errors';
-import { getDashboard, type AdminDashboard, type DashboardTodo } from '@/api/dashboard';
+import {
+  getDashboard,
+  getSetupChecklist,
+  type AdminDashboard,
+  type DashboardTodo,
+  type SetupChecklist,
+  type SetupChecklistItem,
+} from '@/api/dashboard';
 import { useShopConfigStore } from '@/stores/shopConfig';
 
 const { t } = useI18n();
@@ -152,6 +195,21 @@ const shopConfig = useShopConfigStore();
 const data = ref<AdminDashboard | null>(null);
 const loading = ref(false);
 const error = ref<string | null>(null);
+/** Mise en route : visible tant qu'un point reste à faire ou à confirmer. */
+const checklist = ref<SetupChecklist | null>(null);
+const checklistComplete = computed(
+  () => checklist.value?.items.every((item) => item.status === 'done') ?? true,
+);
+const SETUP_ICONS: Record<SetupChecklistItem['status'], string> = {
+  done: 'ph:check-circle',
+  todo: 'ph:circle-dashed',
+  check: 'ph:warning-circle',
+};
+const SETUP_TONES: Record<SetupChecklistItem['status'], 'ok' | 'warn' | 'danger'> = {
+  done: 'ok',
+  todo: 'danger',
+  check: 'warn',
+};
 
 const today = new Intl.DateTimeFormat(intlLocale(), {
   weekday: 'long',
@@ -293,6 +351,10 @@ const shortcuts = computed(() => [
 async function load() {
   loading.value = true;
   error.value = null;
+  // The checklist is a help, not the page: its failure never hides the rest.
+  void getSetupChecklist()
+    .then((result) => (checklist.value = result))
+    .catch(() => (checklist.value = null));
   try {
     data.value = await getDashboard();
   } catch (err) {
@@ -309,6 +371,61 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
+.setup-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-radius);
+  overflow: hidden;
+
+  li + li {
+    border-top: 1px solid var(--n-line);
+  }
+}
+
+.setup-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  color: inherit;
+  text-decoration: none;
+
+  &:hover,
+  &:focus-visible {
+    background: var(--n-tile-hover);
+  }
+}
+
+.setup-item__icon {
+  flex: none;
+}
+
+.setup-item--done .setup-item__icon {
+  color: var(--n-ok);
+}
+
+.setup-item--todo .setup-item__icon {
+  color: var(--n-danger);
+}
+
+.setup-item--check .setup-item__icon {
+  color: var(--n-warn);
+}
+
+.setup-item__text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.setup-item__hint {
+  color: var(--n-ink-3);
+  font-size: 0.875rem;
+}
+
 .todo-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -322,7 +439,7 @@ onMounted(() => {
 
 .todo-skeleton {
   height: 132px;
-  border-radius: 8px;
+  border-radius: var(--n-radius);
 }
 
 .todo-tile {
@@ -344,7 +461,7 @@ onMounted(() => {
   font-size: 12px;
   color: var(--n-ink-3);
   border: 1px solid var(--n-line);
-  border-radius: 8px;
+  border-radius: var(--n-radius);
   background: var(--n-surface);
   color: var(--n-ink);
   text-decoration: none;
@@ -443,7 +560,7 @@ onMounted(() => {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   border-top: 1px solid var(--n-line);
   border-left: 1px solid var(--n-line);
-  border-radius: 8px;
+  border-radius: var(--n-radius);
   overflow: hidden;
 }
 
@@ -497,7 +614,7 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   border: 1px solid var(--n-line);
-  border-radius: 8px;
+  border-radius: var(--n-radius);
   color: var(--n-ink);
   font-size: 13.5px;
   text-decoration: none;

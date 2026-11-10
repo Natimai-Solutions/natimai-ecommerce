@@ -1,6 +1,7 @@
 import { labels } from '@/i18n/global';
 import type { PaymentReceipt } from '@/api/paymentValidations';
 import { api } from '@/boot/api';
+import type { StatusTone } from '@app/ui/statusTone';
 
 export interface AdminOrderListItem {
   order_id: string;
@@ -251,20 +252,18 @@ export function orderStatusLabel(name: string | null): string {
   return ORDER_STATUS_LABELS[name] ?? name;
 }
 
-export function orderStatusColor(name: string | null): string {
-  if (name === 'Paid' || name === 'Delivered' || name === 'ReadyForPickup') return 'green';
-  if (name === 'DepositPaid') return 'teal';
-  if (name === 'PaymentFailed' || name === 'Cancelled') return 'negative';
-  if (name === 'Backordered' || name === 'PaymentReview' || name === 'PartiallyPaid')
-    return 'orange';
+export function orderStatusTone(name: string | null): StatusTone {
   if (
-    ['OrderedFromSupplier', 'InTransit', 'AtCustoms', 'Received', 'Shipped', 'Processing'].includes(
-      name ?? '',
-    )
-  ) {
-    return 'primary';
-  }
-  return 'grey-7';
+    name === 'Paid' ||
+    name === 'Delivered' ||
+    name === 'ReadyForPickup' ||
+    name === 'DepositPaid'
+  )
+    return 'ok';
+  if (name === 'PaymentFailed' || name === 'Cancelled') return 'danger';
+  if (name === 'Backordered' || name === 'PaymentReview' || name === 'PartiallyPaid') return 'warn';
+  // En cours (commandé, en transit, en douane, expédié…) ou inconnu : neutre.
+  return 'neutral';
 }
 
 /** Every status name the backend accepts (payment ones first, then fulfilment). */

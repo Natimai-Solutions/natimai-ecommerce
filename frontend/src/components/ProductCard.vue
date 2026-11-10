@@ -254,7 +254,7 @@ const promoBadge = computed(() => {
 
 .product-card__promo-badge {
   padding: 1px 6px;
-  border-radius: 4px;
+  border-radius: var(--n-radius-sm);
   font-weight: 600;
   color: var(--n-on-accent);
   background: var(--n-accent);
@@ -294,7 +294,7 @@ const promoBadge = computed(() => {
   &--refurbished {
     display: inline-block;
     padding: 1px 8px;
-    border-radius: 999px;
+    border-radius: var(--n-radius-pill);
     font-size: 11px;
     font-weight: 600;
     letter-spacing: 0.02em;
@@ -329,7 +329,7 @@ const promoBadge = computed(() => {
   align-items: center;
   justify-content: center;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--n-radius);
   background: transparent;
   color: var(--n-ink-3);
   cursor: pointer;
@@ -352,7 +352,7 @@ const promoBadge = computed(() => {
   align-items: center;
   justify-content: center;
   border: 1px solid var(--n-line-2);
-  border-radius: 8px;
+  border-radius: var(--n-radius);
   background: var(--n-surface);
   color: var(--n-ink);
   text-decoration: none;
@@ -377,7 +377,7 @@ const promoBadge = computed(() => {
   }
 }
 
-@media (max-width: 767px) {
+@media (max-width: 599px) {
   .product-card {
     gap: 10px;
   }

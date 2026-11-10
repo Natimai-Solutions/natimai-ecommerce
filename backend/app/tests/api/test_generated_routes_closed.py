@@ -15,7 +15,6 @@ import pytest
 
 import app.api.routes as routes_package
 from app.api.base_router import BaseRouter
-from app.api.routes.partner import router as partner_router
 from app.api.routes.user_review import router as review_router
 from app.api.routes.user_wishlist import router as wishlist_router
 from app.core.errors import AppError
@@ -75,7 +74,7 @@ def test_an_auth_that_says_nothing_is_closed() -> None:
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("router", [wishlist_router, partner_router, review_router])
+@pytest.mark.parametrize("router", [wishlist_router, review_router])
 @pytest.mark.parametrize("permission", PERMISSIONS)
 async def test_a_customer_cannot_use_the_generic_routes(
     router: BaseRouter[Any, Any, Any, Any, Any, Any], permission: str

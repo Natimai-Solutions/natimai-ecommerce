@@ -1807,7 +1807,7 @@ onMounted(() => {
 }
 
 .product-form__body {
-  padding-top: 12px !important;
+  padding-top: 12px;
 }
 
 .product-form__locks {
@@ -1921,7 +1921,7 @@ onMounted(() => {
      le plus court. */
   align-items: stretch;
 
-  @media (max-width: 899px) {
+  @media (max-width: 1023px) {
     grid-template-columns: minmax(0, 1fr);
   }
 }
@@ -1944,7 +1944,7 @@ onMounted(() => {
   gap: 20px;
   align-items: start;
 
-  @media (max-width: 899px) {
+  @media (max-width: 1023px) {
     grid-template-columns: minmax(0, 1fr);
   }
 }
@@ -1963,7 +1963,7 @@ onMounted(() => {
   aspect-ratio: 1;
   overflow: hidden;
   border: 1px solid var(--n-line);
-  border-radius: 8px;
+  border-radius: var(--n-radius);
   background: var(--n-photo);
 
   img {
@@ -1983,7 +1983,7 @@ onMounted(() => {
   left: 8px;
   bottom: 8px;
   padding: 1px 8px;
-  border-radius: 999px;
+  border-radius: var(--n-radius-pill);
   font-size: 11px;
   font-weight: 600;
   color: var(--n-on-ink);
@@ -2023,7 +2023,7 @@ onMounted(() => {
     gap: 4px;
     padding: 8px;
     border: 1px dashed var(--n-line-2);
-    border-radius: 8px;
+    border-radius: var(--n-radius);
     background: none;
     font: inherit;
     font-size: 12px;
@@ -2082,8 +2082,8 @@ onMounted(() => {
 
 .product-form__link-kind {
   flex: none;
-  border: 1px solid var(--n-border);
-  border-radius: 8px;
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-radius);
 }
 
 .product-form__link-name {

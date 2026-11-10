@@ -54,7 +54,7 @@
               <img
                 :src="banner.image.src"
                 :srcset="banner.image.srcset ?? undefined"
-                sizes="(max-width: 767px) 100vw, 50vw"
+                sizes="(max-width: 599px) 100vw, 50vw"
                 :width="banner.image.width ?? undefined"
                 :height="banner.image.height ?? undefined"
                 :alt="banner.image.alt"
@@ -291,7 +291,7 @@ watch(locale, () => void home.reload());
   padding-top: 72px;
   padding-bottom: 56px;
 
-  @media (max-width: 767px) {
+  @media (max-width: 599px) {
     padding-top: 40px;
     padding-bottom: 32px;
   }
@@ -315,7 +315,7 @@ watch(locale, () => void home.reload());
 
 .home-hero__media {
   overflow: hidden;
-  border-radius: 12px;
+  border-radius: var(--n-radius-lg);
   background: var(--n-tile);
   aspect-ratio: 4 / 3;
 
@@ -343,7 +343,7 @@ watch(locale, () => void home.reload());
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  @media (max-width: 767px) {
+  @media (max-width: 599px) {
     &--2,
     &--3 {
       grid-template-columns: minmax(0, 1fr);
@@ -356,14 +356,14 @@ watch(locale, () => void home.reload());
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border-radius: 12px;
+  border-radius: var(--n-radius-lg);
   background: var(--n-tile);
   color: var(--n-ink);
   text-decoration: none;
   transition: background-color 0.2s ease;
 
   .banners--1 & {
-    @media (min-width: 768px) {
+    @media (min-width: 600px) {
       flex-direction: row;
       align-items: stretch;
 
@@ -573,7 +573,7 @@ a.banner:hover {
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  border-radius: 8px;
+  border-radius: var(--n-radius);
   background: var(--n-tile);
   transition: background-color 0.2s ease;
 }

@@ -89,7 +89,11 @@
       </template>
     </q-table>
 
-    <q-dialog v-model="dialog">
+    <q-dialog
+      :model-value="dialog"
+      :persistent="guard.persistent.value"
+      @update:model-value="guard.onToggle"
+    >
       <q-card class="app-dialog">
         <q-card-section class="app-dialog__head">
           <h2 class="app-dialog__title">
@@ -125,7 +129,7 @@
             />
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
+            <q-btn flat no-caps :label="$t('common.cancel')" @click="guard.requestClose()" />
             <q-btn
               type="submit"
               color="primary"
@@ -156,6 +160,7 @@ import {
   type Carrier,
 } from '@/api/shipping';
 import { extractApiError } from '@/api/errors';
+import { useDialogGuard, useFormSnapshot } from '@/composables/useUnsavedGuard';
 
 const { t } = useI18n();
 
@@ -205,12 +210,21 @@ const form = reactive<{ name: string; code: string; tracking_url_template: strin
   tracking_url_template: '',
 });
 
+// Unsaved edits are not lost on Escape, backdrop or navigation (R9 / T5).
+const snapshot = useFormSnapshot(() => form);
+const guard = useDialogGuard({
+  isOpen: () => dialog.value,
+  close: () => (dialog.value = false),
+  isDirty: snapshot.isDirty,
+});
+
 function openCreate() {
   editId.value = null;
   form.name = '';
   form.code = '';
   form.tracking_url_template = '';
   dialogError.value = null;
+  snapshot.take();
   dialog.value = true;
 }
 
@@ -220,6 +234,7 @@ function openEdit(c: Carrier) {
   form.code = c.code;
   form.tracking_url_template = c.tracking_url_template ?? '';
   dialogError.value = null;
+  snapshot.take();
   dialog.value = true;
 }
 

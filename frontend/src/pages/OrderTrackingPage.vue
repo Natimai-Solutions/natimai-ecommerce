@@ -901,7 +901,7 @@ watch(orderId, (next, previous) => {
   width: 11px;
   height: 11px;
   border: 2px solid var(--n-ink-3);
-  border-radius: 999px;
+  border-radius: var(--n-radius-pill);
   background: var(--n-bg);
 
   .leg--current & {

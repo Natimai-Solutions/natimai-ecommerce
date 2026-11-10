@@ -1,6 +1,8 @@
 import { Cookies, Dark } from 'quasar';
 
-export type ThemePreference = 'light' | 'dark' | 'auto';
+import { toDarkValue, type ThemePreference } from '@app/ui/theme';
+
+export { parseThemePreference, toDarkValue, type ThemePreference } from '@app/ui/theme';
 
 /** Choix explicite du visiteur (absent = suivre le système). */
 export const THEME_COOKIE = 'natimai-theme';
@@ -12,16 +14,6 @@ export const THEME_COOKIE_OPTIONS = {
   expires: 365,
   sameSite: 'Lax',
 } as const;
-
-export function parseThemePreference(raw: unknown): ThemePreference {
-  return raw === 'light' || raw === 'dark' ? raw : 'auto';
-}
-
-/** Valeur attendue par `$q.dark.set()`. */
-export function toDarkValue(preference: ThemePreference): boolean | 'auto' {
-  if (preference === 'auto') return 'auto';
-  return preference === 'dark';
-}
 
 /** Bascule clair / sombre depuis l'interface (navigateur uniquement). */
 export function toggleTheme(): void {

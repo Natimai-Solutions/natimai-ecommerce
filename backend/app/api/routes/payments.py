@@ -26,6 +26,7 @@ from app.features.payment.models.payment_status import (
     PaymentStatus,
     PaymentStatusCreate,
 )
+from app.features.payment.models.payment_webhook_event import PaymentWebhookEvent
 from app.features.payment.providers.base import PaymentProviderError
 from app.features.payment.services.deposit import (
     KIND_BALANCE,
@@ -53,8 +54,15 @@ from app.features.payment.services.provider_dispatch import (
 )
 from app.features.payment.services.store_credit import settled_by_kind
 from app.features.payment.services.webhook_pipeline import (
+    RESULT_AMOUNT_MISMATCH,
+    RESULT_APPLIED,
+    RESULT_CONFLICT,
+    RESULT_DUPLICATE,
+    RESULT_IGNORED,
+    WebhookEventAlreadyRecorded,
     apply_provider_outcome,
     lock_payment,
+    record_webhook_event,
 )
 from app.outbox.registry import outbox_registry
 from app.utils.money import minor_units_to_decimal, parse_minor_units, quantize_amount
@@ -355,6 +363,20 @@ async def _publish_provider_webhook_received_event(
     )
 
 
+def _payzen_event_id(trans_id: str | None, trans_status: str | None) -> str | None:
+    """The journal key of a PayZen IPN: one transaction goes through several
+    statuses (AUTHORISED, then PAID), each one its own event. Without a
+    transaction id there is nothing stable to key on."""
+    if not trans_id:
+        return None
+    return f"{trans_id}:{trans_status or ''}"
+
+
+def _mark_journal(journal: PaymentWebhookEvent | None, outcome: str) -> None:
+    if journal is not None:
+        journal.outcome = outcome
+
+
 async def payzen_ipn(session: SessionDep, request: Request) -> JSONResponse:
     """Execute payzen ipn."""
     raw_fields: dict[str, Any] = {}
@@ -437,6 +459,28 @@ async def payzen_ipn(session: SessionDep, request: Request) -> JSONResponse:
             trans_id=trans_id,
         )
 
+        # The shared journal of provider events (payment_webhook_events), as
+        # for every other provider: one row per PayZen transaction status,
+        # with what was done with it. A replay of a recorded IPN is
+        # acknowledged without being looked at again.
+        try:
+            journal = await record_webhook_event(
+                session,
+                provider_code="payzen",
+                event_id=_payzen_event_id(trans_id, trans_status),
+                event_type=trans_status,
+                payment_id=payment.id,
+                outcome=RESULT_APPLIED,
+            )
+        except WebhookEventAlreadyRecorded:
+            logger.info(
+                "PayZen IPN already in the journal for payment_id=%s, trans_status=%s",
+                payment.id,
+                trans_status,
+            )
+            await session.commit()
+            return JSONResponse(content={"status": "ok", "message": "IPN deja traite"})
+
         if await _is_cancelled_by_customer(session, payment):
             # The customer cancelled the order before this IPN arrived (the
             # card form was still open in another tab): the stock is back on
@@ -458,6 +502,7 @@ async def payzen_ipn(session: SessionDep, request: Request) -> JSONResponse:
             }
             payment.provider_data = provider_data
             session.add(payment)
+            _mark_journal(journal, RESULT_CONFLICT)
             await session.commit()
             return JSONResponse(
                 content={"status": "ok", "message": "IPN sur paiement annule ignore"},
@@ -473,6 +518,7 @@ async def payzen_ipn(session: SessionDep, request: Request) -> JSONResponse:
                 payment.id,
                 trans_status,
             )
+            _mark_journal(journal, RESULT_DUPLICATE)
             await session.commit()
             return JSONResponse(
                 content={"status": "ok", "message": "IPN deja traite"},
@@ -488,6 +534,7 @@ async def payzen_ipn(session: SessionDep, request: Request) -> JSONResponse:
                 _get_existing_provider_status(payment),
                 trans_status,
             )
+            _mark_journal(journal, RESULT_CONFLICT)
             await session.commit()
             return JSONResponse(
                 content={
@@ -543,6 +590,7 @@ async def payzen_ipn(session: SessionDep, request: Request) -> JSONResponse:
                 }
                 payment.provider_data = provider_data
                 session.add(payment)
+                _mark_journal(journal, RESULT_AMOUNT_MISMATCH)
                 await session.commit()
                 return JSONResponse(
                     content={
@@ -573,6 +621,8 @@ async def payzen_ipn(session: SessionDep, request: Request) -> JSONResponse:
             trans_status=trans_status,
         )
 
+        if _resolve_payment_status_for_trans_status(trans_status) is None:
+            _mark_journal(journal, RESULT_IGNORED)
         await session.commit()
         await session.refresh(payment)
 

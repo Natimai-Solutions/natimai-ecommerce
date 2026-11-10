@@ -462,6 +462,32 @@ const en: MessageSchema = {
     s_orders: 'Orders',
     s_products: 'Products',
     s_settings: 'Settings',
+    setup: 'Getting started',
+    setup_catalogue: 'Catalogue online',
+    setup_catalogue_hint:
+      'No publishable product (active, with its content): sync a supplier or create products.',
+    setup_customs_declaration_fees: 'Fees per customs declaration',
+    setup_customs_declaration_fees_hint:
+      '{n} clearance place(s) without a fee per declaration: nothing will be charged. Confirm it is intended.',
+    setup_customs_rates: 'Customs rates',
+    setup_customs_rates_hint:
+      '{n} imported product(s) hidden: no customs rate found for their category.',
+    setup_insurance_rate: 'Transport insurance rate',
+    setup_insurance_rate_hint:
+      'At 0 %, the insurance premium is never recovered on sales. Confirm it is intended.',
+    setup_legal_identity: 'Seller legal identity',
+    setup_legal_identity_hint: '{n} required field(s) empty: no invoice can be issued.',
+    setup_payment_methods: 'Payment methods',
+    setup_payment_methods_hint: 'No active payment method: customers cannot order.',
+    setup_progress: '{done} of {total} point(s) settled',
+    setup_status_check: 'To confirm',
+    setup_status_done: 'Done',
+    setup_status_todo: 'To do',
+    setup_support_email: 'Shop e-mail for alerts',
+    setup_support_email_hint:
+      'Without an address, new orders to validate and payment incidents notify no one.',
+    setup_weights: 'Product weights',
+    setup_weights_hint: '{n} imported product(s) hidden: weight missing, freight cannot be priced.',
     shortcuts: 'Shortcuts',
     t_groups: 'Group requests',
     t_groups_hint: 'Customers asking for professional pricing',
@@ -998,6 +1024,17 @@ const en: MessageSchema = {
     col_tax: 'Taxes',
     count: '{n} invoice(s) — numbering is continuous within a fiscal year (no gaps).',
     hint: 'An issued invoice is never changed: any correction goes through a credit note.',
+    integrity_broken:
+      'Integrity chain broken: these documents were changed, deleted or inserted after issuance.',
+    integrity_check: 'Check integrity',
+    integrity_failed: 'The integrity check failed.',
+    integrity_ok:
+      'Integrity chain intact: {n} invoice(s) and credit note(s), none changed, deleted or inserted since issuance.',
+    integrity_reason_altered: 'content changed after issuance',
+    integrity_reason_gap: 'a number is missing before this document',
+    integrity_reason_relinked: 'no longer follows the previous document (deletion or insertion)',
+    integrity_unsealed:
+      '{n} document(s) issued before the chain will be sealed by the next issuance of their series and fiscal year.',
     load_failed: 'Could not load the invoices.',
     none: 'No invoices{suffix}.',
     title: 'Invoices',

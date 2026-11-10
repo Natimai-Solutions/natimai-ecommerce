@@ -119,7 +119,11 @@
       </template>
     </q-table>
 
-    <q-dialog v-model="editDialog">
+    <q-dialog
+      :model-value="editDialog"
+      :persistent="guard.persistent.value"
+      @update:model-value="guard.onToggle"
+    >
       <q-card class="app-dialog">
         <q-card-section class="app-dialog__head">
           <h2 class="app-dialog__title">{{ editing?.category_name ?? $t('customs.category') }}</h2>
@@ -150,7 +154,7 @@
             </p>
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
+            <q-btn flat no-caps :label="$t('common.cancel')" @click="guard.requestClose()" />
             <q-btn
               color="primary"
               unelevated
@@ -181,6 +185,7 @@ import {
 } from '@/api/taxRates';
 import { listAdminCategories, type AdminCategory } from '@/api/categories';
 import { extractApiError } from '@/api/errors';
+import { useDialogGuard, useFormSnapshot } from '@/composables/useUnsavedGuard';
 
 const { t } = useI18n();
 
@@ -263,11 +268,19 @@ const editing = ref<CategoryPublicationRow | null>(null);
 const editRate = ref('');
 const saving = ref(false);
 const dialogError = ref<string | null>(null);
+// Unsaved edits are not lost on Escape, backdrop or navigation (R9 / T5).
+const snapshot = useFormSnapshot(() => editRate.value);
+const guard = useDialogGuard({
+  isOpen: () => editDialog.value,
+  close: () => (editDialog.value = false),
+  isDirty: snapshot.isDirty,
+});
 
 function openEdit(row: CategoryPublicationRow) {
   dialogError.value = null;
   editing.value = row;
   editRate.value = row.default_customs_rate_pct ?? '';
+  snapshot.take();
   editDialog.value = true;
 }
 

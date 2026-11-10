@@ -134,6 +134,10 @@ jobs:
 
       - uses: docker/setup-buildx-action@v4
 
+      # Jour UTC : invalide chaque jour la couche « apk/apt upgrade » du cache
+      # (ARG SECURITY_UPDATES_DATE des Dockerfile).
+      - id: today
+        run: echo "date=$(date -u +%F)" >> "$GITHUB_OUTPUT"
       - uses: docker/build-push-action@v7
         with:
           context: ${{ matrix.context }}
@@ -147,6 +151,7 @@ jobs:
             VITE_SENTRY_DSN=${{ vars.VITE_SENTRY_DSN }}
             VITE_SENTRY_ENVIRONMENT=${{ inputs.environment }}
             VITE_APP_RELEASE=${{ needs.resolve.outputs.sha }}
+            SECURITY_UPDATES_DATE=${{ steps.today.outputs.date }}
           tags: ${{ needs.resolve.outputs.image_prefix }}/${{ matrix.image }}:${{ needs.resolve.outputs.image_tag }}
           labels: |
             org.opencontainers.image.revision=${{ needs.resolve.outputs.sha }}

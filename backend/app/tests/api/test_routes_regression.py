@@ -16,13 +16,8 @@ from app.core.errors import AppError
 from app.features.base.crud import RecordNotFoundError
 from app.features.shipping.models.route_tracking import ShippingRouteTracking
 from app.features.user.crud.address import crud_address
-from app.features.user.crud.notification import (
-    crud_notification,
-    crud_user_notification,
-)
 from app.features.user.crud.review import crud_review
 from app.features.user.models.address import Address
-from app.features.user.models.notification import Notification, UserNotification
 from app.features.user.models.review import Review
 from app.features.user.models.user import User
 from app.main import app
@@ -134,88 +129,6 @@ async def test_review_update_keeps_product_and_goes_back_to_moderation(
     assert kwargs["product_id"] == product_id
     assert kwargs["rating"] == 5
     assert kwargs["comment"] == "much better"
-
-
-@pytest.mark.asyncio
-async def test_notification_get_uses_read_with_id(
-    client: TestClient,
-    monkeypatch: pytest.MonkeyPatch,
-    current_user: SimpleNamespace,
-) -> None:
-    user_id = current_user.id
-    notification_id = uuid.uuid4()
-
-    user_notification = UserNotification(
-        id=uuid.uuid4(),
-        user_id=user_id,
-        notification_id=notification_id,
-        is_read=False,
-    )
-    notification = Notification(
-        id=notification_id,
-        title="Order update",
-        content="Your order is shipped",
-        type="order_status_update",
-        priority=2,
-    )
-
-    relation_mock = AsyncMock(return_value=user_notification)
-    read_mock = AsyncMock(return_value=notification)
-
-    monkeypatch.setattr(
-        crud_user_notification,
-        "get_by_user_and_notification",
-        relation_mock,
-    )
-    monkeypatch.setattr(crud_notification, "read", read_mock)
-
-    response = client.get(
-        f"/api/v1/notification/users/{user_id}/notifications/{notification_id}"
-    )
-
-    assert response.status_code == 200
-
-    assert read_mock.await_args is not None
-    read_kwargs = read_mock.await_args.kwargs
-    assert read_kwargs["id"] == notification_id
-
-
-@pytest.mark.asyncio
-async def test_notification_delete_uses_delete_with_id_and_record(
-    client: TestClient,
-    monkeypatch: pytest.MonkeyPatch,
-    current_user: SimpleNamespace,
-) -> None:
-    user_id = current_user.id
-    notification_id = uuid.uuid4()
-
-    user_notification = UserNotification(
-        id=uuid.uuid4(),
-        user_id=user_id,
-        notification_id=notification_id,
-        is_read=False,
-    )
-
-    relation_mock = AsyncMock(return_value=user_notification)
-    delete_mock = AsyncMock(return_value=True)
-
-    monkeypatch.setattr(
-        crud_user_notification,
-        "get_by_user_and_notification",
-        relation_mock,
-    )
-    monkeypatch.setattr(crud_user_notification, "delete", delete_mock)
-
-    response = client.delete(
-        f"/api/v1/notification/users/{user_id}/notifications/{notification_id}"
-    )
-
-    assert response.status_code == 204
-
-    assert delete_mock.await_args is not None
-    delete_kwargs = delete_mock.await_args.kwargs
-    assert delete_kwargs["id"] == user_notification.id
-    assert delete_kwargs["record"] is user_notification
 
 
 @pytest.mark.asyncio

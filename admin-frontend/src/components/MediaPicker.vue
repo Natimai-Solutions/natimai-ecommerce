@@ -317,7 +317,7 @@ watch(
   flex-direction: column;
   gap: 4px;
   border: 2px solid transparent;
-  border-radius: 8px;
+  border-radius: var(--n-radius);
   background: none;
   text-align: left;
   cursor: pointer;

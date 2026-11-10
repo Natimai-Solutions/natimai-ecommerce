@@ -158,3 +158,50 @@ async def test_an_unknown_email_provider_is_a_failed_send_not_a_silent_one(
 
     assert provider_calls == ["custom"]
     assert [log.status for log in sent] == ["failed"]
+
+
+@pytest.mark.anyio
+async def test_a_manual_payment_announces_a_new_order_to_process(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A transfer or cash order reaches the shop as « nouvelle commande à
+    traiter », with its number and its amount, not as a technical event."""
+    monkeypatch.setattr(settings, "PAYMENT_NOTIFICATIONS_EMAIL_PROVIDER", "mailgun")
+    monkeypatch.setattr(settings, "EMAIL_SUPPORT", "support@example.com")
+
+    sent: list[Any] = []
+
+    class _FakeProvider:
+        async def send(self, message: Any) -> NotificationResult:
+            sent.append(message)
+            return NotificationResult(provider_code="mailgun", delivered=True)
+
+    monkeypatch.setattr(
+        "app.features.notification.mailer.get_notification_provider",
+        lambda _provider_code: _FakeProvider(),
+    )
+    order_id = uuid.uuid4()
+    session = AsyncMock()
+    session.get = AsyncMock(return_value=SimpleNamespace(order_number="CMD-2026-0042"))
+
+    await send_payment_event_notifications(
+        session=session,
+        event_type="payment.awaiting_validation",
+        payload={
+            "payment_id": str(uuid.uuid4()),
+            "order_id": str(order_id),
+            "provider_code": "manual",
+            "total_amount": "30000",
+            "currency": "XPF",
+            "admin_user_id": None,
+        },
+    )
+
+    assert [m.recipient for m in sent] == ["support@example.com"]
+    message = sent[0]
+    assert message.subject == (
+        "[Commande] Nouvelle commande à traiter — paiement à valider — CMD-2026-0042"
+    )
+    assert "Une nouvelle commande attend votre action" in message.text
+    assert "CMD-2026-0042" in message.text
+    assert "30000 XPF" in message.text

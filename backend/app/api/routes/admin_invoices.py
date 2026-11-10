@@ -15,6 +15,7 @@ from typing import Annotated
 
 import anyio
 from fastapi import APIRouter, Query, Response
+from pydantic import BaseModel
 from sqlmodel import col, select
 
 from app.api.deps import CurrentSuperUser, SessionDep
@@ -27,6 +28,7 @@ from app.features.invoice.models.invoice import (
 from app.features.invoice.services.accounting_export import (
     export_invoices_to_fec,
 )
+from app.features.invoice.services.integrity import verify_chains
 from app.features.invoice.services.pdf import (
     PdfRenderingUnavailableError,
     invoice_pdf_filename,
@@ -201,6 +203,57 @@ async def export_invoices_fec(
 def _csv_amount(value: Decimal) -> str:
     """Format an amount for the accounting export (comma decimal separator)."""
     return str(value).replace(".", ",")
+
+
+class IntegrityBreakPublic(BaseModel):
+    number: str
+    #: altered (content changed or hash removed), relinked (a document
+    #: deleted, inserted or re-sealed before it), gap (missing number).
+    reason: str
+
+
+class IntegrityChainPublic(BaseModel):
+    series: str
+    fiscal_year: int
+    documents: int
+    sealed: int
+    intact: bool
+    breaks: list[IntegrityBreakPublic]
+
+
+class IntegrityReportPublic(BaseModel):
+    intact: bool
+    chains: list[IntegrityChainPublic]
+
+
+@router.get("/integrity", response_model=IntegrityReportPublic)
+async def check_integrity(
+    session: SessionDep,
+    _current_user: CurrentSuperUser,
+) -> IntegrityReportPublic:
+    """Recompute the integrity chain of every invoice and credit note.
+
+    One chain per series (invoices, credit notes) and fiscal year. Documents
+    issued before the chain existed count as unsealed until the next issuance
+    of their series and year seals them.
+    """
+    chains = [
+        IntegrityChainPublic(
+            series=report.series,
+            fiscal_year=report.fiscal_year,
+            documents=report.documents,
+            sealed=report.sealed,
+            intact=report.intact,
+            breaks=[
+                IntegrityBreakPublic(number=b.number, reason=b.reason)
+                for b in report.breaks
+            ],
+        )
+        for report in await verify_chains(session)
+    ]
+    return IntegrityReportPublic(
+        intact=all(chain.intact for chain in chains), chains=chains
+    )
 
 
 @router.get("/{invoice_id}", response_model=InvoicePublic)

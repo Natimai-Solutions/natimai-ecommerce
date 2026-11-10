@@ -503,7 +503,7 @@ onMounted(() => {
 
 .credit__error {
   font-size: 13px;
-  color: var(--n-danger, #b3261e);
+  color: var(--n-danger);
 }
 
 .credit__plus {

@@ -44,7 +44,12 @@ FROM nginx:1.31-alpine AS runner
 
 # Correctifs de sécurité Alpine que l'image de base n'a pas encore (Trivy,
 # security.yml, bloque sur ceux qui ont un correctif publié).
-RUN apk upgrade --no-cache
+# SECURITY_UPDATES_DATE (jour UTC, passé par la CI) : sans lui, le cache de
+# couches de GitHub Actions resservirait la couche d'une mise à jour plus
+# ancienne tant que l'image de base ne bouge pas, et les correctifs publiés
+# depuis n'arriveraient jamais (Trivy les signale alors).
+ARG SECURITY_UPDATES_DATE=
+RUN echo "security updates: ${SECURITY_UPDATES_DATE:-local}" && apk upgrade --no-cache
 
 COPY --from=builder /workspace/admin-frontend/dist/spa /usr/share/nginx/html
 COPY admin-frontend/nginx.conf /etc/nginx/conf.d/default.conf

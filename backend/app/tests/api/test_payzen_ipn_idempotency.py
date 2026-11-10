@@ -28,6 +28,17 @@ def _payment_row_lock_is_a_no_op(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("app.api.routes.payments.lock_payment", _same)
 
 
+@pytest.fixture(autouse=True)
+def _no_webhook_journal(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The session is a stand-in: the shared event journal
+    (``payment_webhook_events``) is covered by test_payzen_ipn_journal.py."""
+
+    async def _none(*_args: object, **_kwargs: object) -> None:
+        return None
+
+    monkeypatch.setattr("app.api.routes.payments.record_webhook_event", _none)
+
+
 @pytest.mark.anyio
 async def test_payzen_ipn_ignores_duplicate_terminal_retry(
     monkeypatch: pytest.MonkeyPatch,

@@ -15,6 +15,7 @@
 
     <div class="admin-toolbar">
       <q-input
+        :aria-label="$t('quotes.search')"
         v-model="search"
         dense
         outlined
@@ -80,8 +81,8 @@
         <q-td :props="props">
           <StatusTag
             :label="quoteStatusLabel(props.row.status)"
-            :tone="toneOf(quoteStatusColor(props.row.status))"
-            :icon="toneIcon(toneOf(quoteStatusColor(props.row.status)))"
+            :tone="quoteStatusTone(props.row.status)"
+            :icon="toneIcon(quoteStatusTone(props.row.status))"
           />
         </q-td>
       </template>
@@ -111,8 +112,8 @@
             <StatusTag
               v-if="detail"
               :label="quoteStatusLabel(detail.status)"
-              :tone="toneOf(quoteStatusColor(detail.status))"
-              :icon="toneIcon(toneOf(quoteStatusColor(detail.status)))"
+              :tone="quoteStatusTone(detail.status)"
+              :icon="toneIcon(quoteStatusTone(detail.status))"
             />
           </div>
           <p v-if="detail" class="app-dialog__text">
@@ -209,13 +210,19 @@
               <tbody>
                 <tr v-for="(line, index) in issueLines" :key="index">
                   <td>
-                    <q-input v-model="line.product_name" dense outlined />
+                    <q-input
+                      v-model="line.product_name"
+                      dense
+                      outlined
+                      :aria-label="`${$t('quotes.designation')} — ${index + 1}`"
+                    />
                     <div v-if="!line.product_id" class="text-caption text-warning">
                       {{ $t('quotes.off_catalogue') }}
                     </div>
                   </td>
                   <td>
                     <q-input
+                      :aria-label="`${$t('quotes.qty')} — ${index + 1}`"
                       v-model.number="line.quantity"
                       type="number"
                       min="1"
@@ -226,6 +233,7 @@
                   </td>
                   <td>
                     <q-input
+                      :aria-label="`${$t('quotes.unit_ttc')} — ${index + 1}`"
                       v-model="line.unit_price"
                       type="number"
                       min="0"
@@ -361,7 +369,7 @@ import { computed, onMounted, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
-import { toneIcon, toneOf } from '@app/ui/statusTone';
+import { toneIcon } from '@app/ui/statusTone';
 import PageHeader from '@/components/PageHeader.vue';
 import {
   downloadQuotePdf,
@@ -369,7 +377,7 @@ import {
   issueQuote,
   listQuoteRequests,
   QUOTE_STATUS_OPTIONS,
-  quoteStatusColor,
+  quoteStatusTone,
   quoteStatusLabel,
   updateQuoteRequest,
   type AdminQuoteRequestDetail,

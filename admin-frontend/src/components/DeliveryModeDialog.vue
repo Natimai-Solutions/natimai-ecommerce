@@ -1,5 +1,9 @@
 <template>
-  <q-dialog v-model="open">
+  <q-dialog
+    :model-value="open"
+    :persistent="guard.persistent.value"
+    @update:model-value="guard.onToggle"
+  >
     <q-card class="app-dialog app-dialog--wide">
       <q-card-section class="app-dialog__head">
         <h2 class="app-dialog__title">
@@ -232,7 +236,7 @@
           </q-expansion-item>
         </q-card-section>
         <q-card-actions align="right" class="app-dialog__actions">
-          <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
+          <q-btn flat no-caps :label="$t('common.cancel')" @click="guard.requestClose()" />
           <q-btn
             type="submit"
             color="primary"
@@ -247,7 +251,11 @@
   </q-dialog>
 
   <!-- Nouveau lieu de retrait (boutique), rattaché au pays de la boutique. -->
-  <q-dialog v-model="placeDialog">
+  <q-dialog
+    :model-value="placeDialog"
+    :persistent="placeGuard.persistent.value"
+    @update:model-value="placeGuard.onToggle"
+  >
     <q-card class="app-dialog">
       <q-card-section class="app-dialog__head">
         <h2 class="app-dialog__title">{{ $t('logistics.new_pickup_place') }}</h2>
@@ -298,7 +306,7 @@
           </div>
         </q-card-section>
         <q-card-actions align="right" class="app-dialog__actions">
-          <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
+          <q-btn flat no-caps :label="$t('common.cancel')" @click="placeGuard.requestClose()" />
           <q-btn
             type="submit"
             color="primary"
@@ -336,6 +344,7 @@ import {
   type ShippingRoute,
 } from '@/api/logistics';
 import { extractApiError } from '@/api/errors';
+import { useDialogGuard, useFormSnapshot } from '@/composables/useUnsavedGuard';
 import { useShopConfigStore } from '@/stores/shopConfig';
 import {
   CUSTOM_DELIVERY,
@@ -467,6 +476,21 @@ const bands = ref<BandRow[]>([]);
 const weightOpen = ref(false);
 const error = ref<string | null>(null);
 const saving = ref(false);
+// Unsaved edits are not lost on Escape, backdrop or navigation (R9 / T5).
+const snapshot = useFormSnapshot(() => ({
+  form,
+  preset: preset.value,
+  customCode: customCode.value,
+  coverage: coverage.value,
+  served: servedPlaceIds.value,
+  bands: bands.value,
+  pickup: pickupPlaceIds.value,
+}));
+const guard = useDialogGuard({
+  isOpen: () => open.value,
+  close: () => (open.value = false),
+  isDirty: snapshot.isDirty,
+});
 
 const isPickup = computed(() => form.mode === 'pickup');
 // Création d'un retrait : un ou plusieurs lieux (un trajet par lieu).
@@ -515,13 +539,17 @@ function reset() {
   }
   coverage.value = 'all';
   servedPlaceIds.value = [];
+  snapshot.take();
   // Sans zone desservie, un trajet est proposé partout (always_available ou
   // non) : seul un trajet rattaché à des zones est « certaines zones ».
   if (r) {
     getRouteServedPlaces(r.id)
       .then((served) => {
+        // Loaded after opening: part of the initial state unless already edited.
+        const clean = !snapshot.isDirty();
         servedPlaceIds.value = served.map((p) => p.id);
         coverage.value = served.length > 0 && !r.always_available ? 'zones' : 'all';
+        if (clean) snapshot.take();
       })
       .catch(() => {
         // Non bloquant : l'édition des autres champs reste possible.
@@ -668,6 +696,13 @@ const placeForm = reactive({
   postal_code: '',
   city: '',
 });
+// Unsaved edits are not lost on Escape, backdrop or navigation (R9 / T5).
+const placeSnapshot = useFormSnapshot(() => placeForm);
+const placeGuard = useDialogGuard({
+  isOpen: () => placeDialog.value,
+  close: () => (placeDialog.value = false),
+  isDirty: placeSnapshot.isDirty,
+});
 
 function openPlaceCreate() {
   placeError.value = null;
@@ -678,6 +713,7 @@ function openPlaceCreate() {
     postal_code: '',
     city: '',
   });
+  placeSnapshot.take();
   placeDialog.value = true;
 }
 

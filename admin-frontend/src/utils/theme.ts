@@ -1,13 +1,11 @@
 import { Dark } from 'quasar';
 
-export type ThemePreference = 'light' | 'dark' | 'auto';
+import { parseThemePreference, toDarkValue, type ThemePreference } from '@app/ui/theme';
+
+export { parseThemePreference, toDarkValue, type ThemePreference } from '@app/ui/theme';
 
 /** Choix explicite de l'administrateur, gardé dans ce navigateur. */
 const STORAGE_KEY = 'natimai-admin-theme';
-
-export function parseThemePreference(raw: unknown): ThemePreference {
-  return raw === 'light' || raw === 'dark' ? raw : 'auto';
-}
 
 export function readThemePreference(): ThemePreference {
   try {
@@ -15,12 +13,6 @@ export function readThemePreference(): ThemePreference {
   } catch {
     return 'auto';
   }
-}
-
-/** Valeur attendue par `Dark.set()`. */
-export function toDarkValue(preference: ThemePreference): boolean | 'auto' {
-  if (preference === 'auto') return 'auto';
-  return preference === 'dark';
 }
 
 /** Applique et mémorise un choix (« auto » suit le système). */

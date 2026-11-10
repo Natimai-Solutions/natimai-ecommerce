@@ -195,8 +195,8 @@
             <q-td :props="props">
               <StatusTag
                 :label="orderStatusLabel(props.row.status)"
-                :tone="toneOf(orderStatusColor(props.row.status))"
-                :icon="toneIcon(toneOf(orderStatusColor(props.row.status)))"
+                :tone="orderStatusTone(props.row.status)"
+                :icon="toneIcon(orderStatusTone(props.row.status))"
               />
             </q-td>
           </template>
@@ -249,7 +249,7 @@
             no-caps
             icon="ph:plus"
             :label="$t('departures.add_po')"
-            @click="poDialog = true"
+            @click="openPo"
           />
         </div>
         <q-list
@@ -313,6 +313,7 @@
           <template #body-cell-received="props">
             <q-td :props="props">
               <q-input
+                :aria-label="`${$t('departures.col_received')} — ${props.row.product_name}`"
                 v-model.number="receiptEdit(props.row).quantity_received"
                 type="number"
                 min="0"
@@ -325,6 +326,7 @@
           <template #body-cell-damaged="props">
             <q-td :props="props">
               <q-input
+                :aria-label="`${$t('departures.col_damaged')} — ${props.row.product_name}`"
                 v-model.number="receiptEdit(props.row).quantity_damaged"
                 type="number"
                 min="0"
@@ -337,6 +339,7 @@
           <template #body-cell-serials="props">
             <q-td :props="props">
               <q-input
+                :aria-label="`${$t('departures.col_serials')} — ${props.row.product_name}`"
                 v-model="receiptEdit(props.row).serials"
                 dense
                 outlined
@@ -394,8 +397,8 @@
                     fulfilment: fulfilmentLabel(o.fulfilment),
                   })
                 "
-                :tone="toneOf(fulfilmentColor(o.fulfilment))"
-                :icon="toneIcon(toneOf(fulfilmentColor(o.fulfilment)))"
+                :tone="fulfilmentTone(o.fulfilment)"
+                :icon="toneIcon(fulfilmentTone(o.fulfilment))"
               />
               <q-tooltip>
                 <div v-for="ln in o.lines" :key="ln.product_id">
@@ -503,8 +506,8 @@
             <q-td :props="props">
               <StatusTag
                 :label="reminderLabel(props.row.status)"
-                :tone="toneOf(reminderColor(props.row.status))"
-                :icon="toneIcon(toneOf(reminderColor(props.row.status)))"
+                :tone="reminderTone(props.row.status)"
+                :icon="toneIcon(reminderTone(props.row.status))"
               />
               <span v-if="props.row.error" class="text-caption text-negative q-ml-xs">
                 {{ props.row.error }}
@@ -624,7 +627,11 @@
     </q-dialog>
 
     <!-- Supplier purchase order -->
-    <q-dialog v-model="poDialog">
+    <q-dialog
+      :model-value="poDialog"
+      :persistent="poGuard.persistent.value"
+      @update:model-value="poGuard.onToggle"
+    >
       <q-card class="app-dialog">
         <q-card-section class="app-dialog__head">
           <h2 class="app-dialog__title">{{ $t('departures.po_dialog') }}</h2>
@@ -675,7 +682,7 @@
             <q-input v-model="poForm.notes" :label="$t('departures.notes')" outlined dense />
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
+            <q-btn flat no-caps :label="$t('common.cancel')" @click="poGuard.requestClose()" />
             <q-btn
               type="submit"
               color="primary"
@@ -690,7 +697,11 @@
     </q-dialog>
 
     <!-- Reminder -->
-    <q-dialog v-model="reminderDialog">
+    <q-dialog
+      :model-value="reminderDialog"
+      :persistent="reminderGuard.persistent.value"
+      @update:model-value="reminderGuard.onToggle"
+    >
       <q-card class="app-dialog">
         <q-card-section class="app-dialog__head">
           <h2 class="app-dialog__title">
@@ -742,7 +753,12 @@
             />
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
+            <q-btn
+              flat
+              no-caps
+              :label="$t('common.cancel')"
+              @click="reminderGuard.requestClose()"
+            />
             <q-btn
               type="submit"
               color="primary"
@@ -757,7 +773,11 @@
     </q-dialog>
 
     <!-- Create / edit -->
-    <q-dialog v-model="dialog">
+    <q-dialog
+      :model-value="dialog"
+      :persistent="guard.persistent.value"
+      @update:model-value="guard.onToggle"
+    >
       <q-card class="app-dialog">
         <q-card-section class="app-dialog__head">
           <h2 class="app-dialog__title">
@@ -849,7 +869,7 @@
             />
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
+            <q-btn flat no-caps :label="$t('common.cancel')" @click="guard.requestClose()" />
             <q-btn
               type="submit"
               color="primary"
@@ -872,7 +892,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue';
 import type { QTableColumn } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
-import { toneIcon, toneOf, type StatusTone } from '@app/ui/statusTone';
+import { toneIcon, type StatusTone } from '@app/ui/statusTone';
 import {
   DEPARTURE_STATUSES,
   departureCutoffLabel,
@@ -913,7 +933,7 @@ import {
   downloadOrdersCsv,
   downloadSkuSummaryCsv,
   listOrders,
-  orderStatusColor,
+  orderStatusTone,
   orderStatusLabel,
   skuSummary,
   type AdminOrderListItem,
@@ -922,6 +942,7 @@ import {
 } from '@/api/orders';
 import { extractApiError } from '@/api/errors';
 import { useConfirm } from '@/composables/useConfirm';
+import { useDialogGuard, useFormSnapshot } from '@/composables/useUnsavedGuard';
 import { listSystemSettings, updateSystemSetting } from '@/api/systemSettings';
 import { useShopConfigStore } from '@/stores/shopConfig';
 import { setOrderStatus } from '@/api/orders';
@@ -1154,8 +1175,8 @@ function missingOf(row: ReceiptLine): number {
 }
 
 const fulfilmentLabel = (s: string) => FULFILMENT_LABELS[s] ?? s;
-const fulfilmentColor = (s: string) =>
-  s === 'served' ? 'green' : s === 'partial' ? 'orange-8' : 'grey-7';
+const fulfilmentTone = (s: string): StatusTone =>
+  s === 'served' ? 'ok' : s === 'partial' ? 'warn' : 'neutral';
 
 function applyReception(report: ReceiptReport) {
   reception.value = report;
@@ -1364,6 +1385,18 @@ const poForm = reactive({
   currency: shopConfig.currency,
   notes: '',
 });
+// Unsaved edits are not lost on Escape, backdrop or navigation (R9 / T5).
+const poSnapshot = useFormSnapshot(() => poForm);
+const poGuard = useDialogGuard({
+  isOpen: () => poDialog.value,
+  close: () => (poDialog.value = false),
+  isDirty: poSnapshot.isDirty,
+});
+
+function openPo() {
+  poSnapshot.take();
+  poDialog.value = true;
+}
 
 async function submitPo() {
   if (!selected.value) return;
@@ -1419,6 +1452,13 @@ const reminderForm = reactive<{
   message_template: string;
   image_url: string | null;
 }>({ offset_days: 2, anchor: 'cutoff', message_template: '', image_url: '' });
+// Unsaved edits are not lost on Escape, backdrop or navigation (R9 / T5).
+const reminderSnapshot = useFormSnapshot(() => reminderForm);
+const reminderGuard = useDialogGuard({
+  isOpen: () => reminderDialog.value,
+  close: () => (reminderDialog.value = false),
+  isDirty: reminderSnapshot.isDirty,
+});
 
 const reminderColumns = computed<QTableColumn[]>(() => [
   {
@@ -1452,8 +1492,8 @@ const REMINDER_LABELS: Record<string, string> = labels({
   cancelled: 'departures.r_cancelled',
 });
 const reminderLabel = (s: string) => REMINDER_LABELS[s] ?? s;
-const reminderColor = (s: string) =>
-  s === 'sent' ? 'green' : s === 'failed' ? 'negative' : s === 'cancelled' ? 'grey-6' : 'primary';
+const reminderTone = (s: string): StatusTone =>
+  s === 'sent' ? 'ok' : s === 'failed' ? 'danger' : 'neutral';
 
 async function loadReminders() {
   if (!selected.value) return;
@@ -1494,6 +1534,7 @@ function openReminder(r?: Reminder) {
     message_template: r?.message_template ?? t('departures.default_message'),
     image_url: r?.image_url ?? '',
   });
+  reminderSnapshot.take();
   reminderDialog.value = true;
 }
 
@@ -1615,6 +1656,13 @@ interface DepartureForm {
 }
 
 const form = reactive<DepartureForm>(blankForm());
+// Unsaved edits are not lost on Escape, backdrop or navigation (R9 / T5).
+const snapshot = useFormSnapshot(() => form);
+const guard = useDialogGuard({
+  isOpen: () => dialog.value,
+  close: () => (dialog.value = false),
+  isDirty: snapshot.isDirty,
+});
 
 function blankForm(): DepartureForm {
   return {
@@ -1655,6 +1703,7 @@ function numOrNull(value: number | string | null): number | null {
 function openCreate() {
   editId.value = null;
   Object.assign(form, blankForm());
+  snapshot.take();
   dialogError.value = null;
   dialog.value = true;
 }
@@ -1673,6 +1722,7 @@ function openEdit(d: Departure) {
     recurrence_days: d.recurrence_days,
     notes: d.notes ?? '',
   });
+  snapshot.take();
   dialogError.value = null;
   dialog.value = true;
 }
@@ -1747,7 +1797,7 @@ onMounted(() => {
 
 .fulfilment-link {
   text-decoration: none;
-  border-radius: 999px;
+  border-radius: var(--n-radius-pill);
 
   &:hover :deep(.status-tag) {
     border-color: var(--n-ink-3);
@@ -1760,7 +1810,7 @@ onMounted(() => {
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   border-top: 1px solid var(--n-line);
   border-left: 1px solid var(--n-line);
-  border-radius: 8px;
+  border-radius: var(--n-radius);
   overflow: hidden;
 }
 

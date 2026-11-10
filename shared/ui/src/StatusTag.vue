@@ -26,7 +26,7 @@ withDefaults(defineProps<{ label: string; tone?: StatusTone; icon?: string }>(),
   height: 26px;
   padding: 0 10px;
   border: 1px solid var(--n-line-2);
-  border-radius: 999px;
+  border-radius: var(--n-radius-pill);
   color: var(--n-ink);
   font-size: 12px;
   font-weight: 500;

@@ -1211,7 +1211,7 @@ async function uploadDocument() {
 
 .checkout__skeleton {
   margin-bottom: 8px;
-  border-radius: 8px;
+  border-radius: var(--n-radius);
 }
 
 .step + .step {
@@ -1234,7 +1234,7 @@ async function uploadDocument() {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 999px;
+  border-radius: var(--n-radius-pill);
   background: var(--n-ink);
   color: var(--n-on-ink);
   font-size: 13px;

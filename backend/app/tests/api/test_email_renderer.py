@@ -70,6 +70,8 @@ _SAMPLE_CONTEXT: dict[str, dict[str, Any]] = {
     "admin_payment_event": {
         "event_type": "payment.captured",
         "event_label": "Paiement validé",
+        "new_order": False,
+        "order_number": "",
         "payment_id": "pay_1",
         "order_id": "ord_1",
         "provider_code": "payzen",

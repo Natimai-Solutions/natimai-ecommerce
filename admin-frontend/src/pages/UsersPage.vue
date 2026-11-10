@@ -172,7 +172,11 @@
     </div>
 
     <!-- Création -->
-    <q-dialog v-model="createDialog">
+    <q-dialog
+      :model-value="createDialog"
+      :persistent="createGuard.persistent.value"
+      @update:model-value="createGuard.onToggle"
+    >
       <q-card class="app-dialog">
         <q-card-section class="app-dialog__head">
           <h2 class="app-dialog__title">{{ $t('users.create_title') }}</h2>
@@ -207,7 +211,7 @@
             <q-toggle v-model="form.send_invitation" :label="$t('users.send_now')" />
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
+            <q-btn flat no-caps :label="$t('common.cancel')" @click="createGuard.requestClose()" />
             <q-btn
               type="submit"
               color="primary"
@@ -222,7 +226,11 @@
     </q-dialog>
 
     <!-- Modification -->
-    <q-dialog v-model="editDialog">
+    <q-dialog
+      :model-value="editDialog"
+      :persistent="editGuard.persistent.value"
+      @update:model-value="editGuard.onToggle"
+    >
       <q-card class="app-dialog">
         <q-card-section class="app-dialog__head">
           <h2 class="app-dialog__title">{{ $t('users.edit_title', { email: editing?.email }) }}</h2>
@@ -244,7 +252,7 @@
             />
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
+            <q-btn flat no-caps :label="$t('common.cancel')" @click="editGuard.requestClose()" />
             <q-btn
               type="submit"
               color="primary"
@@ -273,6 +281,7 @@ import { createUser, listUsers, resendInvitation, updateUser, type AdminUser } f
 import { resetUserTwoFactor } from '@/api/security';
 import { listPriceGroups, type PriceGroup } from '@/api/eligibility';
 import { extractApiError } from '@/api/errors';
+import { useDialogGuard, useFormSnapshot } from '@/composables/useUnsavedGuard';
 
 const { t } = useI18n();
 
@@ -434,6 +443,13 @@ const form = reactive({
   is_superuser: false,
   send_invitation: true,
 });
+// Unsaved edits are not lost on Escape, backdrop or navigation (R9 / T5).
+const createSnapshot = useFormSnapshot(() => form);
+const createGuard = useDialogGuard({
+  isOpen: () => createDialog.value,
+  close: () => (createDialog.value = false),
+  isDirty: createSnapshot.isDirty,
+});
 
 function openCreate() {
   dialogError.value = null;
@@ -443,6 +459,7 @@ function openCreate() {
   form.price_group_id = null;
   form.is_superuser = false;
   form.send_invitation = true;
+  createSnapshot.take();
   createDialog.value = true;
 }
 
@@ -480,6 +497,12 @@ const editForm = reactive({
   phone: '',
   price_group_id: null as string | null,
 });
+const editSnapshot = useFormSnapshot(() => editForm);
+const editGuard = useDialogGuard({
+  isOpen: () => editDialog.value,
+  close: () => (editDialog.value = false),
+  isDirty: editSnapshot.isDirty,
+});
 
 function openEdit(user: AdminUser) {
   dialogError.value = null;
@@ -487,6 +510,7 @@ function openEdit(user: AdminUser) {
   editForm.full_name = user.full_name ?? '';
   editForm.phone = user.phone ?? '';
   editForm.price_group_id = user.price_group_id;
+  editSnapshot.take();
   editDialog.value = true;
 }
 

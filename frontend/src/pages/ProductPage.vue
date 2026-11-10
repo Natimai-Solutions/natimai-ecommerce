@@ -279,10 +279,9 @@
             />
             <q-btn
               outline
-              color="primary"
+              :color="inWishlist ? 'accent' : 'primary'"
               icon="ph:heart"
               class="product__wish"
-              :class="{ 'product__wish--on': inWishlist }"
               :aria-pressed="inWishlist"
               :aria-label="inWishlist ? $t('product.wish_remove') : $t('product.wish_add')"
               :loading="wishSaving"
@@ -295,10 +294,9 @@
             </q-btn>
             <q-btn
               outline
-              color="primary"
+              :color="inCompare ? 'accent' : 'primary'"
               icon="ph:scales"
               class="product__wish"
-              :class="{ 'product__wish--on': inCompare }"
               :aria-pressed="inCompare"
               :aria-label="
                 inCompare
@@ -1262,7 +1260,7 @@ watch(
   gap: 64px;
   align-items: start;
 
-  @media (max-width: 1279px) {
+  @media (max-width: 1439px) {
     grid-template-columns: minmax(0, 1fr) 420px;
     gap: 48px;
   }
@@ -1276,7 +1274,7 @@ watch(
 .product__skeleton-media {
   aspect-ratio: 4 / 3;
   height: auto;
-  border-radius: 8px;
+  border-radius: var(--n-radius);
 }
 
 .product__gallery {
@@ -1312,7 +1310,7 @@ watch(
     border-color: var(--n-ink);
   }
 
-  @media (max-width: 767px) {
+  @media (max-width: 599px) {
     width: 64px;
   }
 }
@@ -1347,7 +1345,7 @@ watch(
   line-height: 1.2;
   letter-spacing: -0.02em;
 
-  @media (max-width: 767px) {
+  @media (max-width: 599px) {
     font-size: 22px;
   }
 }
@@ -1388,7 +1386,7 @@ watch(
 
 .product__promo-badge {
   padding: 2px 8px;
-  border-radius: 4px;
+  border-radius: var(--n-radius-sm);
   font-size: 13px;
   font-weight: 600;
   color: var(--n-on-accent);
@@ -1461,7 +1459,7 @@ watch(
   gap: 5px;
   margin-top: 10px;
   padding: 3px 10px;
-  border-radius: 999px;
+  border-radius: var(--n-radius-pill);
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -1533,7 +1531,7 @@ watch(
   min-height: 40px;
   padding: 0 14px;
   border: 1px solid var(--n-line-2);
-  border-radius: 8px;
+  border-radius: var(--n-radius);
   background: var(--n-surface);
   color: var(--n-ink);
   font: inherit;
@@ -1578,7 +1576,7 @@ watch(
   display: flex;
   align-items: center;
   border: 1px solid var(--n-line-2);
-  border-radius: 8px;
+  border-radius: var(--n-radius);
 }
 
 .qty__btn {
@@ -1588,7 +1586,7 @@ watch(
   align-items: center;
   justify-content: center;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--n-radius);
   background: transparent;
   color: var(--n-ink);
   cursor: pointer;
@@ -1620,10 +1618,6 @@ watch(
   flex-shrink: 0;
   width: 48px;
   min-height: 48px;
-
-  &--on {
-    color: var(--n-accent) !important;
-  }
 }
 
 .product__added {
@@ -1635,7 +1629,7 @@ watch(
   justify-content: center;
   gap: 10px;
   border: 1px solid var(--n-accent);
-  border-radius: 8px;
+  border-radius: var(--n-radius);
   background: var(--n-accent-soft);
   color: var(--n-accent);
   font-size: 15px;
@@ -1657,7 +1651,7 @@ watch(
   grid-template-columns: minmax(0, 1fr) 480px;
   gap: 64px;
 
-  @media (max-width: 1279px) {
+  @media (max-width: 1439px) {
     grid-template-columns: minmax(0, 1fr) 420px;
     gap: 48px;
   }
@@ -1749,10 +1743,10 @@ watch(
   flex-direction: column-reverse;
   justify-content: flex-end;
   gap: 6px;
-  border-radius: 8px;
+  border-radius: var(--n-radius);
   background: var(--n-tile);
 
-  @media (max-width: 767px) {
+  @media (max-width: 599px) {
     padding: 16px;
   }
 }
@@ -1765,7 +1759,7 @@ watch(
   letter-spacing: -0.02em;
   overflow-wrap: anywhere;
 
-  @media (max-width: 767px) {
+  @media (max-width: 599px) {
     font-size: 18px;
   }
 }
@@ -1784,7 +1778,7 @@ watch(
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  @media (max-width: 767px) {
+  @media (max-width: 599px) {
     grid-template-columns: minmax(0, 1fr);
     gap: 32px;
   }
