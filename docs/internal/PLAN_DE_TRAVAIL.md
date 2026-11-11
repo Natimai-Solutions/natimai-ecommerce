@@ -16,7 +16,6 @@ sur le serveur, chez un tiers ou une décision.
 Détail, fichiers et scénarios : [`AUDIT_2026-11.md`](AUDIT_2026-11.md) (identifiants S·, B·, F·, U·).
 
 - **B4** : ne plus écraser `supplier_quantity` par le stock live fournisseur (instantané séparé, disponible = live − réservations en cours, sous verrou) — M.
-- **S9** : à l'initiation du paiement, refuser un moyen différent de celui du devis (ou recalculer les frais) — S.
 - **S2** : session admin isolée de la boutique (cookie de refresh distinct, ou refus d'émettre un token superuser hors origine admin) — M.
 - **S5** : une seule dépendance superuser qui applique `ADMIN_2FA_REQUIRED` (`BaseRouter._check_auth` et contrôles `is_superuser` manuels), `reveal_internal_fields()` derrière elle — M.
 

@@ -18,6 +18,7 @@ from app.core.errors import AppError
 from app.features.order.models.order import Order
 from app.features.order.models.order_status import OrderStatus
 from app.features.payment.crud.payment import crud_payment
+from app.features.payment.models.payment_method import PaymentMethod
 
 
 @pytest.fixture
@@ -25,7 +26,9 @@ def anyio_backend() -> str:
     return "asyncio"
 
 
-def _make_session(order: Any, order_status: Any = None) -> Any:
+def _make_session(
+    order: Any, order_status: Any = None, method_fee: Decimal = Decimal("0")
+) -> Any:
     session = AsyncMock()
     session.add = Mock()
 
@@ -34,6 +37,8 @@ def _make_session(order: Any, order_status: Any = None) -> Any:
             return order
         if model is OrderStatus:
             return order_status
+        if model is PaymentMethod:
+            return SimpleNamespace(fee=method_fee)
         raise AssertionError(f"unexpected session.get({model!r})")
 
     session.get = _get
@@ -411,3 +416,75 @@ async def test_initiate_rejects_order_parked_in_payment_review(
     assert exc_info.value.status_code == 409
     assert exc_info.value.code == "payment.order.not_payable"
     service_mock.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_initiate_refuses_a_method_without_the_billed_fee(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Audit 2026-11, S9: quoted with a free method (the order total holds no
+    fee), paid with a charged one — its fee was never billed."""
+    user = _make_user()
+    order = SimpleNamespace(
+        id=uuid4(),
+        user_id=user.id,
+        order_status_id=uuid4(),
+        total_amount=Decimal("25000.00"),
+        payment_fee_amount=Decimal("0.00"),
+    )
+    session = _make_session(
+        order=order,
+        order_status=SimpleNamespace(name="AwaitingPayment"),
+        method_fee=Decimal("500"),
+    )
+    _patch_order_payments(monkeypatch, [_order_payment(currency="XPF")])
+    service_mock = _patch_initiation_service(monkeypatch)
+
+    with pytest.raises(AppError) as exc_info:
+        await initiate_payment(
+            session=session,
+            request=_make_request(order_id=order.id),
+            current_user=cast(Any, user),
+        )
+
+    assert exc_info.value.code == "payment.method.fee_mismatch"
+    service_mock.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_initiate_accepts_the_checkout_method_whatever_its_fee_now(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    user = _make_user()
+    order = SimpleNamespace(
+        id=uuid4(),
+        user_id=user.id,
+        order_status_id=uuid4(),
+        total_amount=Decimal("25000.00"),
+        payment_fee_amount=Decimal("0.00"),
+    )
+    session = _make_session(
+        order=order,
+        order_status=SimpleNamespace(name="AwaitingPayment"),
+        method_fee=Decimal("500"),  # changed by the admin since the checkout
+    )
+    request = _make_request(order_id=order.id)
+    checkout_payment, status = _order_payment(currency="XPF")
+    checkout_payment.payment_method_id = request.payment_method_id
+    _patch_order_payments(monkeypatch, [(checkout_payment, status)])
+    service_mock = _patch_initiation_service(monkeypatch)
+    service_mock.return_value = SimpleNamespace(
+        payment=SimpleNamespace(id=uuid4()),
+        provider_code="payzen",
+        provider_reference=None,
+        form_token=None,
+        server_url=None,
+        public_key=None,
+        redirect_url=None,
+        instructions=None,
+    )
+
+    await initiate_payment(
+        session=session, request=request, current_user=cast(Any, user)
+    )
+    service_mock.assert_awaited_once()

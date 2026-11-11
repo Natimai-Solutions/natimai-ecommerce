@@ -23,6 +23,7 @@ from app.features.order.services.status import FULFILLMENT_STATUSES
 from app.features.payment.crud.payment import crud_payment
 from app.features.payment.crud.payment_status import crud_payment_status
 from app.features.payment.models.payment import Payment
+from app.features.payment.models.payment_method import PaymentMethod
 from app.features.payment.models.payment_status import (
     PaymentStatus,
     PaymentStatusCreate,
@@ -701,6 +702,7 @@ async def _validate_order_for_initiation(
     amount: Decimal,
     currency: str,
     current_user: Any,
+    payment_method_id: uuid.UUID | None = None,
 ) -> str:
     """Server-side revalidation of a client-initiated payment tied to an order.
 
@@ -818,11 +820,58 @@ async def _validate_order_for_initiation(
                 "kind": kind,
             },
         )
+    if kind != KIND_BALANCE and payment_method_id is not None:
+        await _check_method_fee_amount(
+            session, order, order_payments, payment_method_id, currency
+        )
     if kind != KIND_BALANCE:
         # A refused payment or the reservation sweep gave the stock back:
         # take it again before this attempt, or refuse it (audit 2026-11, B2).
         await reserve_released_order_stock(session, order_id=order_id)
     return kind
+
+
+async def _check_method_fee_amount(
+    session: SessionDep,
+    order: Order,
+    order_payments: list[tuple[Any, str | None]],
+    payment_method_id: uuid.UUID,
+    currency: str,
+) -> None:
+    """The method paid with must carry the fee the order was billed
+    (audit 2026-11, S9).
+
+    The amount is checked against the order, which embeds the fee of the
+    method chosen at checkout: quoting with a free method and paying with
+    a charged one skipped its fee. The checkout's own method always passes;
+    another one only with the very same fee.
+    """
+    if any(
+        getattr(payment, "payment_method_id", None) == payment_method_id
+        for payment, _status in order_payments
+    ):
+        return
+    method = await session.get(PaymentMethod, payment_method_id)
+    if method is None:
+        # Unknown method: initiate_payment_for_method reports it.
+        return
+    billed = quantize_amount(
+        Decimal(getattr(order, "payment_fee_amount", None) or 0), currency
+    )
+    if quantize_amount(Decimal(method.fee or 0), currency) != billed:
+        raise AppError(
+            code="payment.method.fee_mismatch",
+            status_code=409,
+            message=(
+                "Ce moyen de paiement n'a pas les frais de la commande : "
+                "choisissez celui de la commande."
+            ),
+            details={
+                "order_id": str(order.id),
+                "payment_method_id": str(payment_method_id),
+                "billed_fee": str(billed),
+            },
+        )
 
 
 @router.post("/initiate", response_model=PaymentsInitiateResponse)
@@ -841,6 +890,7 @@ async def initiate_payment(
                 amount=request.amount,
                 currency=request.currency,
                 current_user=current_user,
+                payment_method_id=request.payment_method_id,
             )
 
         result = await initiate_payment_for_method(

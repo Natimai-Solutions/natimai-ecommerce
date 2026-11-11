@@ -204,6 +204,10 @@ takes a tag as its `ref`.
   status before payment; the capture at « InTransit » no longer sends it back.
 - Stock (B7): the reservation sweep filters and orders its batch in SQL, so
   orders it must skip no longer fill every batch.
+- Payments (audit 2026-11, S9): `POST /payments/initiate` refuses
+  (`payment.method.fee_mismatch`, 409) a method other than the checkout's
+  whose fee differs from the one billed on the order — quoting with a free
+  method and paying with a charged one skipped its fee.
 - Storefront (U1): the mobile menu button announced `$t('layout.menu')`
   literally to screen readers; the design guard now rejects a static
   attribute containing `$t(`.
