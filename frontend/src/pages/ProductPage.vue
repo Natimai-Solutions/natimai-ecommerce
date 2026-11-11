@@ -41,6 +41,7 @@
             :alt="product.name"
             :ratio="4 / 3"
             glyph-size="120px"
+            sizes="(max-width: 1023px) 100vw, 50vw"
             eager
           />
           <div

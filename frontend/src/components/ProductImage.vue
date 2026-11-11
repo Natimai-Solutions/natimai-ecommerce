@@ -3,8 +3,11 @@
     <img
       v-if="src && !failed"
       :src="src"
+      :srcset="srcset"
+      :sizes="srcset ? sizes : undefined"
       :alt="alt"
       :loading="eager ? 'eager' : 'lazy'"
+      :fetchpriority="eager ? 'high' : undefined"
       decoding="async"
       class="product-image__img"
       @error="failed = true"
@@ -21,7 +24,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
+
+import { mediaSrcset } from '@/utils/mediaSrcset';
 
 /**
  * Photo produit posée sur un « puits » neutre, en entier (jamais recadrée).
@@ -36,9 +41,19 @@ const props = withDefaults(
     ratio?: number;
     glyphSize?: string;
     eager?: boolean;
+    /** Rendered width, for the browser to pick a size (cards by default). */
+    sizes?: string;
   }>(),
-  { ratio: 1, glyphSize: '56px', eager: false },
+  {
+    ratio: 1,
+    glyphSize: '56px',
+    eager: false,
+    sizes: '(max-width: 599px) 50vw, (max-width: 1023px) 33vw, 300px',
+  },
 );
+
+/** Smaller WebP widths of a shop upload; `eager` marks the LCP image. */
+const srcset = computed(() => mediaSrcset(props.src));
 
 const failed = ref(false);
 watch(

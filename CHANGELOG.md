@@ -254,6 +254,18 @@ takes a tag as its `ref`.
   axios' « Request failed with status code 503 ».
 - Storefront: signing out forgets the cart on this device (the account's
   server cart is kept); on a shared computer the next person saw it.
+- Storefront (audit 2026-11, U3–U7): on mobile the checkout recap folds
+  behind a one-line total; « Payer » says what is still missing; the
+  address form takes the browser's autofill (`autocomplete`, no field
+  waiting for another); the mobile filter panel is a modal dialog (focus
+  trapped, Escape, no scroll behind); the search suggestions are a keyboard
+  combobox (arrows, Enter, `aria-activedescendant`).
+- Admin: the 57 icon-only buttons have an `aria-label` (their tooltip was
+  the only name); `shared/ui/src/a11y-guard.test.ts` refuses an icon
+  `q-btn` without one in both apps.
+- Storefront: shop images get a `srcset` of their WebP widths (480 / 960 /
+  1600 px, derived from the stored URL) and `sizes`; the product page's
+  main photo is `fetchpriority="high"`.
 - Storefront (U1): the mobile menu button announced `$t('layout.menu')`
   literally to screen readers; the design guard now rejects a static
   attribute containing `$t(`.
