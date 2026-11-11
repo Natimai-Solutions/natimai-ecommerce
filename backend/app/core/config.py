@@ -411,10 +411,17 @@ class Settings(BaseSettings):
     # Per-IP throttle on POST /login/access-token (Redis-backed, fail-open).
     LOGIN_RATE_LIMIT_ATTEMPTS: int = 10
     LOGIN_RATE_LIMIT_WINDOW_SECONDS: int = 60
-    # Per-account lockout: after N consecutive wrong passwords the account is
-    # locked for LOGIN_LOCKOUT_MINUTES (counter resets on successful login).
+    # Lockout per (account, client IP): after N wrong passwords from one
+    # address that address is locked out of the account for
+    # LOGIN_LOCKOUT_MINUTES — the owner, elsewhere, still signs in (an
+    # attacker could otherwise lock any account, admin included, at will:
+    # audit 2026-11, S11). Redis-backed, reset by a successful sign-in.
     LOGIN_LOCKOUT_MAX_FAILURES: int = 5
     LOGIN_LOCKOUT_MINUTES: int = 15
+    # Account-wide guard against a distributed brute force: this many
+    # consecutive failures, whatever the address, lock the account itself
+    # for LOGIN_LOCKOUT_MINUTES. A password reset lifts it.
+    LOGIN_ACCOUNT_LOCKOUT_MAX_FAILURES: int = 50
     # Throttle sur la demande de réinitialisation. Il protège autant la boîte
     # du client (harcèlement par renvois) que le quota du fournisseur d'emails.
     # Fenêtre plus large que le login : une demande légitime est rare.

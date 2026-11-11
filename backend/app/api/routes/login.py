@@ -115,7 +115,10 @@ async def login_access_token(
     user_agent = request.headers.get("user-agent")
     try:
         user = await crud_user.authenticate(
-            session=session, email=form_data.username, password=form_data.password
+            session=session,
+            email=form_data.username,
+            password=form_data.password,
+            client_ip=client_ip,
         )
     except AccountLockedError as exc:
         raise AppError(
@@ -165,7 +168,9 @@ async def login_access_token(
                 user_agent=user_agent,
             )
             try:
-                await crud_user.register_failed_attempt(session, user)
+                await crud_user.register_failed_attempt(
+                    session, user, client_ip=client_ip
+                )
             except AccountLockedError as exc:
                 raise AppError(
                     code="login.account.locked",

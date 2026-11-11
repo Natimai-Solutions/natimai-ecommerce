@@ -58,7 +58,6 @@ Détail, fichiers et scénarios : [`AUDIT_2026-11.md`](AUDIT_2026-11.md) (identi
 - Audit du 11/11/2026, gravité moyenne ([`AUDIT_2026-11.md`](AUDIT_2026-11.md) §1) — M au total :
   - **S8** : relance de panier abandonné seulement vers une adresse vérifiée (double opt-in invité) ;
   - **S10** : neutraliser `= + - @` en tête de cellule dans tous les exports CSV admin ;
-  - **S11** : verrouillage de compte par (compte, IP) ou délai progressif, plus e-mail de déblocage.
 - Audit, durcissement (gravité basse, liste complète dans l'audit) : limite de fréquence et erreur unique sur les endpoints 2FA ; mot de passe exigé pour supprimer un compte lié à OAuth ; codes de secours en HMAC ; le changement de mot de passe invalide le lien de reset ; `Cancelled` parmi les statuts de paiement terminaux ; limite « 1 coupon par client » et remboursement admin sous verrou ; devise et montant obligatoires dans l'IPN ; quantité panier bornée ; allow-list IP Caddy étendue aux routes superuser hors `/admin` ; webhook sortant et flux fournisseur protégés contre le SSRF ; clé Icecat retirée des logs ; ClamAV et plafond décompressé sur l'import XLSX ; `user_id` retiré des avis et wishlists publics ; alertes stock limitées à l'e-mail du compte ; CI (`GIST_SECRET` limité aux étapes de badge, blocs `permissions:`, actions tierces épinglées par SHA, *required reviewers* sur l'environnement `production`) ; `requirepass` Redis — M.
 
 ---

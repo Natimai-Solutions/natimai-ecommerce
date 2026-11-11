@@ -466,8 +466,9 @@ widget adds it); the API verifies it at
 the widget at <https://dash.cloudflare.com/?to=/:account/turnstile> with the
 shop's bare domain; the storefront CSP already allows
 `challenges.cloudflare.com`. Leave both keys empty for no captcha.
-| `LOGIN_LOCKOUT_MAX_FAILURES` | `5` | Consecutive wrong passwords before the account locks |
-| `LOGIN_LOCKOUT_MINUTES` | `15` | Account lock duration |
+| `LOGIN_LOCKOUT_MAX_FAILURES` | `5` | Wrong passwords from one address before that address is locked out of the account (the owner, elsewhere, still signs in) |
+| `LOGIN_LOCKOUT_MINUTES` | `15` | Lock duration (per address, and account-wide) |
+| `LOGIN_ACCOUNT_LOCKOUT_MAX_FAILURES` | `50` | Consecutive failures from any addresses before the account itself locks (distributed brute force); a password reset lifts it |
 
 ---
 

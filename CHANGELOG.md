@@ -226,6 +226,13 @@ takes a tag as its `ref`.
   took (pending reservations, and paid orders not yet ordered from the
   supplier). At checkout the live answer is settled again under the stock
   locks, so a concurrent reservation is counted.
+- Security (audit 2026-11, S11): the login lockout is per (account,
+  address): five wrong passwords lock that address out of the account for
+  15 minutes, the owner still signs in from elsewhere — anyone could lock
+  any account, an administrator's included, indefinitely. A new
+  `LOGIN_ACCOUNT_LOCKOUT_MAX_FAILURES` (50 consecutive failures, any
+  address) locks the account itself against a distributed brute force; a
+  password reset lifts it.
 - Storefront (U1): the mobile menu button announced `$t('layout.menu')`
   literally to screen readers; the design guard now rejects a static
   attribute containing `$t(`.
