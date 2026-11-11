@@ -183,6 +183,27 @@ takes a tag as its `ref`.
   back the store credit of the redeemed ones, within the holder's balance;
   what was already spent, and the cards of a partially refunded order, are
   reported to the admin (log + `ALERT_WEBHOOK_URL`).
+- Stock (audit 2026-11, B1): every move of an order to « Cancelled » (the
+  admin's included, not only the customer's) releases its pending stock
+  reservations and gives the promo-code use back, once
+  (`release_cancelled_order_holds`, called by `set_order_status`).
+- Stock (B2): a new payment attempt on an order whose reservations were
+  released (refused card, reservation sweep) takes the same quantities again
+  under the stock locks, or is refused with `payment.order.out_of_stock`
+  (409). Paid later, such an order used to be sold with no stock behind it.
+  The sweep now also covers « PaymentFailed » orders.
+- Payments (B3): with `PAYZEN_MANUAL_VALIDATION`, the `AUTHORISED`
+  notification publishes `payment.authorized`; the order moves to « Paid »
+  (« DepositPaid ») so the sweep keeps its stock and it reaches the step that
+  captures it. Stock confirmation, invoice and gift cards still wait for the
+  capture.
+- Stock (B5): a released reservation is credited back to `supplier_quantity`
+  for every product the checkout took it from, manual products with a
+  `supplier_name` included (they lost it for good).
+- Orders (B6): a settled payment moves an order to « Paid » only from a
+  status before payment; the capture at « InTransit » no longer sends it back.
+- Stock (B7): the reservation sweep filters and orders its batch in SQL, so
+  orders it must skip no longer fill every batch.
 - Storefront (U1): the mobile menu button announced `$t('layout.menu')`
   literally to screen readers; the design guard now rejects a static
   attribute containing `$t(`.

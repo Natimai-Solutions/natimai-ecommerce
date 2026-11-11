@@ -53,6 +53,9 @@ _STATUS_FOR_OUTCOME: dict[str, str] = {
 }
 _EVENT_FOR_OUTCOME: dict[str, str] = {
     OUTCOME_COMPLETED: "payment.captured",
+    # Deferred capture (audit 2026-11, B3): the order moves on, the debit
+    # follows at the configured fulfilment step.
+    OUTCOME_AUTHORIZED: "payment.authorized",
     OUTCOME_FAILED: "payment.rejected",
 }
 _SUCCESS = {OUTCOME_COMPLETED, OUTCOME_AUTHORIZED}

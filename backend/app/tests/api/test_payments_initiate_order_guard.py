@@ -79,6 +79,12 @@ def _patch_order_payments(
 ) -> AsyncMock:
     mock = AsyncMock(return_value=payments)
     monkeypatch.setattr(crud_payment, "list_with_status_by_order_id", mock)
+    # The stock re-reservation (B2) is covered with a real database in
+    # integration/test_payment_retry_stock.py.
+    monkeypatch.setattr(
+        "app.api.routes.payments.reserve_released_order_stock",
+        AsyncMock(return_value=0),
+    )
     return mock
 
 

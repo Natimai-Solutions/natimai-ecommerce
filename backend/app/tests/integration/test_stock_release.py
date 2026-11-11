@@ -130,3 +130,40 @@ async def test_confirm_completes_movements_without_touching_stock(
 
     # A release AFTER confirmation must be a no-op (nothing PENDING left).
     assert await release_order_stock(db_session, order_id=order_id) == 0
+
+
+@pytest.mark.asyncio
+async def test_release_credits_a_manual_product_linked_to_a_supplier(
+    db_session: AsyncSession,
+) -> None:
+    """Audit 2026-11, B5: the checkout takes from ``supplier_quantity`` any
+    product with a ``supplier_name``; the release only gave it back to the
+    synced ones, so a manual product lost the units for good."""
+    order_id = uuid.uuid4()
+    product = Product(
+        name="Saisi à la main",
+        base_price=Decimal("1000.00"),
+        supplier_name="grossiste",
+        supplier_quantity=Decimal("4.00"),  # 5 - 1 reserved
+        is_supplier_managed=False,
+    )
+    db_session.add(product)
+    await db_session.flush()
+    product_id = product.id
+    db_session.add(
+        InventoryStockMovement(
+            movement_type=MovementType.OUTGOING.value,
+            reference_type=ReferenceType.ORDER.value,
+            reference_id=order_id,
+            product_id=product_id,
+            quantity=Decimal("1.00"),
+            reason="Supplier stock reserved during checkout (segment=supplier_direct)",
+            status=MovementStatus.PENDING.value,
+        )
+    )
+    await db_session.commit()
+
+    assert await release_order_stock(db_session, order_id=order_id) == 1
+    await db_session.commit()
+    refreshed = await db_session.get(Product, product_id)
+    assert refreshed is not None and refreshed.supplier_quantity == Decimal("5.00")

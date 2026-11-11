@@ -63,6 +63,13 @@ ORDER_STATUS_PARTIALLY_PAID = "PartiallyPaid"
 _BEFORE_PAYMENT_ORDER_STATUSES: frozenset[str] = frozenset(
     {"Pending", "AwaitingPayment", "PartiallyPaid", "PaymentFailed"}
 )
+#: Statuses a settled payment moves to « Paid » / « DepositPaid ». An order
+#: already paid, or on its way, keeps its status: the capture of an
+#: authorisation at the shipment (``InTransit``) used to send it back to
+#: « Paid » (audit 2026-11, B6).
+_ADVANCE_ON_PAYMENT_ORDER_STATUSES: frozenset[str] = _BEFORE_PAYMENT_ORDER_STATUSES | {
+    "PaymentReview"
+}
 # Terminal-for-automation status: money was taken but the amounts disagree, so a
 # human must decide. Never set by the nominal flow — see
 # ``_handle_captured_amount_mismatch``.
@@ -325,6 +332,67 @@ async def _handle_captured_amount_mismatch(
     )
 
 
+async def _advance_order_on_payment(
+    session: AsyncSession,
+    *,
+    payload: dict[str, Any],
+    order: Order | None,
+    kind: str,
+) -> None:
+    """« Paid » (or « DepositPaid ») — only from a status before payment."""
+    if order is not None:
+        current = await session.get(OrderStatus, order.order_status_id)
+        if (
+            current is not None
+            and current.name not in _ADVANCE_ON_PAYMENT_ORDER_STATUSES
+        ):
+            logger.info(
+                "Order %s kept in %s on payment %s",
+                order.id,
+                current.name,
+                payload.get("payment_id"),
+            )
+            return
+    await _sync_order_status(
+        session,
+        payload=payload,
+        target_status_name=(
+            ORDER_STATUS_DEPOSIT_PAID if kind == KIND_DEPOSIT else ORDER_STATUS_PAID
+        ),
+    )
+
+
+@outbox_handler("payment.authorized")
+async def on_payment_authorized(session: AsyncSession, payload: dict[str, Any]) -> None:
+    """A card authorised, its capture deferred (``PAYZEN_MANUAL_VALIDATION``).
+
+    The order is secured: it moves to « Paid » (« DepositPaid ») like on a
+    capture, so the sweep leaves its reservation alone and it follows its
+    departure up to the step that captures it. Nothing is consumed yet: the
+    stock is confirmed, the invoice and the gift cards issued, when
+    ``payment.captured`` arrives (audit 2026-11, B3).
+    """
+    logger.info(
+        "Payment authorized: payment_id=%s order_id=%s",
+        payload.get("payment_id"),
+        payload.get("order_id"),
+    )
+    mismatch = await _captured_amount_mismatch(session, payload=payload)
+    if mismatch == PARTIAL:
+        return
+    if isinstance(mismatch, dict):
+        await _handle_captured_amount_mismatch(
+            session, payload=payload, mismatch=mismatch
+        )
+        return
+    payment, order = await _load_payment_and_order(session, payload)
+    kind = _payment_kind(payment)
+    if kind == KIND_BALANCE:
+        # The deposit already secured the order; the capture settles it.
+        return
+    await _advance_order_on_payment(session, payload=payload, order=order, kind=kind)
+
+
 @outbox_handler("payment.captured")
 async def on_payment_captured(session: AsyncSession, payload: dict[str, Any]) -> None:
     """Handle the payment captured event."""
@@ -360,13 +428,7 @@ async def on_payment_captured(session: AsyncSession, payload: dict[str, Any]) ->
             )
         await session.commit()
         return
-    await _sync_order_status(
-        session,
-        payload=payload,
-        target_status_name=(
-            ORDER_STATUS_DEPOSIT_PAID if kind == KIND_DEPOSIT else ORDER_STATUS_PAID
-        ),
-    )
+    await _advance_order_on_payment(session, payload=payload, order=order, kind=kind)
     # The stock reserved at checkout is now definitively consumed.
     order_id = _parse_order_id(payload)
     if order_id is not None:

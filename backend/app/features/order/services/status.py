@@ -81,6 +81,36 @@ async def get_or_create_order_status(session: AsyncSession, name: str) -> OrderS
     return created
 
 
+ORDER_STATUS_CANCELLED = "Cancelled"
+
+
+async def release_cancelled_order_holds(session: AsyncSession, *, order: Order) -> int:
+    """What a cancelled order gives back: its pending stock reservations and
+    the use of its promo code (audit 2026-11, B1).
+
+    Called by :func:`set_order_status` on the move to ``Cancelled`` — the
+    customer's cancellation, the admin's, any other path — and only on the
+    move itself, so the coupon use comes back once. A paid order's stock
+    (movements already COMPLETED) is not touched: it is returned by hand.
+    Returns the number of reservations released. No commit.
+    """
+    from sqlalchemy import update
+
+    from app.features.discount.models import Discount
+    from app.features.inventory.services.stock_release import release_order_stock
+
+    released = await release_order_stock(session, order_id=order.id)
+    if order.discount_id is not None:
+        await session.execute(
+            update(Discount)
+            .where(
+                col(Discount.id) == order.discount_id, col(Discount.current_uses) > 0
+            )
+            .values(current_uses=Discount.current_uses - 1)
+        )
+    return released
+
+
 async def set_order_status(
     session: AsyncSession,
     *,
@@ -92,7 +122,8 @@ async def set_order_status(
     """Move ``order`` to ``status_name`` and publish the change.
 
     Returns False (and does nothing) when the order is already there. Does not
-    commit: the caller owns the transaction.
+    commit: the caller owns the transaction. A move to ``Cancelled`` also
+    releases what the order held (:func:`release_cancelled_order_holds`).
     """
     if status_name not in ALL_ORDER_STATUSES:
         raise ValueError(f"unknown order status '{status_name}'")
@@ -100,6 +131,9 @@ async def set_order_status(
     old_name = current.name if current else None
     if old_name == status_name:
         return False
+
+    if status_name == ORDER_STATUS_CANCELLED:
+        await release_cancelled_order_holds(session, order=order)
 
     target = await get_or_create_order_status(session, status_name)
     order.order_status_id = target.id

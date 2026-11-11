@@ -324,3 +324,79 @@ async def test_reorder_puts_the_articles_still_sold_back_into_the_cart(
     with pytest.raises(AppError) as foreign:
         await reorder_into_cart(db_session, stranger, order_id)
     assert foreign.value.code == "order.not_found"
+
+
+@pytest.mark.asyncio
+async def test_an_admin_cancellation_gives_back_stock_and_coupon(
+    db_session: AsyncSession,
+) -> None:
+    """Audit 2026-11, B1: the customer's cancellation released the stock and
+    the coupon use, the admin's did not — stock held for good, a limited
+    code exhausted early. Every move to Cancelled now does both, once."""
+    from app.api.routes.admin_orders import (
+        OrderStatusChangeRequest,
+        change_order_status,
+    )
+    from app.features.inventory.models.inventory import Inventory
+    from app.features.inventory.models.stock_movement import (
+        InventoryStockMovement,
+        MovementStatus,
+        MovementType,
+        ReferenceType,
+    )
+
+    buyer = await _user(db_session)
+    coupon = Discount(
+        name="Limité",
+        discount_type=DiscountType.COUPON,
+        target=DiscountTarget.ORDER,
+        code=f"LIM{uuid.uuid4().hex[:4]}",
+        amount=Decimal("1000"),
+        max_uses=5,
+        current_uses=5,
+    )
+    product = Product(name="Casque", base_price=Decimal("30000"))
+    db_session.add_all([coupon, product])
+    await db_session.flush()
+    coupon_id, product_id = coupon.id, product.id
+    inventory = Inventory(
+        product_id=product_id, quantity=Decimal("0"), compute_from_movements=False
+    )
+    db_session.add(inventory)
+    await db_session.flush()
+    inventory_id = inventory.id
+    await db_session.commit()
+    order_id, _ = await _order(
+        db_session,
+        buyer,
+        order_status="Pending",
+        payment_status="Pending",
+        discount_id=coupon_id,
+    )
+    db_session.add(
+        InventoryStockMovement(
+            movement_type=MovementType.OUTGOING.value,
+            reference_type=ReferenceType.ORDER.value,
+            reference_id=order_id,
+            product_id=product_id,
+            quantity=Decimal("1"),
+            reason="Local stock reserved during checkout (segment=local)",
+            status=MovementStatus.PENDING.value,
+        )
+    )
+    await db_session.commit()
+
+    admin = cast(Any, SimpleNamespace(id=uuid.uuid4()))
+    for _ in range(2):  # the second request changes nothing
+        await change_order_status(
+            order_id,
+            OrderStatusChangeRequest(status="Cancelled"),
+            db_session,
+            admin,
+        )
+
+    refreshed_inventory = await db_session.get(Inventory, inventory_id)
+    assert refreshed_inventory is not None
+    assert refreshed_inventory.quantity == Decimal("1")
+    refreshed_coupon = await db_session.get(Discount, coupon_id)
+    assert refreshed_coupon is not None and refreshed_coupon.current_uses == 4

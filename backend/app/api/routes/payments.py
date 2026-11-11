@@ -16,6 +16,7 @@ from app.features.attachment.service import (
     register_uploaded_attachment,
 )
 from app.features.base.crud import RecordNotFoundError
+from app.features.inventory.services.stock_release import reserve_released_order_stock
 from app.features.order.models.order import Order
 from app.features.order.models.order_status import OrderStatus
 from app.features.order.services.status import FULFILLMENT_STATUSES
@@ -244,6 +245,11 @@ def _resolve_outcome_event_for_trans_status(trans_status: str | None) -> str | N
     """
     if trans_status == _PAID_TRANS_STATUS:
         return "payment.captured"
+    if trans_status == _AUTHORISED_TRANS_STATUS:
+        # Deferred capture: the order is secured, its capture comes later
+        # (audit 2026-11, B3 — nothing was published, the order stayed
+        # Pending and the sweep gave its stock away).
+        return "payment.authorized"
     if trans_status in _FAILED_TRANS_STATUSES:
         return "payment.rejected"
     return None
@@ -812,6 +818,10 @@ async def _validate_order_for_initiation(
                 "kind": kind,
             },
         )
+    if kind != KIND_BALANCE:
+        # A refused payment or the reservation sweep gave the stock back:
+        # take it again before this attempt, or refuse it (audit 2026-11, B2).
+        await reserve_released_order_stock(session, order_id=order_id)
     return kind
 
 

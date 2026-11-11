@@ -15,7 +15,6 @@ sur le serveur, chez un tiers ou une décision.
 
 Détail, fichiers et scénarios : [`AUDIT_2026-11.md`](AUDIT_2026-11.md) (identifiants S·, B·, F·, U·).
 
-- **Machine d'états du stock** (B1, B2, B3, B5) : un seul service « réserver / confirmer / libérer » appelé à chaque changement de statut — annulation admin (stock et usage de coupon rendus), nouveau paiement après `PaymentFailed` (re-réservation sous verrou), autorisation seule (`AUTHORISED` publie un événement, le sweep l'épargne), recrédit selon `has_supplier_stock` — M.
 - **B4** : ne plus écraser `supplier_quantity` par le stock live fournisseur (instantané séparé, disponible = live − réservations en cours, sous verrou) — M.
 - **S9** : à l'initiation du paiement, refuser un moyen différent de celui du devis (ou recalculer les frais) — S.
 - **S2** : session admin isolée de la boutique (cookie de refresh distinct, ou refus d'émettre un token superuser hors origine admin) — M.
@@ -150,8 +149,6 @@ Détail, fichiers et scénarios : [`AUDIT_2026-11.md`](AUDIT_2026-11.md) (identi
 - **Node 26 LTS** (fin 2026) : Dependabot ne la proposera pas (règle d'exclusion des majeures impaires).
 - `session.execute()` dans `order_number.py` : à trancher si l'avertissement devient une erreur.
 - Robustesse backend relevée par l'audit du 11/11/2026 ([`AUDIT_2026-11.md`](AUDIT_2026-11.md) §2) — M au total :
-  - **B6** : un `payment.captured` tardif ne fait plus reculer le statut de la commande (avancer seulement depuis les statuts « avant paiement ») ;
-  - **B7** : sweep des réservations filtré sur `Pending`, trié par date ;
   - outbox : reprise des événements restés `RUNNING`, `MAX_ATTEMPTS` appliqué ;
   - avoir émis plus tard si le remboursement précède la facture ; `balance_requested_at` posé seulement si l'e-mail part ; liaison au suivi en `begin_nested()` dans le checkout ; prix quantifiés selon la devise de référence (XPF sans décimales, voir aussi `split_incl_tax` au §8) ; branche `order is None` morte dans `_sync_order_status`.
 - Troncature bcrypt à 72 octets : ne corriger (pré-hachage) que dans une opération de réinitialisation générale prévue pour ça.

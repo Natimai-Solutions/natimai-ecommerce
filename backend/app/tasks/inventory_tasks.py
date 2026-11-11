@@ -31,9 +31,11 @@ from app.features.order.models.order_status import OrderStatus
 
 logger = logging.getLogger(__name__)
 
-#: The only order status the sweep will touch. An order is created in this
-#: state by the checkout and leaves it as soon as any payment outcome lands.
-SWEEPABLE_ORDER_STATUS = "Pending"
+#: The order statuses the sweep touches. ``Pending``: created by the checkout,
+#: left as soon as any payment outcome lands. ``PaymentFailed``: a new payment
+#: attempt takes the stock again (``reserve_released_order_stock``) and may be
+#: abandoned too (audit 2026-11, B2).
+SWEEPABLE_ORDER_STATUSES: frozenset[str] = frozenset({"Pending", "PaymentFailed"})
 
 #: Orders inspected per run. A sweep is a background chore; capping it keeps
 #: one run bounded and lets the next cron pick up the remainder.
@@ -66,9 +68,15 @@ async def release_expired_stock_reservations_task(
             session,
             older_than=cutoff,
             limit=SWEEP_BATCH_SIZE,
+            order_status_names=SWEEPABLE_ORDER_STATUSES,
         )
         if not order_ids:
-            return {"status": "ok", "released_orders": 0, "released_movements": 0}
+            return {
+                "status": "ok",
+                "released_orders": 0,
+                "released_movements": 0,
+                "skipped_orders": 0,
+            }
 
         for order_id in order_ids:
             order = await session.get(Order, order_id)
@@ -81,7 +89,7 @@ async def release_expired_stock_reservations_task(
                 )
             else:
                 status = await session.get(OrderStatus, order.order_status_id)
-                if getattr(status, "name", None) != SWEEPABLE_ORDER_STATUS:
+                if getattr(status, "name", None) not in SWEEPABLE_ORDER_STATUSES:
                     # Paid / AwaitingPayment / PaymentReview / refunded: an
                     # event or an operator owns this order, not the sweep.
                     skipped += 1
