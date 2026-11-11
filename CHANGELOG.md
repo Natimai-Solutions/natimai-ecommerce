@@ -238,6 +238,13 @@ takes a tag as its `ref`.
   15 minutes, 5 tries), sent with the authenticator's code to `/confirm`
   (`email_code`). A stolen password alone no longer enrols the thief's
   authenticator. Admin → Sécurité asks for it.
+- Storefront (audit 2026-11, F1): each server render runs in its own
+  `AsyncLocalStorage` scope (`src-ssr/middlewares/render.ts`); the API
+  language, the formatting context (`setFormatContextResolver` in
+  `@app/utils`) and the i18n composer of the store messages are read from
+  it. Concurrent French and English renders shared them as module
+  variables: wrong `Accept-Language`, wrong date format, hydration
+  mismatches.
 - Storefront (U1): the mobile menu button announced `$t('layout.menu')`
   literally to screen readers; the design guard now rejects a static
   attribute containing `$t(`.

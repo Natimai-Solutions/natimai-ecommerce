@@ -2,6 +2,8 @@ import { ref } from 'vue';
 import { createApiClient } from '@app/api-client';
 import type { AxiosInstance } from '@app/api-client';
 
+import { currentRequestScope } from '@/ssr/requestScope';
+
 /**
  * Access token kept in memory only — never localStorage. The refresh token is
  * an HttpOnly cookie (unreadable by JS). The token is set exclusively in the
@@ -22,5 +24,6 @@ export const api: AxiosInstance = createApiClient({
   clearTokens: () => {
     accessToken.value = null;
   },
-  getLocale: () => apiLocale.value,
+  // Server render: this request's language, not the last one set (F1).
+  getLocale: () => currentRequestScope()?.locale ?? apiLocale.value,
 });

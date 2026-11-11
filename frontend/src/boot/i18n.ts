@@ -3,12 +3,16 @@ import { Cookies, Lang } from 'quasar';
 import langEn from 'quasar/lang/en-GB.js';
 import langFr from 'quasar/lang/fr.js';
 import { createI18n } from 'vue-i18n';
-import { configureFormatting } from '@app/utils';
+import { configureFormatting, setFormatContextResolver } from '@app/utils';
 
 import { apiLocale } from '@/boot/api';
 import messages, { type MessageSchema } from '@/i18n';
 import { setGlobalI18n } from '@/i18n/global';
 import { LOCALE_COOKIE, resolveLocale, type AppLocale } from '@/i18n/locale';
+import { currentRequestScope, requestFormatContext } from '@/ssr/requestScope';
+
+// Server render: dates and amounts follow the request being rendered (F1).
+setFormatContextResolver(requestFormatContext);
 
 /* eslint-disable @typescript-eslint/no-empty-object-type */
 declare module 'vue-i18n' {
@@ -54,6 +58,11 @@ export default defineBoot(({ app, ssrContext }) => {
   });
   app.use(i18n);
   setGlobalI18n(i18n.global as unknown as Parameters<typeof setGlobalI18n>[0]);
+  const scope = server ? currentRequestScope() : undefined;
+  if (scope) {
+    scope.locale = locale;
+    scope.composer = i18n.global as unknown as NonNullable<typeof scope.composer>;
+  }
 
   Lang.set(QUASAR_LANGS[locale], server ? ssrContext : undefined);
   configureFormatting({ locale });

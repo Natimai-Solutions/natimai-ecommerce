@@ -67,7 +67,6 @@ Détail, fichiers et scénarios : [`AUDIT_2026-11.md`](AUDIT_2026-11.md) (identi
 - **SMS** (expédition, solde dû) — M.
 - Newsletter double opt-in (outil externe ou intégré, à choisir) ; analytics sans cookie (Plausible / Matomo).
 - Bugs vitrine relevés par l'audit du 11/11/2026 ([`AUDIT_2026-11.md`](AUDIT_2026-11.md) §2) :
-  - **F1** : locale, formatage et `composer` i18n par requête SSR (aujourd'hui singletons de module partagés entre rendus) — M ;
   - **F2** : jeton de séquence / `AbortController` sur la fiche produit (squelette infini), la recherche catalogue et le devis du checkout — S ;
   - le logout vide le panier local ; commande d'un devis accepté sans miroir du panier ; fuseau de la boutique appliqué côté client après hydratation ; retour de paiement 3-D Secure dans un autre navigateur (statut signé sans session) ; facture d'une commande via `GET /invoices/me/by-order/{id}` ; filtres du catalogue dans l'URL ; devis rechargé après `cart.price.changed` ; échec du script PayZen rattrapable — M.
 
