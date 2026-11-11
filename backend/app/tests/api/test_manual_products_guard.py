@@ -8,6 +8,7 @@ created next to it.
 """
 
 import uuid
+from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock
@@ -26,6 +27,21 @@ from app.services.suppliers import NormalizedProductData
 from app.services.suppliers.ingram_micro import IngramMicroAdapter
 
 SUPPLIER_NAME = IngramMicroAdapter.adapter_key
+
+
+@pytest.fixture(autouse=True)
+def _no_open_reservations(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The session here is a stand-in: no order holds supplier units, the
+    supplier's count is kept as is (B4 is covered in
+    integration/test_supplier_reservations.py)."""
+
+    async def _same(_session: object, _product_id: object, count: Decimal) -> Decimal:
+        return Decimal(count)
+
+    monkeypatch.setattr(
+        "app.features.integrations.services.supplier_sync_orchestrator.net_supplier_quantity",
+        _same,
+    )
 
 
 @pytest.fixture

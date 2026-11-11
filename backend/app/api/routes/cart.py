@@ -63,6 +63,7 @@ from app.features.discount.services.checkout_discount import (
 )
 from app.features.integrations.services.checkout_availability import (
     refresh_supplier_availability,
+    settle_live_supplier_quantities,
 )
 from app.features.inventory.crud import crud_inventory, crud_stock_movement
 from app.features.inventory.models.stock_movement import (
@@ -3290,7 +3291,9 @@ async def checkout_my_cart(
     # Ask the supplier what it actually has, rather than trusting a snapshot
     # that can be two hours old. Best-effort: an unreachable supplier leaves
     # the snapshot in place instead of refusing the sale.
-    await refresh_supplier_availability(session, list(products_by_id.values()))
+    live_supplier_quantities = await refresh_supplier_availability(
+        session, list(products_by_id.values())
+    )
 
     # Server-authoritative amounts: a line whose price moved since it was
     # added stops the checkout (the cart is refreshed so the client sees why).
@@ -3441,6 +3444,10 @@ async def checkout_my_cart(
 
         # Reserve on quantities no concurrent checkout is changing.
         await lock_stock_rows(session, products_by_id)
+        # The live supplier answer, less the reservations committed meanwhile.
+        await settle_live_supplier_quantities(
+            session, list(products_by_id.values()), live_supplier_quantities
+        )
 
         for item in items:
             product = products_by_id[item.product_id]

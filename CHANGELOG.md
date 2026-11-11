@@ -220,6 +220,12 @@ takes a tag as its `ref`.
   and the admin share the API and its cookie, so an XSS on the storefront
   could mint an admin access token. **Set it in production** (warned when
   missing outside `local`).
+- Stock (audit 2026-11, B4): the live supplier check at checkout, the
+  inventory sync and the catalogue sync no longer write the supplier's raw
+  count into `supplier_quantity`: they subtract the units our open orders
+  took (pending reservations, and paid orders not yet ordered from the
+  supplier). At checkout the live answer is settled again under the stock
+  locks, so a concurrent reservation is counted.
 - Storefront (U1): the mobile menu button announced `$t('layout.menu')`
   literally to screen readers; the design guard now rejects a static
   attribute containing `$t(`.

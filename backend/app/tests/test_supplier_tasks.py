@@ -71,6 +71,18 @@ class _FakeAsyncSession:
         return False
 
 
+@pytest.fixture(autouse=True)
+def _no_open_reservations(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The session here is a stand-in: no order holds supplier units, the
+    supplier's count is kept as is (B4 is covered in
+    integration/test_supplier_reservations.py)."""
+
+    async def _same(_session: object, _product_id: object, count: Decimal) -> Decimal:
+        return Decimal(count)
+
+    monkeypatch.setattr("app.tasks.supplier_tasks.net_supplier_quantity", _same)
+
+
 @pytest.fixture
 def anyio_backend() -> str:
     return "asyncio"
