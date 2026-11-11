@@ -624,16 +624,25 @@ class Settings(BaseSettings):
         return self.SHOP_MODE == "simple"
 
     def _check_default_secret(self, var_name: str, value: str | None) -> None:
-        """Check default secret."""
-        if value == "changethis":
-            message = (
-                f'The value of {var_name} is "changethis", '
-                "for security, please change it, at least for deployments."
-            )
-            if self.ENVIRONMENT == "local":
-                warnings.warn(message, stacklevel=1)
-            else:
-                raise ValueError(message)
+        """Refuse a placeholder secret (``changethis`` or any ``changeme-…``
+        value of ``.env.example``) outside local.
+
+        Only ``changethis`` used to be rejected: a copied ``.env.example``
+        then started in production with a public ``SECRET_KEY`` (anyone could
+        sign an admin JWT) and a public admin password. An empty value is not
+        a placeholder; other guards decide whether it is acceptable.
+        """
+        if not (value or "").strip() or secret_is_set(value):
+            return
+        message = (
+            f"The value of {var_name} is still a placeholder of .env.example "
+            '("changethis" / "changeme-…"): for security, set a real value, '
+            "at least for deployments."
+        )
+        if self.ENVIRONMENT == "local":
+            warnings.warn(message, stacklevel=1)
+        else:
+            raise ValueError(message)
 
     def _check_required_override(
         self, var_name: str, value: str, placeholder: str

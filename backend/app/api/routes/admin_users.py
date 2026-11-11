@@ -445,6 +445,11 @@ async def reset_two_factor(
     user = await _load_user(session, user_id)
     disable_two_factor(user)
     session.add(user)
+    # Lost phone or stolen session: the stored refresh sessions end with the
+    # new security stamp, not 30 days later.
+    await crud_user_refresh_token.revoke_all_active_for_user(
+        session=session, user_id=user_id, reason="2fa_reset"
+    )
     await session.commit()
     await session.refresh(user)
     group = (

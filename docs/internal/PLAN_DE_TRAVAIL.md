@@ -15,8 +15,6 @@ sur le serveur, chez un tiers ou une décision.
 
 Détail, fichiers et scénarios : [`AUDIT_2026-11.md`](AUDIT_2026-11.md) (identifiants S·, B·, F·, U·).
 
-- **S1** : refuser au démarrage les placeholders `changeme-…` de `.env.example` (`SECRET_KEY`, `POSTGRES_PASSWORD`, `FIRST_SUPERUSER_PASSWORD`) — `_check_default_secret` ne connaît que `changethis` ; réutiliser `secret_is_set()` + test. `SECURITY.md` affirme déjà ce contrôle — S.
-- **S4** : révoquer les refresh tokens au reset / à la désactivation de la 2FA ; idéalement porter le `security_stamp` dans le refresh token — S.
 - **S3** : cartes cadeaux exclues des remises, prix de groupe et promotions (ou émises au montant net payé) — S.
 - **S6** : un remboursement annule les cartes cadeaux de la commande et reprend l'avoir déjà converti, avec alerte admin — M.
 - **Machine d'états du stock** (B1, B2, B3, B5) : un seul service « réserver / confirmer / libérer » appelé à chaque changement de statut — annulation admin (stock et usage de coupon rendus), nouveau paiement après `PaymentFailed` (re-réservation sous verrou), autorisation seule (`AUTHORISED` publie un événement, le sweep l'épargne), recrédit selon `has_supplier_stock` — M.
@@ -24,7 +22,6 @@ Détail, fichiers et scénarios : [`AUDIT_2026-11.md`](AUDIT_2026-11.md) (identi
 - **S9** : à l'initiation du paiement, refuser un moyen différent de celui du devis (ou recalculer les frais) — S.
 - **S2** : session admin isolée de la boutique (cookie de refresh distinct, ou refus d'émettre un token superuser hors origine admin) — M.
 - **S5** : une seule dépendance superuser qui applique `ADMIN_2FA_REQUIRED` (`BaseRouter._check_auth` et contrôles `is_superuser` manuels), `reveal_internal_fields()` derrière elle — M.
-- **U1** : `:aria-label` du bouton menu mobile (`MainLayout.vue:10`) — S.
 
 ### Exploitation (sur le serveur, hors code)
 
@@ -65,7 +62,6 @@ Détail, fichiers et scénarios : [`AUDIT_2026-11.md`](AUDIT_2026-11.md) (identi
 
 - **À décider** : refuser (et non accepter) le captcha quand Cloudflare ne répond pas ; chiffrer les codes de cartes cadeaux en base (ils restent en clair pour pouvoir être réimprimés : un chiffrement réversible ou un hachage + code affiché une seule fois).
 - Audit du 11/11/2026, gravité moyenne ([`AUDIT_2026-11.md`](AUDIT_2026-11.md) §1) — M au total :
-  - **S7** : `rate_limited("coupon")` sur `GET /cart/me/checkout-quote` (oracle de codes promo) ;
   - **S8** : relance de panier abandonné seulement vers une adresse vérifiée (double opt-in invité) ;
   - **S10** : neutraliser `= + - @` en tête de cellule dans tous les exports CSV admin ;
   - **S11** : verrouillage de compte par (compte, IP) ou délai progressif, plus e-mail de déblocage.

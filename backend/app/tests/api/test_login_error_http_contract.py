@@ -112,12 +112,17 @@ def test_refresh_access_token_missing_session_returns_error_payload(
         user_id,
         expires_delta=timedelta(days=1),
         jti=refresh_jti,
+        stamp="stamp",
     )
 
     monkeypatch.setattr(
         crud_user,
         "read",
-        AsyncMock(return_value=SimpleNamespace(id=user_id, is_active=True)),
+        AsyncMock(
+            return_value=SimpleNamespace(
+                id=user_id, is_active=True, security_stamp="stamp"
+            )
+        ),
     )
     monkeypatch.setattr(
         crud_user_refresh_token,
@@ -152,6 +157,7 @@ def test_refresh_access_token_revoked_returns_error_payload(
         user_id,
         expires_delta=timedelta(days=1),
         jti=refresh_jti,
+        stamp="stamp",
     )
 
     refresh_session = SimpleNamespace(
@@ -166,7 +172,11 @@ def test_refresh_access_token_revoked_returns_error_payload(
     monkeypatch.setattr(
         crud_user,
         "read",
-        AsyncMock(return_value=SimpleNamespace(id=user_id, is_active=True)),
+        AsyncMock(
+            return_value=SimpleNamespace(
+                id=user_id, is_active=True, security_stamp="stamp"
+            )
+        ),
     )
     monkeypatch.setattr(
         crud_user_refresh_token,
@@ -210,9 +220,10 @@ def test_refresh_access_token_expired_returns_error_payload(
         user_id,
         expires_delta=timedelta(days=1),
         jti=refresh_jti,
+        stamp="stamp",
     )
 
-    user = SimpleNamespace(id=user_id, is_active=True)
+    user = SimpleNamespace(id=user_id, is_active=True, security_stamp="stamp")
     refresh_session = SimpleNamespace(
         id=uuid.uuid4(),
         user_id=user_id,

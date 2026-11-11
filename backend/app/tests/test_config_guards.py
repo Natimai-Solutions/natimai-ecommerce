@@ -234,3 +234,43 @@ def test_2fa_is_required_in_production_by_default() -> None:
     assert Settings(ENVIRONMENT="staging", **base).admin_2fa_required is False
     forced = Settings(ENVIRONMENT="staging", ADMIN_2FA_REQUIRED=True, **base)
     assert forced.admin_2fa_required is True
+
+
+# -- placeholders of .env.example (audit 2026-11, S1) -----------------------
+
+
+@pytest.mark.parametrize(
+    "variable",
+    ["SECRET_KEY", "POSTGRES_PASSWORD", "FIRST_SUPERUSER_PASSWORD"],
+)
+@pytest.mark.parametrize(
+    "placeholder",
+    [
+        "changethis",
+        "changeme-generate-a-secure-random-key",
+        "changeme-strong-database-password",
+        "ChangeMe-strong-admin-password",
+    ],
+)
+def test_settings_refuse_the_env_example_placeholders_in_production(
+    variable: str, placeholder: str
+) -> None:
+    """A copied .env.example must not start in production: its SECRET_KEY is
+    public (anyone could sign an admin JWT), and so are the passwords."""
+    base = {**_VALID_BASE_SETTINGS, variable: placeholder}
+    with pytest.raises(ValueError, match=variable):
+        Settings(ENVIRONMENT="production", CLAMAV_ENABLED=True, **base)
+
+
+def test_env_example_placeholders_only_warn_in_local() -> None:
+    fake: Any = SimpleNamespace(ENVIRONMENT="local")
+    with pytest.warns(UserWarning, match="SECRET_KEY"):
+        Settings._check_default_secret(
+            cast(Settings, fake), "SECRET_KEY", "changeme-generate-a-secure-key"
+        )
+
+
+def test_real_secrets_and_empty_values_are_not_placeholders() -> None:
+    fake: Any = SimpleNamespace(ENVIRONMENT="production")
+    for value in ("a-real-value-that-mentions-changeme-later", "", None):
+        Settings._check_default_secret(cast(Settings, fake), "X", value)

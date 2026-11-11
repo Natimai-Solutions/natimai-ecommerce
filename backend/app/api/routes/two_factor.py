@@ -23,6 +23,7 @@ from app.core.errors import AppError
 from app.core.rate_limit import get_client_ip
 from app.core.security import averify_password
 from app.features.system import audit
+from app.features.user.crud.refresh_token import crud_user_refresh_token
 from app.features.user.models.user import User
 from app.features.user.services import two_factor
 
@@ -154,6 +155,11 @@ async def disable(
         )
     two_factor.disable(current_user)
     session.add(current_user)
+    # The new security stamp ends the access tokens; the stored refresh
+    # sessions go too (a stolen one would otherwise live 30 days).
+    await crud_user_refresh_token.revoke_all_active_for_user(
+        session=session, user_id=user_id, reason="2fa_disabled"
+    )
     await session.commit()
     await session.refresh(current_user)
     await _journal(request, "auth.2fa.disabled", user_id, email)

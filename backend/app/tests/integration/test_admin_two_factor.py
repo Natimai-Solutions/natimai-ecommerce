@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import AsyncMock
@@ -11,6 +12,7 @@ import pytest
 from cryptography.fernet import Fernet
 from fastapi import Response
 from fastapi.security import OAuth2PasswordRequestForm
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from starlette.requests import Request
 
@@ -22,6 +24,7 @@ from app.core import totp
 from app.core.config import settings
 from app.core.errors import AppError
 from app.core.security import get_password_hash
+from app.features.user.models.refresh_token import UserRefreshToken
 from app.features.user.models.user import User
 from app.features.user.services import two_factor
 
@@ -92,6 +95,27 @@ async def _enrol(session: AsyncSession, user_id: uuid.UUID) -> tuple[str, list[s
     return setup.secret, codes.recovery_codes
 
 
+async def _open_session(session: AsyncSession, user_id: uuid.UUID) -> None:
+    session.add(
+        UserRefreshToken(
+            user_id=user_id,
+            jti=uuid.uuid4().hex,
+            expires_at=datetime.now(UTC) + timedelta(days=1),
+        )
+    )
+    await session.commit()
+
+
+async def _active_sessions(session: AsyncSession, user_id: uuid.UUID) -> int:
+    rows = await session.exec(
+        select(UserRefreshToken).where(
+            UserRefreshToken.user_id == user_id,
+            col(UserRefreshToken.revoked_at).is_(None),
+        )
+    )
+    return len(rows.all())
+
+
 @pytest.mark.asyncio
 async def test_enrolment_then_sign_in_needs_the_second_factor(
     db_session: AsyncSession, _env: list[dict[str, Any]]
@@ -160,6 +184,7 @@ async def test_required_2fa_blocks_the_admin_until_enrolment(
 async def test_disable_needs_password_and_code(db_session: AsyncSession) -> None:
     user_id = await _admin(db_session)
     secret, recovery = await _enrol(db_session, user_id)
+    await _open_session(db_session, user_id)
     user = await db_session.get(User, user_id)
     assert user is not None
 
@@ -179,6 +204,8 @@ async def test_disable_needs_password_and_code(db_session: AsyncSession) -> None
     assert status.enabled is False
     user = await db_session.get(User, user_id)
     assert user is not None and user.totp_secret_encrypted is None
+    # Audit 2026-11, S4: the stored sessions end with the 2FA.
+    assert await _active_sessions(db_session, user_id) == 0
 
 
 @pytest.mark.asyncio
@@ -189,9 +216,14 @@ async def test_an_admin_resets_another_admins_2fa_but_not_their_own(
     second = await _admin(db_session, "second@test.local")
     await _enrol(db_session, second)
 
+    await _open_session(db_session, second)
+    assert await _active_sessions(db_session, second) == 1
+
     actor = cast(User, SimpleNamespace(id=first))
     item = await reset_two_factor(second, db_session, actor)
     assert item.totp_enabled is False
+    # Audit 2026-11, S4: a stolen session does not survive the reset.
+    assert await _active_sessions(db_session, second) == 0
 
     with pytest.raises(AppError) as refused:
         await reset_two_factor(first, db_session, actor)

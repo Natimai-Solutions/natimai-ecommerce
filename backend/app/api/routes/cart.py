@@ -20,7 +20,7 @@ from app.core.config import settings
 from app.core.errors import AppError
 from app.core.i18n import request_locale
 from app.core.observability import log_structured_event, observe_checkout_result
-from app.core.rate_limit import rate_limited
+from app.core.rate_limit import hit_rate_limit, rate_limit_reached, rate_limited
 from app.features.cart.crud.cart import crud_cart, crud_cart_item
 from app.features.cart.crud.quote_request import crud_quote_request
 from app.features.cart.models.cart import (
@@ -2825,6 +2825,56 @@ async def _resolve_checkout_discount(
     return applied, None
 
 
+#: Refused promo codes a customer may try through the quote per window
+#: (audit 2026-11, S7). The quote is re-requested on every checkout change,
+#: so only the refusals count: a customer re-pricing a valid code is never
+#: throttled, while guessing codes (each answer says unknown / expired /
+#: exhausted) stops after a few attempts.
+QUOTE_COUPON_FAILURES_LIMIT = 10
+QUOTE_COUPON_FAILURES_WINDOW_SECONDS = 600
+QUOTE_COUPON_THROTTLED_MESSAGE = (
+    "Trop de codes promo refusés : réessayez dans quelques minutes."
+)
+
+
+async def _quote_discount_throttled(
+    session: SessionDep,
+    *,
+    code: str | None,
+    user_id: uuid.UUID,
+    items: list[CartItem],
+    products_by_id: dict[uuid.UUID, Product],
+    currency: str,
+) -> tuple[AppliedDiscount | None, str | None]:
+    """``_resolve_checkout_discount`` for the quote, with a limit on refusals.
+
+    Over the limit the code is not looked up at all: the quote is priced
+    without it and says why, so it no longer tells a valid code from an
+    unknown one. ``POST /cart/checkout`` keeps its own per-IP limit.
+    """
+    if not code or not code.strip():
+        return None, None
+    key = f"coupon_quote:{user_id}"
+    if await rate_limit_reached(key, limit=QUOTE_COUPON_FAILURES_LIMIT):
+        return None, QUOTE_COUPON_THROTTLED_MESSAGE
+    applied, error = await _resolve_checkout_discount(
+        session,
+        code=code,
+        user_id=user_id,
+        items=items,
+        products_by_id=products_by_id,
+        currency=currency,
+        strict=False,
+    )
+    if error is not None:
+        await hit_rate_limit(
+            key,
+            limit=QUOTE_COUPON_FAILURES_LIMIT,
+            window_seconds=QUOTE_COUPON_FAILURES_WINDOW_SECONDS,
+        )
+    return applied, error
+
+
 @router.get("/me/checkout-quote", response_model=CheckoutQuoteResponse)
 async def get_checkout_quote(
     session: SessionDep,
@@ -2902,14 +2952,13 @@ async def get_checkout_quote(
             str((issued.quote_snapshot or {}).get("shipping_fee_amount") or 0)
         )
 
-    applied_discount, discount_error = await _resolve_checkout_discount(
+    applied_discount, discount_error = await _quote_discount_throttled(
         session,
         code=discount_code,
         user_id=user_id,
         items=items,
         products_by_id=products_by_id,
         currency=currency,
-        strict=False,
     )
     quote = await _quote_checkout(
         session,

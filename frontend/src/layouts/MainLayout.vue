@@ -7,7 +7,7 @@
           flat
           round
           icon="ph:list"
-          aria-label="$t('layout.menu')"
+          :aria-label="$t('layout.menu')"
           class="lt-md app-header__icon"
           @click="toggleDrawer"
         />

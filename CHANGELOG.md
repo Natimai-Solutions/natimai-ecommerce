@@ -164,6 +164,21 @@ takes a tag as its `ref`.
 
 ### Fixed
 
+- Security (audit 2026-11, S1): outside `ENVIRONMENT=local` the API refuses
+  to start when `SECRET_KEY`, `POSTGRES_PASSWORD` or
+  `FIRST_SUPERUSER_PASSWORD` still holds a `changeme-…` placeholder of
+  `.env.example` (only `changethis` was rejected).
+- Security (S4): the refresh token carries the user's security stamp and
+  `POST /login/refresh-token` refuses it once the stamp changed; disabling or
+  resetting the 2FA also revokes the stored sessions. A stolen session no
+  longer survives 30 days. Users signed in before this release sign in again.
+- Security (S7): `GET /cart/me/checkout-quote` counts the refused promo codes
+  per customer (10 per 10 minutes); past that the code is not looked up and
+  the quote says to retry later, so it no longer serves as an oracle to guess
+  codes. A customer re-pricing a valid code is never throttled.
+- Storefront (U1): the mobile menu button announced `$t('layout.menu')`
+  literally to screen readers; the design guard now rejects a static
+  attribute containing `$t(`.
 - Admin → Paiements: the status tag was always grey (a payment status name
   was read as a colour); settled payments, payments to capture or validate
   and failed payments now show their tone.

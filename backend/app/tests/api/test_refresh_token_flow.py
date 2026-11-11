@@ -86,6 +86,7 @@ async def test_refresh_token_rotates_and_returns_new_pair(
         user_id,
         expires_delta=timedelta(days=1),
         jti=old_jti,
+        stamp="stamp",
     )
 
     user = SimpleNamespace(id=user_id, is_active=True, security_stamp="stamp")
@@ -141,6 +142,7 @@ async def test_refresh_token_expired_is_revoked_and_rejected(
         user_id,
         expires_delta=timedelta(days=1),
         jti=old_jti,
+        stamp="stamp",
     )
 
     user = SimpleNamespace(id=user_id, is_active=True, security_stamp="stamp")
@@ -196,6 +198,7 @@ async def test_refresh_token_reuse_revokes_all_active_sessions(
         user_id,
         expires_delta=timedelta(days=1),
         jti=old_jti,
+        stamp="stamp",
     )
 
     user = SimpleNamespace(id=user_id, is_active=True, security_stamp="stamp")
@@ -252,7 +255,7 @@ async def test_logout_revokes_session_and_clears_cookie(
     user_id = uuid.uuid4()
     jti = str(uuid.uuid4())
     refresh_token = security.create_refresh_token(
-        user_id, expires_delta=timedelta(days=1), jti=jti
+        user_id, expires_delta=timedelta(days=1), jti=jti, stamp="stamp"
     )
     session_row = SimpleNamespace(
         id=uuid.uuid4(), user_id=user_id, jti=jti, revoked_at=None

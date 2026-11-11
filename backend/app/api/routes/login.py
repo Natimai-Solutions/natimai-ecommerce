@@ -1,3 +1,4 @@
+import hmac
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Never
@@ -66,6 +67,7 @@ def _build_token_bundle(
         user_id,
         expires_delta=refresh_token_expires,
         jti=refresh_jti,
+        stamp=stamp,
     )
     refresh_expires_at = datetime.now(UTC) + refresh_token_expires
 
@@ -287,6 +289,23 @@ async def refresh_access_token(
             status_code=400,
             message="Utilisateur désactivé",
             details={"user_id": str(user.id)},
+        )
+
+    if not token_data.stp or not hmac.compare_digest(
+        token_data.stp, user.security_stamp
+    ):
+        # The stamp changed since this session opened (password, 2FA reset or
+        # disabled, deactivation): every session of the account is over.
+        await crud_user_refresh_token.revoke_all_active_for_user(
+            session=session,
+            user_id=user_id,
+            reason="security_stamp_changed",
+        )
+        raise AppError(
+            code="login.refresh_token.revoked",
+            status_code=401,
+            message="Refresh token révoqué",
+            details={"user_id": str(user_id), "jti": token_jti},
         )
 
     current_refresh_session = await crud_user_refresh_token.get_by_user_and_jti(
