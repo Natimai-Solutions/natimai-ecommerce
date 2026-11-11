@@ -73,3 +73,28 @@ describe('storefront sign-in with a second factor', () => {
     expect(store.loginError).toBe('Email ou mot de passe incorrect.');
   });
 });
+
+describe('sign-out on a shared device (audit 2026-11)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    post.mockReset();
+    post.mockResolvedValue({});
+  });
+
+  it('forgets the local cart, so the next person does not see it', async () => {
+    const { useCartStore } = await import('./cart');
+    const cart = useCartStore();
+    cart.cart.items.push({
+      product_id: 'p1',
+      quantity: 2,
+      unit_price: '1000.00',
+      line_total: '2000.00',
+    } as (typeof cart.cart.items)[number]);
+    const store = useAuthStore();
+
+    await store.logout();
+
+    expect(cart.items).toHaveLength(0);
+    expect(post).toHaveBeenCalledWith('/login/logout');
+  });
+});

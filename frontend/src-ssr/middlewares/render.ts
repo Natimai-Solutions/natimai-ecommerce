@@ -39,9 +39,7 @@ export default defineSsrMiddleware(({ app, resolve, render, serve }) => {
     res.setHeader('Content-Type', 'text/html');
 
     try {
-      const html = await requestScopes.run({}, () =>
-        render(/* the ssrContext: */ { req, res }),
-      );
+      const html = await requestScopes.run({}, () => render(/* the ssrContext: */ { req, res }));
       // now let's send the rendered html to the client
       res.send(html);
     } catch (err) {

@@ -67,8 +67,7 @@ Détail, fichiers et scénarios : [`AUDIT_2026-11.md`](AUDIT_2026-11.md) (identi
 - **SMS** (expédition, solde dû) — M.
 - Newsletter double opt-in (outil externe ou intégré, à choisir) ; analytics sans cookie (Plausible / Matomo).
 - Bugs vitrine relevés par l'audit du 11/11/2026 ([`AUDIT_2026-11.md`](AUDIT_2026-11.md) §2) :
-  - **F2** : jeton de séquence / `AbortController` sur la fiche produit (squelette infini), la recherche catalogue et le devis du checkout — S ;
-  - le logout vide le panier local ; commande d'un devis accepté sans miroir du panier ; fuseau de la boutique appliqué côté client après hydratation ; retour de paiement 3-D Secure dans un autre navigateur (statut signé sans session) ; facture d'une commande via `GET /invoices/me/by-order/{id}` ; filtres du catalogue dans l'URL ; devis rechargé après `cart.price.changed` ; échec du script PayZen rattrapable — M.
+  - commande d'un devis accepté sans miroir du panier ; fuseau de la boutique appliqué côté client après hydratation ; retour de paiement 3-D Secure dans un autre navigateur (statut signé sans session) ; facture d'une commande via `GET /invoices/me/by-order/{id}` ; filtres du catalogue dans l'URL ; devis rechargé après `cart.price.changed` ; échec du script PayZen rattrapable — M.
 
 ---
 
@@ -114,7 +113,7 @@ Détail, fichiers et scénarios : [`AUDIT_2026-11.md`](AUDIT_2026-11.md) (identi
 - Vitrine : vrais **404 en SSR** (aujourd'hui HTTP 200 : la route catch-all court-circuite le 404 de `src-ssr/middlewares/render.ts`), décalage d'hydratation du `min-height` de `QPage`, flash de thème à la première visite, police d'icônes chargée en entier, `srcset` des photos fournisseur, parité fr / en testée — M.
 - Médias publics derrière un CDN ou un bucket public si le trafic le demande ; recadrage d'image dans l'admin.
 - UX et accessibilité relevées par l'audit du 11/11/2026 ([`AUDIT_2026-11.md`](AUDIT_2026-11.md) §3) — M au total :
-  - **U2** et messages d'erreur : l'enveloppe `{error:{message}}` lue partout (catalogue, panier, fiche produit, admin), jamais le message axios brut ;
+  - **U2** (reste) : messages d'erreur de l'admin (`ProductFormDialog`…) par l'enveloppe `{error:{message}}`, jamais le message axios brut — la vitrine (catalogue, panier, fiche produit) est faite ;
   - **U3** : récapitulatif repliable en tête du checkout mobile ; **U4** : dire ce qui manque quand « Payer » est désactivé ;
   - **U5** : `autocomplete` sur `AddressDialog`, « Requis » traduit ;
   - **U6** : panneau de filtres mobile en `q-dialog maximized` ; **U7** : suggestions de recherche en combobox accessible au clavier ;

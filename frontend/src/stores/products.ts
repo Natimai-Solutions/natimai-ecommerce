@@ -8,6 +8,7 @@ import {
   type CategoryPublic,
 } from '@/api/products';
 import { gt } from '@/i18n/global';
+import { apiErrorMessage } from '@/utils/errors';
 
 type ProductPublic = components['schemas']['ProductPublic'];
 type ProductSearchRequest = components['schemas']['ProductSearchRequest'];
@@ -46,7 +47,12 @@ export const useProductsStore = defineStore('products', () => {
 
   const totalPages = computed(() => Math.ceil(count.value / PAGE_SIZE));
 
+  /** Only the latest search writes: typing fast, an older answer arriving
+   *  last showed results for a query no longer in the box (F2). */
+  let latestSearch = 0;
+
   async function search(overrides?: Partial<ProductSearchRequest>) {
+    const call = ++latestSearch;
     loading.value = true;
     error.value = null;
     try {
@@ -57,14 +63,17 @@ export const useProductsStore = defineStore('products', () => {
         ...overrides,
       };
       const resp = await searchProducts(req);
+      if (call !== latestSearch) return;
       items.value = resp.data ?? [];
       count.value = resp.count;
       facets.value = resp.facets ?? null;
       approximate.value = resp.approximate ?? false;
     } catch (e) {
-      error.value = e instanceof Error ? e.message : gt('stores.unknown');
+      if (call !== latestSearch) return;
+      // Never axios' English « Request failed with status code 503 » (U2).
+      error.value = apiErrorMessage(e) ?? gt('stores.catalogue_unavailable');
     } finally {
-      loading.value = false;
+      if (call === latestSearch) loading.value = false;
     }
   }
 

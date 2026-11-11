@@ -245,6 +245,15 @@ takes a tag as its `ref`.
   it. Concurrent French and English renders shared them as module
   variables: wrong `Accept-Language`, wrong date format, hydration
   mismatches.
+- Storefront (audit 2026-11, F2): only the latest request writes on the
+  product page, the catalogue search and the checkout quote. An older answer
+  arriving last showed another product (and an endless skeleton), results of
+  an earlier query, or wrong amounts on « Payer X ».
+- Storefront (U2): the catalogue, the product page and the cart show the
+  API's message (`{ error: { message } }`) or a translated fallback, never
+  axios' « Request failed with status code 503 ».
+- Storefront: signing out forgets the cart on this device (the account's
+  server cart is kept); on a shared computer the next person saw it.
 - Storefront (U1): the mobile menu button announced `$t('layout.menu')`
   literally to screen readers; the design guard now rejects a static
   attribute containing `$t(`.

@@ -362,6 +362,7 @@ const en: MessageSchema = {
     cart_email: 'Please enter a valid customer e-mail.',
     cart_empty: 'The cart is empty.',
     unknown: 'Unknown error',
+    catalogue_unavailable: 'The catalogue is temporarily unavailable. Try again in a moment.',
   },
   catalogue: {
     categories: 'Categories',

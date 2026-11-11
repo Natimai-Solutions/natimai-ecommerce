@@ -365,6 +365,8 @@ const fr = {
     cart_email: 'Veuillez renseigner un email client valide.',
     cart_empty: 'Le panier est vide.',
     unknown: 'Erreur inconnue',
+    catalogue_unavailable:
+      'Le catalogue est momentanément indisponible. Réessayez dans un instant.',
   },
   catalogue: {
     categories: 'Catégories',

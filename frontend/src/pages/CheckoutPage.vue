@@ -662,8 +662,16 @@ function clearDiscountCode() {
   void loadQuote();
 }
 
+/**
+ * Only the latest quote is shown (audit 2026-11, F2): changing the address
+ * then the payment method quickly, an older answer arriving last put wrong
+ * amounts in the recap and on « Payer X ».
+ */
+let latestQuote = 0;
+
 async function loadQuote() {
   if (!isAuthenticated.value) return;
+  const call = ++latestQuote;
   quoteLoading.value = true;
   try {
     const next = await getCheckoutQuote({
@@ -676,6 +684,7 @@ async function loadQuote() {
       quoteRequestId: quoteRequestId.value,
       useStoreCredit: useStoreCredit.value,
     });
+    if (call !== latestQuote) return;
     // A refused code is reported by the quote (the amounts stay valid
     // without it); it must not be sent to the checkout either.
     if (next.discount_error) discountCode.value = null;
@@ -691,6 +700,7 @@ async function loadQuote() {
       await loadMethods(basis);
     }
   } catch {
+    if (call !== latestQuote) return;
     // Le devis est indispensable : sans lui le bouton reste grisé et le
     // client voit le montant des articles seuls. Les moyens de paiement
     // restent proposés (sur le montant des articles) pour ne pas figer
@@ -700,7 +710,7 @@ async function loadQuote() {
       await loadMethods(cartStore.totalAmount);
     }
   } finally {
-    quoteLoading.value = false;
+    if (call === latestQuote) quoteLoading.value = false;
   }
 }
 
