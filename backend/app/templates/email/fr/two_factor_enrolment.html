@@ -1,0 +1,11 @@
+{% extends "_layout.html" %}
+{% block title %}Activation de la double authentification{% endblock %}
+{% block heading %}Activation de la double authentification{% endblock %}
+{% block content %}
+      <p>Bonjour,</p>
+      <p>Une activation de la double authentification a été demandée pour votre compte d'administration {{ shop_name }}. Pour la confirmer, saisissez ce code dans l'écran « Sécurité » :</p>
+      <p style="text-align:center;margin:28px 0;font-size:28px;font-weight:700;letter-spacing:6px;font-family:monospace;">{{ code }}</p>
+      <p>Ce code est valable <strong>{{ valid_minutes }} minutes</strong>.</p>
+      <p>Si vous n'êtes pas à l'origine de cette demande, ne communiquez ce code à personne et <strong>changez votre mot de passe sans attendre</strong> : quelqu'un le connaît.</p>
+      <p>L'équipe {{ shop_name }}</p>
+{% endblock %}

@@ -2132,6 +2132,9 @@ const fr = {
     scan: "Scannez ce QR code avec l'application.",
     title: 'Sécurité du compte',
     type_code: "Tapez le code à 6 chiffres affiché par l'application.",
+    email_step:
+      "Un code de confirmation vient d'être envoyé à l'adresse de votre compte : saisissez-le aussi.",
+    email_code: 'Code reçu par e-mail',
   },
   settings: {
     by: 'par {email}',

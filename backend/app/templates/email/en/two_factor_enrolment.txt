@@ -1,0 +1,14 @@
+Hello,
+
+Two-factor authentication is being turned on for your {{ shop_name }}
+administration account. To confirm it, type this code in the "Security"
+screen:
+
+{{ code }}
+
+This code is valid for {{ valid_minutes }} minutes.
+
+If you did not ask for this, do not share this code with anyone and change
+your password right away: someone knows it.
+
+The {{ shop_name }} team

@@ -1,0 +1,11 @@
+{% extends "_layout.html" %}
+{% block title %}Two-factor authentication activation{% endblock %}
+{% block heading %}Two-factor authentication activation{% endblock %}
+{% block content %}
+      <p>Hello,</p>
+      <p>Two-factor authentication is being turned on for your {{ shop_name }} administration account. To confirm it, type this code in the "Security" screen:</p>
+      <p style="text-align:center;margin:28px 0;font-size:28px;font-weight:700;letter-spacing:6px;font-family:monospace;">{{ code }}</p>
+      <p>This code is valid for <strong>{{ valid_minutes }} minutes</strong>.</p>
+      <p>If you did not ask for this, do not share this code with anyone and <strong>change your password right away</strong>: someone knows it.</p>
+      <p>The {{ shop_name }} team</p>
+{% endblock %}

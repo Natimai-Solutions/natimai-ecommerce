@@ -13,6 +13,8 @@ export interface TwoFactorSetup {
   otpauth_uri: string;
   /** QR code à scanner (data URI SVG). */
   qr_svg_data_uri: string;
+  /** Un code à usage unique a été envoyé par e-mail : `/confirm` l'exige. */
+  email_code_sent: boolean;
 }
 
 export async function getTwoFactorStatus(): Promise<TwoFactorStatus> {
@@ -25,9 +27,10 @@ export async function startTwoFactorSetup(): Promise<TwoFactorSetup> {
   return data;
 }
 
-export async function confirmTwoFactor(code: string): Promise<string[]> {
+export async function confirmTwoFactor(code: string, emailCode: string): Promise<string[]> {
   const { data } = await api.post<{ recovery_codes: string[] }>('/users/me/2fa/confirm', {
     code,
+    email_code: emailCode,
   });
   return data.recovery_codes;
 }

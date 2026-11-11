@@ -123,6 +123,9 @@ export interface paths {
         /**
          * Confirm
          * @description Turn 2FA on; the recovery codes are shown this once.
+         *
+         *     Needs the code e-mailed by /setup as well as the authenticator's: a
+         *     stolen password alone no longer enrols the thief's authenticator.
          */
         post: operations["user-confirm"];
         delete?: never;
@@ -21866,6 +21869,16 @@ export interface components {
             /** Code */
             code: string;
         };
+        /**
+         * TwoFactorConfirm
+         * @description The authenticator's code, and the one e-mailed by /setup.
+         */
+        TwoFactorConfirm: {
+            /** Code */
+            code: string;
+            /** Email Code */
+            email_code: string;
+        };
         /** TwoFactorDisable */
         TwoFactorDisable: {
             /** Code */
@@ -21881,6 +21894,11 @@ export interface components {
             otpauth_uri: string;
             /** Qr Svg Data Uri */
             qr_svg_data_uri: string;
+            /**
+             * Email Code Sent
+             * @default true
+             */
+            email_code_sent: boolean;
         };
         /** TwoFactorStatus */
         TwoFactorStatus: {
@@ -22514,7 +22532,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["TwoFactorCode"];
+                "application/json": components["schemas"]["TwoFactorConfirm"];
             };
         };
         responses: {

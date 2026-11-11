@@ -15,7 +15,6 @@ sur le serveur, chez un tiers ou une décision.
 
 Détail, fichiers et scénarios : [`AUDIT_2026-11.md`](AUDIT_2026-11.md) (identifiants S·, B·, F·, U·).
 
-- **S5 (reste)** : premier enrôlement 2FA d'un administrateur confirmé par e-mail (aujourd'hui, un mot de passe admin volé avant l'enrôlement permet d'enrôler l'authentificateur de l'attaquant) — la règle d'enrôlement elle-même est désormais appliquée dans `get_current_user` — M.
 
 ### Exploitation (sur le serveur, hors code)
 

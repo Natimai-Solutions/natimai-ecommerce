@@ -25,7 +25,7 @@ from app.core.security import averify_password
 from app.features.system import audit
 from app.features.user.crud.refresh_token import crud_user_refresh_token
 from app.features.user.models.user import User
-from app.features.user.services import two_factor
+from app.features.user.services import two_factor, two_factor_email
 
 router = APIRouter(prefix="/users/me/2fa", tags=["user"])
 
@@ -40,10 +40,18 @@ class TwoFactorSetup(BaseModel):
     secret: str
     otpauth_uri: str
     qr_svg_data_uri: str
+    #: A one-time code was e-mailed to the account: /confirm needs it.
+    email_code_sent: bool = True
 
 
 class TwoFactorCode(BaseModel):
     code: str = Field(min_length=6, max_length=20)
+
+
+class TwoFactorConfirm(TwoFactorCode):
+    """The authenticator's code, and the one e-mailed by /setup."""
+
+    email_code: str = Field(min_length=4, max_length=20)
 
 
 class TwoFactorDisable(TwoFactorCode):
@@ -87,8 +95,11 @@ async def setup(
     from app.core import runtime_settings
 
     shop_name = await runtime_settings.get("shop_name", session)
+    user_id, email = current_user.id, current_user.email
     enrollment = two_factor.start_enrollment(current_user, shop_name=shop_name)
     session.add(current_user)
+    # Proof that the mailbox is the owner's (audit 2026-11, S5).
+    await two_factor_email.send_code(session, user_id=user_id, email=email)
     await session.commit()
     return TwoFactorSetup(
         secret=enrollment.secret,
@@ -100,13 +111,24 @@ async def setup(
 @router.post("/confirm", response_model=RecoveryCodes)
 async def confirm(
     request: Request,
-    payload: TwoFactorCode,
+    payload: TwoFactorConfirm,
     session: SessionDep,
     current_user: CurrentSuperUserEnrolling,
 ) -> RecoveryCodes:
-    """Turn 2FA on; the recovery codes are shown this once."""
+    """Turn 2FA on; the recovery codes are shown this once.
+
+    Needs the code e-mailed by /setup as well as the authenticator's: a
+    stolen password alone no longer enrols the thief's authenticator.
+    """
     user_id, email = current_user.id, current_user.email
     codes = two_factor.confirm(current_user, payload.code)
+    # After the authenticator's code (a typo there must not burn the e-mailed
+    # one). Wrong: the enabled-in-memory user is rolled back.
+    try:
+        await two_factor_email.check_code(user_id, payload.email_code)
+    except AppError:
+        await session.rollback()
+        raise
     session.add(current_user)
     await session.commit()
     await _journal(request, "auth.2fa.enabled", user_id, email)

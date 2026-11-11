@@ -26,9 +26,10 @@ from app.core.errors import AppError
 from app.core.security import get_password_hash
 from app.features.user.models.refresh_token import UserRefreshToken
 from app.features.user.models.user import User
-from app.features.user.services import two_factor
+from app.features.user.services import two_factor, two_factor_email
 
 PASSWORD = "admin-password-for-tests"
+EMAIL_CODE = "24681357"
 
 
 @pytest.fixture(autouse=True)
@@ -43,6 +44,11 @@ def _env(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
         events.append(kwargs)
 
     monkeypatch.setattr("app.features.system.audit.record", capture)
+    # The e-mailed enrolment code (S5): a known one, and no mailer.
+    monkeypatch.setattr(two_factor_email, "new_code", lambda: EMAIL_CODE)
+    monkeypatch.setattr(
+        "app.features.notification.mailer.queue_email", AsyncMock(return_value=None)
+    )
     return events
 
 
@@ -90,7 +96,10 @@ async def _enrol(session: AsyncSession, user_id: uuid.UUID) -> tuple[str, list[s
     assert user is not None
     code = totp.code_at(setup.secret, totp.current_step() - 1)
     codes = await routes.confirm(
-        _request(), routes.TwoFactorCode(code=code), session, user
+        _request(),
+        routes.TwoFactorConfirm(code=code, email_code=EMAIL_CODE),
+        session,
+        user,
     )
     return setup.secret, codes.recovery_codes
 
@@ -279,3 +288,48 @@ async def test_an_unenrolled_admin_has_no_power_on_any_route(
         user_id, expires_delta=timedelta(minutes=5), stamp=user.security_stamp
     )
     assert (await deps.get_current_user(db_session, token)).id == user_id
+
+
+@pytest.mark.asyncio
+async def test_enrolment_needs_the_code_sent_to_the_mailbox(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Audit 2026-11, S5: with an administrator's password alone, a thief
+    enrolled their own authenticator and kept the back office. The code
+    e-mailed by /setup is now required too."""
+    sent = AsyncMock(return_value=None)
+    monkeypatch.setattr("app.features.notification.mailer.queue_email", sent)
+    user_id = await _admin(db_session)
+    user = await db_session.get(User, user_id)
+    assert user is not None
+    setup = await routes.setup(db_session, user)
+    assert setup.email_code_sent is True
+    assert sent.await_args is not None
+    assert EMAIL_CODE in sent.await_args.kwargs["text"]
+    assert sent.await_args.kwargs["recipient"] == "ops@test.local"
+
+    code = totp.code_at(setup.secret, totp.current_step())
+    for attempt in range(two_factor_email.MAX_ATTEMPTS):
+        user = await db_session.get(User, user_id)
+        assert user is not None
+        with pytest.raises(AppError) as refused:
+            await routes.confirm(
+                _request(),
+                routes.TwoFactorConfirm(code=code, email_code=f"0000000{attempt}"),
+                db_session,
+                user,
+            )
+        assert refused.value.code == "auth.2fa.email_code_invalid"
+    db_session.expire_all()
+    user = await db_session.get(User, user_id)
+    assert user is not None and user.totp_enabled is False
+
+    # Too many tries: even the right code is gone, a new /setup is needed.
+    with pytest.raises(AppError) as expired:
+        await routes.confirm(
+            _request(),
+            routes.TwoFactorConfirm(code=code, email_code=EMAIL_CODE),
+            db_session,
+            user,
+        )
+    assert expired.value.code == "auth.2fa.email_code_expired"

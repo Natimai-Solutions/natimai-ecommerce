@@ -233,6 +233,11 @@ takes a tag as its `ref`.
   `LOGIN_ACCOUNT_LOCKOUT_MAX_FAILURES` (50 consecutive failures, any
   address) locks the account itself against a distributed brute force; a
   password reset lifts it.
+- Security (S5, end): enrolling an administrator's 2FA needs a one-time
+  code e-mailed to the account by `POST /users/me/2fa/setup` (8 digits,
+  15 minutes, 5 tries), sent with the authenticator's code to `/confirm`
+  (`email_code`). A stolen password alone no longer enrols the thief's
+  authenticator. Admin → Sécurité asks for it.
 - Storefront (U1): the mobile menu button announced `$t('layout.menu')`
   literally to screen readers; the design guard now rejects a static
   attribute containing `$t(`.

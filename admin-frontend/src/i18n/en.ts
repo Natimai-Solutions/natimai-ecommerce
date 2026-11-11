@@ -2119,6 +2119,8 @@ const en: MessageSchema = {
     scan: 'Scan this QR code with the app.',
     title: 'Account security',
     type_code: 'Type the 6-digit code shown by the app.',
+    email_step: "A confirmation code was just sent to your account's address: type it too.",
+    email_code: 'Code received by e-mail',
   },
   settings: {
     by: 'by {email}',
