@@ -19,7 +19,7 @@ from fastapi import APIRouter, Request, Response
 from pydantic import BaseModel, Field, field_validator
 from sqlmodel import col, select
 
-from app.api.deps import CurrentUser, SessionDep
+from app.api.deps import CurrentUser, CurrentUserEnrolling, SessionDep
 from app.core.auth_cookies import clear_refresh_cookie
 from app.core.config import settings
 from app.core.errors import AppError
@@ -93,7 +93,7 @@ def _profile_of(user: CurrentUser) -> MyProfilePublic:
 
 
 @router.get("", response_model=MyProfilePublic, summary="My profile")
-async def get_my_profile(current_user: CurrentUser) -> MyProfilePublic:
+async def get_my_profile(current_user: CurrentUserEnrolling) -> MyProfilePublic:
     """Identity of the signed-in customer."""
     return _profile_of(current_user)
 

@@ -208,6 +208,12 @@ takes a tag as its `ref`.
   (`payment.method.fee_mismatch`, 409) a method other than the checkout's
   whose fee differs from the one billed on the order — quoting with a free
   method and paying with a charged one skipped its fee.
+- Security (audit 2026-11, S5): with `ADMIN_2FA_REQUIRED`, a superuser who
+  has not enrolled is refused (`auth.totp.enrollment_required`) by
+  `get_current_user` itself, on every route — the routes checking
+  `is_superuser` by hand and `BaseRouter` granted admin powers, and the
+  internal fields were revealed before the check. `GET /users/me` and the
+  enrolment endpoints use the new `CurrentUserEnrolling`.
 - Storefront (U1): the mobile menu button announced `$t('layout.menu')`
   literally to screen readers; the design guard now rejects a static
   attribute containing `$t(`.

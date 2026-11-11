@@ -37,8 +37,8 @@ TokenDep = Annotated[str, Depends(reusable_oauth2)]
 RedisDep = Annotated[Redis, Depends(get_redis_cache)]
 
 
-async def get_current_user(session: SessionDep, token: TokenDep) -> User:
-    """Get current user."""
+async def _authenticated_user(session: AsyncSession, token: str) -> User:
+    """The user behind a valid access token (no enrolment rule)."""
     try:
         payload = security.decode_token(token)
         token_data = TokenPayload(**payload)
@@ -84,6 +84,41 @@ async def get_current_user(session: SessionDep, token: TokenDep) -> User:
             message="Could not validate credentials",
             details={"reason": "session_revoked"},
         )
+    return user
+
+
+def must_enrol_second_factor(user: User) -> bool:
+    """A superuser who must set up 2FA (``ADMIN_2FA_REQUIRED``) and has not."""
+    return bool(
+        user.is_superuser and settings.admin_2fa_required and not user.totp_enabled
+    )
+
+
+def _enrollment_required(user: User) -> AppError:
+    return AppError(
+        code="auth.totp.enrollment_required",
+        status_code=403,
+        message=(
+            "La double authentification est obligatoire pour l'administration : "
+            "activez-la pour continuer"
+        ),
+        details={"user_id": str(user.id)},
+    )
+
+
+async def get_current_user(session: SessionDep, token: TokenDep) -> User:
+    """The signed-in user.
+
+    A superuser who must enrol in 2FA and has not is refused here, on every
+    route (audit 2026-11, S5): the rule was only in ``CurrentSuperUser``, so
+    the routes checking ``is_superuser`` by hand (and ``BaseRouter``) still
+    granted the admin powers, and the internal fields were revealed before
+    any check. Only ``GET /users/me`` and the enrolment endpoints take
+    :data:`CurrentUserEnrolling`.
+    """
+    user = await _authenticated_user(session, token)
+    if must_enrol_second_factor(user):
+        raise _enrollment_required(user)
     if user.is_superuser:
         # Cost, supplier price and margins serialize for this request only.
         reveal_internal_fields()
@@ -91,6 +126,15 @@ async def get_current_user(session: SessionDep, token: TokenDep) -> User:
 
 
 CurrentUser = Annotated[User, Depends(get_current_user)]
+
+
+async def get_current_user_enrolling(session: SessionDep, token: TokenDep) -> User:
+    """The signed-in user, 2FA enrolment pending or not — for the profile
+    (who is signed in) and the enrolment screens only. Reveals nothing."""
+    return await _authenticated_user(session, token)
+
+
+CurrentUserEnrolling = Annotated[User, Depends(get_current_user_enrolling)]
 
 
 async def get_current_verified_user(current_user: CurrentUser) -> User:
@@ -143,23 +187,15 @@ async def get_current_active_superuser(current_user: CurrentUser) -> User:
     enrolment screen, the only one they can reach.
     """
     _require_superuser(current_user)
-    if settings.admin_2fa_required and not current_user.totp_enabled:
-        raise AppError(
-            code="auth.totp.enrollment_required",
-            status_code=403,
-            message=(
-                "La double authentification est obligatoire pour l'administration : "
-                "activez-la pour continuer"
-            ),
-            details={"user_id": str(current_user.id)},
-        )
+    if must_enrol_second_factor(current_user):
+        raise _enrollment_required(current_user)
     return current_user
 
 
 CurrentSuperUser = Annotated[User, Depends(get_current_active_superuser)]
 
 
-async def get_current_superuser_enrolling(current_user: CurrentUser) -> User:
+async def get_current_superuser_enrolling(current_user: CurrentUserEnrolling) -> User:
     """A superuser, two-factor set up or not (the enrolment endpoints)."""
     return _require_superuser(current_user)
 

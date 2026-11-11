@@ -17,7 +17,7 @@ Détail, fichiers et scénarios : [`AUDIT_2026-11.md`](AUDIT_2026-11.md) (identi
 
 - **B4** : ne plus écraser `supplier_quantity` par le stock live fournisseur (instantané séparé, disponible = live − réservations en cours, sous verrou) — M.
 - **S2** : session admin isolée de la boutique (cookie de refresh distinct, ou refus d'émettre un token superuser hors origine admin) — M.
-- **S5** : une seule dépendance superuser qui applique `ADMIN_2FA_REQUIRED` (`BaseRouter._check_auth` et contrôles `is_superuser` manuels), `reveal_internal_fields()` derrière elle — M.
+- **S5 (reste)** : premier enrôlement 2FA d'un administrateur confirmé par e-mail (aujourd'hui, un mot de passe admin volé avant l'enrôlement permet d'enrôler l'authentificateur de l'attaquant) — la règle d'enrôlement elle-même est désormais appliquée dans `get_current_user` — M.
 
 ### Exploitation (sur le serveur, hors code)
 

@@ -240,3 +240,42 @@ async def test_customers_never_meet_the_second_factor(db_session: AsyncSession) 
     db_session.add(customer)
     await db_session.commit()
     assert (await _login(db_session, "client@test.local")).access_token
+
+
+@pytest.mark.asyncio
+async def test_an_unenrolled_admin_has_no_power_on_any_route(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Audit 2026-11, S5: the 2FA rule lived in ``CurrentSuperUser`` only.
+    The routes checking ``is_superuser`` by hand (and ``BaseRouter``) took a
+    stolen admin password without its second factor, and the internal fields
+    (cost, margin) were revealed first. The rule now sits in
+    ``get_current_user``; the profile and the enrolment stay reachable."""
+    from app.core import security
+    from app.core.field_visibility import internal_fields_revealed
+
+    user_id = await _admin(db_session)
+    monkeypatch.setattr(settings, "ADMIN_2FA_REQUIRED", True)
+    user = await db_session.get(User, user_id)
+    assert user is not None
+    token = security.create_access_token(
+        user_id, expires_delta=timedelta(minutes=5), stamp=user.security_stamp
+    )
+
+    with pytest.raises(AppError) as refused:
+        await deps.get_current_user(db_session, token)
+    assert refused.value.code == "auth.totp.enrollment_required"
+    assert not internal_fields_revealed()
+
+    # Who is signed in, and the enrolment itself, remain reachable.
+    me = await deps.get_current_user_enrolling(db_session, token)
+    assert await deps.get_current_superuser_enrolling(me) is me
+    assert not internal_fields_revealed()
+
+    await _enrol(db_session, user_id)
+    user = await db_session.get(User, user_id)
+    assert user is not None
+    token = security.create_access_token(
+        user_id, expires_delta=timedelta(minutes=5), stamp=user.security_stamp
+    )
+    assert (await deps.get_current_user(db_session, token)).id == user_id
