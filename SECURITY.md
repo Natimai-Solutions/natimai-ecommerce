@@ -30,7 +30,9 @@ follow tagged releases (see `CHANGELOG.md`).
   gitleaks (committed secrets), pip-audit and `pnpm audit` on the production
   lockfiles, Trivy on the three Docker images, CodeQL when enabled.
 - The backend refuses to start outside `ENVIRONMENT=local` with placeholder
-  secrets, a disabled antivirus, or a short `SECRET_KEY`.
+  secrets, a disabled antivirus, or a short `SECRET_KEY`. Known gap until it
+  is fixed: only the `changethis` placeholder is rejected, not the
+  `changeme-…` values of `.env.example` (`docs/internal/AUDIT_2026-11.md`, S1).
 - Dependabot keeps Python, JavaScript, Docker base images and GitHub Actions
   up to date (`.github/dependabot.yml`).
 

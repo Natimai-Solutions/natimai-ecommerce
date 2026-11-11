@@ -11,6 +11,21 @@ sur le serveur, chez un tiers ou une décision.
 
 ## 1. Avant l'ouverture — bloquants de production
 
+### Correctifs de l'audit du 11/11/2026 (code)
+
+Détail, fichiers et scénarios : [`AUDIT_2026-11.md`](AUDIT_2026-11.md) (identifiants S·, B·, F·, U·).
+
+- **S1** : refuser au démarrage les placeholders `changeme-…` de `.env.example` (`SECRET_KEY`, `POSTGRES_PASSWORD`, `FIRST_SUPERUSER_PASSWORD`) — `_check_default_secret` ne connaît que `changethis` ; réutiliser `secret_is_set()` + test. `SECURITY.md` affirme déjà ce contrôle — S.
+- **S4** : révoquer les refresh tokens au reset / à la désactivation de la 2FA ; idéalement porter le `security_stamp` dans le refresh token — S.
+- **S3** : cartes cadeaux exclues des remises, prix de groupe et promotions (ou émises au montant net payé) — S.
+- **S6** : un remboursement annule les cartes cadeaux de la commande et reprend l'avoir déjà converti, avec alerte admin — M.
+- **Machine d'états du stock** (B1, B2, B3, B5) : un seul service « réserver / confirmer / libérer » appelé à chaque changement de statut — annulation admin (stock et usage de coupon rendus), nouveau paiement après `PaymentFailed` (re-réservation sous verrou), autorisation seule (`AUTHORISED` publie un événement, le sweep l'épargne), recrédit selon `has_supplier_stock` — M.
+- **B4** : ne plus écraser `supplier_quantity` par le stock live fournisseur (instantané séparé, disponible = live − réservations en cours, sous verrou) — M.
+- **S9** : à l'initiation du paiement, refuser un moyen différent de celui du devis (ou recalculer les frais) — S.
+- **S2** : session admin isolée de la boutique (cookie de refresh distinct, ou refus d'émettre un token superuser hors origine admin) — M.
+- **S5** : une seule dépendance superuser qui applique `ADMIN_2FA_REQUIRED` (`BaseRouter._check_auth` et contrôles `is_superuser` manuels), `reveal_internal_fields()` derrière elle — M.
+- **U1** : `:aria-label` du bouton menu mobile (`MainLayout.vue:10`) — S.
+
 ### Exploitation (sur le serveur, hors code)
 
 - **Sauvegardes réelles** : planifier le cron de `scripts/backup/backup.sh`, configurer la copie hors site (rclone / scp), **exécuter une restauration réelle** avant la première commande (DEPLOYMENT.md §12).
@@ -49,6 +64,12 @@ sur le serveur, chez un tiers ou une décision.
 ## 2. Sécurité et performance
 
 - **À décider** : refuser (et non accepter) le captcha quand Cloudflare ne répond pas ; chiffrer les codes de cartes cadeaux en base (ils restent en clair pour pouvoir être réimprimés : un chiffrement réversible ou un hachage + code affiché une seule fois).
+- Audit du 11/11/2026, gravité moyenne ([`AUDIT_2026-11.md`](AUDIT_2026-11.md) §1) — M au total :
+  - **S7** : `rate_limited("coupon")` sur `GET /cart/me/checkout-quote` (oracle de codes promo) ;
+  - **S8** : relance de panier abandonné seulement vers une adresse vérifiée (double opt-in invité) ;
+  - **S10** : neutraliser `= + - @` en tête de cellule dans tous les exports CSV admin ;
+  - **S11** : verrouillage de compte par (compte, IP) ou délai progressif, plus e-mail de déblocage.
+- Audit, durcissement (gravité basse, liste complète dans l'audit) : limite de fréquence et erreur unique sur les endpoints 2FA ; mot de passe exigé pour supprimer un compte lié à OAuth ; codes de secours en HMAC ; le changement de mot de passe invalide le lien de reset ; `Cancelled` parmi les statuts de paiement terminaux ; limite « 1 coupon par client » et remboursement admin sous verrou ; devise et montant obligatoires dans l'IPN ; quantité panier bornée ; allow-list IP Caddy étendue aux routes superuser hors `/admin` ; webhook sortant et flux fournisseur protégés contre le SSRF ; clé Icecat retirée des logs ; ClamAV et plafond décompressé sur l'import XLSX ; `user_id` retiré des avis et wishlists publics ; alertes stock limitées à l'e-mail du compte ; CI (`GIST_SECRET` limité aux étapes de badge, blocs `permissions:`, actions tierces épinglées par SHA, *required reviewers* sur l'environnement `production`) ; `requirepass` Redis — M.
 
 ---
 
@@ -57,6 +78,10 @@ sur le serveur, chez un tiers ou une décision.
 - **Retours, RMA et formulaire de rétractation** (obligation légale, c'est du code) : demande depuis « Mes commandes », validation admin, enchaînement sur le remboursement et l'avoir existants — L.
 - **SMS** (expédition, solde dû) — M.
 - Newsletter double opt-in (outil externe ou intégré, à choisir) ; analytics sans cookie (Plausible / Matomo).
+- Bugs vitrine relevés par l'audit du 11/11/2026 ([`AUDIT_2026-11.md`](AUDIT_2026-11.md) §2) :
+  - **F1** : locale, formatage et `composer` i18n par requête SSR (aujourd'hui singletons de module partagés entre rendus) — M ;
+  - **F2** : jeton de séquence / `AbortController` sur la fiche produit (squelette infini), la recherche catalogue et le devis du checkout — S ;
+  - le logout vide le panier local ; commande d'un devis accepté sans miroir du panier ; fuseau de la boutique appliqué côté client après hydratation ; retour de paiement 3-D Secure dans un autre navigateur (statut signé sans session) ; facture d'une commande via `GET /invoices/me/by-order/{id}` ; filtres du catalogue dans l'URL ; devis rechargé après `cart.price.changed` ; échec du script PayZen rattrapable — M.
 
 ---
 
@@ -68,6 +93,7 @@ sur le serveur, chez un tiers ou une décision.
 - **Fiche client** (commandes, avoir, points), recherche globale (n° de commande, client, SKU) — M.
 - **Rôles fins** (préparateur, comptable) à la place du seul superuser — M.
 - Pagination serveur sur les autres tableaux (30 fichiers masquent encore la pagination ; 3 seulement paginent côté serveur) — M.
+- Audit du 11/11/2026 : `ProductFormDialog` repasse en édition après la création (un second « Enregistrer » ne crée plus de doublon) ; `order_cutoff_at` des départs saisi dans le fuseau de la boutique ; `OrderDetailPage` rechargée après un changement de statut — S.
 
 ---
 
@@ -100,6 +126,14 @@ sur le serveur, chez un tiers ou une décision.
 - Densité admin : tables `dense`, squelettes plutôt que spinners, `app-empty` partout ; tableaux larges qui défilent (fournisseurs, paramètres) — M.
 - Vitrine : vrais **404 en SSR** (aujourd'hui HTTP 200 : la route catch-all court-circuite le 404 de `src-ssr/middlewares/render.ts`), décalage d'hydratation du `min-height` de `QPage`, flash de thème à la première visite, police d'icônes chargée en entier, `srcset` des photos fournisseur, parité fr / en testée — M.
 - Médias publics derrière un CDN ou un bucket public si le trafic le demande ; recadrage d'image dans l'admin.
+- UX et accessibilité relevées par l'audit du 11/11/2026 ([`AUDIT_2026-11.md`](AUDIT_2026-11.md) §3) — M au total :
+  - **U2** et messages d'erreur : l'enveloppe `{error:{message}}` lue partout (catalogue, panier, fiche produit, admin), jamais le message axios brut ;
+  - **U3** : récapitulatif repliable en tête du checkout mobile ; **U4** : dire ce qui manque quand « Payer » est désactivé ;
+  - **U5** : `autocomplete` sur `AddressDialog`, « Requis » traduit ;
+  - **U6** : panneau de filtres mobile en `q-dialog maximized` ; **U7** : suggestions de recherche en combobox accessible au clavier ;
+  - **U8** : erreur d'ajout au panier visible près de l'action ; accueil avec message et « Réessayer » si toutes les API échouent ;
+  - rôle des vignettes de galerie ; cibles tactiles de 44 px (« Mot de passe oublié ? », Comparer) ;
+  - admin : `aria-label` sur les ~53 boutons icône, `ProductFormDialog` plein écran avec actions collantes sur mobile, `min-width` des toolbars, chaînes en dur ; pages légales en anglais ou mention explicite.
 
 ---
 
@@ -121,6 +155,11 @@ sur le serveur, chez un tiers ou une décision.
 - **Bornes hautes des dépendances Python** (sentry-sdk, aiohttp, boto3, weasyprint, arq, clamd, pyyaml…) : politique à trancher.
 - **Node 26 LTS** (fin 2026) : Dependabot ne la proposera pas (règle d'exclusion des majeures impaires).
 - `session.execute()` dans `order_number.py` : à trancher si l'avertissement devient une erreur.
+- Robustesse backend relevée par l'audit du 11/11/2026 ([`AUDIT_2026-11.md`](AUDIT_2026-11.md) §2) — M au total :
+  - **B6** : un `payment.captured` tardif ne fait plus reculer le statut de la commande (avancer seulement depuis les statuts « avant paiement ») ;
+  - **B7** : sweep des réservations filtré sur `Pending`, trié par date ;
+  - outbox : reprise des événements restés `RUNNING`, `MAX_ATTEMPTS` appliqué ;
+  - avoir émis plus tard si le remboursement précède la facture ; `balance_requested_at` posé seulement si l'e-mail part ; liaison au suivi en `begin_nested()` dans le checkout ; prix quantifiés selon la devise de référence (XPF sans décimales, voir aussi `split_incl_tax` au §8) ; branche `order is None` morte dans `_sync_order_status`.
 - Troncature bcrypt à 72 octets : ne corriger (pré-hachage) que dans une opération de réinitialisation générale prévue pour ça.
 
 ---

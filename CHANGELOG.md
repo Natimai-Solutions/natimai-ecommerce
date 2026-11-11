@@ -9,6 +9,11 @@ takes a tag as its `ref`.
 
 ### Added
 
+- `docs/internal/AUDIT_2026-11.md`: security, functional and UI/UX audit of
+  the stack before opening (findings verified against the code, with file,
+  scenario and fix). The pre-opening fixes it calls for are tracked in
+  `docs/internal/PLAN_DE_TRAVAIL.md`.
+
 - `docs/GUIDE_INTERFACE.md`: the interface rules shared by the storefront and
   the admin, on the model of natimai-paie, and the design skill they override
   (`design-taste-frontend`, frozen copy under `.claude/skills/`, recorded in
