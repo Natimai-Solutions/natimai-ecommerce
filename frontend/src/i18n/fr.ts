@@ -268,6 +268,12 @@ const fr = {
       "Votre avoir couvre la totalité du montant à régler maintenant : aucun paiement n'est nécessaire.",
     cgv_accept: "J'ai lu et j'accepte les",
     cgv_link: 'conditions générales de vente',
+    blocker_address: 'Choisissez une adresse de livraison pour continuer.',
+    blocker_delivery: 'Choisissez un mode de livraison pour continuer.',
+    blocker_method: 'Choisissez un moyen de paiement pour continuer.',
+    blocker_quote_loading: 'Calcul du montant en cours…',
+    blocker_quote: "Le montant n'a pas pu être calculé : vérifiez vos choix ou réessayez.",
+    blocker_cgv: 'Acceptez les conditions générales de vente pour payer.',
     secure:
       "Paiement par carte chiffré, géré par notre banque. Aucune donnée de carte n'est conservée sur ce site.",
     summary: 'Récapitulatif',

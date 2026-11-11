@@ -21,6 +21,9 @@
             dense
             class="q-mb-sm"
           />
+          <!-- U5 (audit 2026-11): every field takes the browser's address
+               autofill (it fills all of them at once, so none may wait for
+               another to be typed first); the save button waits instead. -->
           <q-select
             v-model="addressForm.country"
             :options="filteredCountryOptions"
@@ -32,6 +35,7 @@
             map-options
             use-input
             input-debounce="0"
+            autocomplete="country-name"
             :rules="[(v) => !!v || $t('addresses.field_required')]"
             @filter="filterCountries"
           />
@@ -50,9 +54,9 @@
               fill-input
               hide-selected
               input-debounce="0"
-              :disable="!countryChosen"
+              autocomplete="postal-code"
               :hide-dropdown-icon="postalDirectory.length === 0"
-              :rules="[(v) => !!v || 'Requis']"
+              :rules="[(v) => !!v || $t('addresses.field_required')]"
               @filter="filterPostalCodes"
               @input-value="onPostalTyped"
             >
@@ -72,7 +76,7 @@
               outlined
               dense
               class="col-7"
-              :disable="!postalFilled"
+              autocomplete="address-level2"
               :rules="cityRules"
             />
           </div>
@@ -83,7 +87,7 @@
             outlined
             dense
             class="q-mb-sm"
-            :disable="!postalFilled"
+            autocomplete="street-address"
             :rules="[(v) => !!v || $t('addresses.field_required')]"
           />
           <q-input
@@ -92,7 +96,7 @@
             outlined
             dense
             class="q-mb-sm"
-            :disable="!postalFilled"
+            autocomplete="address-level1"
           />
           <AppNotice
             v-if="detectedZoneLabel"
@@ -128,7 +132,7 @@
             color="primary"
             :label="editingId ? $t('addresses.save') : $t('addresses.create')"
             :loading="savingAddress"
-            :disable="savingAddress || !postalFilled"
+            :disable="savingAddress || !postalFilled || !countryChosen"
           />
         </q-card-actions>
       </q-form>

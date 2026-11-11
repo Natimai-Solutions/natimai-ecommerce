@@ -45,9 +45,12 @@
       <!-- Filtres : colonne sur ordinateur, panneau plein écran sur mobile -->
       <aside
         id="catalogue-filters"
+        ref="filtersPanel"
         class="filters"
         :class="{ 'filters--open': filtersOpen }"
         :aria-label="$t('catalogue.filters')"
+        :role="filtersOpen ? 'dialog' : undefined"
+        :aria-modal="filtersOpen ? 'true' : undefined"
       >
         <div class="filters__sheet-head">
           <span class="filters__sheet-title">{{ $t('catalogue.filters') }}</span>
@@ -255,6 +258,7 @@
             @update:model-value="onSortChange"
           />
           <q-btn
+            ref="filtersOpener"
             outline
             color="primary"
             icon="ph:sliders-horizontal"
@@ -377,6 +381,7 @@ import { catalogueCategoryChoices, categoryChildren, categoryLineage } from '@/u
 import { useI18n } from 'vue-i18n';
 import { intlLocale } from '@app/utils';
 import { useShopModulesStore } from '@/stores/shopModules';
+import { useModalSheet } from '@/composables/useModalSheet';
 import { useRoute, useRouter, type LocationQuery } from 'vue-router';
 import { useProductsStore } from '@/stores/products';
 import { useCartStore } from '@/stores/cart';
@@ -453,6 +458,10 @@ const priceMin = ref<number | ''>('');
 const priceMax = ref<number | ''>('');
 const cartError = ref<string | null>(null);
 const filtersOpen = ref(false);
+const filtersPanel = ref<HTMLElement | null>(null);
+const filtersOpener = ref<{ $el?: HTMLElement } | null>(null);
+// Mobile sheet = modal dialog: focus trapped, Escape, no scroll behind (U6).
+useModalSheet(filtersOpen, filtersPanel, filtersOpener);
 const showAllManufacturers = ref(false);
 
 // The chips of the current level: the selected category's sub-categories,

@@ -281,17 +281,19 @@
               :label="submitLabel"
               class="checkout__submit"
               :loading="initiating"
-              :disable="
-                initiating ||
-                !cgvAccepted ||
-                (!selectedMethodId && !creditCoversEverything) ||
-                !selectedAddressId ||
-                (deliveryOptions.length > 0 && !selectedDelivery) ||
-                quoteLoading ||
-                !quote
-              "
+              :disable="initiating || payBlocker !== null"
+              :aria-describedby="payBlocker ? 'checkout-pay-blocker' : undefined"
               @click="startPayment"
             />
+            <p
+              v-if="payBlocker && !initiating"
+              id="checkout-pay-blocker"
+              class="checkout__blocker"
+              role="status"
+              data-testid="checkout-pay-blocker"
+            >
+              {{ payBlocker }}
+            </p>
             <p v-if="paysByCard" class="checkout__secure">
               <q-icon name="ph:lock-simple" size="14px" /> {{ $t('checkout.secure') }}
             </p>
@@ -308,7 +310,29 @@
       </div>
 
       <aside v-if="!orderPlaced" class="checkout__aside" :aria-label="$t('checkout.summary')">
-        <div class="app-panel summary">
+        <!-- Mobile (U3): the full recap came before step 1; a one-line total
+             opens it on demand. Desktop always shows it, beside the steps. -->
+        <button
+          type="button"
+          class="summary-toggle lt-md"
+          :aria-expanded="summaryOpen"
+          aria-controls="checkout-summary"
+          data-testid="checkout-summary-toggle"
+          @click="summaryOpen = !summaryOpen"
+        >
+          <span>{{ $t('checkout.summary') }}</span>
+          <span class="summary-toggle__total">
+            <span class="font-mono">{{
+              formatMoney(quote ? quote.total_amount : String(cartStore.totalAmount))
+            }}</span>
+            <q-icon :name="summaryOpen ? 'ph:caret-up' : 'ph:caret-down'" size="16px" />
+          </span>
+        </button>
+        <div
+          id="checkout-summary"
+          class="app-panel summary"
+          :class="{ 'summary--collapsed': !summaryOpen }"
+        >
           <h2 class="summary__title">{{ $t('checkout.summary') }}</h2>
           <ul class="summary__lines">
             <li v-for="{ item, product } in cartStore.detailedItems" :key="item.id">
@@ -884,6 +908,27 @@ function stepNumber(step: 'plan' | 'payment'): number {
   return n + 1;
 }
 
+/**
+ * Why « Payer » is not available yet, the first missing step first (audit
+ * 2026-11, U4): seven conditions greyed the button with no word on which.
+ */
+/** Mobile recap folded by default (U3); ignored on desktop. */
+const summaryOpen = ref(false);
+
+const payBlocker = computed<string | null>(() => {
+  if (!selectedAddressId.value) return t('checkout.blocker_address');
+  if (deliveryOptions.value.length > 0 && !selectedDelivery.value) {
+    return t('checkout.blocker_delivery');
+  }
+  if (!selectedMethodId.value && !creditCoversEverything.value) {
+    return t('checkout.blocker_method');
+  }
+  if (quoteLoading.value) return t('checkout.blocker_quote_loading');
+  if (!quote.value) return t('checkout.blocker_quote');
+  if (!cgvAccepted.value) return t('checkout.blocker_cgv');
+  return null;
+});
+
 const submitLabel = computed(() => {
   const q = quote.value;
   if (!q) return t('checkout.validate');
@@ -1364,6 +1409,12 @@ async function uploadDocument() {
   color: var(--n-ink-3);
 }
 
+.checkout__blocker {
+  margin: 0;
+  font-size: 13px;
+  color: var(--n-ink-2);
+}
+
 .checkout__card-form {
   max-width: 480px;
 }
@@ -1375,6 +1426,39 @@ async function uploadDocument() {
   @media (max-width: 1023px) {
     position: static;
     order: -1;
+  }
+}
+
+.summary-toggle {
+  width: 100%;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  font: inherit;
+  font-weight: 600;
+  color: var(--n-ink);
+  background: var(--n-paper);
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-radius);
+  cursor: pointer;
+}
+
+.summary-toggle__total {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+@media (max-width: 1023px) {
+  .summary {
+    margin-top: 8px;
+  }
+
+  .summary--collapsed {
+    display: none;
   }
 }
 
