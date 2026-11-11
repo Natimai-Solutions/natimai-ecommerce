@@ -115,6 +115,10 @@ class GroupPricing:
     category_ancestors: dict[uuid.UUID, tuple[uuid.UUID, ...]] = field(
         default_factory=dict
     )
+    #: Articles always sold at their reference price: the gift cards, issued
+    #: at face value once paid — a group price or a promotion on them would
+    #: be money for nothing (audit 2026-11, S3).
+    fixed_price_ids: frozenset[uuid.UUID] = frozenset()
 
     def lineage(self, category_id: uuid.UUID | None) -> tuple[uuid.UUID, ...]:
         if category_id is None:
@@ -134,6 +138,8 @@ class GroupPricing:
         category_id: uuid.UUID | None = None,
     ) -> PriceQuote:
         """The best price: group price (typed, else discount) vs promotions."""
+        if product_id in self.fixed_price_ids:
+            return PriceQuote(price=reference, regular=reference)
         typed = self.prices.get(product_id)
         regular = (
             typed if typed is not None else apply_discount(reference, self.discount_pct)
@@ -258,11 +264,15 @@ async def load_group_pricing(
         if any(p.category_id is not None for p in promotions)
         else {}
     )
+    ids = list({pid for pid in product_ids if pid is not None})
+    fixed = await _gift_card_ids(session, ids)
     if group is None:
         return GroupPricing(
-            group_id=None, promotions=promotions, category_ancestors=ancestors
+            group_id=None,
+            promotions=promotions,
+            category_ancestors=ancestors,
+            fixed_price_ids=fixed,
         )
-    ids = list({pid for pid in product_ids if pid is not None})
     prices: dict[uuid.UUID, Decimal] = {}
     if ids:
         rows = await session.exec(
@@ -278,7 +288,24 @@ async def load_group_pricing(
         prices=prices,
         promotions=promotions,
         category_ancestors=ancestors,
+        fixed_price_ids=fixed,
     )
+
+
+async def _gift_card_ids(
+    session: AsyncSession, ids: list[uuid.UUID]
+) -> frozenset[uuid.UUID]:
+    """Among ``ids``, the gift-card articles (sold at their reference price)."""
+    if not ids:
+        return frozenset()
+    from app.features.product.models.product import Product
+
+    rows = await session.exec(
+        select(Product.id).where(
+            col(Product.id).in_(ids), col(Product.gift_card_amount).is_not(None)
+        )
+    )
+    return frozenset(rows.all())
 
 
 async def pricing_for_user(

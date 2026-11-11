@@ -8,6 +8,7 @@ from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.alerting import send_alert
 from app.features.base.crud import RecordNotFoundError
 from app.features.inventory.services.stock_release import (
     confirm_order_stock,
@@ -37,6 +38,9 @@ from app.features.payment.services.deposit import (
     ORDER_STATUS_DEPOSIT_PAID,
 )
 from app.features.payment.services.gift_cards import issue_for_order
+from app.features.payment.services.gift_cards import (
+    revoke_for_refund as revoke_gift_cards_for_refund,
+)
 from app.features.payment.services.loyalty import earn_for_order, revoke_for_refund
 from app.features.payment.services.notifications import (
     send_payment_event_notifications,
@@ -553,6 +557,22 @@ async def on_payment_refunded(session: AsyncSession, payload: dict[str, Any]) ->
             session, order_id=refund_order_id, refunded=refunded, fully=fully
         ):
             await session.commit()
+        # The gift cards it issued go back too (audit 2026-11, S6).
+        revocation = await revoke_gift_cards_for_refund(
+            session, order_id=refund_order_id, fully=fully
+        )
+        refunded_order = await session.get(Order, refund_order_id)
+        message = revocation.alert(
+            str(
+                (refunded_order.order_number if refunded_order else None)
+                or refund_order_id
+            )
+        )
+        if revocation.changed:
+            await session.commit()
+        if message:
+            logger.error("%s", message)
+            await send_alert(message, source="gift_cards")
     # Only a *fully* refunded order gives its stock back, and only the
     # reservations still PENDING. A captured payment has already confirmed its
     # movements (COMPLETED), so this is a no-op on the normal flow — it exists

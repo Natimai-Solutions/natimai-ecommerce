@@ -15,8 +15,6 @@ sur le serveur, chez un tiers ou une décision.
 
 Détail, fichiers et scénarios : [`AUDIT_2026-11.md`](AUDIT_2026-11.md) (identifiants S·, B·, F·, U·).
 
-- **S3** : cartes cadeaux exclues des remises, prix de groupe et promotions (ou émises au montant net payé) — S.
-- **S6** : un remboursement annule les cartes cadeaux de la commande et reprend l'avoir déjà converti, avec alerte admin — M.
 - **Machine d'états du stock** (B1, B2, B3, B5) : un seul service « réserver / confirmer / libérer » appelé à chaque changement de statut — annulation admin (stock et usage de coupon rendus), nouveau paiement après `PaymentFailed` (re-réservation sous verrou), autorisation seule (`AUTHORISED` publie un événement, le sweep l'épargne), recrédit selon `has_supplier_stock` — M.
 - **B4** : ne plus écraser `supplier_quantity` par le stock live fournisseur (instantané séparé, disponible = live − réservations en cours, sous verrou) — M.
 - **S9** : à l'initiation du paiement, refuser un moyen différent de celui du devis (ou recalculer les frais) — S.

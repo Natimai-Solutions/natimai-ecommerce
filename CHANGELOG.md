@@ -176,6 +176,13 @@ takes a tag as its `ref`.
   per customer (10 per 10 minutes); past that the code is not looked up and
   the quote says to retry later, so it no longer serves as an oracle to guess
   codes. A customer re-pricing a valid code is never throttled.
+- Money (audit 2026-11, S3): a gift card is always sold at its reference
+  price — no promo code, group price or promotion applies to it (a card
+  bought 20 % off was still issued at face value, i.e. free store credit).
+- Money (S6): a full refund cancels the order's unused gift cards and takes
+  back the store credit of the redeemed ones, within the holder's balance;
+  what was already spent, and the cards of a partially refunded order, are
+  reported to the admin (log + `ALERT_WEBHOOK_URL`).
 - Storefront (U1): the mobile menu button announced `$t('layout.menu')`
   literally to screen readers; the design guard now rejects a static
   attribute containing `$t(`.

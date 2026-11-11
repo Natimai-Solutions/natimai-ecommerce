@@ -360,3 +360,122 @@ def test_gift_card_email_lists_codes(lang: str) -> None:
     assert "AB7K-MN3P-Q2RS-TUVW" in email.text and "AB7K-MN3P-Q2RS-TUVW" in email.html
     assert "2027" in email.html
     assert "Natimai" in email.subject
+
+
+async def _order_with_cards(
+    session: AsyncSession, buyer: User, count: int
+) -> tuple[uuid.UUID, list[str]]:
+    paid = OrderStatus(name="Paid")
+    session.add(paid)
+    await session.flush()
+    order = Order(
+        user_id=buyer.id,
+        order_status_id=paid.id,
+        order_number=f"CMD-{uuid.uuid4().hex[:6]}",
+        currency="XPF",
+        total_amount=Decimal(10000 * count),
+    )
+    session.add(order)
+    await session.flush()
+    order_id = order.id
+    cards = await gift_cards.issue(
+        session,
+        kind="gift_card",
+        amount=Decimal("10000"),
+        count=count,
+        recipient_email=buyer.email,
+        order_id=order_id,
+    )
+    codes = [c.code for c in cards]
+    await session.commit()
+    return order_id, codes
+
+
+@pytest.mark.asyncio
+async def test_a_full_refund_takes_its_gift_cards_back(
+    db_session: AsyncSession,
+) -> None:
+    """Audit 2026-11, S6: refunded, the order kept its cards — the buyer got
+    the money back and still held 30 000 F of codes."""
+    buyer = await _user(db_session)
+    order_id, codes = await _order_with_cards(db_session, buyer, 3)
+
+    # One code is still unused; one redeemed and kept; one redeemed and
+    # partly spent (only 4 000 F of credit left on that account).
+    keeper = await _user(db_session)
+    keeper_id = keeper.id
+    spender = await _user(db_session)
+    spender_id = spender.id
+    await gift_cards.redeem(
+        db_session, code=codes[1], user=await _fresh(db_session, keeper)
+    )
+    await gift_cards.redeem(
+        db_session, code=codes[2], user=await _fresh(db_session, spender)
+    )
+    await store_credit.grant(
+        db_session,
+        user_id=spender_id,
+        amount=Decimal("-6000"),
+        reason="dépensé",
+        currency="XPF",
+        order_id=None,
+        admin=None,
+    )
+    await db_session.commit()
+
+    outcome = await gift_cards.revoke_for_refund(
+        db_session, order_id=order_id, fully=True
+    )
+    assert [c.code for c in outcome.cancelled] == [codes[0]]
+    await db_session.commit()
+
+    assert outcome.reclaimed == Decimal("14000")
+    assert len(outcome.shortfalls) == 1 and "6000" in outcome.shortfalls[0]
+    assert await store_credit.balance(db_session, keeper_id) == Decimal("0")
+    assert await store_credit.balance(db_session, spender_id) == Decimal("0")
+    message = outcome.alert("CMD-X")
+    assert message is not None and "récupérer manuellement" in message
+
+    states = {
+        c.code: gift_cards.state_of(c)
+        for c in (
+            await db_session.exec(
+                select(GiftCard).where(col(GiftCard.order_id) == order_id)
+            )
+        ).all()
+    }
+    assert states[codes[0]] == "cancelled"
+    with pytest.raises(AppError):
+        await gift_cards.redeem(
+            db_session, code=codes[0], user=await _fresh(db_session, keeper)
+        )
+
+    # The outbox may replay the refund: nothing is taken twice.
+    again = await gift_cards.revoke_for_refund(
+        db_session, order_id=order_id, fully=True
+    )
+    assert not again.changed and again.alert("CMD-X") is None
+
+
+@pytest.mark.asyncio
+async def test_a_partial_refund_leaves_the_cards_to_the_admin(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    buyer = await _user(db_session)
+    order_id, codes = await _order_with_cards(db_session, buyer, 1)
+    alert = AsyncMock(return_value=True)
+    monkeypatch.setattr(payment_handlers, "send_alert", alert)
+
+    await payment_handlers.on_payment_refunded(
+        db_session,
+        {"order_id": str(order_id), "amount": "500", "fully_refunded": False},
+    )
+
+    card = (
+        await db_session.exec(
+            select(GiftCard).where(col(GiftCard.order_id) == order_id)
+        )
+    ).one()
+    assert gift_cards.state_of(card) == "active"
+    assert alert.await_args is not None
+    assert "remboursée en partie" in alert.await_args.args[0]

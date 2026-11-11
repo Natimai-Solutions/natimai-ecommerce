@@ -459,3 +459,107 @@ async def test_a_non_stackable_code_skips_promoted_articles(
             currency="XPF",
         )
     assert refused.value.reason == "promoted_only"
+
+
+async def _gift_card(session: AsyncSession) -> uuid.UUID:
+    card = Product(
+        name="Carte cadeau 10 000",
+        pricing_mode=PricingMode.FIXED,
+        base_price=Decimal("10000"),
+        gift_card_amount=Decimal("10000"),
+        is_featured=True,
+        is_enriched=True,
+        weight=0.0,
+        customs_rate_pct=Decimal("0"),
+    )
+    session.add(card)
+    card_id = card.id
+    await session.commit()
+    return card_id
+
+
+@pytest.mark.asyncio
+async def test_a_gift_card_takes_no_group_price_nor_promotion(
+    db_session: AsyncSession,
+) -> None:
+    """Audit 2026-11, S3: a card is issued at its face value once paid. Sold
+    10 % off to a group (or under a promotion), it was 1 000 F of store
+    credit for nothing, as many times as wanted."""
+    ids = await _setup(db_session)
+    card_id = await _gift_card(db_session)
+    db_session.add(_promotion(product_id=card_id, percentage=Decimal("20")))
+    await db_session.commit()
+
+    pro_id = ids["users"]["pro"]  # group −10 %
+    listing = await get_featured_products(
+        session=cast(Any, db_session),
+        limit=10,
+        current_user=await _user(db_session, pro_id),
+    )
+    shown = {p.name: p for p in listing.data}
+    assert shown["Carte cadeau 10 000"].base_price == Decimal("10000")
+    assert shown["Carte cadeau 10 000"].promotion_name is None
+    assert shown["Clavier"].base_price == Decimal("4500.00")  # others unchanged
+
+    await add_cart_item(
+        session=cast(Any, db_session),
+        current_user=await _user(db_session, pro_id),
+        payload=CartItemAddRequest(product_id=card_id, quantity=1),
+    )
+    cart = await crud_cart.get_active_cart_by_user(session=db_session, user_id=pro_id)
+    assert cart is not None
+    items = await crud_cart_item.get_by_cart_id(session=db_session, cart_id=cart.id)
+    assert [i.unit_price for i in items] == [Decimal("10000")]
+
+
+@pytest.mark.asyncio
+async def test_a_promo_code_never_covers_a_gift_card(db_session: AsyncSession) -> None:
+    ids = await _setup(db_session)
+    card_id = await _gift_card(db_session)
+    db_session.add(
+        Discount(
+            name="Vingt",
+            code="VINGT",
+            discount_type=DiscountType.COUPON,
+            percentage=Decimal("20"),
+            target=DiscountTarget.ORDER,
+        )
+    )
+    await db_session.commit()
+    products = {
+        card_id: SimpleNamespace(
+            id=card_id, category_id=None, gift_card_amount=Decimal("10000")
+        ),
+        ids["clavier"]: SimpleNamespace(
+            id=ids["clavier"], category_id=None, gift_card_amount=None
+        ),
+    }
+
+    def line(product_id: uuid.UUID, price: str) -> SimpleNamespace:
+        return SimpleNamespace(
+            id=uuid.uuid4(),
+            product_id=product_id,
+            unit_price=Decimal(price),
+            quantity=1,
+        )
+
+    applied = await resolve_coupon(
+        db_session,
+        code="vingt",
+        user_id=ids["users"]["pro"],
+        items=[line(card_id, "10000"), line(ids["clavier"], "5000")],
+        products_by_id=products,
+        currency="XPF",
+    )
+    assert applied.amount == Decimal("1000")  # 20 % of the keyboard only
+
+    with pytest.raises(DiscountRefused) as refused:
+        await resolve_coupon(
+            db_session,
+            code="vingt",
+            user_id=ids["users"]["pro"],
+            items=[line(card_id, "10000")],
+            products_by_id=products,
+            currency="XPF",
+        )
+    assert refused.value.reason == "not_applicable"
