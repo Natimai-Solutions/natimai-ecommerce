@@ -214,6 +214,12 @@ takes a tag as its `ref`.
   `is_superuser` by hand and `BaseRouter` granted admin powers, and the
   internal fields were revealed before the check. `GET /users/me` and the
   enrolment endpoints use the new `CurrentUserEnrolling`.
+- Security (audit 2026-11, S2): new `ADMIN_FRONTEND_HOST`. A superuser's
+  refresh token is only exchanged from that origin
+  (`login.refresh_token.admin_origin`, 403, nothing revoked): the storefront
+  and the admin share the API and its cookie, so an XSS on the storefront
+  could mint an admin access token. **Set it in production** (warned when
+  missing outside `local`).
 - Storefront (U1): the mobile menu button announced `$t('layout.menu')`
   literally to screen readers; the design guard now rejects a static
   attribute containing `$t(`.

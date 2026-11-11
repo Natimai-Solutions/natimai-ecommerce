@@ -67,6 +67,7 @@ random fallback still applies, with a warning.
 | `PROJECT_NAME` | `FastAPI Ecommerce` | Used as default email "from" name |
 | `SHOP_NAME` | `Natimai` | Storefront brand name |
 | `FRONTEND_HOST` | `http://localhost:5173` | Public storefront URL (CORS + email links) |
+| `ADMIN_FRONTEND_HOST` | — | Public back-office URL (`https://admin.<DOMAIN>`). An administrator's session is refreshed from this origin only, so a script injected in the storefront cannot obtain it. Empty = no check (warned outside `local`). **Set it in production.** |
 | `BACKEND_CORS_ORIGINS` | `[]` | Extra CORS origins (comma list or JSON array) |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `15` | Access token TTL — do **not** increase |
 | `REFRESH_TOKEN_EXPIRE_DAYS` | `30` | Refresh token TTL |
@@ -615,6 +616,7 @@ FIRST_SUPERUSER_PASSWORD=replace-with-strong-password
 
 # --- URLs / CORS ---
 FRONTEND_HOST=https://shop.example.com
+ADMIN_FRONTEND_HOST=https://admin.example.com
 BACKEND_CORS_ORIGINS=https://shop.example.com,https://admin.example.com
 # Public API origin baked into the frontends at `docker compose build`
 VITE_API_URL=https://api.example.com
@@ -872,6 +874,7 @@ no third-party script) runs with `script-src 'self'`. Images may come from any
 2. **Root `.env`** — `DOMAIN=example.com` and `ACME_EMAIL=<contact>`.
 3. **Consistent public URLs** (see §3.1, §3.4, §4):
    - `FRONTEND_HOST=https://example.com`
+   - `ADMIN_FRONTEND_HOST=https://admin.example.com`
    - `BACKEND_CORS_ORIGINS=https://example.com,https://admin.example.com`
    - `OAUTH_REDIRECT_BASE_URL=https://api.example.com` (if OAuth is enabled)
    - `FRONTEND_OAUTH_REDIRECT_URL=https://example.com/oauth/callback`

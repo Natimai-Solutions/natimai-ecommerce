@@ -88,7 +88,9 @@ async def test_two_concurrent_refreshes_rotate_the_token_once(
     assert sorted(o is None for o in outcomes) == [False, True]
 
 
-async def _refresh_with(session: AsyncSession, cookie: str) -> object:
+async def _refresh_with(
+    session: AsyncSession, cookie: str, origin: str | None = None
+) -> object:
     from fastapi import Response
     from starlette.requests import Request
 
@@ -101,7 +103,8 @@ async def _refresh_with(session: AsyncSession, cookie: str) -> object:
             "method": "POST",
             "path": "/api/v1/login/refresh-token",
             "headers": [
-                (b"cookie", f"{settings.REFRESH_COOKIE_NAME}={cookie}".encode())
+                (b"cookie", f"{settings.REFRESH_COOKIE_NAME}={cookie}".encode()),
+                *([(b"origin", origin.encode())] if origin else []),
             ],
             "client": ("203.0.113.7", 1234),
         }
@@ -171,3 +174,63 @@ async def test_a_refresh_token_without_stamp_is_refused(
     with pytest.raises(AppError) as refused:
         await _refresh_with(db_session, cookie)
     assert refused.value.code == "login.refresh_token.revoked"
+
+
+@pytest.mark.asyncio
+async def test_an_admin_session_is_refreshed_from_the_admin_origin_only(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Audit 2026-11, S2: a script injected in the storefront could exchange
+    an administrator's refresh cookie (same API, CORS allowed) for an admin
+    access token."""
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "ADMIN_FRONTEND_HOST", "https://admin.shop.test")
+    admin = User(
+        email=f"ops+{uuid.uuid4().hex[:8]}@test.local",
+        hashed_password="x",
+        is_superuser=True,
+    )
+    db_session.add(admin)
+    admin_id, stamp = admin.id, admin.security_stamp
+    await db_session.flush()
+    db_session.add(
+        UserRefreshToken(
+            user_id=admin_id,
+            jti="admin",
+            expires_at=datetime.now(UTC) + timedelta(days=1),
+        )
+    )
+    await db_session.commit()
+    cookie = security.create_refresh_token(
+        admin_id, expires_delta=timedelta(days=1), jti="admin", stamp=stamp
+    )
+
+    with pytest.raises(AppError) as refused:
+        await _refresh_with(db_session, cookie, origin="https://shop.test")
+    assert refused.value.code == "login.refresh_token.admin_origin"
+    # Nothing revoked: the administrator's own session goes on.
+    assert await _active_sessions(db_session, admin_id) == 1
+    assert await _refresh_with(db_session, cookie, origin="https://admin.shop.test/")
+
+
+@pytest.mark.asyncio
+async def test_a_customer_refreshes_from_the_storefront(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "ADMIN_FRONTEND_HOST", "https://admin.shop.test")
+    user_id, stamp = await _user(db_session)
+    db_session.add(
+        UserRefreshToken(
+            user_id=user_id,
+            jti="shop",
+            expires_at=datetime.now(UTC) + timedelta(days=1),
+        )
+    )
+    await db_session.commit()
+    cookie = security.create_refresh_token(
+        user_id, expires_delta=timedelta(days=1), jti="shop", stamp=stamp
+    )
+    assert await _refresh_with(db_session, cookie, origin="https://shop.test")

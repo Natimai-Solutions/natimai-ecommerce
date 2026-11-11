@@ -67,6 +67,12 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
     FRONTEND_HOST: str = "http://localhost:5173"
+    # Public URL of the back-office (https://admin.<DOMAIN>). A superuser's
+    # refresh token is only exchanged from this origin: an XSS on the
+    # storefront (same API, same cookie, CORS allowed) could otherwise mint
+    # an admin access token (audit 2026-11, S2). Empty = no check (warned
+    # outside local).
+    ADMIN_FRONTEND_HOST: str | None = None
     ENVIRONMENT: Literal["local", "staging", "production"] = "local"
 
     # Refresh-token cookie. The access token lives only in the SPA memory; the
@@ -764,9 +770,21 @@ class Settings(BaseSettings):
         else:
             raise ValueError(message)
 
+    def _check_admin_frontend_host(self) -> None:
+        """Without ``ADMIN_FRONTEND_HOST`` an admin session is reachable from
+        the storefront's origin: warn outside local."""
+        if self.ENVIRONMENT != "local" and not (self.ADMIN_FRONTEND_HOST or "").strip():
+            warnings.warn(
+                "ADMIN_FRONTEND_HOST is not set: an administrator's session can "
+                "be refreshed from the storefront's origin (an XSS there would "
+                "reach the back office). Set it to the admin URL.",
+                stacklevel=1,
+            )
+
     @model_validator(mode="after")
     def _enforce_non_default_secrets(self) -> Self:
         """Execute enforce non default secrets."""
+        self._check_admin_frontend_host()
         self._check_secret_key()
         self._check_default_secret("SECRET_KEY", self.SECRET_KEY)
         self._check_default_secret("POSTGRES_PASSWORD", self.POSTGRES_PASSWORD)
