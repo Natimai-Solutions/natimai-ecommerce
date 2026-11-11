@@ -114,10 +114,18 @@
       </template>
       <template #body-cell-actions="props">
         <q-td :props="props" align="right">
-          <q-btn flat round dense icon="ph:pencil-simple" @click="openEdit(props.row)">
+          <q-btn
+            :aria-label="$t('users.edit')"
+            flat
+            round
+            dense
+            icon="ph:pencil-simple"
+            @click="openEdit(props.row)"
+          >
             <q-tooltip>{{ $t('users.edit') }}</q-tooltip>
           </q-btn>
           <q-btn
+            :aria-label="$t('users.resend')"
             v-if="props.row.invitation_pending && props.row.is_active"
             flat
             round
@@ -129,6 +137,7 @@
             <q-tooltip>{{ $t('users.resend') }}</q-tooltip>
           </q-btn>
           <q-btn
+            :aria-label="$t('users.reset_2fa')"
             v-if="props.row.is_superuser && props.row.totp_enabled"
             flat
             round
@@ -140,6 +149,7 @@
             <q-tooltip>{{ $t('users.reset_2fa') }}</q-tooltip>
           </q-btn>
           <q-btn
+            :aria-label="props.row.is_active ? $t('users.disable') : $t('users.enable')"
             flat
             round
             dense

@@ -319,6 +319,8 @@ const en: MessageSchema = {
       "Blank = top level. A sub-category inherits the VAT, customs and margin its branch leaves unset; the storefront lists the parent with its sub-categories' products.",
   },
   common: {
+    page_previous: 'Previous page',
+    page_next: 'Next page',
     action_failed: 'Action failed.',
     active: 'Active',
     active_f: 'Enabled',

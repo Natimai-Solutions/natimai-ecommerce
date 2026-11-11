@@ -56,10 +56,19 @@
             />
           </td>
           <td class="text-right no-wrap">
-            <q-btn flat dense round icon="ph:pencil-simple" size="sm" @click="openEdit(v)">
+            <q-btn
+              :aria-label="$t('common.edit')"
+              flat
+              dense
+              round
+              icon="ph:pencil-simple"
+              size="sm"
+              @click="openEdit(v)"
+            >
               <q-tooltip>{{ $t('common.edit') }}</q-tooltip>
             </q-btn>
             <q-btn
+              :aria-label="$t('variants.remove')"
               v-if="v.is_active"
               flat
               dense
@@ -107,7 +116,15 @@
                 dense
                 class="col-5"
               />
-              <q-btn flat dense round icon="ph:x" class="col-1" @click="optionRows.splice(i, 1)">
+              <q-btn
+                :aria-label="$t('variants.remove_option')"
+                flat
+                dense
+                round
+                icon="ph:x"
+                class="col-1"
+                @click="optionRows.splice(i, 1)"
+              >
                 <q-tooltip>{{ $t('variants.remove_option') }}</q-tooltip>
               </q-btn>
             </div>

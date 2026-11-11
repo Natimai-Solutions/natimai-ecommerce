@@ -83,7 +83,14 @@
         </template>
         <template #body-cell-actions="props">
           <q-td :props="props" align="right">
-            <q-btn flat round dense icon="ph:pencil-simple" @click="openPlaceEdit(props.row)">
+            <q-btn
+              :aria-label="$t('common.edit')"
+              flat
+              round
+              dense
+              icon="ph:pencil-simple"
+              @click="openPlaceEdit(props.row)"
+            >
               <q-tooltip>{{ $t('common.edit') }}</q-tooltip>
             </q-btn>
           </q-td>
@@ -159,6 +166,7 @@
         <template #body-cell-actions="props">
           <q-td :props="props" align="right">
             <q-btn
+              :aria-label="$t('logistics.main_tip')"
               v-if="props.row.is_warehouse && !props.row.is_main_warehouse"
               flat
               round
@@ -170,7 +178,14 @@
                 {{ $t('logistics.main_tip') }}
               </q-tooltip>
             </q-btn>
-            <q-btn flat round dense icon="ph:pencil-simple" @click="openPlaceEdit(props.row)">
+            <q-btn
+              :aria-label="$t('common.edit')"
+              flat
+              round
+              dense
+              icon="ph:pencil-simple"
+              @click="openPlaceEdit(props.row)"
+            >
               <q-tooltip>{{ $t('common.edit') }}</q-tooltip>
             </q-btn>
           </q-td>
@@ -258,7 +273,14 @@
         </template>
         <template #body-cell-actions="props">
           <q-td :props="props" align="right">
-            <q-btn flat round dense icon="ph:pencil-simple" @click="openRouteEdit(props.row)">
+            <q-btn
+              :aria-label="$t('common.edit')"
+              flat
+              round
+              dense
+              icon="ph:pencil-simple"
+              @click="openRouteEdit(props.row)"
+            >
               <q-tooltip>{{ $t('common.edit') }}</q-tooltip>
             </q-btn>
           </q-td>

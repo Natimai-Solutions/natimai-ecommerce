@@ -267,6 +267,7 @@
       <template #body-cell-actions="props">
         <q-td :props="props" align="right" class="no-wrap">
           <q-btn
+            :aria-label="$t('products.publish')"
             v-if="props.row.is_draft"
             flat
             dense
@@ -279,6 +280,7 @@
             <q-tooltip>{{ $t('products.publish') }}</q-tooltip>
           </q-btn>
           <q-btn
+            :aria-label="$t('products.price_log')"
             flat
             dense
             round

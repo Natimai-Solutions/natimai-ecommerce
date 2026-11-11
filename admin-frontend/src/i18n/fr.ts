@@ -317,6 +317,8 @@ const fr = {
       'Vide = premier niveau. Une sous-catégorie hérite de la TVA, de la douane et de la marge que sa branche ne fixe pas ; la vitrine liste le parent avec les produits de ses sous-catégories.',
   },
   common: {
+    page_previous: 'Page précédente',
+    page_next: 'Page suivante',
     action_failed: 'Action impossible.',
     active: 'Actif',
     active_f: 'Active',
