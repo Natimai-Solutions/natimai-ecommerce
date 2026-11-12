@@ -16,6 +16,7 @@ from app.features.inventory.services.stock_release import (
 )
 from app.features.invoice.services.credit_note_service import (
     CreditNoteIssuanceError,
+    InvoiceNotIssuedError,
     issue_credit_note_for_refund,
 )
 from app.features.invoice.services.invoice_service import issue_invoice_for_order
@@ -164,7 +165,12 @@ async def _sync_order_status(
         )
         return
 
-    order = await crud_order.read(session, id=order_uuid)
+    # crud_order.read raises on a missing row (the `is None` test never ran,
+    # and the handler failed and retried forever instead — audit 2026-11).
+    try:
+        order = await crud_order.read(session, id=order_uuid)
+    except RecordNotFoundError:
+        order = None
     if order is None:
         logger.warning(
             "Order %s not found while syncing status %s",
@@ -655,6 +661,30 @@ async def on_payment_refunded(session: AsyncSession, payload: dict[str, Any]) ->
             )
 
 
+async def _order_was_captured(session: AsyncSession, payload: dict[str, Any]) -> bool:
+    """Whether a capture of the refunded order was published (its invoice
+    follows it). A « Refunded » payment status alone does not say so: an
+    authorisation can be refunded without ever being captured."""
+    from sqlmodel import col, select
+
+    from app.outbox.models import OutboxEvent
+
+    order_id = _parse_order_id(payload)
+    if order_id is None:
+        return False
+    row = (
+        await session.exec(
+            select(OutboxEvent.id)
+            .where(
+                col(OutboxEvent.type) == "payment.captured",
+                col(OutboxEvent.payload)["order_id"].as_string() == str(order_id),
+            )
+            .limit(1)
+        )
+    ).first()
+    return row is not None
+
+
 @outbox_handler("payment.refunded")
 async def on_payment_refunded_issue_credit_note(
     session: AsyncSession, payload: dict[str, Any]
@@ -682,6 +712,16 @@ async def on_payment_refunded_issue_credit_note(
 
     try:
         credit_note = await issue_credit_note_for_refund(session, refund_id=refund_id)
+    except InvoiceNotIssuedError as exc:
+        # A refund right after the capture can overtake the invoice, issued
+        # asynchronously: when the order was captured the invoice is coming,
+        # so the job fails and is retried — the credit note used to be lost
+        # (audit 2026-11). Never captured (authorise then refund): nothing
+        # was invoiced, nothing to correct.
+        if await _order_was_captured(session, payload):
+            raise RuntimeError(f"credit note waits for the invoice: {exc}") from exc
+        logger.info("No credit note for refund %s: %s", refund_id, exc)
+        return
     except CreditNoteIssuanceError as exc:
         # An order refunded before it was ever invoiced has nothing to correct;
         # retrying would never succeed, so log loudly and stop.

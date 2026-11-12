@@ -3528,15 +3528,18 @@ async def checkout_my_cart(
                 route.id != last_leg_route.id for route in tracking_routes
             ):
                 tracking_routes.append(last_leg_route)
+            # Best effort, in a savepoint (audit 2026-11): a failure used to
+            # leave the transaction aborted and the checkout answered 500.
             try:
-                await _link_selected_routes_to_tracking(
-                    session=session,
-                    order_id=order.id,
-                    current_user=current_user,
-                    shipping_address=payload.shipping_address,
-                    shipping_address_id=payload.shipping_address_id,
-                    selected_routes=tracking_routes,
-                )
+                async with session.begin_nested():
+                    await _link_selected_routes_to_tracking(
+                        session=session,
+                        order_id=order.id,
+                        current_user=current_user,
+                        shipping_address=payload.shipping_address,
+                        shipping_address_id=payload.shipping_address_id,
+                        selected_routes=tracking_routes,
+                    )
             except Exception as tracking_exc:
                 log_structured_event(
                     logger,
@@ -3547,15 +3550,16 @@ async def checkout_my_cart(
                 )
         elif segment_totals:
             try:
-                await _link_fulfillment_segments_to_tracking(
-                    session=session,
-                    order_id=order.id,
-                    current_user=current_user,
-                    shipping_address=payload.shipping_address,
-                    shipping_address_id=payload.shipping_address_id,
-                    segment_totals=segment_totals,
-                    last_leg_route=last_leg_route,
-                )
+                async with session.begin_nested():
+                    await _link_fulfillment_segments_to_tracking(
+                        session=session,
+                        order_id=order.id,
+                        current_user=current_user,
+                        shipping_address=payload.shipping_address,
+                        shipping_address_id=payload.shipping_address_id,
+                        segment_totals=segment_totals,
+                        last_leg_route=last_leg_route,
+                    )
             except Exception as tracking_exc:
                 log_structured_event(
                     logger,

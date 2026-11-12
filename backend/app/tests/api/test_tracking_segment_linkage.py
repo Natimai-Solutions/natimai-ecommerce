@@ -1,3 +1,5 @@
+import contextlib
+from collections.abc import AsyncIterator
 from decimal import Decimal
 from types import SimpleNamespace
 from typing import cast
@@ -18,6 +20,12 @@ from app.features.order.crud.order_crud import crud_order
 from app.features.order.crud.order_line_crud import crud_order_line
 from app.features.payment.crud.payment import crud_payment
 from app.features.user.models.user import User
+
+
+@contextlib.asynccontextmanager
+async def _savepoint() -> AsyncIterator[None]:
+    """The checkout links tracking inside a savepoint (begin_nested)."""
+    yield
 
 
 @pytest.fixture(autouse=True)
@@ -136,6 +144,7 @@ async def test_checkout_calls_tracking_linker_with_segment_totals(
     current_user = cast(User, SimpleNamespace(id=user_id))
     session = AsyncMock()
     session.add = Mock()
+    session.begin_nested = Mock(return_value=_savepoint())
 
     cart = SimpleNamespace(
         id=cart_id,

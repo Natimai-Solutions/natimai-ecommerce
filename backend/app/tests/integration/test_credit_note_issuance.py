@@ -16,6 +16,7 @@ from app.features.invoice.models.credit_note import CreditNote
 from app.features.invoice.models.invoice import Invoice
 from app.features.invoice.services.credit_note_service import (
     CreditNoteIssuanceError,
+    InvoiceNotIssuedError,
     get_credit_notes_for_order,
     issue_credit_note_for_refund,
 )
@@ -245,10 +246,30 @@ async def test_an_uninvoiced_order_cannot_be_credited(
     refund_id = await _refund(
         db_session, order_id=order.id, payment_id=payment.id, amount="1000.00"
     )
+    order_id, payment_id = order.id, payment.id
     await db_session.commit()
 
-    with pytest.raises(CreditNoteIssuanceError, match="no invoice"):
+    with pytest.raises(InvoiceNotIssuedError, match="no invoice"):
         await issue_credit_note_for_refund(db_session, refund_id=refund_id)
+
+    # Audit 2026-11: the handler drops it when nothing was ever captured…
+    from app.handlers import payment as payment_handlers
+    from app.outbox.models import OutboxEvent
+
+    event = {
+        "refund_id": str(refund_id),
+        "order_id": str(order_id),
+        "payment_id": str(payment_id),
+    }
+    await payment_handlers.on_payment_refunded_issue_credit_note(db_session, event)
+    # …and waits for the invoice (job retried) once a capture was published:
+    # a quick refund overtaking the invoice used to lose its credit note.
+    db_session.add(
+        OutboxEvent(type="payment.captured", payload={"order_id": str(order_id)})
+    )
+    await db_session.commit()
+    with pytest.raises(RuntimeError, match="waits for the invoice"):
+        await payment_handlers.on_payment_refunded_issue_credit_note(db_session, event)
 
 
 @pytest.mark.asyncio

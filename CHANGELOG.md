@@ -287,6 +287,14 @@ takes a tag as its `ref`.
   `permissions`, third-party actions pinned by SHA, the gist secret limited
   to the badge steps, no CI bypass for a production deploy; optional Redis
   `requirepass` (`REDIS_PASSWORD`).
+- Backend robustness (audit 2026-11): the outbox puts back to PENDING an
+  event a dead poller left RUNNING, and gives up after `MAX_ATTEMPTS` with an
+  alert (it retried forever); the tracking link of the checkout runs in a
+  savepoint (a failure no longer turns the checkout into a 500); the
+  balance request is stamped only once its e-mail is out (retried
+  otherwise); a refund that overtakes the invoice of a captured order waits
+  for it instead of losing its credit note; a missing order in a payment
+  event is logged instead of failing the handler.
 - Storefront (U1): the mobile menu button announced `$t('layout.menu')`
   literally to screen readers; the design guard now rejects a static
   attribute containing `$t(`.

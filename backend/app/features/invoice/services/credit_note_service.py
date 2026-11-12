@@ -57,6 +57,11 @@ def credit_note_to_public(credit_note: CreditNote) -> CreditNotePublic:
     )
 
 
+class InvoiceNotIssuedError(RuntimeError):
+    """The order has no invoice *yet*: it is issued asynchronously after the
+    capture, and a quick refund can overtake it (audit 2026-11)."""
+
+
 class CreditNoteIssuanceError(RuntimeError):
     """Raised when a credit note cannot be issued for a refund."""
 
@@ -189,9 +194,7 @@ async def issue_credit_note_for_refund(
     )
     invoice = result.first()
     if invoice is None:
-        raise CreditNoteIssuanceError(
-            f"Order {refund.order_id} has no invoice to correct"
-        )
+        raise InvoiceNotIssuedError(f"Order {refund.order_id} has no invoice yet")
 
     currency = invoice.currency
     credited_incl = quantize_amount(refund.amount, currency)

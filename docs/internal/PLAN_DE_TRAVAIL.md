@@ -137,9 +137,7 @@ Détail, fichiers et scénarios : [`AUDIT_2026-11.md`](AUDIT_2026-11.md) (identi
 - **Bornes hautes des dépendances Python** (sentry-sdk, aiohttp, boto3, weasyprint, arq, clamd, pyyaml…) : politique à trancher.
 - **Node 26 LTS** (fin 2026) : Dependabot ne la proposera pas (règle d'exclusion des majeures impaires).
 - `session.execute()` dans `order_number.py` : à trancher si l'avertissement devient une erreur.
-- Robustesse backend relevée par l'audit du 11/11/2026 ([`AUDIT_2026-11.md`](AUDIT_2026-11.md) §2) — M au total :
-  - outbox : reprise des événements restés `RUNNING`, `MAX_ATTEMPTS` appliqué ;
-  - avoir émis plus tard si le remboursement précède la facture ; `balance_requested_at` posé seulement si l'e-mail part ; liaison au suivi en `begin_nested()` dans le checkout ; prix quantifiés selon la devise de référence (XPF sans décimales, voir aussi `split_incl_tax` au §8) ; branche `order is None` morte dans `_sync_order_status`.
+- Robustesse backend (audit du 11/11/2026, reste) : prix calculés quantifiés selon la devise de référence (XPF sans décimales) — à traiter avec `split_incl_tax` (§8), car tous les prix affichés et facturés bougent d'au plus une unité — S.
 - Troncature bcrypt à 72 octets : ne corriger (pré-hachage) que dans une opération de réinitialisation générale prévue pour ça.
 
 ---

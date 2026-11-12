@@ -6,7 +6,7 @@ from uuid import uuid4
 import pytest
 
 from app.outbox.models import OutboxEvent
-from app.outbox.poller import poll_outbox_once
+from app.outbox.poller import MAX_ATTEMPTS, poll_outbox_once
 from app.outbox.registry import outbox_registry
 
 
@@ -143,6 +143,48 @@ async def test_poll_outbox_once_schedules_retry_when_enqueue_fails(
     assert event.last_error is not None
     assert "enqueue failed" in event.last_error
     assert event.next_run_at >= before
+
+
+@pytest.mark.anyio
+async def test_poll_outbox_once_gives_up_after_max_attempts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = AsyncMock()
+    session.add = Mock()
+
+    event = OutboxEvent(type="create.product", payload={"id": "p-1"})
+    event.attempts = MAX_ATTEMPTS - 1
+    alert = AsyncMock(return_value=True)
+    monkeypatch.setattr("app.outbox.poller.send_alert", alert)
+    result = SimpleNamespace(first=Mock(return_value=event))
+    session.exec = AsyncMock(return_value=result)
+
+    async def _commit_and_refresh(
+        _session: AsyncMock, current: OutboxEvent
+    ) -> OutboxEvent:
+        return current
+
+    monkeypatch.setattr(
+        "app.outbox.poller.commit_and_refresh",
+        AsyncMock(side_effect=_commit_and_refresh),
+    )
+    # A handler exists for this type (so we reach the enqueue step, which fails).
+    monkeypatch.setattr(
+        "app.outbox.poller.outbox_registry.get_handlers",
+        Mock(return_value=[object()]),
+    )
+    monkeypatch.setattr(
+        "app.outbox.poller.enqueue_jobs_for_event",
+        AsyncMock(side_effect=RuntimeError("enqueue failed")),
+    )
+
+    processed = await poll_outbox_once(session)
+
+    # Audit 2026-11: MAX_ATTEMPTS was declared and never applied.
+    assert processed is True
+    assert event.status == "FAILED"
+    assert event.attempts == MAX_ATTEMPTS
+    alert.assert_awaited_once()
 
 
 @pytest.mark.anyio
