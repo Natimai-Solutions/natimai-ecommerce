@@ -96,7 +96,7 @@ random fallback still applies, with a warning.
 |----------|---------|-------------|
 | `REDIS_SERVER` | `redis` | Redis host |
 | `REDIS_PORT` | `6379` | Redis port |
-| `REDIS_USER` / `REDIS_PASSWORD` | — | Auth (if Redis requires it) |
+| `REDIS_USER` / `REDIS_PASSWORD` | — | `REDIS_PASSWORD` set: the compose starts Redis with `requirepass` and every process sends it (user optional). Empty = no password, internal network only (warned outside `local`). **Recommended in production.** |
 
 ### 3.3 Email (transactional)
 
@@ -612,6 +612,7 @@ POSTGRES_USER=postgres
 POSTGRES_PASSWORD=replace-with-strong-password
 POSTGRES_DB=fastapi_ecommerce
 REDIS_SERVER=redis
+REDIS_PASSWORD=replace-with-strong-password
 FIRST_SUPERUSER=admin@example.com
 FIRST_SUPERUSER_PASSWORD=replace-with-strong-password
 

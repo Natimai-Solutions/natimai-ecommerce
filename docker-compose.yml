@@ -24,9 +24,17 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
-    command: redis-server --appendonly yes
+    # REDIS_PASSWORD set in .env -> Redis requires it (requirepass), and the
+    # API, the workers and the poller send it (settings.REDIS_URL). Empty ->
+    # no password, as before (internal network only). Audit 2026-11.
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+    command:
+      - sh
+      - -c
+      - exec redis-server --appendonly yes $${REDIS_PASSWORD:+--requirepass "$$REDIS_PASSWORD"}
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli --no-auth-warning $${REDIS_PASSWORD:+-a \"$$REDIS_PASSWORD\"} ping | grep -q PONG"]
       interval: 30s
       timeout: 3s
       retries: 5
@@ -76,7 +84,6 @@ services:
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - POSTGRES_DB=${POSTGRES_DB:-fastapi_ecommerce}
-      - REDIS_URL=redis://redis:6379
       - WORKERS=4
       - LOG_LEVEL=INFO
       - CLAMAV_ENABLED=true
@@ -118,7 +125,6 @@ services:
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - POSTGRES_DB=${POSTGRES_DB:-fastapi_ecommerce}
-      - REDIS_URL=redis://redis:6379
       - LOG_LEVEL=INFO
       - CLAMAV_ENABLED=true
       - CLAMAV_HOST=clamav
@@ -156,7 +162,6 @@ services:
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - POSTGRES_DB=${POSTGRES_DB:-fastapi_ecommerce}
-      - REDIS_URL=redis://redis:6379
       - LOG_LEVEL=INFO
       # Le poller instancie Settings au démarrage : sans cette valeur, le
       # garde-fou de config.py fait crash-looper le service hors ENVIRONMENT=local.

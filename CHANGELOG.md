@@ -272,6 +272,21 @@ takes a tag as its `ref`.
 - Security (S8): abandoned-cart reminders go to accounts only. A visitor's
   e-mail was never confirmed, so anyone could make the shop mail any
   address; their carts are stamped and counted as `skipped_unverified`.
+- Security hardening (audit 2026-11, low severity): rate limit and a single
+  error on the 2FA endpoints; recovery codes hashed with HMAC; erasing an
+  OAuth-only account needs a sign-in of the last 15 minutes; a password
+  change voids a pending reset link; `/payments/me/{id}/confirm` never
+  captures a cancelled or refunded payment; PayZen IPN currency required
+  and compared; admin refunds and « one code per customer » under a row
+  lock; cart lines capped at 999; outbound webhook and supplier feed reach
+  public addresses only, checked at connection time (no DNS rebinding);
+  Icecat key out of the logs; supplier files scanned by ClamAV and zip bombs
+  refused; public reviews and wishlists without account ids; stock alerts
+  of a signed-in customer go to their own address; `ADMIN_ALLOWED_IPS`
+  enforced by the API on every superuser request; CI with read-only
+  `permissions`, third-party actions pinned by SHA, the gist secret limited
+  to the badge steps, no CI bypass for a production deploy; optional Redis
+  `requirepass` (`REDIS_PASSWORD`).
 - Storefront (U1): the mobile menu button announced `$t('layout.menu')`
   literally to screen readers; the design guard now rejects a static
   attribute containing `$t(`.

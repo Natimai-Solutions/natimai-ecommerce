@@ -14,7 +14,6 @@ services:
         condition: service_healthy
     environment:
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-fastapi_ecommerce}
-      - REDIS_URL=redis://redis:6379/0
       - LOG_LEVEL=INFO
       - HEALTH_CHECK_INTERVAL=300  # 5 minutes
       - STALE_THRESHOLD_MINUTES=10

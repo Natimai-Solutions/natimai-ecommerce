@@ -186,11 +186,14 @@ class Settings(BaseSettings):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def REDIS_URL(self) -> str:
-        """Execute REDIS URL."""
-        if self.REDIS_USER and self.REDIS_PASSWORD:
-            return (
-                f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_SERVER}:{self.REDIS_PORT}"
-            )
+        """Redis DSN; with ``REDIS_PASSWORD`` (``requirepass``, audit 2026-11)
+        the password alone suffices — it used to be ignored without a user."""
+        if self.REDIS_PASSWORD:
+            from urllib.parse import quote
+
+            user = quote(self.REDIS_USER, safe="")
+            password = quote(self.REDIS_PASSWORD, safe="")
+            return f"redis://{user}:{password}@{self.REDIS_SERVER}:{self.REDIS_PORT}"
         return f"redis://{self.REDIS_SERVER}:{self.REDIS_PORT}"
 
     EMAILS_FROM_EMAIL: str | None = None
@@ -783,6 +786,17 @@ class Settings(BaseSettings):
         else:
             raise ValueError(message)
 
+    def _check_redis_password(self) -> None:
+        """Redis without a password outside local: only the internal network
+        protects it (audit 2026-11) — warned, not refused."""
+        if self.ENVIRONMENT != "local" and not self.REDIS_PASSWORD:
+            warnings.warn(
+                "REDIS_PASSWORD is not set: Redis accepts any client of the "
+                "internal network. Set it in .env (the compose then enables "
+                "requirepass).",
+                stacklevel=1,
+            )
+
     def _check_admin_frontend_host(self) -> None:
         """Without ``ADMIN_FRONTEND_HOST`` an admin session is reachable from
         the storefront's origin: warn outside local."""
@@ -798,6 +812,7 @@ class Settings(BaseSettings):
     def _enforce_non_default_secrets(self) -> Self:
         """Execute enforce non default secrets."""
         self._check_admin_frontend_host()
+        self._check_redis_password()
         self._check_secret_key()
         self._check_default_secret("SECRET_KEY", self.SECRET_KEY)
         self._check_default_secret("POSTGRES_PASSWORD", self.POSTGRES_PASSWORD)

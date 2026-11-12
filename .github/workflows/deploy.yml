@@ -30,7 +30,7 @@ on:
         options: [staging, production]
         default: staging
       skip_ci_check:
-        description: Déployer même si la CI n'est pas verte sur ce commit
+        description: Déployer même si la CI n'est pas verte (staging seulement, ignoré en production)
         type: boolean
         default: false
 
@@ -78,8 +78,10 @@ jobs:
           echo "image_tag=${TARGET_ENV}-${sha}" >> "$GITHUB_OUTPUT"
           echo "Commit : $sha"
 
+      # La production exige toujours une CI verte (audit 2026-11) : le
+      # contournement ne vaut que pour staging.
       - name: Vérifier que la CI est verte
-        if: ${{ !inputs.skip_ci_check }}
+        if: ${{ !inputs.skip_ci_check || inputs.environment == 'production' }}
         env:
           GH_TOKEN: ${{ github.token }}
           SHA: ${{ steps.sha.outputs.sha }}
@@ -126,19 +128,19 @@ jobs:
             exit 1
           fi
 
-      - uses: docker/login-action@v4
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: docker/setup-buildx-action@v4
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
 
       # Jour UTC : invalide chaque jour la couche « apk/apt upgrade » du cache
       # (ARG SECURITY_UPDATES_DATE des Dockerfile).
       - id: today
         run: echo "date=$(date -u +%F)" >> "$GITHUB_OUTPUT"
-      - uses: docker/build-push-action@v7
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.file }}

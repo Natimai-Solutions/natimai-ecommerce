@@ -274,3 +274,20 @@ def test_real_secrets_and_empty_values_are_not_placeholders() -> None:
     fake: Any = SimpleNamespace(ENVIRONMENT="production")
     for value in ("a-real-value-that-mentions-changeme-later", "", None):
         Settings._check_default_secret(cast(Settings, fake), "X", value)
+
+
+def test_redis_url_carries_the_password_alone() -> None:
+    """Audit 2026-11: REDIS_PASSWORD was ignored without a REDIS_USER, so
+    enabling requirepass locked the app out of Redis."""
+    settings = Settings(
+        ENVIRONMENT="local",
+        CLAMAV_ENABLED=True,
+        REDIS_SERVER="redis",
+        REDIS_PASSWORD="p@ss w0rd",
+        **_VALID_BASE_SETTINGS,
+    )
+    assert settings.REDIS_URL == "redis://:p%40ss%20w0rd@redis:6379"
+    no_password = Settings(
+        ENVIRONMENT="local", CLAMAV_ENABLED=True, **_VALID_BASE_SETTINGS
+    )
+    assert "@" not in no_password.REDIS_URL
