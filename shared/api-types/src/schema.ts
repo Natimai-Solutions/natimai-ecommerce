@@ -5729,7 +5729,7 @@ export interface paths {
         };
         /**
          * Get Product Reviews
-         * @description Get all reviews for a specific product.
+         * @description Get all reviews for a specific product (no account ids: public).
          */
         get: operations["review-get_product_reviews"];
         put?: never;
@@ -5977,7 +5977,7 @@ export interface paths {
         };
         /**
          * Get Public Wishlists
-         * @description Get all public wishlists.
+         * @description Get all public wishlists (no owner ids).
          */
         get: operations["wishlist-get_public_wishlists"];
         put?: never;
@@ -18528,6 +18528,30 @@ export interface components {
             password: string;
         };
         /**
+         * ReviewAnonymousPublic
+         * @description A review as anyone may read it: no user id (audit 2026-11 — the
+         *     public list linked every review to an account id, the key of the other
+         *     per-user routes).
+         */
+        ReviewAnonymousPublic: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Rating */
+            rating: number;
+            /** Comment */
+            comment?: string | null;
+            /** Created At */
+            created_at?: string | null;
+        };
+        /**
          * ReviewCreate
          * @description Represents review create.
          */
@@ -18726,6 +18750,16 @@ export interface components {
             rating: number;
             /** Comment */
             comment?: string | null;
+        };
+        /** ReviewsAnonymousPublic */
+        ReviewsAnonymousPublic: {
+            /** Data */
+            data?: components["schemas"]["ReviewAnonymousPublic"][];
+            /**
+             * Count
+             * @default 0
+             */
+            count: number;
         };
         /**
          * ReviewsPublic
@@ -22189,6 +22223,28 @@ export interface components {
             code: string;
         };
         /**
+         * WishlistAnonymousPublic
+         * @description A public wishlist as anyone may read it: no owner id (audit 2026-11).
+         */
+        WishlistAnonymousPublic: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Description */
+            description?: string | null;
+            /**
+             * Is Public
+             * @default true
+             */
+            is_public: boolean;
+            /** Created At */
+            created_at?: string | null;
+        };
+        /**
          * WishlistCreate
          * @description Represents wishlist create.
          */
@@ -22369,6 +22425,16 @@ export interface components {
             description?: string | null;
             /** Is Public */
             is_public?: boolean | null;
+        };
+        /** WishlistsAnonymousPublic */
+        WishlistsAnonymousPublic: {
+            /** Data */
+            data?: components["schemas"]["WishlistAnonymousPublic"][];
+            /**
+             * Count
+             * @default 0
+             */
+            count: number;
         };
         /**
          * WishlistsPublic
@@ -33378,7 +33444,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ReviewsPublic"];
+                    "application/json": components["schemas"]["ReviewsAnonymousPublic"];
                 };
             };
             /** @description Validation Error */
@@ -33861,7 +33927,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["WishlistsPublic"];
+                    "application/json": components["schemas"]["WishlistsAnonymousPublic"];
                 };
             };
             /** @description Validation Error */

@@ -47,7 +47,10 @@ async def subscribe_stock_alert(
             message="Produit introuvable",
             details={"product_id": str(body.product_id)},
         )
-    email = body.email or (current_user.email if current_user else None)
+    # Signed in: the account's own address, whatever was typed (audit
+    # 2026-11 — an account could subscribe anyone's address to the shop's
+    # e-mails, without the visitors' captcha).
+    email = current_user.email if current_user else body.email
     if not email:
         raise AppError(
             code="stock_alert.email_required",

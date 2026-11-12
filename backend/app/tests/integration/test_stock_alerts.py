@@ -98,6 +98,15 @@ async def test_alerts_are_sent_once_when_the_product_is_back(
         StockAlertSubscribe(product_id=product_id), _request(), db_session, buyer_view
     )
     assert first.id == again.id and first.email == buyer_email
+    # A signed-in customer cannot subscribe someone else's address (audit
+    # 2026-11): the account's own is used.
+    other = await subscribe_stock_alert(
+        StockAlertSubscribe(product_id=product_id, email="victime@example.pf"),
+        _request(),
+        db_session,
+        buyer_view,
+    )
+    assert other.id == first.id and other.email == buyer_email
     assert first.product_name == "Clavier"
     guest = await subscribe_stock_alert(
         StockAlertSubscribe(product_id=product_id, email="Visiteur@Example.PF"),

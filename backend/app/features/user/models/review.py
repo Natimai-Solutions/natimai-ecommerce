@@ -125,6 +125,23 @@ class ReviewPublic(ReviewBase, BasePublic):
     user_id: uuid.UUID = Field(description="ID of the user who created the review")
 
 
+class ReviewAnonymousPublic(SQLModel):
+    """A review as anyone may read it: no user id (audit 2026-11 — the
+    public list linked every review to an account id, the key of the other
+    per-user routes)."""
+
+    id: uuid.UUID
+    product_id: uuid.UUID
+    rating: int
+    comment: str | None = None
+    created_at: datetime.datetime | None = None
+
+
+class ReviewsAnonymousPublic(SQLModel):
+    data: list[ReviewAnonymousPublic] = Field(default_factory=list)
+    count: int = 0
+
+
 class ReviewsPublic(SQLModel):
     """Represents reviews public."""
 

@@ -54,6 +54,21 @@ class WishlistPublic(WishlistBase, BasePublic):
     user_id: uuid.UUID = Field(description="ID of the user who owns the wishlist")
 
 
+class WishlistAnonymousPublic(SQLModel):
+    """A public wishlist as anyone may read it: no owner id (audit 2026-11)."""
+
+    id: uuid.UUID
+    name: str
+    description: str | None = None
+    is_public: bool = True
+    created_at: datetime.datetime | None = None
+
+
+class WishlistsAnonymousPublic(SQLModel):
+    data: list[WishlistAnonymousPublic] = Field(default_factory=list)
+    count: int = 0
+
+
 class WishlistsPublic(SQLModel):
     """Represents wishlists public."""
 
