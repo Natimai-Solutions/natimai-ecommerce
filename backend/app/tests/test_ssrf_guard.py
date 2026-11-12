@@ -52,7 +52,7 @@ async def test_the_outbound_webhook_never_reaches_the_internal_network() -> None
 async def test_the_resolver_hands_aiohttp_only_checked_addresses(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    async def fake(host: str, port: int) -> list[str]:
+    async def fake(_host: str, _port: int) -> list[str]:
         return ["93.184.216.34"]
 
     monkeypatch.setattr(ssrf, "public_addresses", fake)

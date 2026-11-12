@@ -63,7 +63,7 @@ from app.services.suppliers.base import SupplierConfig
 from app.services.suppliers.file_import import (
     FileImportError,
     max_rows_setting,
-    read_tabular_file,
+    read_scanned_tabular_file,
     rows_to_products,
     validate_mapping,
 )
@@ -566,7 +566,7 @@ async def inspect_catalog_file(
     """
     filename, content = await _read_upload(file)
     try:
-        parsed = read_tabular_file(content, filename, max_rows=5)
+        parsed = await read_scanned_tabular_file(content, filename, max_rows=5)
     except FileImportError as exc:
         raise AppError(
             code="supplier.import.unreadable",
@@ -674,7 +674,7 @@ async def import_catalog_file(
 
     max_rows = await max_rows_setting(session)
     try:
-        parsed = read_tabular_file(content, filename, max_rows=max_rows)
+        parsed = await read_scanned_tabular_file(content, filename, max_rows=max_rows)
     except FileImportError as exc:
         raise AppError(
             code="supplier.import.unreadable",

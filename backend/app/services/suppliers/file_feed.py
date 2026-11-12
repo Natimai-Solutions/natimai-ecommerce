@@ -51,7 +51,7 @@ from app.services.suppliers.base import (
 )
 from app.services.suppliers.file_import import (
     FileImportError,
-    read_tabular_file,
+    read_scanned_tabular_file,
     rows_to_products,
     validate_mapping,
 )
@@ -279,7 +279,7 @@ class FileFeedAdapter(SupplierAdapter):
         del category, filters
         content, filename = await self.download()
         try:
-            parsed = read_tabular_file(content, filename)
+            parsed = await read_scanned_tabular_file(content, filename)
         except FileImportError as exc:
             raise FeedError(str(exc)) from exc
         mapping = self.config.column_mapping or {}
@@ -333,7 +333,7 @@ class FileFeedAdapter(SupplierAdapter):
         """Headers, a few rows and the row count, to build the column mapping."""
         content, filename = await self.download()
         try:
-            parsed = read_tabular_file(content, filename, max_rows=5)
+            parsed = await read_scanned_tabular_file(content, filename, max_rows=5)
         except FileImportError as exc:
             raise FeedError(str(exc)) from exc
         return parsed.headers, parsed.rows, parsed.total_rows

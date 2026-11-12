@@ -31,7 +31,7 @@ from app.services.suppliers import load_supplier
 from app.services.suppliers.file_import import (
     FileImportError,
     max_rows_setting,
-    read_tabular_file,
+    read_scanned_tabular_file,
     rows_to_products,
     validate_mapping,
 )
@@ -129,7 +129,7 @@ async def run_queued_file_import(
 
         content = await storage.get_bytes(key=storage_key)
         max_rows = await max_rows_setting(session)
-        parsed = read_tabular_file(content, filename, max_rows=max_rows)
+        parsed = await read_scanned_tabular_file(content, filename, max_rows=max_rows)
         if parsed.total_rows > max_rows:
             raise FileImportError(
                 f"Le fichier compte {parsed.total_rows} lignes ; la limite est {max_rows}"
