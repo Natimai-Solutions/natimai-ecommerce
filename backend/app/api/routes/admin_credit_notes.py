@@ -11,7 +11,6 @@ should never have to filter the other out of a listing.
 
 from __future__ import annotations
 
-import csv
 import io
 import uuid
 from decimal import Decimal
@@ -32,6 +31,7 @@ from app.features.invoice.services.pdf import (
     credit_note_pdf_filename,
     render_credit_note_pdf,
 )
+from app.utils.csv_export import csv_writer
 
 router = APIRouter(prefix="/admin/credit-notes", tags=["admin-credit-notes"])
 
@@ -110,7 +110,7 @@ async def export_credit_notes_csv(
     credit_notes = list(result.all())
 
     buffer = io.StringIO()
-    writer = csv.writer(buffer, delimiter=";", quoting=csv.QUOTE_MINIMAL)
+    writer = csv_writer(buffer)  # formulas neutralised (S10)
     writer.writerow(_EXPORT_COLUMNS)
 
     for note in credit_notes:
