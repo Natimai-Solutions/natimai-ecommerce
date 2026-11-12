@@ -42,7 +42,7 @@ from app.features.product.services.tax_settings import load_tax_codes
 from app.features.system.legal_identity import load_legal_identity
 from app.features.user.models.address import Address
 from app.features.user.models.user import User
-from app.utils.money import quantize_amount
+from app.utils.money import quantize_amount, split_incl_tax
 
 logger = logging.getLogger(__name__)
 
@@ -110,13 +110,9 @@ async def _resolve_fees_tax_rate_pct(session: AsyncSession) -> Decimal:
 def _split_incl_tax(
     amount_incl: Decimal, rate_pct: Decimal, currency: str
 ) -> tuple[Decimal, Decimal]:
-    """Split a tax-inclusive amount into ``(excl_tax, tax)``.
-
-    The tax is the remainder so that ``excl + tax == incl`` always holds.
-    """
-    divisor = Decimal("1") + (rate_pct / Decimal("100"))
-    excl = quantize_amount(amount_incl / divisor, currency)
-    return excl, amount_incl - excl
+    """Split a tax-inclusive amount into ``(excl_tax, tax)`` — the shared
+    rule of :func:`app.utils.money.split_incl_tax`."""
+    return split_incl_tax(amount_incl, rate_pct, currency)
 
 
 async def _seller_identity(session: AsyncSession) -> dict[str, str]:

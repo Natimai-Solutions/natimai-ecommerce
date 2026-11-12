@@ -20,6 +20,35 @@ def quantize_amount(amount: Decimal, currency: str | None = None) -> Decimal:
     return amount.quantize(exponent, rounding=ROUND_HALF_UP)
 
 
+def reference_price(amount: Decimal) -> Decimal:
+    """A price shown or billed to a customer, in the reference currency:
+    rounded to that currency's unit (whole francs in XPF, cents in EUR).
+
+    The sale price used to be rounded to the cent whatever the currency:
+    11 600,37 F shown 11 600 F, two of them billed 23 201 F (audit 2026-11).
+    Intermediate amounts (converted cost, freight…) keep their precision;
+    only the price itself is rounded, once.
+    """
+    from app.core.config import settings
+
+    return quantize_amount(Decimal(amount), settings.REFERENCE_CURRENCY)
+
+
+def split_incl_tax(
+    amount_incl: Decimal, rate_pct: Decimal, currency: str | None
+) -> tuple[Decimal, Decimal]:
+    """Split a tax-inclusive amount into ``(excl_tax, tax)`` in ``currency``.
+
+    The one rule of the invoice, the credit note and the margin (they each
+    had their own): the amount excl. tax is ``incl / (1 + rate)`` rounded to
+    the currency's unit, the tax is the remainder, so ``excl + tax == incl``.
+    """
+    incl = Decimal(amount_incl)
+    divisor = Decimal("1") + (Decimal(rate_pct or 0) / Decimal("100"))
+    excl = quantize_amount(incl / divisor, currency)
+    return excl, incl - excl
+
+
 def decimal_to_minor_units(amount: Decimal, currency: str | None = None) -> int:
     """Execute decimal to minor units."""
     normalized = quantize_amount(amount, currency)

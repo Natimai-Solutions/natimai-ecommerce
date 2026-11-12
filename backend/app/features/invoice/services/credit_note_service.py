@@ -28,7 +28,7 @@ from app.features.invoice.models.invoice import Invoice
 from app.features.invoice.services.integrity import seal_document
 from app.features.invoice.services.numbering import allocate_credit_note_number
 from app.features.payment.models.refund import Refund
-from app.utils.money import quantize_amount
+from app.utils.money import quantize_amount, split_incl_tax
 
 logger = logging.getLogger(__name__)
 
@@ -120,14 +120,12 @@ def _prorated_breakdown(
             incl = quantize_amount(credited_incl * share, currency)
         allocated_incl += incl
 
-        rate_pct = Decimal(row["rate_pct"])
-        divisor = Decimal("1") + (rate_pct / Decimal("100"))
-        excl = quantize_amount(incl / divisor, currency)
+        excl, tax = split_incl_tax(incl, Decimal(row["rate_pct"]), currency)
         rows.append(
             {
                 "rate_pct": row["rate_pct"],
                 "base_excl_tax": str(excl),
-                "tax_amount": str(incl - excl),
+                "tax_amount": str(tax),
                 "total_incl_tax": str(incl),
             }
         )

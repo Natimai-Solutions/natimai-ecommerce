@@ -114,9 +114,10 @@ async def _user(session: AsyncSession, user_id: uuid.UUID) -> User:
     return user
 
 
-def test_discount_rounds_to_the_cent() -> None:
-    assert apply_discount(Decimal("11600"), Decimal("10")) == Decimal("10440.00")
-    assert apply_discount(Decimal("999"), Decimal("12.5")) == Decimal("874.13")
+def test_discount_rounds_to_the_currency_unit() -> None:
+    """Whole francs in XPF (audit 2026-11)."""
+    assert apply_discount(Decimal("11600"), Decimal("10")) == Decimal("10440")
+    assert apply_discount(Decimal("999"), Decimal("12.5")) == Decimal("874")
     assert apply_discount(Decimal("100"), Decimal("0")) == Decimal("100")
 
 

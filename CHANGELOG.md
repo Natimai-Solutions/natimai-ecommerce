@@ -321,6 +321,15 @@ takes a tag as its `ref`.
   product search field no longer forces a horizontal scroll; the last
   hard-coded admin strings are translated; legal pages say they are in
   French in another language, default text included.
+- Prices (audit 2026-11): every price shown or billed — computed sale
+  price, typed fixed price, group price, promotion, variant supplement — is
+  rounded to the reference currency's unit (whole francs in XPF; cents in
+  EUR) by `reference_price`; intermediate amounts keep their precision.
+  11 600,37 F was shown 11 600 F and two of them billed 23 201 F. One
+  `split_incl_tax(amount, rate, currency)` now splits « TTC → HT + TVA » for
+  the invoice, the credit note and the margin (the margin rounded to the
+  cent in XPF). Stored prices move by less than one franc at the next
+  nightly price refresh (`refresh_sale_prices`), or at once from the admin.
 - Storefront (U1): the mobile menu button announced `$t('layout.menu')`
   literally to screen readers; the design guard now rejects a static
   attribute containing `$t(`.

@@ -43,6 +43,7 @@ from app.features.shipping.services.pricing import (
     _route_metadata_to_dict,
     resolve_billable_weight,
 )
+from app.utils.money import reference_price
 
 logger = logging.getLogger(__name__)
 
@@ -469,7 +470,8 @@ async def calculate_sale_price(
     """
     mode = resolve_pricing_mode(product)
     if mode is PricingMode.FIXED:
-        return _quantize_money(_as_decimal(getattr(product, "base_price", None)))
+        # A price typed by the admin, in whole francs in XPF too.
+        return reference_price(_as_decimal(getattr(product, "base_price", None)))
 
     # The origin place is the customs truth for the default (import) mode: a
     # supplier in the main warehouse's country prices as a domestic product.
@@ -988,7 +990,8 @@ class PricingContext:
         """Same formula as :func:`calculate_sale_price`, no database access."""
         mode = self.effective_mode(product)
         if mode is PricingMode.FIXED:
-            return _quantize_money(_as_decimal(getattr(product, "base_price", None)))
+            # A price typed by the admin, in whole francs in XPF too.
+            return reference_price(_as_decimal(getattr(product, "base_price", None)))
 
         margin = self.margin_rate_pct(product)
         raw_cost = _as_decimal(

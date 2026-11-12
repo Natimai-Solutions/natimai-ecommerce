@@ -26,7 +26,7 @@ import uuid
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import inspect as sa_inspect
@@ -38,6 +38,7 @@ from app.features.product.models.price_group import PriceGroup
 from app.features.product.models.product_group_price import ProductGroupPrice
 from app.features.product.services.category_tree import category_ancestors_map
 from app.features.user.models.user import User
+from app.utils.money import reference_price
 
 _CENT = Decimal("0.01")
 _HUNDRED = Decimal("100")
@@ -47,9 +48,7 @@ def apply_discount(reference: Decimal, discount_pct: Decimal | None) -> Decimal:
     """Reference price less a group discount, to the cent."""
     if not discount_pct or reference <= 0:
         return reference
-    return (reference * (_HUNDRED - Decimal(discount_pct)) / _HUNDRED).quantize(
-        _CENT, rounding=ROUND_HALF_UP
-    )
+    return reference_price(reference * (_HUNDRED - Decimal(discount_pct)) / _HUNDRED)
 
 
 @dataclass(frozen=True)
@@ -86,7 +85,7 @@ class ActivePromotion:
         if self.percentage is not None:
             return apply_discount(reference, self.percentage)
         if self.amount is not None:
-            return max(reference - Decimal(self.amount), Decimal("0")).quantize(_CENT)
+            return reference_price(max(reference - Decimal(self.amount), Decimal("0")))
         return reference
 
 

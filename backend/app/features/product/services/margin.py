@@ -20,13 +20,21 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 from app.core.config import settings
+from app.utils.money import quantize_amount, split_incl_tax
 
 _CENT = Decimal("0.01")
 _HUNDRED = Decimal("100")
 
 
-def _money(value: Decimal) -> Decimal:
+def _pct(value: Decimal) -> Decimal:
+    """A percentage, to the hundredth."""
     return value.quantize(_CENT, rounding=ROUND_HALF_UP)
+
+
+def _money(value: Decimal) -> Decimal:
+    """An amount in the reference currency (whole francs in XPF): the margin
+    rounded to the cent whatever the currency (audit 2026-11)."""
+    return quantize_amount(value, settings.REFERENCE_CURRENCY)
 
 
 @dataclass(frozen=True)
@@ -58,7 +66,11 @@ def compute_margin(
     tax = Decimal(tax_rate_pct or 0)
     cost = Decimal(unit_cost)
     commission = Decimal(commission_pct or 0)
-    excl = _money(price / (Decimal("1") + tax / _HUNDRED)) if price else Decimal("0")
+    excl = (
+        split_incl_tax(price, tax, settings.REFERENCE_CURRENCY)[0]
+        if price
+        else Decimal("0")
+    )
     commission_amount = _money(price * commission / _HUNDRED)
     margin = _money(excl - commission_amount - cost)
     return MarginFigures(
@@ -69,8 +81,8 @@ def compute_margin(
         commission_amount=commission_amount,
         unit_cost=_money(cost),
         margin_amount=margin,
-        margin_pct=_money(margin / excl * _HUNDRED) if excl > 0 else None,
-        markup_pct=_money(margin / cost * _HUNDRED) if cost > 0 else None,
+        margin_pct=_pct(margin / excl * _HUNDRED) if excl > 0 else None,
+        markup_pct=_pct(margin / cost * _HUNDRED) if cost > 0 else None,
     )
 
 

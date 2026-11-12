@@ -172,7 +172,7 @@ async def test_domestic_origin_prices_without_customs_or_freight(
         db_session, foreign_product, import_route=import_route
     )
     assert local_price == Decimal("130.00")  # 100 × 1.30
-    assert foreign_price == Decimal("171.60")  # (100 + 10) × 1.20 × 1.30
+    assert foreign_price == Decimal("172")  # (100 + 10) × 1.20 × 1.30 = 171,60
 
     assert await resolve_effective_customs_rate_pct(db_session, local_product) == 0
     assert await resolve_effective_customs_rate_pct(db_session, foreign_product) == 20

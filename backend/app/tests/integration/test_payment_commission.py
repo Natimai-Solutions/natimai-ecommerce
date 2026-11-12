@@ -36,9 +36,9 @@ from app.tasks.pricing_tasks import refresh_sale_prices
 
 
 def test_commission_maths_and_parsing() -> None:
-    # 2 % commission: the shop nets 100 000 out of 102 040.82.
+    # 2 % commission: the shop nets 100 000 out of 102 040.82 → 102 041 F.
     assert apply_payment_commission(Decimal("100000.00"), Decimal("2")) == Decimal(
-        "102040.82"
+        "102041"
     )
     assert apply_payment_commission(Decimal("100000.00"), Decimal("0")) == Decimal(
         "100000.00"

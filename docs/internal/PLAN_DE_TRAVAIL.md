@@ -118,7 +118,6 @@ Détail, fichiers et scénarios : [`AUDIT_2026-11.md`](AUDIT_2026-11.md) (identi
 
 - `CrudBase` + `BaseRouter` → socle de natimai-paie (`Policy`, `sortable_fields`, `Page[T]`), puis migration des routeurs `admin_*` qui paginent à la main — L.
 - La commande hors de `api/routes/cart.py` (3 700 lignes) → `features/order/services/checkout.py` ; une seule `get_or_create_status` (3 copies : `admin_shipping`, `manual_payment`, `document_payment`) ; code fournisseurs regroupé dans `features/integrations/` — L.
-- Un seul `split_incl_tax(amount, rate, currency)` pour la facture, l'avoir et la marge (la marge arrondit à 0,01 quelle que soit la devise) — M.
 - Front : `BaseApi` / `verifyResult` et un extracteur d'erreur unique traduisant le code ; `useResource` et `<CrudPage>` pour l'admin ; `formatDate` / `formatMoney` locaux remplacés par `@app/utils` — M.
 - Tests : fabriques partagées (`tests/factories.py`), test générique sur les routeurs (authentification, tri refusé, propriétaire → 404) — M.
 
@@ -132,7 +131,6 @@ Détail, fichiers et scénarios : [`AUDIT_2026-11.md`](AUDIT_2026-11.md) (identi
 - **Bornes hautes des dépendances Python** (sentry-sdk, aiohttp, boto3, weasyprint, arq, clamd, pyyaml…) : politique à trancher.
 - **Node 26 LTS** (fin 2026) : Dependabot ne la proposera pas (règle d'exclusion des majeures impaires).
 - `session.execute()` dans `order_number.py` : à trancher si l'avertissement devient une erreur.
-- Robustesse backend (audit du 11/11/2026, reste) : prix calculés quantifiés selon la devise de référence (XPF sans décimales) — à traiter avec `split_incl_tax` (§8), car tous les prix affichés et facturés bougent d'au plus une unité — S.
 - Troncature bcrypt à 72 octets : ne corriger (pré-hachage) que dans une opération de réinitialisation générale prévue pour ça.
 
 ---
