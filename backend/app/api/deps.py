@@ -1,8 +1,9 @@
 import hmac
+import ipaddress
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from typing import Annotated
 
-from fastapi import Depends
+from fastapi import Depends, Request
 from fastapi.security import OAuth2PasswordBearer
 from jwt.exceptions import InvalidTokenError
 from pydantic import ValidationError
@@ -15,6 +16,7 @@ from app.core.config import settings
 from app.core.db import get_db
 from app.core.errors import AppError
 from app.core.field_visibility import reveal_internal_fields
+from app.core.rate_limit import get_client_ip
 from app.features.user.models.user import TokenPayload, User
 
 reusable_oauth2 = OAuth2PasswordBearer(
@@ -106,7 +108,36 @@ def _enrollment_required(user: User) -> AppError:
     )
 
 
-async def get_current_user(session: SessionDep, token: TokenDep) -> User:
+def _admin_networks() -> list[ipaddress.IPv4Network | ipaddress.IPv6Network]:
+    raw = (settings.ADMIN_ALLOWED_IPS or "").split()
+    return [ipaddress.ip_network(cidr, strict=False) for cidr in raw]
+
+
+def _check_admin_network(user: User, request: Request | None) -> None:
+    """A superuser acts from ``ADMIN_ALLOWED_IPS`` only, on every route."""
+    if request is None or not user.is_superuser:
+        return
+    networks = _admin_networks()
+    if not networks:
+        return
+    try:
+        address = ipaddress.ip_address(get_client_ip(request))
+    except ValueError:
+        address = None
+    if address is None or not any(address in net for net in networks):
+        raise AppError(
+            code="auth.admin.network_denied",
+            status_code=403,
+            message="Accès réservé : administration depuis un réseau autorisé.",
+            details={},
+        )
+
+
+async def get_current_user(
+    session: SessionDep,
+    token: TokenDep,
+    request: Request = None,  # type: ignore[assignment]  # injected by FastAPI
+) -> User:
     """The signed-in user.
 
     A superuser who must enrol in 2FA and has not is refused here, on every
@@ -117,6 +148,7 @@ async def get_current_user(session: SessionDep, token: TokenDep) -> User:
     :data:`CurrentUserEnrolling`.
     """
     user = await _authenticated_user(session, token)
+    _check_admin_network(user, request)
     if must_enrol_second_factor(user):
         raise _enrollment_required(user)
     if user.is_superuser:
@@ -128,10 +160,16 @@ async def get_current_user(session: SessionDep, token: TokenDep) -> User:
 CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
-async def get_current_user_enrolling(session: SessionDep, token: TokenDep) -> User:
+async def get_current_user_enrolling(
+    session: SessionDep,
+    token: TokenDep,
+    request: Request = None,  # type: ignore[assignment]  # injected by FastAPI
+) -> User:
     """The signed-in user, 2FA enrolment pending or not — for the profile
     (who is signed in) and the enrolment screens only. Reveals nothing."""
-    return await _authenticated_user(session, token)
+    user = await _authenticated_user(session, token)
+    _check_admin_network(user, request)
+    return user
 
 
 CurrentUserEnrolling = Annotated[User, Depends(get_current_user_enrolling)]

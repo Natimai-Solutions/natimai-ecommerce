@@ -433,6 +433,12 @@ class Settings(BaseSettings):
     # a sanitized XFF). Leave None when the app is directly exposed, otherwise
     # the header could be spoofed to bypass the per-IP throttle.
     CLIENT_IP_HEADER: str | None = None
+    # Networks a superuser may act from (space-separated CIDRs, as for
+    # Caddy). Caddy filters admin.<DOMAIN> and /api/v1/admin/*; the API
+    # applies the same list to every request of a superuser, whatever the
+    # route (audit 2026-11: ~30 admin routes live outside /admin).
+    # Empty = everywhere.
+    ADMIN_ALLOWED_IPS: str | None = None
 
     # Shop branding
     SHOP_NAME: str = "Natimai"
