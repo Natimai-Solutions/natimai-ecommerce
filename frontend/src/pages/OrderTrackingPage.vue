@@ -416,7 +416,7 @@ import AppNotice from '@app/ui/AppNotice.vue';
 import ProductImage from '@/components/ProductImage.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
 import { getDeparture, type Departure } from '@/api/departures';
-import { downloadInvoicePdf, listMyInvoices, type Invoice } from '@/api/invoices';
+import { downloadInvoicePdf, getMyInvoiceForOrder, type Invoice } from '@/api/invoices';
 import {
   cancelMyOrder,
   getMyOrder,
@@ -671,7 +671,7 @@ async function loadMine() {
     getMyOrderTracking(orderId.value),
     getMyOrder(orderId.value),
     getMyOrderLines(orderId.value),
-    listMyInvoices(),
+    getMyInvoiceForOrder(orderId.value),
   ]);
   if (trackingResult.status === 'rejected') {
     errorMessage.value =
@@ -681,7 +681,7 @@ async function loadMine() {
   tracking.value = trackingResult.value;
   lines.value = linesResult.status === 'fulfilled' ? linesResult.value : [];
   if (invoicesResult.status === 'fulfilled') {
-    invoice.value = invoicesResult.value.find((i) => i.order_id === orderId.value) ?? null;
+    invoice.value = invoicesResult.value;
   }
   if (orderResult.status === 'fulfilled') {
     order.value = orderResult.value;

@@ -414,6 +414,9 @@ class CheckoutResponse(DepositTerms):
     # affiche la date de clôture / livraison estimée sans second appel.
     grouped_departure_id: uuid.UUID | None = None
     payment_id: uuid.UUID
+    #: Reads the payment's status from the return page without a session
+    #: (3-D Secure finished in another browser): ``GET /payments/status/{id}``.
+    payment_status_token: str | None = None
     cart_id: uuid.UUID
     subtotal_amount: Decimal
     discount_code: str | None = None

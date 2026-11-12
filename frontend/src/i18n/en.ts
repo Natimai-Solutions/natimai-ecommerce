@@ -272,6 +272,9 @@ const en: MessageSchema = {
     blocker_quote_loading: 'Working out the amount…',
     blocker_quote: 'The amount could not be worked out: check your choices or try again.',
     blocker_cgv: 'Accept the terms and conditions of sale to pay.',
+    card_form_failed:
+      'The payment form could not be shown. Your order is saved: try again, or pay it later from « My orders ».',
+    card_form_retry: 'Try again',
     secure: 'Encrypted card payment handled by our bank. No card data is stored on this site.',
     summary: 'Summary',
     item: 'Item',

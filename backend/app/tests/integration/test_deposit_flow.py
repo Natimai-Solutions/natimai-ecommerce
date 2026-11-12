@@ -305,9 +305,7 @@ async def test_a_failed_balance_email_is_not_marked_requested(
     monkeypatch.setattr(
         order_handlers, "_send_order_email", AsyncMock(return_value=False)
     )
-    monkeypatch.setattr(
-        order_handlers.runtime_settings, "get", AsyncMock(return_value=True)
-    )
+    monkeypatch.setattr("app.core.runtime_settings.get", AsyncMock(return_value=True))
     payload = {
         "order_id": str(seed.order_id),
         "user_id": str(seed.buyer.id),

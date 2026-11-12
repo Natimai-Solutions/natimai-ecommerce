@@ -274,6 +274,9 @@ const fr = {
     blocker_quote_loading: 'Calcul du montant en cours…',
     blocker_quote: "Le montant n'a pas pu être calculé : vérifiez vos choix ou réessayez.",
     blocker_cgv: 'Acceptez les conditions générales de vente pour payer.',
+    card_form_failed:
+      "Le formulaire de paiement n'a pas pu s'afficher. Votre commande est enregistrée : réessayez, ou payez-la plus tard depuis « Mes commandes ».",
+    card_form_retry: 'Réessayer',
     secure:
       "Paiement par carte chiffré, géré par notre banque. Aucune donnée de carte n'est conservée sur ce site.",
     summary: 'Récapitulatif',

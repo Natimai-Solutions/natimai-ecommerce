@@ -138,17 +138,10 @@ async function onOrder(quote: MyQuote) {
   error.value = null;
   try {
     const cart = await acceptMyQuote(quote.id);
-    const items = cart.items ?? [];
-    cartStore.clearCart();
-    for (const item of items) {
-      await cartStore.addItem(item.product_id, item.quantity);
-    }
-    cartStore.applyServerPrices(
-      items.map((item) => ({
-        product_id: item.product_id,
-        current_unit_price: String(item.unit_price),
-      })),
-    );
+    // The server cart now holds the quote at its prices: adopt it as is.
+    // Rebuilding it line by line mirrored each line back to the server,
+    // which re-priced it at the catalogue's (audit 2026-11).
+    cartStore.adoptServerCart(cart);
     await router.push({ name: 'checkout', query: { quote: quote.id } });
   } catch (err) {
     error.value = apiErrorMessage(err) ?? t('quotes.order_failed');

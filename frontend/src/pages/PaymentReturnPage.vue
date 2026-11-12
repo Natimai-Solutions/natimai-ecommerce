@@ -113,7 +113,12 @@ import { usePageMeta } from '@/composables/usePageMeta';
 import { useI18n } from 'vue-i18n';
 import { onMounted, onUnmounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
-import { confirmMyPayment, getMyPaymentStatus, type PaymentStatusResponse } from '@/api/payments';
+import {
+  confirmMyPayment,
+  getMyPaymentStatus,
+  getPaymentStatusByToken,
+  type PaymentStatusResponse,
+} from '@/api/payments';
 import { PENDING_PAYMENT_KEY } from '@/utils/payzen';
 import GuestAccountOffer from '@/components/GuestAccountOffer.vue';
 
@@ -227,9 +232,15 @@ function stopPolling() {
   }
 }
 
+/** The signed token of the return URL reads the status signed out too. */
+function readStatus(paymentId: string): Promise<PaymentStatusResponse> {
+  const token = queryParam('t');
+  return token ? getPaymentStatusByToken(paymentId, token) : getMyPaymentStatus(paymentId);
+}
+
 async function checkStatus(paymentId: string) {
   try {
-    const status = await getMyPaymentStatus(paymentId);
+    const status = await readStatus(paymentId);
     if (applyStatus(status)) stopPolling();
   } catch {
     // Network errors are transient — keep polling unless timeout fires

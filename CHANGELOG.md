@@ -295,6 +295,18 @@ takes a tag as its `ref`.
   otherwise); a refund that overtakes the invoice of a captured order waits
   for it instead of losing its credit note; a missing order in a payment
   event is logged instead of failing the handler.
+- Storefront bugs (audit 2026-11): the shop's time zone applies in the
+  browser after the server render; every catalogue filter (price,
+  specifications, page) is in the URL — the price filter no longer survives
+  unseen; the checkout prices its quote again after `cart.price.changed`;
+  a card form whose PayZen script failed can be loaded again (the order was
+  placed and the cart emptied with nothing to click); ordering an accepted
+  quote adopts the server cart at the quote's prices (it was mirrored back
+  at catalogue prices); the order page fetches its own invoice
+  (`/invoices/me/by-order/{id}`) instead of searching the 50 latest; the
+  payment return page reads the status signed out, with the signed token
+  of the return URL (new `GET /payments/status/{id}?t=`,
+  `payment_status_token` in the checkout and initiation responses).
 - Storefront (U1): the mobile menu button announced `$t('layout.menu')`
   literally to screen readers; the design guard now rejects a static
   attribute containing `$t(`.

@@ -713,6 +713,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/payments/status/{payment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Payment Status By Token
+         * @description The status of a payment for whoever holds its signed token — the return
+         *     page of a 3-D Secure finished in another browser, signed out (audit
+         *     2026-11). A wrong token answers like an unknown payment.
+         */
+        get: operations["payment-get_payment_status_by_token"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/payments/me/{payment_id}": {
         parameters: {
             query?: never;
@@ -10457,6 +10479,8 @@ export interface components {
              * Format: uuid
              */
             payment_id: string;
+            /** Payment Status Token */
+            payment_status_token?: string | null;
             /**
              * Cart Id
              * Format: uuid
@@ -15950,6 +15974,8 @@ export interface components {
             redirect_url?: string | null;
             /** Instructions */
             instructions?: string | null;
+            /** Payment Status Token */
+            payment_status_token?: string | null;
         };
         /**
          * PaymentsPublic
@@ -23782,6 +23808,40 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     }[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "payment-get_payment_status_by_token": {
+        parameters: {
+            query: {
+                /** @description payment_status_token */
+                t: string;
+            };
+            header?: never;
+            path: {
+                payment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentStatusResponse"];
                 };
             };
             /** @description Validation Error */

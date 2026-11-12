@@ -106,7 +106,12 @@ import { useCurrencyStore } from '@/stores/currency';
 import { getMyOrder, type Order } from '@/api/orders';
 import { apiErrorMessage } from '@/utils/errors';
 import { orderMoney } from '@/utils/money';
-import { initiatePayment, listMyPaymentMethods, type PaymentMethod } from '@/api/payments';
+import {
+  initiatePayment,
+  listMyPaymentMethods,
+  paymentReturnQuery,
+  type PaymentMethod,
+} from '@/api/payments';
 import { PENDING_PAYMENT_KEY, loadPayzenSmartForm } from '@/utils/payzen';
 
 const { t, locale } = useI18n();
@@ -170,7 +175,10 @@ async function pay() {
         serverUrl: result.server_url,
         publicKey: result.public_key,
         token: result.form_token,
-        returnUrl: `${returnUrl}?payment=${encodeURIComponent(result.payment_id)}`,
+        returnUrl: `${returnUrl}?${paymentReturnQuery(
+          result.payment_id,
+          result.payment_status_token,
+        )}`,
         language: locale.value,
       });
       return;

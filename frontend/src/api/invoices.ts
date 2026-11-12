@@ -27,6 +27,21 @@ export async function listMyInvoices(): Promise<Invoice[]> {
 }
 
 /**
+ * The invoice of one of my orders, or null when none is issued yet (audit
+ * 2026-11: the page used to search the 50 latest invoices for it).
+ */
+export async function getMyInvoiceForOrder(orderId: string): Promise<Invoice | null> {
+  try {
+    const response = await api.get<Invoice>(`/invoices/me/by-order/${orderId}`);
+    return response.data;
+  } catch (err) {
+    const status = (err as { response?: { status?: number } }).response?.status;
+    if (status === 404) return null;
+    throw err;
+  }
+}
+
+/**
  * Download an invoice PDF and hand it to the browser as a file.
  *
  * The endpoint is authenticated, so a plain `<a href>` would not carry the

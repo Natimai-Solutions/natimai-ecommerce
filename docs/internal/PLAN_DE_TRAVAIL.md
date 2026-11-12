@@ -65,8 +65,7 @@ Détail, fichiers et scénarios : [`AUDIT_2026-11.md`](AUDIT_2026-11.md) (identi
 - **Retours, RMA et formulaire de rétractation** (obligation légale, c'est du code) : demande depuis « Mes commandes », validation admin, enchaînement sur le remboursement et l'avoir existants — L.
 - **SMS** (expédition, solde dû) — M.
 - Newsletter double opt-in (outil externe ou intégré, à choisir) ; analytics sans cookie (Plausible / Matomo).
-- Bugs vitrine relevés par l'audit du 11/11/2026 ([`AUDIT_2026-11.md`](AUDIT_2026-11.md) §2) :
-  - commande d'un devis accepté sans miroir du panier ; fuseau de la boutique appliqué côté client après hydratation ; retour de paiement 3-D Secure dans un autre navigateur (statut signé sans session) ; facture d'une commande via `GET /invoices/me/by-order/{id}` ; filtres du catalogue dans l'URL ; devis rechargé après `cart.price.changed` ; échec du script PayZen rattrapable — M.
+- Bugs vitrine relevés par l'audit du 11/11/2026 : faits (voir CHANGELOG). Reste : la liste « Mes commandes » associe ses factures parmi les 50 dernières (`AccountOrders`).
 
 ---
 

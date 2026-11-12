@@ -108,6 +108,7 @@ from app.features.payment.services.payment_initiation import (
     PaymentInitiationResult,
     initiate_payment_for_method,
 )
+from app.features.payment.services.status_token import payment_status_token
 from app.features.place.crud import crud_place
 from app.features.place.models import NODE_PLACE_TYPES, Place
 from app.features.product.models.product import (
@@ -3690,6 +3691,7 @@ async def checkout_my_cart(
             event="checkout_completed",
             order_id=order.id,
             payment_id=payment.id,
+            payment_status_token=payment_status_token(payment.id),
             user_id=user_id,
             amount=total_amount,
             currency=cart.currency,

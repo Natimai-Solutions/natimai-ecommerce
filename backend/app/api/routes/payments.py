@@ -1,15 +1,16 @@
 import logging
 import uuid
 from decimal import Decimal
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from app.api.deps import CurrentUser, SessionDep
 from app.core.config import reference_currency, settings
 from app.core.errors import AppError
+from app.core.rate_limit import rate_limited
 from app.features.attachment.service import (
     AttachmentValidationError,
     issue_upload_intent,
@@ -53,6 +54,10 @@ from app.features.payment.services.provider_dispatch import (
     PaymentApiProviderResolutionError,
     parse_api_webhook,
     resolve_api_provider,
+)
+from app.features.payment.services.status_token import (
+    check_payment_status_token,
+    payment_status_token,
 )
 from app.features.payment.services.store_credit import settled_by_kind
 from app.features.payment.services.webhook_pipeline import (
@@ -724,6 +729,8 @@ class PaymentsInitiateResponse(BaseModel):
     public_key: str | None = None
     redirect_url: str | None = None
     instructions: str | None = None
+    #: See ``CheckoutResponse.payment_status_token``.
+    payment_status_token: str | None = None
 
 
 router = APIRouter(prefix="/payments", tags=["payment"])
@@ -951,6 +958,7 @@ async def initiate_payment(
             public_key=result.public_key,
             redirect_url=result.redirect_url,
             instructions=result.instructions,
+            payment_status_token=payment_status_token(result.payment.id),
         )
 
     except AppError:
@@ -1241,6 +1249,30 @@ async def list_my_payment_methods(
         data["charge_rate_to_reference"] = await rate_from_reference(session, charge)
         out.append(data)
     return out
+
+
+@router.get(
+    "/status/{payment_id}",
+    response_model=PaymentStatusResponse,
+    dependencies=[Depends(rate_limited("payment_status", limit=60, window_seconds=60))],
+)
+async def get_payment_status_by_token(
+    payment_id: uuid.UUID,
+    session: SessionDep,
+    t: Annotated[str, Query(max_length=64, description="payment_status_token")],
+) -> PaymentStatusResponse:
+    """The status of a payment for whoever holds its signed token — the return
+    page of a 3-D Secure finished in another browser, signed out (audit
+    2026-11). A wrong token answers like an unknown payment."""
+    payment = await session.get(Payment, payment_id)
+    if payment is None or not check_payment_status_token(payment_id, t):
+        raise AppError(
+            code="payment.not_found",
+            status_code=404,
+            message="Paiement introuvable",
+            details={"payment_id": str(payment_id)},
+        )
+    return await _payment_status_response(session, payment)
 
 
 @router.get("/me/{payment_id}", response_model=PaymentStatusResponse)

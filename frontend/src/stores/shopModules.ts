@@ -42,13 +42,23 @@ export const useShopModulesStore = defineStore('shopModules', () => {
     return modules.value[key] ?? true;
   }
 
+  /** The shop's zone for dates — in the browser too (audit 2026-11): the
+   *  state hydrated from the server render made `load()` return early, and
+   *  the client kept formatting in the default zone. */
+  function applyFormatting(): void {
+    if (config.value.timezone) configureFormatting({ timeZone: config.value.timezone });
+  }
+
   async function load(): Promise<void> {
-    if (loaded.value) return;
+    if (loaded.value) {
+      applyFormatting();
+      return;
+    }
     try {
       const { data } = await api.get<ShopPublicConfig>('/system/config');
       config.value = data;
       modules.value = data.modules ?? {};
-      if (data.timezone) configureFormatting({ timeZone: data.timezone });
+      applyFormatting();
       // Set on success only: a failed server render must let the browser retry.
       loaded.value = true;
     } catch {

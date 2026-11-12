@@ -145,6 +145,11 @@ export const useCartStore = defineStore('cart', () => {
   }
 
   function adoptServerCart(detail: CartDetailPublic) {
+    // The server's cart wins: a mirror still pending would overwrite it.
+    if (mirrorTimer !== null) {
+      clearTimeout(mirrorTimer);
+      mirrorTimer = null;
+    }
     cart.value = {
       currency: detail.currency || cart.value.currency,
       total_amount: '0.00',
@@ -476,6 +481,7 @@ export const useCartStore = defineStore('cart', () => {
     removeItem,
     clearCart,
     forgetLocalCart,
+    adoptServerCart,
     applyServerPrices,
     sendQuoteByEmail,
     clearMessages,

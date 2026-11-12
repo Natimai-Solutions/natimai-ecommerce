@@ -306,6 +306,24 @@
             {{ $t('checkout.order_ref') }} <span class="font-mono">{{ placedOrderRef }}</span>
           </p>
           <div id="kr-smart-form-container" />
+          <AppNotice
+            v-if="smartFormFailed"
+            tone="error"
+            class="q-mt-md"
+            data-testid="checkout-card-form-failed"
+          >
+            {{ $t('checkout.card_form_failed') }}
+            <template #action>
+              <q-btn
+                flat
+                no-caps
+                color="primary"
+                :label="$t('checkout.card_form_retry')"
+                data-testid="checkout-card-form-retry"
+                @click="showSmartForm"
+              />
+            </template>
+          </AppNotice>
         </div>
       </div>
 
@@ -506,6 +524,7 @@ import {
   confirmDocumentUploaded,
   issueDocumentUploadUrl,
   listMyPaymentMethods,
+  paymentReturnQuery,
   uploadFileToPresignedUrl,
   type PaymentMethod,
 } from '@/api/payments';
@@ -518,7 +537,7 @@ import {
   type CheckoutQuote,
 } from '@/api/cart';
 import { listMyAddresses, type Address } from '@/api/addresses';
-import { PENDING_PAYMENT_KEY, loadPayzenSmartForm } from '@/utils/payzen';
+import { PENDING_PAYMENT_KEY, loadPayzenSmartForm, type SmartFormOptions } from '@/utils/payzen';
 
 const cartStore = useCartStore();
 const authStore = useAuthStore();
@@ -544,6 +563,23 @@ const initiating = ref(false);
 const cgvAccepted = ref(false);
 const orderPlaced = ref(false);
 const formToken = ref<string | null>(null);
+/**
+ * The card form of the order just placed, kept to load it again (audit
+ * 2026-11): when PayZen's script failed to load, the order existed, the cart
+ * was emptied, and the customer was left with an error and nothing to click.
+ */
+const smartFormOptions = ref<SmartFormOptions | null>(null);
+const smartFormFailed = ref(false);
+
+async function showSmartForm(): Promise<void> {
+  if (!smartFormOptions.value) return;
+  smartFormFailed.value = false;
+  try {
+    await loadPayzenSmartForm(smartFormOptions.value);
+  } catch {
+    smartFormFailed.value = true;
+  }
+}
 const instructions = ref<string | null>(null);
 // PayPal : départ vers la page d'approbation après création de la commande.
 const redirecting = ref(false);
@@ -1105,13 +1141,17 @@ async function startPayment() {
       // 3-D Secure often finishes in the bank's app or another browser, and the
       // customer then lands on the return page with an empty local store —
       // which used to greet a successful payment with "no pending transaction".
-      await loadPayzenSmartForm({
+      smartFormOptions.value = {
         serverUrl: checkout.server_url,
         publicKey: checkout.public_key,
         token: checkout.form_token,
-        returnUrl: `${returnUrl}?payment=${encodeURIComponent(checkout.payment_id)}`,
+        returnUrl: `${returnUrl}?${paymentReturnQuery(
+          checkout.payment_id,
+          checkout.payment_status_token,
+        )}`,
         language: locale.value,
-      });
+      };
+      await showSmartForm();
       return;
     }
 
@@ -1152,6 +1192,9 @@ async function startPayment() {
     const drifted = extractPriceDrift(err);
     if (drifted) {
       cartStore.applyServerPrices(drifted);
+      // The recap reads the quote: price it again, at the new prices (the
+      // server cart was updated with the refusal — audit 2026-11).
+      void loadQuote();
     }
     errorMessage.value = apiErrorMessage(err) ?? t('checkout.failed');
   } finally {

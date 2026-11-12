@@ -674,6 +674,7 @@ const currentPage = computed({
 
 async function onPageChange(page: number) {
   await store.setPage(page);
+  syncQueryParams();
   window.scrollTo({ top: 0 });
 }
 
@@ -714,6 +715,7 @@ async function onCategoryChange(catId: string | null) {
 
 function onSpecChange() {
   void store.applyFilters({ specs: buildSpecs() });
+  syncQueryParams();
 }
 
 function onNumericSelect(key: string, event: Event) {
@@ -738,6 +740,7 @@ async function onPriceChange() {
     price_min: priceMin.value === '' ? null : priceMin.value,
     price_max: priceMax.value === '' ? null : priceMax.value,
   });
+  syncQueryParams();
 }
 
 async function resetFilters() {
@@ -774,7 +777,24 @@ function stateQuery(): Record<string, string> {
   if (selectedCondition.value) query['cond'] = selectedCondition.value;
   if (selectedStock.value) query['stock'] = selectedStock.value;
   if (selectedSort.value !== 'relevance') query['tri'] = selectedSort.value;
+  // Every filter is in the URL (audit 2026-11): a shared link, a reload or
+  // « back » shows the same selection — the price used to survive unseen.
+  if (priceMin.value !== '') query['pmin'] = String(priceMin.value);
+  if (priceMax.value !== '') query['pmax'] = String(priceMax.value);
+  for (const [key, values] of Object.entries(enumSelections.value)) {
+    if (values.length > 0) query[`f.${key}`] = values.join('|');
+  }
+  for (const [key, min] of Object.entries(numericMin.value)) {
+    if (min != null) query[`min.${key}`] = String(min);
+  }
+  if (store.currentPage > 1) query['page'] = String(store.currentPage);
   return query;
+}
+
+function queryNumber(raw: unknown): number | '' {
+  if (typeof raw !== 'string' || raw.trim() === '') return '';
+  const value = Number(raw);
+  return Number.isFinite(value) && value >= 0 ? value : '';
 }
 
 function syncQueryParams() {
@@ -804,6 +824,22 @@ function initFromQuery(query: LocationQuery = route.query) {
   selectedStock.value = stock === 'local' || stock === 'supplier' ? stock : null;
   const sort = query['tri'];
   selectedSort.value = SORTS.find((value) => value === sort) ?? 'relevance';
+  priceMin.value = queryNumber(query['pmin']);
+  priceMax.value = queryNumber(query['pmax']);
+  const enums: Record<string, string[]> = {};
+  const mins: Record<string, number | null> = {};
+  for (const [name, raw] of Object.entries(query)) {
+    if (typeof raw !== 'string' || raw === '') continue;
+    if (name.startsWith('f.')) enums[name.slice(2)] = raw.split('|').filter(Boolean);
+    if (name.startsWith('min.')) {
+      const value = queryNumber(raw);
+      if (value !== '') mins[name.slice(4)] = value;
+    }
+  }
+  enumSelections.value = enums;
+  numericMin.value = mins;
+  const page = Number(query['page']);
+  store.currentPage = Number.isInteger(page) && page > 1 ? page : 1;
 }
 
 async function loadCatalogueData() {
@@ -817,8 +853,13 @@ async function loadCatalogueData() {
     condition: selectedCondition.value,
     stock: selectedStock.value,
     sort: selectedSort.value,
+    price_min: priceMin.value === '' ? null : priceMin.value,
+    price_max: priceMax.value === '' ? null : priceMax.value,
     specs: buildSpecs(),
   });
+  // applyFilters goes back to page 1: the page of the URL is applied after.
+  const page = Number(route.query['page']);
+  if (Number.isInteger(page) && page > 1) await store.setPage(page);
 }
 
 // La recherche de l'en-tête (ou un lien) change l'URL : on recharge alors le
@@ -828,16 +869,9 @@ watch(
   (query) => {
     if (route.name !== 'catalogue') return;
     const current = stateQuery();
-    const keys = ['q', 'mfr', 'cat', 'cond', 'stock', 'tri'];
-    const same =
-      keys.every((k) => (query[k] ?? undefined) === current[k]) &&
-      Object.keys(query).every((k) => keys.includes(k));
+    const keys = new Set([...Object.keys(query), ...Object.keys(current)]);
+    const same = [...keys].every((k) => (query[k] ?? undefined) === current[k]);
     if (same) return;
-    const categoryChanged = (query['cat'] ?? null) !== selectedCategory.value;
-    if (categoryChanged) {
-      enumSelections.value = {};
-      numericMin.value = {};
-    }
     void loadCatalogueData();
   },
 );
