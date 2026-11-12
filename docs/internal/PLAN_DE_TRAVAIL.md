@@ -53,10 +53,11 @@ Détail, fichiers et scénarios : [`AUDIT_2026-11.md`](AUDIT_2026-11.md) (identi
 
 ## 2. Sécurité et performance
 
-- **À décider** : refuser (et non accepter) le captcha quand Cloudflare ne répond pas ; chiffrer les codes de cartes cadeaux en base (ils restent en clair pour pouvoir être réimprimés : un chiffrement réversible ou un hachage + code affiché une seule fois).
+- **Décidé (12/11/2026)** : le captcha reste accepté quand Cloudflare ne répond pas (journalisé ; les limites de fréquence, elles, refusent en cas de panne de Redis), pour ne pas bloquer l'inscription pendant une panne de Cloudflare.
+- **À décider** : chiffrer les codes de cartes cadeaux en base (ils restent en clair pour pouvoir être réimprimés : un chiffrement réversible ou un hachage + code affiché une seule fois).
 - Audit du 11/11/2026, gravité moyenne ([`AUDIT_2026-11.md`](AUDIT_2026-11.md) §1) — M au total :
   - **S8 (suite, si voulu)** : les paniers invités ne sont plus relancés (adresse non vérifiée) ; pour les relancer à nouveau, un double opt-in de l'adresse saisie (e-mail de confirmation) — M.
-- Audit, durcissement restant : *required reviewers* sur l'environnement GitHub `production` (réglage du dépôt, hors code) ; refus du captcha quand Cloudflare ne répond pas (« À décider » ci-dessus).
+- Audit, durcissement restant : *required reviewers* sur l'environnement GitHub `production` (réglage du dépôt, hors code).
 
 ---
 
