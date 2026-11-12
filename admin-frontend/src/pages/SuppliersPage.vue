@@ -948,7 +948,7 @@
                 :pairs="importResult.category_pairs"
                 :categories="categories"
                 :saving="categoriesSaving"
-                count-label="Lignes"
+                :count-label="$t('suppliers.import_rows')"
                 @save="saveImportRules"
               />
             </q-expansion-item>
@@ -1316,8 +1316,7 @@ async function submitForm() {
     formDialog.value = false;
     await load();
   } catch (err) {
-    dialogError.value =
-      extractApiError(err) ?? (err instanceof Error ? err.message : t('common.save_failed'));
+    dialogError.value = extractApiError(err) ?? t('common.save_failed');
   } finally {
     saving.value = false;
   }

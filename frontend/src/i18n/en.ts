@@ -578,6 +578,9 @@ const en: MessageSchema = {
     yours: 'Your price group',
   },
   home: {
+    unavailable: 'The shop is temporarily unavailable.',
+    retry: 'Try again',
+    dismiss: 'Close',
     add_failed: 'This item could not be added to the cart.',
     all: 'Whole catalogue',
     categories: 'Categories',

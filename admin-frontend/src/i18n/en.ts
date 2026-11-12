@@ -1118,6 +1118,7 @@ const en: MessageSchema = {
     theme_light: 'Light',
   },
   login: {
+    failed: 'Sign-in failed',
     administration: 'Administration',
     code: 'Verification code',
     code_required: 'Code required',
@@ -2269,6 +2270,7 @@ const en: MessageSchema = {
     title: 'Supplier orders',
   },
   suppliers: {
+    import_rows: 'Rows',
     a_basic: 'HTTP authentication (basic)',
     a_form: 'Login form + cookies',
     a_none: 'None (direct link)',

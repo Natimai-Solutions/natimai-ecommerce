@@ -1,7 +1,9 @@
 <template>
+  <!-- Full screen on a phone, actions always in reach (audit 2026-11). -->
   <q-dialog
     :model-value="modelValue"
     :persistent="guard.persistent.value"
+    :maximized="$q.screen.lt.sm"
     @update:model-value="guard.onToggle"
   >
     <q-card class="app-dialog app-dialog--xl product-form">
@@ -1571,7 +1573,7 @@ async function onRelease(field: string) {
     lockedFields.value = [...(refreshed.overridden_fields ?? [])];
     emit('saved');
   } catch (err: unknown) {
-    error.value = err instanceof Error ? err.message : t('product_form.release_failed');
+    error.value = extractApiError(err) ?? t('product_form.release_failed');
   } finally {
     releasing.value = null;
   }
@@ -1778,7 +1780,7 @@ async function loadLookups() {
       value: p.id,
     }));
   } catch (err: unknown) {
-    error.value = err instanceof Error ? err.message : t('product_form.lists_failed');
+    error.value = extractApiError(err) ?? t('product_form.lists_failed');
   }
 }
 
@@ -1811,6 +1813,15 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
+// The long form scrolls; « Enregistrer » stays at the bottom of the screen.
+.product-form .app-dialog__actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  background: var(--n-surface);
+  border-top: 1px solid var(--n-line);
+}
+
 .product-form__head {
   display: flex;
   flex-wrap: wrap;

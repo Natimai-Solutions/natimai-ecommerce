@@ -109,11 +109,7 @@ Détail, fichiers et scénarios : [`AUDIT_2026-11.md`](AUDIT_2026-11.md) (identi
 - Densité admin : tables `dense`, squelettes plutôt que spinners, `app-empty` partout ; tableaux larges qui défilent (fournisseurs, paramètres) — M.
 - Vitrine : vrais **404 en SSR** (aujourd'hui HTTP 200 : la route catch-all court-circuite le 404 de `src-ssr/middlewares/render.ts`), décalage d'hydratation du `min-height` de `QPage`, flash de thème à la première visite, police d'icônes chargée en entier, `srcset` des photos fournisseur (les médias de la boutique l'ont), parité fr / en testée — M.
 - Médias publics derrière un CDN ou un bucket public si le trafic le demande ; recadrage d'image dans l'admin.
-- UX et accessibilité relevées par l'audit du 11/11/2026 ([`AUDIT_2026-11.md`](AUDIT_2026-11.md) §3) — M au total :
-  - **U2** (reste) : messages d'erreur de l'admin (`ProductFormDialog`…) par l'enveloppe `{error:{message}}`, jamais le message axios brut — la vitrine (catalogue, panier, fiche produit) est faite ;
-  - **U8** : erreur d'ajout au panier visible près de l'action ; accueil avec message et « Réessayer » si toutes les API échouent ;
-  - rôle des vignettes de galerie ; cibles tactiles de 44 px (« Mot de passe oublié ? », Comparer) ;
-  - admin : `ProductFormDialog` plein écran avec actions collantes sur mobile, `min-width` des toolbars, chaînes en dur ; pages légales en anglais ou mention explicite.
+- UX et accessibilité de l'audit du 11/11/2026 : faites (voir CHANGELOG). Reste, si voulu : rendre « responsives » les autres `min-width` en ligne des barres d'outils admin (220 à 280 px, ils tiennent aujourd'hui dans 390 px) ; traduire les textes juridiques par défaut (une mention signale qu'ils sont en français).
 
 ---
 

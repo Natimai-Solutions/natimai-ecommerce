@@ -78,6 +78,11 @@ const RULES: Rule[] = [
     // `aria-label="$t('x')"` sans « : » : Vue ne l'évalue pas (audit 2026-11, U1).
     pattern: /(?:^|\s)(?!v-)[a-z][\w-]*="[^"]*\$t\(/,
   },
+  {
+    why: "message d'erreur brut (« Request failed with status code … ») : extractApiError / apiErrorMessage, puis un repli traduit",
+    // Audit 2026-11, U2 : l'enveloppe { error: { message } } de l'API était ignorée.
+    pattern: /instanceof Error \? \w+\.message :/,
+  },
 ];
 
 describe('interface : jetons, couleurs et points de rupture', () => {

@@ -585,6 +585,9 @@ const fr = {
     yours: 'Votre groupe tarifaire',
   },
   home: {
+    unavailable: 'La boutique est momentanément indisponible.',
+    retry: 'Réessayer',
+    dismiss: 'Fermer',
     add_failed: "Impossible d'ajouter cet article au panier.",
     all: 'Tout le catalogue',
     categories: 'Catégories',

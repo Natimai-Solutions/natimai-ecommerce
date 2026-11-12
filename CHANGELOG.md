@@ -311,6 +311,16 @@ takes a tag as its `ref`.
   step of a new product updates it instead of creating a duplicate (and the
   API's message is shown); a departure's order cutoff is typed on the shop's
   clock; the order page reloads after a status change.
+- UX (audit 2026-11): the admin shows the API's error messages, never
+  axios' « Request failed with status code … » (design-guard rule); the
+  add-to-cart error of the home page is a fixed, announced toast near the
+  action; the home page offers « Réessayer » when every API fails (endless
+  skeleton before); gallery thumbnails are buttons in a real list; 44 px
+  touch targets for « Mot de passe oublié ? » and « Comparer »; the product
+  form of the admin is full screen on a phone with sticky actions; the
+  product search field no longer forces a horizontal scroll; the last
+  hard-coded admin strings are translated; legal pages say they are in
+  French in another language, default text included.
 - Storefront (U1): the mobile menu button announced `$t('layout.menu')`
   literally to screen readers; the design guard now rejects a static
   attribute containing `$t(`.

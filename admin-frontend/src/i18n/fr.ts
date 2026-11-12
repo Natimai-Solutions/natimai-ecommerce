@@ -1125,6 +1125,7 @@ const fr = {
     theme_light: 'Clair',
   },
   login: {
+    failed: 'Échec de connexion',
     administration: 'Administration',
     code: 'Code de vérification',
     code_required: 'Code requis',
@@ -2284,6 +2285,7 @@ const fr = {
     title: 'Commandes fournisseurs',
   },
   suppliers: {
+    import_rows: 'Lignes',
     a_basic: 'Authentification HTTP (basic)',
     a_form: 'Formulaire de connexion + cookies',
     a_none: 'Aucune (lien direct)',

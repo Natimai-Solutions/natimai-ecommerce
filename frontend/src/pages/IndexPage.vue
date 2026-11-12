@@ -75,9 +75,23 @@
       </ul>
     </section>
 
-    <AppNotice v-if="cartError" tone="error" class="page-container home__notice">
-      {{ cartError }}
-    </AppNotice>
+    <!-- Fixed at the bottom of the screen (U8): the card clicked may be far
+         below the top of the page, where this message used to appear. -->
+    <div v-if="cartError" class="home__toast" role="alert" data-testid="home-cart-error">
+      <AppNotice tone="error">
+        {{ cartError }}
+        <template #action>
+          <q-btn
+            flat
+            round
+            dense
+            icon="ph:x"
+            :aria-label="$t('home.dismiss')"
+            @click="cartError = null"
+          />
+        </template>
+      </AppNotice>
+    </div>
 
     <section
       v-if="home.categories.length"
@@ -154,7 +168,16 @@
       </div>
     </section>
 
-    <section v-if="showSkeleton" class="home-section page-container" aria-busy="true">
+    <div v-if="home.failed && !home.loading" class="page-container home__notice">
+      <AppNotice tone="error" data-testid="home-unavailable">
+        {{ $t('home.unavailable') }}
+        <template #action>
+          <q-btn flat no-caps color="primary" :label="$t('home.retry')" @click="home.reload()" />
+        </template>
+      </AppNotice>
+    </div>
+
+    <section v-else-if="showSkeleton" class="home-section page-container" aria-busy="true">
       <div class="product-grid">
         <div v-for="n in 4" :key="n" class="skeleton-card">
           <q-skeleton square class="skeleton-card__media" />
@@ -470,6 +493,17 @@ a.banner:hover {
 
 .home__notice {
   margin-bottom: 24px;
+}
+
+.home__toast {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  z-index: 2500;
+  max-width: 560px;
+  margin: 0 auto;
+  box-shadow: var(--n-shadow);
 }
 
 .home-section {
