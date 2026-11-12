@@ -270,6 +270,7 @@ async def test_payzen_ipn_updates_payment_inline_and_publishes_outbox_event(
                 "order_id": str(payment.id),
                 "trans_status": "PAID",
                 "amount": "1500",
+                "currency": "XPF",
                 "payment_cards": "VISA",
                 "_raw_answer": {},
             }

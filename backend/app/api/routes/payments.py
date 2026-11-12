@@ -106,8 +106,19 @@ _PAYMENT_STATUS_CANCELLED = "Cancelled"
 # authorisation (deferred capture) is final for the customer: the card is
 # accepted, the debit happens later from the back office. Leaving it out made
 # the return page wait two minutes and then report a timeout.
+# A payment closed by the customer's cancellation (or refunded, voided) is
+# decided too: /confirm used to capture PayPal on an order cancelled meanwhile
+# (audit 2026-11).
 _TERMINAL_PAYMENT_STATUS_NAMES: frozenset[str] = frozenset(
-    {_PAYMENT_STATUS_COMPLETED, _PAYMENT_STATUS_FAILED, _PAYMENT_STATUS_AUTHORIZED}
+    {
+        _PAYMENT_STATUS_COMPLETED,
+        _PAYMENT_STATUS_FAILED,
+        _PAYMENT_STATUS_AUTHORIZED,
+        _PAYMENT_STATUS_CANCELLED,
+        "Refunded",
+        "PartiallyRefunded",
+        "Voided",
+    }
 )
 # Payment statuses meaning "this order has already been charged". The order
 # status alone cannot be trusted here: it only flips to Paid asynchronously
@@ -226,6 +237,19 @@ def _is_conflicting_terminal_retry(
         and trans_status in _TERMINAL_TRANS_STATUSES
         and existing_status != trans_status
     )
+
+
+#: ISO 4217 numeric codes PayZen may send instead of the alphabetic one.
+_NUMERIC_CURRENCIES = {"953": "XPF", "978": "EUR", "840": "USD"}
+
+
+def _ipn_currency_matches(raw: object, expected: str) -> bool:
+    """Whether the IPN's currency is the payment's (missing = no)."""
+    if raw is None:
+        return False
+    code = str(raw).strip().upper()
+    code = _NUMERIC_CURRENCIES.get(code, code)
+    return bool(code) and code == expected.strip().upper()
 
 
 def _resolve_payment_status_for_trans_status(trans_status: str | None) -> str | None:
@@ -555,10 +579,19 @@ async def payzen_ipn(session: SessionDep, request: Request) -> JSONResponse:
         # The IPN is signed, so a mismatch means a tampered initiation or a
         # provider misconfiguration — record it and never complete the payment.
         raw_ipn_amount = fields.get("amount")
-        if trans_status in _SUCCESS_TRANS_STATUSES and raw_ipn_amount is not None:
+        if trans_status in _SUCCESS_TRANS_STATUSES:
+            # The currency is part of the amount: a success in another (or no)
+            # currency is a mismatch too (audit 2026-11).
+            same_currency = _ipn_currency_matches(
+                fields.get("currency"), payment.currency
+            )
             try:
-                ipn_amount: Decimal | None = minor_units_to_decimal(
-                    parse_minor_units(raw_ipn_amount), payment.currency
+                ipn_amount: Decimal | None = (
+                    minor_units_to_decimal(
+                        parse_minor_units(raw_ipn_amount), payment.currency
+                    )
+                    if raw_ipn_amount is not None and same_currency
+                    else None
                 )
             except ValueError as parse_error:
                 # An unreadable amount is handled exactly like a mismatch. The
@@ -592,6 +625,7 @@ async def payzen_ipn(session: SessionDep, request: Request) -> JSONResponse:
                     "expected": str(payment.amount),
                     "received": received_repr,
                     "unreadable": ipn_amount is None,
+                    "currency": fields.get("currency"),
                     "trans_status": trans_status,
                     "trans_id": trans_id,
                 }

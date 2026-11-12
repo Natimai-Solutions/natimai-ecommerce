@@ -105,6 +105,7 @@ async def test_payzen_ipn_uses_provider_parser_path(
         "trans_status": "PAID",
         "trans_uuid": "tx_001",
         "amount": "1500",
+        "currency": "XPF",
         "payment_cards": "VISA",
         "_raw_answer": {},
     }

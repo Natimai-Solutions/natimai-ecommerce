@@ -367,6 +367,6 @@ def test_recovery_codes_are_hashed_with_the_server_key() -> None:
     assert two_factor._hash_recovery(code) != plain
     # Codes issued before still work, once.
     user = cast(User, SimpleNamespace(totp_recovery_hashes=[plain]))
-    user.totp_secret_encrypted = None  # type: ignore[attr-defined]
+    user.totp_secret_encrypted = None
     assert two_factor.verify_second_factor(user, code) == "recovery"
     assert user.totp_recovery_hashes == []

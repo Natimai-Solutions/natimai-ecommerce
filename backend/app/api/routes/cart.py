@@ -24,6 +24,7 @@ from app.core.rate_limit import hit_rate_limit, rate_limit_reached, rate_limited
 from app.features.cart.crud.cart import crud_cart, crud_cart_item
 from app.features.cart.crud.quote_request import crud_quote_request
 from app.features.cart.models.cart import (
+    MAX_LINE_QUANTITY,
     Cart,
     CartDetailPublic,
     CartItem,
@@ -1571,7 +1572,9 @@ async def replace_guest_cart_items(
     """
     merged: dict[uuid.UUID, int] = {}
     for entry in payload.items:
-        merged[entry.product_id] = merged.get(entry.product_id, 0) + entry.quantity
+        merged[entry.product_id] = min(
+            merged.get(entry.product_id, 0) + entry.quantity, MAX_LINE_QUANTITY
+        )
     cart = await crud_cart.get_or_create_guest_cart(session, guest_token=guest_token)
     cart_id = cart.id
     entries: list[tuple[Product, int]] = []
@@ -1754,7 +1757,9 @@ async def reorder_into_cart(
     }
     added = skipped = 0
     for product_id, quantity in wanted:
-        quantities[product_id] = quantities.get(product_id, 0) + quantity
+        quantities[product_id] = min(
+            quantities.get(product_id, 0) + quantity, MAX_LINE_QUANTITY
+        )
     entries: list[tuple[Product, int]] = []
     reordered = {product_id for product_id, _ in wanted}
     for product_id, quantity in quantities.items():
@@ -1879,7 +1884,9 @@ async def replace_my_cart_items(
     # would otherwise violate the one-row-per-product invariant of the cart.
     merged: dict[uuid.UUID, int] = {}
     for entry in payload.items:
-        merged[entry.product_id] = merged.get(entry.product_id, 0) + entry.quantity
+        merged[entry.product_id] = min(
+            merged.get(entry.product_id, 0) + entry.quantity, MAX_LINE_QUANTITY
+        )
 
     # Resolve the cart BEFORE the products: get_or_create_active_cart commits,
     # and a commit expires every loaded instance. Resolving products first
@@ -2805,6 +2812,14 @@ async def _resolve_checkout_discount(
     """
     if not code or not code.strip():
         return None, None
+    if strict:
+        # The checkout serialises a customer's orders with a code (audit
+        # 2026-11): two checkouts at once each counted the other's use as not
+        # there yet, and « one per customer » was used twice. The lock holds
+        # until the order is committed, then the next one counts it.
+        await session.exec(
+            select(User.id).where(col(User.id) == user_id).with_for_update()
+        )
     try:
         applied = await resolve_coupon(
             session,

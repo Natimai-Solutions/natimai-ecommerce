@@ -93,6 +93,7 @@ async def _send_ipn(
                 "trans_status": trans_status,
                 "trans_uuid": trans_uuid,
                 "amount": amount,
+                "currency": "XPF",
                 "payment_cards": "VISA",
                 "_raw_answer": {},
             }

@@ -103,7 +103,9 @@ def validate_ipn_signature(fields_dict: dict[str, Any]) -> dict[str, Any]:
         "trans_id": transaction.get("uuid"),
         "trans_uuid": transaction.get("uuid"),
         "amount": str(transaction.get("amount", 0)),
-        "currency": str(transaction.get("currency", "953")),  # 953 = XPF
+        # No default: an IPN without currency is not taken for XPF (audit
+        # 2026-11) — the webhook compares it with the payment's.
+        "currency": transaction.get("currency"),
         "trans_status": transaction.get("status"),  # PAID, REFUSED, etc.
         "order_status": answer_data.get("orderStatus"),
         "payment_cards": card_details.get("brand", ""),
