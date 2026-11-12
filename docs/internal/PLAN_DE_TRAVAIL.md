@@ -77,7 +77,6 @@ Détail, fichiers et scénarios : [`AUDIT_2026-11.md`](AUDIT_2026-11.md) (identi
 - **Fiche client** (commandes, avoir, points), recherche globale (n° de commande, client, SKU) — M.
 - **Rôles fins** (préparateur, comptable) à la place du seul superuser — M.
 - Pagination serveur sur les autres tableaux (30 fichiers masquent encore la pagination ; 3 seulement paginent côté serveur) — M.
-- Audit du 11/11/2026 : `ProductFormDialog` repasse en édition après la création (un second « Enregistrer » ne crée plus de doublon) ; `order_cutoff_at` des départs saisi dans le fuseau de la boutique ; `OrderDetailPage` rechargée après un changement de statut — S.
 
 ---
 

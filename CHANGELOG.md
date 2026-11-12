@@ -307,6 +307,10 @@ takes a tag as its `ref`.
   payment return page reads the status signed out, with the signed token
   of the return URL (new `GET /payments/status/{id}?t=`,
   `payment_status_token` in the checkout and initiation responses).
+- Admin bugs (audit 2026-11): a second « Enregistrer » after a failed
+  step of a new product updates it instead of creating a duplicate (and the
+  API's message is shown); a departure's order cutoff is typed on the shop's
+  clock; the order page reloads after a status change.
 - Storefront (U1): the mobile menu button announced `$t('layout.menu')`
   literally to screen readers; the design guard now rejects a static
   attribute containing `$t(`.

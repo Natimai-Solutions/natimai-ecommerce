@@ -1446,6 +1446,8 @@ function decimalOrNull(value: string | number | null): string | null {
 const placeOptions = ref<{ label: string; value: string }[]>([]);
 
 const isEdit = ref(false);
+/** Article created by this dialog session (its later saves update it). */
+const createdId = ref<string | null>(null);
 /** Création pré-remplie depuis un autre article (« Dupliquer »). */
 const isDuplicate = ref(false);
 
@@ -1693,11 +1695,16 @@ async function onSubmit() {
   try {
     const payload = buildPayload();
     let productId: string;
-    if (isEdit.value && props.product) {
-      await store.updateProduct(props.product.id, payload);
-      productId = props.product.id;
+    const existingId = isEdit.value && props.product ? props.product.id : createdId.value;
+    if (existingId) {
+      await store.updateProduct(existingId, payload);
+      productId = existingId;
     } else {
       productId = (await store.createProduct(payload)).id;
+      // A later step (stock, group prices…) may still fail: the next
+      // « Enregistrer » updates this article instead of creating a second
+      // one (audit 2026-11).
+      createdId.value = productId;
     }
     await saveLocalStock(productId);
     await saveGroupPrices(productId);
@@ -1706,7 +1713,11 @@ async function onSubmit() {
     emit('saved');
     emit('update:modelValue', false);
   } catch (err: unknown) {
-    error.value = err instanceof Error ? err.message : t('common.save_failed');
+    // The API's message, never axios' « Request failed with status code… ».
+    error.value =
+      extractApiError(err) ??
+      (err instanceof Error && !('response' in err) ? err.message : null) ??
+      t('common.save_failed');
   } finally {
     saving.value = false;
   }
@@ -1776,6 +1787,7 @@ watch(
   (open) => {
     if (open) {
       isEdit.value = !!props.product;
+      createdId.value = null;
       isDuplicate.value = !props.product && !!props.duplicateOf;
       // Edit: the article itself. Duplicate: the source, read but never written.
       const seed = props.product ?? (isDuplicate.value ? (props.duplicateOf ?? null) : null);

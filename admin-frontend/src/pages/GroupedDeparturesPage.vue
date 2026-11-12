@@ -934,6 +934,8 @@ import {
   formatDateTime,
   formatMoney as formatMoneyIn,
   nextDepartureStatus,
+  fromShopDateTimeInput,
+  toShopDateTimeInput,
 } from '@app/utils';
 import PageHeader from '@/components/PageHeader.vue';
 import HelpPanel, { type HelpItem } from '@/components/HelpPanel.vue';
@@ -1746,7 +1748,8 @@ function openEdit(d: Departure) {
   editId.value = d.id;
   Object.assign(form, {
     name: d.name,
-    order_cutoff_at: toInput(d.order_cutoff_at, true) ?? '',
+    // On the shop's clock, wherever the admin's browser is (audit 2026-11).
+    order_cutoff_at: toShopDateTimeInput(d.order_cutoff_at) ?? '',
     estimated_delivery_at: toInput(d.estimated_delivery_at, false),
     departure_at: toInput(d.departure_at, false),
     status: d.status,
@@ -1766,7 +1769,7 @@ async function submit() {
   dialogError.value = null;
   const payload: DepartureWrite = {
     name: form.name.trim(),
-    order_cutoff_at: toIso(form.order_cutoff_at) ?? '',
+    order_cutoff_at: fromShopDateTimeInput(form.order_cutoff_at) ?? '',
     estimated_delivery_at: toIso(form.estimated_delivery_at),
     departure_at: toIso(form.departure_at),
     status: form.status,
