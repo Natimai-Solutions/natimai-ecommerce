@@ -126,7 +126,7 @@ async def test_guest_cart_lives_on_the_server_and_merges_at_sign_in(
 
 
 @pytest.mark.asyncio
-async def test_guest_carts_are_reminded_only_with_an_email(
+async def test_guest_carts_are_never_reminded(
     db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(settings, "CART_ABANDONMENT_REMINDER_DELAY_HOURS", 24)
@@ -151,16 +151,16 @@ async def test_guest_carts_are_reminded_only_with_an_email(
         db_session.add(cart)
     await db_session.commit()
 
+    # Audit 2026-11, S8: the visitor's address was never confirmed — anyone
+    # could have typed someone else's. No reminder goes to it.
     stats = await remind_abandoned_carts(db_session, now=now)
-    assert stats["reminded"] == 1
+    assert stats["reminded"] == 0 and stats["skipped_unverified"] == 1
     events = (
         await db_session.exec(
             select(OutboxEvent).where(col(OutboxEvent.type) == EVENT_CART_ABANDONED)
         )
     ).all()
-    assert len(events) == 1
-    payload = events[0].payload
-    assert payload["user_id"] is None and payload["email"] == "hina@example.pf"
+    assert events == []
 
     page, counters = await open_carts_overview(db_session)
     assert counters["open"] == 2

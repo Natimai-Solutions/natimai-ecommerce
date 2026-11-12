@@ -266,6 +266,12 @@ takes a tag as its `ref`.
 - Storefront: shop images get a `srcset` of their WebP widths (480 / 960 /
   1600 px, derived from the stored URL) and `sizes`; the product page's
   main photo is `fetchpriority="high"`.
+- Security (audit 2026-11, S10): admin CSV exports neutralise any text
+  cell starting with `= + - @`, tab or carriage return (leading apostrophe);
+  numbers stay numbers.
+- Security (S8): abandoned-cart reminders go to accounts only. A visitor's
+  e-mail was never confirmed, so anyone could make the shop mail any
+  address; their carts are stamped and counted as `skipped_unverified`.
 - Storefront (U1): the mobile menu button announced `$t('layout.menu')`
   literally to screen readers; the design guard now rejects a static
   attribute containing `$t(`.
