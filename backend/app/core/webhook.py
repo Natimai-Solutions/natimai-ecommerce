@@ -11,6 +11,8 @@ from typing import Any
 
 import aiohttp
 
+from app.core.ssrf import public_only_connector
+
 logger = logging.getLogger(__name__)
 
 _TIMEOUT = aiohttp.ClientTimeout(total=15, connect=5)
@@ -21,8 +23,17 @@ async def post_json(url: str, payload: dict[str, Any]) -> tuple[bool, str | None
     if not url.lower().startswith("https://"):
         return False, "URL non sécurisée (https requis)"
     try:
-        async with aiohttp.ClientSession(timeout=_TIMEOUT) as session:
-            async with session.post(url, json=payload) as response:
+        # Public addresses only, checked at connection time, and no redirect
+        # followed (audit 2026-11): an admin-typed URL must not reach the
+        # shop's own network.
+        async with aiohttp.ClientSession(
+            timeout=_TIMEOUT, connector=public_only_connector()
+        ) as session:
+            async with session.post(
+                url, json=payload, allow_redirects=False
+            ) as response:
+                if 300 <= response.status < 400:
+                    return False, f"HTTP {response.status}: redirection refusée"
                 if response.status >= 400:
                     body = (await response.text())[:200]
                     return False, f"HTTP {response.status}: {body}"

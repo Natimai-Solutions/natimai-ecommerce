@@ -122,7 +122,10 @@ class IcecatService:
         url = f"{self.base_url}{endpoint}"
 
         logger.debug(f"Making Icecat API request to: {url}")
-        logger.debug(f"Parameters: {params}")
+        # Never the app_key (audit 2026-11): debug logs reach Sentry / files.
+        logger.debug(
+            "Parameters: %s", {k: v for k, v in params.items() if k != "app_key"}
+        )
         logger.debug(f"Using Open Icecat: {self.use_open_icecat}")
 
         async def _attempt() -> dict[str, Any]:

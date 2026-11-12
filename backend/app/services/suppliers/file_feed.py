@@ -31,7 +31,6 @@ and the 2-hourly inventory refresh skips it (the file brings the stock).
 from __future__ import annotations
 
 import asyncio
-import ipaddress
 import logging
 import socket
 from collections.abc import AsyncIterator
@@ -42,6 +41,7 @@ import httpx
 from pydantic import Field
 
 from app.core.config import settings
+from app.core.ssrf import is_public_address, public_only_transport
 from app.services.suppliers.base import (
     NormalizedPricing,
     NormalizedProductData,
@@ -72,15 +72,7 @@ class FeedError(RuntimeError):
 
 
 def _is_public_address(address: str) -> bool:
-    ip = ipaddress.ip_address(address)
-    return not (
-        ip.is_private
-        or ip.is_loopback
-        or ip.is_link_local
-        or ip.is_multicast
-        or ip.is_reserved
-        or ip.is_unspecified
-    )
+    return is_public_address(address)
 
 
 async def check_public_https_url(url: str) -> None:
@@ -247,7 +239,10 @@ class FileFeedAdapter(SupplierAdapter):
             auth = httpx.BasicAuth(creds.get("username", ""), creds.get("password", ""))
         async with httpx.AsyncClient(
             auth=auth,
-            transport=self.transport,
+            # The default transport dials only validated public addresses:
+            # the check and the connection are one resolution (no DNS
+            # rebinding window, audit 2026-11).
+            transport=self.transport or public_only_transport(),
             follow_redirects=False,
             timeout=httpx.Timeout(float(settings.SUPPLIER_FEED_TIMEOUT_SECONDS)),
             headers={"User-Agent": "catalogue-sync"},
