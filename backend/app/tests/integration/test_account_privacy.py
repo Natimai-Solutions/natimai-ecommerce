@@ -15,6 +15,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.routes.users_me import (
     MyAccountDeletion,
+    MyPasswordChange,
+    change_my_password,
     delete_my_account,
     export_my_data,
 )
@@ -25,6 +27,7 @@ from app.features.order.models.order_status import OrderStatus
 from app.features.product.models.product import Product
 from app.features.product.models.stock_alert import StockAlert
 from app.features.user.models.address import Address
+from app.features.user.models.oauth_link import UserOAuthLink
 from app.features.user.models.refresh_token import UserRefreshToken
 from app.features.user.models.user import User
 from app.features.user.models.user_preference import UserPreference
@@ -221,3 +224,76 @@ async def test_deletion_route_checks_then_anonymises(db_session: AsyncSession) -
     ).all()
     assert tokens and all(t.revoked_at is not None for t in tokens)
     _ = cast(Any, None)
+
+
+@pytest.mark.asyncio
+async def test_an_account_without_password_needs_a_recent_sign_in_to_be_erased(
+    db_session: AsyncSession,
+) -> None:
+    """Audit 2026-11: a Google / Microsoft account was erased with no proof at
+    all — a stolen session, kept alive by its refresh cookie, sufficed."""
+    user = await _user(db_session)
+    user_id, email = user.id, user.email
+    db_session.add(
+        UserOAuthLink(
+            user_id=user_id,
+            provider="google",
+            provider_user_id=uuid.uuid4().hex,
+            email_at_link=email,
+        )
+    )
+    user.last_login = datetime.datetime.now(datetime.UTC) - datetime.timedelta(hours=3)
+    await db_session.commit()
+    await db_session.refresh(user)
+
+    with pytest.raises(AppError) as stale:
+        await delete_my_account(
+            MyAccountDeletion(confirmation=email, password=None),
+            _request(),
+            Response(),
+            db_session,
+            user,
+        )
+    assert stale.value.code == "account.delete.reauth_required"
+
+    user.last_login = datetime.datetime.now(datetime.UTC)
+    await db_session.commit()
+    await db_session.refresh(user)
+    await delete_my_account(
+        MyAccountDeletion(confirmation=email, password=None),
+        _request(),
+        Response(),
+        db_session,
+        user,
+    )
+    db_session.expire_all()
+    shell = await db_session.get(User, user_id)
+    assert shell is not None and shell.is_active is False
+
+
+@pytest.mark.asyncio
+async def test_a_password_change_voids_a_pending_reset_link(
+    db_session: AsyncSession,
+) -> None:
+    """Audit 2026-11: a reset link still valid undid the change made since."""
+    user = await _user(db_session)
+    user_id = user.id
+    user.password_reset_token = "pending-link-hash"
+    user.password_reset_token_expires = datetime.datetime.now(
+        datetime.UTC
+    ) + datetime.timedelta(minutes=30)
+    await db_session.commit()
+    await db_session.refresh(user)
+
+    await change_my_password(
+        MyPasswordChange(
+            current_password="mon-mot-de-passe", new_password="un-autre-secret"
+        ),
+        db_session,
+        user,
+    )
+    db_session.expire_all()
+    refreshed = await db_session.get(User, user_id)
+    assert refreshed is not None
+    assert refreshed.password_reset_token is None
+    assert refreshed.password_reset_token_expires is None

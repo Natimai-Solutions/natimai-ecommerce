@@ -333,3 +333,40 @@ async def test_enrolment_needs_the_code_sent_to_the_mailbox(
             user,
         )
     assert expired.value.code == "auth.2fa.email_code_expired"
+
+
+@pytest.mark.asyncio
+async def test_disable_gives_one_answer_for_either_mistake(
+    db_session: AsyncSession,
+) -> None:
+    """Audit 2026-11: « wrong password » vs « wrong code » let a stolen
+    session test passwords one by one."""
+    user_id = await _admin(db_session)
+    _secret, recovery = await _enrol(db_session, user_id)
+    answers = set()
+    for password, code in ((PASSWORD, "000000"), ("wrong", recovery[0])):
+        user = await db_session.get(User, user_id)
+        assert user is not None
+        with pytest.raises(AppError) as refused:
+            await routes.disable(
+                _request(),
+                routes.TwoFactorDisable(code=code, password=password),
+                db_session,
+                user,
+            )
+        answers.add((refused.value.code, refused.value.message))
+    assert answers == {("auth.2fa.disable_refused", "Mot de passe ou code incorrect")}
+
+
+def test_recovery_codes_are_hashed_with_the_server_key() -> None:
+    """A plain SHA-256 of a 40-bit code falls to brute force from a dump."""
+    import hashlib
+
+    code = "ABCD-EFGH"
+    plain = hashlib.sha256(b"ABCDEFGH").hexdigest()
+    assert two_factor._hash_recovery(code) != plain
+    # Codes issued before still work, once.
+    user = cast(User, SimpleNamespace(totp_recovery_hashes=[plain]))
+    user.totp_secret_encrypted = None  # type: ignore[attr-defined]
+    assert two_factor.verify_second_factor(user, code) == "recovery"
+    assert user.totp_recovery_hashes == []

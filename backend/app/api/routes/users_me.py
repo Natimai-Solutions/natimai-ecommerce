@@ -36,6 +36,9 @@ from app.features.user.services.privacy import erase_account, export_account
 
 router = APIRouter(prefix="/users/me", tags=["user"])
 
+#: An account without a password proves its holder by a recent sign-in.
+RECENT_SIGN_IN_MINUTES = 15
+
 
 class MyProfilePublic(BaseModel):
     """What the customer sees of their own account."""
@@ -154,6 +157,9 @@ async def change_my_password(
         )
     current_user.hashed_password = await aget_password_hash(payload.new_password)
     current_user.security_stamp = new_security_stamp()
+    # A reset link still on its way would undo this change (audit 2026-11).
+    current_user.password_reset_token = None
+    current_user.password_reset_token_expires = None
     session.add(current_user)
     await crud_user_refresh_token.revoke_all_active_for_user(
         session=session, user_id=current_user.id, reason="password_change"
@@ -241,6 +247,26 @@ async def delete_my_account(
                 code="user.password.invalid_current",
                 status_code=400,
                 message="Le mot de passe actuel est incorrect.",
+                details={"field": "password"},
+            )
+    else:
+        # No password to ask (Google / Microsoft account): a sign-in of the
+        # last minutes stands for it (audit 2026-11). A stolen session kept
+        # alive by its refresh cookie no longer erases the account.
+        last_login = current_user.last_login
+        if last_login is not None and last_login.tzinfo is None:
+            last_login = last_login.replace(tzinfo=datetime.UTC)
+        recent = datetime.datetime.now(datetime.UTC) - datetime.timedelta(
+            minutes=RECENT_SIGN_IN_MINUTES
+        )
+        if last_login is None or last_login < recent:
+            raise AppError(
+                code="account.delete.reauth_required",
+                status_code=400,
+                message=(
+                    "Par sécurité, reconnectez-vous puis confirmez la "
+                    f"suppression dans les {RECENT_SIGN_IN_MINUTES} minutes."
+                ),
                 details={"field": "password"},
             )
     user_id = current_user.id
