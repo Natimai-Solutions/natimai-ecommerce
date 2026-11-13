@@ -382,6 +382,7 @@ import { useI18n } from 'vue-i18n';
 import { intlLocale } from '@app/utils';
 import { useShopModulesStore } from '@/stores/shopModules';
 import { useModalSheet } from '@/composables/useModalSheet';
+import { specSelectionsFromQuery } from '@/utils/catalogueQuery';
 import { useRoute, useRouter, type LocationQuery } from 'vue-router';
 import { useProductsStore } from '@/stores/products';
 import { useCartStore } from '@/stores/cart';
@@ -826,18 +827,9 @@ function initFromQuery(query: LocationQuery = route.query) {
   selectedSort.value = SORTS.find((value) => value === sort) ?? 'relevance';
   priceMin.value = queryNumber(query['pmin']);
   priceMax.value = queryNumber(query['pmax']);
-  const enums: Record<string, string[]> = {};
-  const mins: Record<string, number | null> = {};
-  for (const [name, raw] of Object.entries(query)) {
-    if (typeof raw !== 'string' || raw === '') continue;
-    if (name.startsWith('f.')) enums[name.slice(2)] = raw.split('|').filter(Boolean);
-    if (name.startsWith('min.')) {
-      const value = queryNumber(raw);
-      if (value !== '') mins[name.slice(4)] = value;
-    }
-  }
-  enumSelections.value = enums;
-  numericMin.value = mins;
+  const specs = specSelectionsFromQuery(query);
+  enumSelections.value = specs.enums;
+  numericMin.value = specs.mins;
   const page = Number(query['page']);
   store.currentPage = Number.isInteger(page) && page > 1 ? page : 1;
 }
