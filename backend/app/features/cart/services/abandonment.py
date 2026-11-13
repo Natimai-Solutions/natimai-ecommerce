@@ -166,6 +166,7 @@ async def remind_abandoned_carts(
     ]
     reminded = 0
     skipped = 0
+    unverified = 0
     for (
         cart,
         cart_id,
@@ -177,6 +178,14 @@ async def remind_abandoned_carts(
     ) in snapshots:
         cart.abandonment_reminded_at = _utc(current)
         session.add(cart)
+        if user_id is None:
+            # A visitor's address was typed in a form, never confirmed:
+            # anyone could make the shop mail any address (audit 2026-11,
+            # S8). Only accounts — address verified, opt-out honoured — are
+            # reminded. Stamped so the cart is not re-read every hour.
+            unverified += 1
+            await session.commit()
+            continue
         if not await marketing_emails_allowed(session, user_id):
             skipped += 1
             await session.commit()
@@ -202,7 +211,12 @@ async def remind_abandoned_carts(
         await session.commit()
         reminded += 1
         logger.info("Abandoned cart %s of user %s: reminder queued", cart_id, user_id)
-    return {"reminded": reminded, "skipped_opt_out": skipped, "scanned": len(carts)}
+    return {
+        "reminded": reminded,
+        "skipped_opt_out": skipped,
+        "skipped_unverified": unverified,
+        "scanned": len(carts),
+    }
 
 
 # -- back-office view ---------------------------------------------------------

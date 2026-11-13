@@ -20,10 +20,11 @@ from app.core.config import settings
 from app.core.errors import AppError
 from app.core.i18n import request_locale
 from app.core.observability import log_structured_event, observe_checkout_result
-from app.core.rate_limit import rate_limited
+from app.core.rate_limit import hit_rate_limit, rate_limit_reached, rate_limited
 from app.features.cart.crud.cart import crud_cart, crud_cart_item
 from app.features.cart.crud.quote_request import crud_quote_request
 from app.features.cart.models.cart import (
+    MAX_LINE_QUANTITY,
     Cart,
     CartDetailPublic,
     CartItem,
@@ -63,6 +64,7 @@ from app.features.discount.services.checkout_discount import (
 )
 from app.features.integrations.services.checkout_availability import (
     refresh_supplier_availability,
+    settle_live_supplier_quantities,
 )
 from app.features.inventory.crud import crud_inventory, crud_stock_movement
 from app.features.inventory.models.stock_movement import (
@@ -106,6 +108,7 @@ from app.features.payment.services.payment_initiation import (
     PaymentInitiationResult,
     initiate_payment_for_method,
 )
+from app.features.payment.services.status_token import payment_status_token
 from app.features.place.crud import crud_place
 from app.features.place.models import NODE_PLACE_TYPES, Place
 from app.features.product.models.product import (
@@ -1570,7 +1573,9 @@ async def replace_guest_cart_items(
     """
     merged: dict[uuid.UUID, int] = {}
     for entry in payload.items:
-        merged[entry.product_id] = merged.get(entry.product_id, 0) + entry.quantity
+        merged[entry.product_id] = min(
+            merged.get(entry.product_id, 0) + entry.quantity, MAX_LINE_QUANTITY
+        )
     cart = await crud_cart.get_or_create_guest_cart(session, guest_token=guest_token)
     cart_id = cart.id
     entries: list[tuple[Product, int]] = []
@@ -1753,7 +1758,9 @@ async def reorder_into_cart(
     }
     added = skipped = 0
     for product_id, quantity in wanted:
-        quantities[product_id] = quantities.get(product_id, 0) + quantity
+        quantities[product_id] = min(
+            quantities.get(product_id, 0) + quantity, MAX_LINE_QUANTITY
+        )
     entries: list[tuple[Product, int]] = []
     reordered = {product_id for product_id, _ in wanted}
     for product_id, quantity in quantities.items():
@@ -1878,7 +1885,9 @@ async def replace_my_cart_items(
     # would otherwise violate the one-row-per-product invariant of the cart.
     merged: dict[uuid.UUID, int] = {}
     for entry in payload.items:
-        merged[entry.product_id] = merged.get(entry.product_id, 0) + entry.quantity
+        merged[entry.product_id] = min(
+            merged.get(entry.product_id, 0) + entry.quantity, MAX_LINE_QUANTITY
+        )
 
     # Resolve the cart BEFORE the products: get_or_create_active_cart commits,
     # and a commit expires every loaded instance. Resolving products first
@@ -2804,6 +2813,14 @@ async def _resolve_checkout_discount(
     """
     if not code or not code.strip():
         return None, None
+    if strict:
+        # The checkout serialises a customer's orders with a code (audit
+        # 2026-11): two checkouts at once each counted the other's use as not
+        # there yet, and « one per customer » was used twice. The lock holds
+        # until the order is committed, then the next one counts it.
+        await session.exec(
+            select(User.id).where(col(User.id) == user_id).with_for_update()
+        )
     try:
         applied = await resolve_coupon(
             session,
@@ -2823,6 +2840,56 @@ async def _resolve_checkout_discount(
             ) from exc
         return None, exc.message
     return applied, None
+
+
+#: Refused promo codes a customer may try through the quote per window
+#: (audit 2026-11, S7). The quote is re-requested on every checkout change,
+#: so only the refusals count: a customer re-pricing a valid code is never
+#: throttled, while guessing codes (each answer says unknown / expired /
+#: exhausted) stops after a few attempts.
+QUOTE_COUPON_FAILURES_LIMIT = 10
+QUOTE_COUPON_FAILURES_WINDOW_SECONDS = 600
+QUOTE_COUPON_THROTTLED_MESSAGE = (
+    "Trop de codes promo refusés : réessayez dans quelques minutes."
+)
+
+
+async def _quote_discount_throttled(
+    session: SessionDep,
+    *,
+    code: str | None,
+    user_id: uuid.UUID,
+    items: list[CartItem],
+    products_by_id: dict[uuid.UUID, Product],
+    currency: str,
+) -> tuple[AppliedDiscount | None, str | None]:
+    """``_resolve_checkout_discount`` for the quote, with a limit on refusals.
+
+    Over the limit the code is not looked up at all: the quote is priced
+    without it and says why, so it no longer tells a valid code from an
+    unknown one. ``POST /cart/checkout`` keeps its own per-IP limit.
+    """
+    if not code or not code.strip():
+        return None, None
+    key = f"coupon_quote:{user_id}"
+    if await rate_limit_reached(key, limit=QUOTE_COUPON_FAILURES_LIMIT):
+        return None, QUOTE_COUPON_THROTTLED_MESSAGE
+    applied, error = await _resolve_checkout_discount(
+        session,
+        code=code,
+        user_id=user_id,
+        items=items,
+        products_by_id=products_by_id,
+        currency=currency,
+        strict=False,
+    )
+    if error is not None:
+        await hit_rate_limit(
+            key,
+            limit=QUOTE_COUPON_FAILURES_LIMIT,
+            window_seconds=QUOTE_COUPON_FAILURES_WINDOW_SECONDS,
+        )
+    return applied, error
 
 
 @router.get("/me/checkout-quote", response_model=CheckoutQuoteResponse)
@@ -2902,14 +2969,13 @@ async def get_checkout_quote(
             str((issued.quote_snapshot or {}).get("shipping_fee_amount") or 0)
         )
 
-    applied_discount, discount_error = await _resolve_checkout_discount(
+    applied_discount, discount_error = await _quote_discount_throttled(
         session,
         code=discount_code,
         user_id=user_id,
         items=items,
         products_by_id=products_by_id,
         currency=currency,
-        strict=False,
     )
     quote = await _quote_checkout(
         session,
@@ -3241,7 +3307,9 @@ async def checkout_my_cart(
     # Ask the supplier what it actually has, rather than trusting a snapshot
     # that can be two hours old. Best-effort: an unreachable supplier leaves
     # the snapshot in place instead of refusing the sale.
-    await refresh_supplier_availability(session, list(products_by_id.values()))
+    live_supplier_quantities = await refresh_supplier_availability(
+        session, list(products_by_id.values())
+    )
 
     # Server-authoritative amounts: a line whose price moved since it was
     # added stops the checkout (the cart is refreshed so the client sees why).
@@ -3392,6 +3460,10 @@ async def checkout_my_cart(
 
         # Reserve on quantities no concurrent checkout is changing.
         await lock_stock_rows(session, products_by_id)
+        # The live supplier answer, less the reservations committed meanwhile.
+        await settle_live_supplier_quantities(
+            session, list(products_by_id.values()), live_supplier_quantities
+        )
 
         for item in items:
             product = products_by_id[item.product_id]
@@ -3457,15 +3529,18 @@ async def checkout_my_cart(
                 route.id != last_leg_route.id for route in tracking_routes
             ):
                 tracking_routes.append(last_leg_route)
+            # Best effort, in a savepoint (audit 2026-11): a failure used to
+            # leave the transaction aborted and the checkout answered 500.
             try:
-                await _link_selected_routes_to_tracking(
-                    session=session,
-                    order_id=order.id,
-                    current_user=current_user,
-                    shipping_address=payload.shipping_address,
-                    shipping_address_id=payload.shipping_address_id,
-                    selected_routes=tracking_routes,
-                )
+                async with session.begin_nested():
+                    await _link_selected_routes_to_tracking(
+                        session=session,
+                        order_id=order.id,
+                        current_user=current_user,
+                        shipping_address=payload.shipping_address,
+                        shipping_address_id=payload.shipping_address_id,
+                        selected_routes=tracking_routes,
+                    )
             except Exception as tracking_exc:
                 log_structured_event(
                     logger,
@@ -3476,15 +3551,16 @@ async def checkout_my_cart(
                 )
         elif segment_totals:
             try:
-                await _link_fulfillment_segments_to_tracking(
-                    session=session,
-                    order_id=order.id,
-                    current_user=current_user,
-                    shipping_address=payload.shipping_address,
-                    shipping_address_id=payload.shipping_address_id,
-                    segment_totals=segment_totals,
-                    last_leg_route=last_leg_route,
-                )
+                async with session.begin_nested():
+                    await _link_fulfillment_segments_to_tracking(
+                        session=session,
+                        order_id=order.id,
+                        current_user=current_user,
+                        shipping_address=payload.shipping_address,
+                        shipping_address_id=payload.shipping_address_id,
+                        segment_totals=segment_totals,
+                        last_leg_route=last_leg_route,
+                    )
             except Exception as tracking_exc:
                 log_structured_event(
                     logger,
@@ -3615,6 +3691,7 @@ async def checkout_my_cart(
             event="checkout_completed",
             order_id=order.id,
             payment_id=payment.id,
+            payment_status_token=payment_status_token(payment.id),
             user_id=user_id,
             amount=total_amount,
             currency=cart.currency,

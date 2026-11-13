@@ -54,9 +54,24 @@ def _qr_data_uri(content: str) -> str:
     return "data:image/svg+xml;base64," + base64.b64encode(buffer.getvalue()).decode()
 
 
+def _normalize_recovery(code: str) -> str:
+    return code.strip().replace("-", "").replace(" ", "").upper()
+
+
 def _hash_recovery(code: str) -> str:
-    normalized = code.strip().replace("-", "").replace(" ", "").upper()
-    return hashlib.sha256(normalized.encode()).hexdigest()
+    """Keyed hash of a recovery code (audit 2026-11): a code holds 40 bits,
+    so a plain SHA-256 read from a database dump was brute-forced in
+    minutes. Keyed with ``SECRET_KEY``, the dump alone is useless."""
+    return hmac.new(
+        settings.SECRET_KEY.encode(),
+        b"recovery:" + _normalize_recovery(code).encode(),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def _legacy_hash_recovery(code: str) -> str:
+    """Hash of the codes issued before the keyed one (still accepted once)."""
+    return hashlib.sha256(_normalize_recovery(code).encode()).hexdigest()
 
 
 def _new_recovery_codes() -> list[str]:
@@ -140,9 +155,9 @@ def verify_second_factor(user: User, code: str | None) -> str | None:
             user.totp_last_step = step
             return "totp"
     hashes = list(user.totp_recovery_hashes or [])
-    candidate = _hash_recovery(code)
+    candidates = (_hash_recovery(code), _legacy_hash_recovery(code))
     for stored in hashes:
-        if hmac.compare_digest(stored, candidate):
+        if any(hmac.compare_digest(stored, c) for c in candidates):
             hashes.remove(stored)
             user.totp_recovery_hashes = hashes
             return "recovery"

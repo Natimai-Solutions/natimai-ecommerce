@@ -67,6 +67,12 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
     FRONTEND_HOST: str = "http://localhost:5173"
+    # Public URL of the back-office (https://admin.<DOMAIN>). A superuser's
+    # refresh token is only exchanged from this origin: an XSS on the
+    # storefront (same API, same cookie, CORS allowed) could otherwise mint
+    # an admin access token (audit 2026-11, S2). Empty = no check (warned
+    # outside local).
+    ADMIN_FRONTEND_HOST: str | None = None
     ENVIRONMENT: Literal["local", "staging", "production"] = "local"
 
     # Refresh-token cookie. The access token lives only in the SPA memory; the
@@ -121,6 +127,24 @@ class Settings(BaseSettings):
     BACKEND_CORS_ORIGINS: Annotated[
         list[AnyUrl] | str, BeforeValidator(parse_cors)
     ] = []
+
+    # Hosts the outbound webhook (departure reminders: Make, Zapier, Slack…)
+    # may reach, exact names, comma-separated. Anything else is refused
+    # before any request, on top of the public-address check of
+    # app/core/ssrf.py (audit 2026-11 / CodeQL). Extend it for another
+    # automation service.
+    OUTBOUND_WEBHOOK_ALLOWED_HOSTS: Annotated[
+        list[str] | str, BeforeValidator(parse_cors)
+    ] = [
+        "hook.eu1.make.com",
+        "hook.eu2.make.com",
+        "hook.us1.make.com",
+        "hook.us2.make.com",
+        "hooks.zapier.com",
+        "hooks.slack.com",
+        "maker.ifttt.com",
+        "discord.com",
+    ]
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -180,11 +204,14 @@ class Settings(BaseSettings):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def REDIS_URL(self) -> str:
-        """Execute REDIS URL."""
-        if self.REDIS_USER and self.REDIS_PASSWORD:
-            return (
-                f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_SERVER}:{self.REDIS_PORT}"
-            )
+        """Redis DSN; with ``REDIS_PASSWORD`` (``requirepass``, audit 2026-11)
+        the password alone suffices — it used to be ignored without a user."""
+        if self.REDIS_PASSWORD:
+            from urllib.parse import quote
+
+            user = quote(self.REDIS_USER, safe="")
+            password = quote(self.REDIS_PASSWORD, safe="")
+            return f"redis://{user}:{password}@{self.REDIS_SERVER}:{self.REDIS_PORT}"
         return f"redis://{self.REDIS_SERVER}:{self.REDIS_PORT}"
 
     EMAILS_FROM_EMAIL: str | None = None
@@ -405,10 +432,17 @@ class Settings(BaseSettings):
     # Per-IP throttle on POST /login/access-token (Redis-backed, fail-open).
     LOGIN_RATE_LIMIT_ATTEMPTS: int = 10
     LOGIN_RATE_LIMIT_WINDOW_SECONDS: int = 60
-    # Per-account lockout: after N consecutive wrong passwords the account is
-    # locked for LOGIN_LOCKOUT_MINUTES (counter resets on successful login).
+    # Lockout per (account, client IP): after N wrong passwords from one
+    # address that address is locked out of the account for
+    # LOGIN_LOCKOUT_MINUTES — the owner, elsewhere, still signs in (an
+    # attacker could otherwise lock any account, admin included, at will:
+    # audit 2026-11, S11). Redis-backed, reset by a successful sign-in.
     LOGIN_LOCKOUT_MAX_FAILURES: int = 5
     LOGIN_LOCKOUT_MINUTES: int = 15
+    # Account-wide guard against a distributed brute force: this many
+    # consecutive failures, whatever the address, lock the account itself
+    # for LOGIN_LOCKOUT_MINUTES. A password reset lifts it.
+    LOGIN_ACCOUNT_LOCKOUT_MAX_FAILURES: int = 50
     # Throttle sur la demande de réinitialisation. Il protège autant la boîte
     # du client (harcèlement par renvois) que le quota du fournisseur d'emails.
     # Fenêtre plus large que le login : une demande légitime est rare.
@@ -420,6 +454,12 @@ class Settings(BaseSettings):
     # a sanitized XFF). Leave None when the app is directly exposed, otherwise
     # the header could be spoofed to bypass the per-IP throttle.
     CLIENT_IP_HEADER: str | None = None
+    # Networks a superuser may act from (space-separated CIDRs, as for
+    # Caddy). Caddy filters admin.<DOMAIN> and /api/v1/admin/*; the API
+    # applies the same list to every request of a superuser, whatever the
+    # route (audit 2026-11: ~30 admin routes live outside /admin).
+    # Empty = everywhere.
+    ADMIN_ALLOWED_IPS: str | None = None
 
     # Shop branding
     SHOP_NAME: str = "Natimai"
@@ -624,16 +664,25 @@ class Settings(BaseSettings):
         return self.SHOP_MODE == "simple"
 
     def _check_default_secret(self, var_name: str, value: str | None) -> None:
-        """Check default secret."""
-        if value == "changethis":
-            message = (
-                f'The value of {var_name} is "changethis", '
-                "for security, please change it, at least for deployments."
-            )
-            if self.ENVIRONMENT == "local":
-                warnings.warn(message, stacklevel=1)
-            else:
-                raise ValueError(message)
+        """Refuse a placeholder secret (``changethis`` or any ``changeme-…``
+        value of ``.env.example``) outside local.
+
+        Only ``changethis`` used to be rejected: a copied ``.env.example``
+        then started in production with a public ``SECRET_KEY`` (anyone could
+        sign an admin JWT) and a public admin password. An empty value is not
+        a placeholder; other guards decide whether it is acceptable.
+        """
+        if not (value or "").strip() or secret_is_set(value):
+            return
+        message = (
+            f"The value of {var_name} is still a placeholder of .env.example "
+            '("changethis" / "changeme-…"): for security, set a real value, '
+            "at least for deployments."
+        )
+        if self.ENVIRONMENT == "local":
+            warnings.warn(message, stacklevel=1)
+        else:
+            raise ValueError(message)
 
     def _check_required_override(
         self, var_name: str, value: str, placeholder: str
@@ -755,9 +804,33 @@ class Settings(BaseSettings):
         else:
             raise ValueError(message)
 
+    def _check_redis_password(self) -> None:
+        """Redis without a password outside local: only the internal network
+        protects it (audit 2026-11) — warned, not refused."""
+        if self.ENVIRONMENT != "local" and not self.REDIS_PASSWORD:
+            warnings.warn(
+                "REDIS_PASSWORD is not set: Redis accepts any client of the "
+                "internal network. Set it in .env (the compose then enables "
+                "requirepass).",
+                stacklevel=1,
+            )
+
+    def _check_admin_frontend_host(self) -> None:
+        """Without ``ADMIN_FRONTEND_HOST`` an admin session is reachable from
+        the storefront's origin: warn outside local."""
+        if self.ENVIRONMENT != "local" and not (self.ADMIN_FRONTEND_HOST or "").strip():
+            warnings.warn(
+                "ADMIN_FRONTEND_HOST is not set: an administrator's session can "
+                "be refreshed from the storefront's origin (an XSS there would "
+                "reach the back office). Set it to the admin URL.",
+                stacklevel=1,
+            )
+
     @model_validator(mode="after")
     def _enforce_non_default_secrets(self) -> Self:
         """Execute enforce non default secrets."""
+        self._check_admin_frontend_host()
+        self._check_redis_password()
         self._check_secret_key()
         self._check_default_secret("SECRET_KEY", self.SECRET_KEY)
         self._check_default_secret("POSTGRES_PASSWORD", self.POSTGRES_PASSWORD)

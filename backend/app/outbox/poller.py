@@ -12,9 +12,11 @@ from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
+from sqlalchemy import update
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.alerting import send_alert
 from app.core.arq_pool import get_arq_pool
 from app.outbox.models import OutboxEvent
 from app.outbox.registry import outbox_registry
@@ -24,6 +26,10 @@ logger = logging.getLogger(__name__)
 # Exponential backoff intervals in seconds
 BACKOFF = [10, 30, 60, 300, 900]  # 10s, 30s, 1m, 5m, 15m
 MAX_ATTEMPTS = 5  # After 5 attempts, mark as FAILED
+#: A RUNNING event only lives while its jobs are enqueued (seconds). Still
+#: RUNNING after this, its poller died mid-way: it is put back to PENDING
+#: (audit 2026-11 — it stayed RUNNING forever, never delivered).
+STALE_RUNNING_MINUTES = 5
 
 
 async def commit_and_refresh(session: AsyncSession, event: OutboxEvent) -> OutboxEvent:
@@ -159,6 +165,26 @@ async def enqueue_jobs_for_event(event: OutboxEvent) -> None:
         raise
 
 
+async def _release_stale_running(session: AsyncSession) -> None:
+    """Put back to PENDING the events a dead poller left RUNNING."""
+    cutoff = datetime.now(UTC) - timedelta(minutes=STALE_RUNNING_MINUTES)
+    result = await session.execute(
+        update(OutboxEvent)
+        .where(
+            col(OutboxEvent.status) == "RUNNING",
+            col(OutboxEvent.updated_at) < cutoff,
+        )
+        .values(status="PENDING", next_run_at=datetime.now(UTC))
+    )
+    rowcount = getattr(result, "rowcount", 0)
+    released = rowcount if isinstance(rowcount, int) else 0
+    if released:
+        await session.commit()
+        logger.warning(
+            "Outbox: %d event(s) stuck RUNNING put back to PENDING", released
+        )
+
+
 async def poll_outbox_once(session: AsyncSession) -> bool:
     """
     Process one pending event that is due. Returns True if something was processed.
@@ -174,6 +200,7 @@ async def poll_outbox_once(session: AsyncSession) -> bool:
     """
     try:
         logger.debug("Polling for pending outbox events")
+        await _release_stale_running(session)
 
         # Select 1 due event
         result = await session.exec(
@@ -231,8 +258,29 @@ async def poll_outbox_once(session: AsyncSession) -> bool:
             # Retry with exponential backoff or mark as FAILED
             logger.warning("Event processing failed, scheduling retry: %s", str(e))
 
-            event.status = "PENDING"
             event.attempts += 1
+            if event.attempts >= MAX_ATTEMPTS:
+                # Never retried forever (audit 2026-11: MAX_ATTEMPTS was
+                # declared, never applied). The ops are told.
+                event.status = "FAILED"
+                event.last_error = str(e)[:1000]
+                event.touch()
+                session.add(event)
+                event = await commit_and_refresh(session, event)
+                logger.error(
+                    "Outbox event %s (%s) FAILED after %d attempts: %s",
+                    event.id,
+                    event.type,
+                    event.attempts,
+                    e,
+                )
+                await send_alert(
+                    f"Événement outbox {event.type} ({event.id}) abandonné après "
+                    f"{event.attempts} tentatives : {str(e)[:200]}",
+                    source="outbox",
+                )
+                return True
+            event.status = "PENDING"
             idx = min(event.attempts - 1, len(BACKOFF) - 1)
             delay_seconds = BACKOFF[idx]
             event.next_run_at = datetime.now(UTC) + timedelta(seconds=delay_seconds)

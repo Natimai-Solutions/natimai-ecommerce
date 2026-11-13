@@ -13,12 +13,14 @@ from app.features.user.crud.wishlist import (
 )
 from app.features.user.models.wishlist import (
     Wishlist,
+    WishlistAnonymousPublic,
     WishlistCreate,
     WishlistDetailPublic,
     WishlistItem,
     WishlistItemAddRequest,
     WishlistItemDetail,
     WishlistPublic,
+    WishlistsAnonymousPublic,
     WishlistsPublic,
     WishlistUpdate,
 )
@@ -270,21 +272,22 @@ async def get_user_wishlist(
     return WishlistPublic.model_validate(wishlist)
 
 
-@router.get("/public", response_model=WishlistsPublic)
+@router.get("/public", response_model=WishlistsAnonymousPublic)
 async def get_public_wishlists(
     session: SessionDep,
     skip: int = Query(default=0, ge=0, description="Number of wishlists to skip"),
     limit: int = Query(
         default=100, le=100, ge=1, description="Number of wishlists to return"
     ),
-) -> WishlistsPublic:
-    """Get all public wishlists."""
+) -> WishlistsAnonymousPublic:
+    """Get all public wishlists (no owner ids)."""
     wishlists = await crud_wishlist.get_public_wishlists(
         session=session, skip=skip, limit=limit
     )
     count = len(wishlists)
-    return WishlistsPublic(
-        data=[WishlistPublic.model_validate(w) for w in wishlists], count=count
+    return WishlistsAnonymousPublic(
+        data=[WishlistAnonymousPublic.model_validate(w) for w in wishlists],
+        count=count,
     )
 
 

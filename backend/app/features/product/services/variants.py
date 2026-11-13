@@ -21,6 +21,7 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.product.models.product import Product
+from app.utils.money import reference_price
 
 ZERO = Decimal("0.00")
 
@@ -105,9 +106,7 @@ def supplemented_price(parent: Product, price_extra: Decimal | None) -> Decimal 
     """``parent.base_price + price_extra`` (never negative), None without supplement."""
     if price_extra is None:
         return None
-    return max(ZERO, (parent.base_price or ZERO) + price_extra).quantize(
-        Decimal("0.01")
-    )
+    return reference_price(max(ZERO, (parent.base_price or ZERO) + price_extra))
 
 
 async def apply_price_extras(session: AsyncSession, parent: Product) -> int:

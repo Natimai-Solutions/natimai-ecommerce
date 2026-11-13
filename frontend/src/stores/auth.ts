@@ -4,6 +4,7 @@ import { accessToken, api } from '@/boot/api';
 import { getMyProfile, type MyProfile } from '@/api/profile';
 import { gt } from '@/i18n/global';
 import { apiErrorCode } from '@/utils/errors';
+import { useCartStore } from '@/stores/cart';
 
 interface AccessTokenResponse {
   access_token: string;
@@ -104,6 +105,8 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function logout(): Promise<void> {
     accessToken.value = null;
+    // The cart of the account stays on the server; this device forgets it.
+    useCartStore().forgetLocalCart();
     try {
       await api.post('/login/logout');
     } catch {

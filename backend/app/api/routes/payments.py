@@ -1,27 +1,30 @@
 import logging
 import uuid
 from decimal import Decimal
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from app.api.deps import CurrentUser, SessionDep
 from app.core.config import reference_currency, settings
 from app.core.errors import AppError
+from app.core.rate_limit import rate_limited
 from app.features.attachment.service import (
     AttachmentValidationError,
     issue_upload_intent,
     register_uploaded_attachment,
 )
 from app.features.base.crud import RecordNotFoundError
+from app.features.inventory.services.stock_release import reserve_released_order_stock
 from app.features.order.models.order import Order
 from app.features.order.models.order_status import OrderStatus
 from app.features.order.services.status import FULFILLMENT_STATUSES
 from app.features.payment.crud.payment import crud_payment
 from app.features.payment.crud.payment_status import crud_payment_status
 from app.features.payment.models.payment import Payment
+from app.features.payment.models.payment_method import PaymentMethod
 from app.features.payment.models.payment_status import (
     PaymentStatus,
     PaymentStatusCreate,
@@ -51,6 +54,10 @@ from app.features.payment.services.provider_dispatch import (
     PaymentApiProviderResolutionError,
     parse_api_webhook,
     resolve_api_provider,
+)
+from app.features.payment.services.status_token import (
+    check_payment_status_token,
+    payment_status_token,
 )
 from app.features.payment.services.store_credit import settled_by_kind
 from app.features.payment.services.webhook_pipeline import (
@@ -104,8 +111,19 @@ _PAYMENT_STATUS_CANCELLED = "Cancelled"
 # authorisation (deferred capture) is final for the customer: the card is
 # accepted, the debit happens later from the back office. Leaving it out made
 # the return page wait two minutes and then report a timeout.
+# A payment closed by the customer's cancellation (or refunded, voided) is
+# decided too: /confirm used to capture PayPal on an order cancelled meanwhile
+# (audit 2026-11).
 _TERMINAL_PAYMENT_STATUS_NAMES: frozenset[str] = frozenset(
-    {_PAYMENT_STATUS_COMPLETED, _PAYMENT_STATUS_FAILED, _PAYMENT_STATUS_AUTHORIZED}
+    {
+        _PAYMENT_STATUS_COMPLETED,
+        _PAYMENT_STATUS_FAILED,
+        _PAYMENT_STATUS_AUTHORIZED,
+        _PAYMENT_STATUS_CANCELLED,
+        "Refunded",
+        "PartiallyRefunded",
+        "Voided",
+    }
 )
 # Payment statuses meaning "this order has already been charged". The order
 # status alone cannot be trusted here: it only flips to Paid asynchronously
@@ -226,6 +244,19 @@ def _is_conflicting_terminal_retry(
     )
 
 
+#: ISO 4217 numeric codes PayZen may send instead of the alphabetic one.
+_NUMERIC_CURRENCIES = {"953": "XPF", "978": "EUR", "840": "USD"}
+
+
+def _ipn_currency_matches(raw: object, expected: str) -> bool:
+    """Whether the IPN's currency is the payment's (missing = no)."""
+    if raw is None:
+        return False
+    code = str(raw).strip().upper()
+    code = _NUMERIC_CURRENCIES.get(code, code)
+    return bool(code) and code == expected.strip().upper()
+
+
 def _resolve_payment_status_for_trans_status(trans_status: str | None) -> str | None:
     """Execute resolve payment status for trans status."""
     if trans_status == _PAID_TRANS_STATUS:
@@ -244,6 +275,11 @@ def _resolve_outcome_event_for_trans_status(trans_status: str | None) -> str | N
     """
     if trans_status == _PAID_TRANS_STATUS:
         return "payment.captured"
+    if trans_status == _AUTHORISED_TRANS_STATUS:
+        # Deferred capture: the order is secured, its capture comes later
+        # (audit 2026-11, B3 — nothing was published, the order stayed
+        # Pending and the sweep gave its stock away).
+        return "payment.authorized"
     if trans_status in _FAILED_TRANS_STATUSES:
         return "payment.rejected"
     return None
@@ -548,10 +584,19 @@ async def payzen_ipn(session: SessionDep, request: Request) -> JSONResponse:
         # The IPN is signed, so a mismatch means a tampered initiation or a
         # provider misconfiguration — record it and never complete the payment.
         raw_ipn_amount = fields.get("amount")
-        if trans_status in _SUCCESS_TRANS_STATUSES and raw_ipn_amount is not None:
+        if trans_status in _SUCCESS_TRANS_STATUSES:
+            # The currency is part of the amount: a success in another (or no)
+            # currency is a mismatch too (audit 2026-11).
+            same_currency = _ipn_currency_matches(
+                fields.get("currency"), payment.currency
+            )
             try:
-                ipn_amount: Decimal | None = minor_units_to_decimal(
-                    parse_minor_units(raw_ipn_amount), payment.currency
+                ipn_amount: Decimal | None = (
+                    minor_units_to_decimal(
+                        parse_minor_units(raw_ipn_amount), payment.currency
+                    )
+                    if raw_ipn_amount is not None and same_currency
+                    else None
                 )
             except ValueError as parse_error:
                 # An unreadable amount is handled exactly like a mismatch. The
@@ -585,6 +630,7 @@ async def payzen_ipn(session: SessionDep, request: Request) -> JSONResponse:
                     "expected": str(payment.amount),
                     "received": received_repr,
                     "unreadable": ipn_amount is None,
+                    "currency": fields.get("currency"),
                     "trans_status": trans_status,
                     "trans_id": trans_id,
                 }
@@ -683,6 +729,8 @@ class PaymentsInitiateResponse(BaseModel):
     public_key: str | None = None
     redirect_url: str | None = None
     instructions: str | None = None
+    #: See ``CheckoutResponse.payment_status_token``.
+    payment_status_token: str | None = None
 
 
 router = APIRouter(prefix="/payments", tags=["payment"])
@@ -695,6 +743,7 @@ async def _validate_order_for_initiation(
     amount: Decimal,
     currency: str,
     current_user: Any,
+    payment_method_id: uuid.UUID | None = None,
 ) -> str:
     """Server-side revalidation of a client-initiated payment tied to an order.
 
@@ -812,7 +861,58 @@ async def _validate_order_for_initiation(
                 "kind": kind,
             },
         )
+    if kind != KIND_BALANCE and payment_method_id is not None:
+        await _check_method_fee_amount(
+            session, order, order_payments, payment_method_id, currency
+        )
+    if kind != KIND_BALANCE:
+        # A refused payment or the reservation sweep gave the stock back:
+        # take it again before this attempt, or refuse it (audit 2026-11, B2).
+        await reserve_released_order_stock(session, order_id=order_id)
     return kind
+
+
+async def _check_method_fee_amount(
+    session: SessionDep,
+    order: Order,
+    order_payments: list[tuple[Any, str | None]],
+    payment_method_id: uuid.UUID,
+    currency: str,
+) -> None:
+    """The method paid with must carry the fee the order was billed
+    (audit 2026-11, S9).
+
+    The amount is checked against the order, which embeds the fee of the
+    method chosen at checkout: quoting with a free method and paying with
+    a charged one skipped its fee. The checkout's own method always passes;
+    another one only with the very same fee.
+    """
+    if any(
+        getattr(payment, "payment_method_id", None) == payment_method_id
+        for payment, _status in order_payments
+    ):
+        return
+    method = await session.get(PaymentMethod, payment_method_id)
+    if method is None:
+        # Unknown method: initiate_payment_for_method reports it.
+        return
+    billed = quantize_amount(
+        Decimal(getattr(order, "payment_fee_amount", None) or 0), currency
+    )
+    if quantize_amount(Decimal(method.fee or 0), currency) != billed:
+        raise AppError(
+            code="payment.method.fee_mismatch",
+            status_code=409,
+            message=(
+                "Ce moyen de paiement n'a pas les frais de la commande : "
+                "choisissez celui de la commande."
+            ),
+            details={
+                "order_id": str(order.id),
+                "payment_method_id": str(payment_method_id),
+                "billed_fee": str(billed),
+            },
+        )
 
 
 @router.post("/initiate", response_model=PaymentsInitiateResponse)
@@ -831,6 +931,7 @@ async def initiate_payment(
                 amount=request.amount,
                 currency=request.currency,
                 current_user=current_user,
+                payment_method_id=request.payment_method_id,
             )
 
         result = await initiate_payment_for_method(
@@ -857,6 +958,7 @@ async def initiate_payment(
             public_key=result.public_key,
             redirect_url=result.redirect_url,
             instructions=result.instructions,
+            payment_status_token=payment_status_token(result.payment.id),
         )
 
     except AppError:
@@ -1147,6 +1249,30 @@ async def list_my_payment_methods(
         data["charge_rate_to_reference"] = await rate_from_reference(session, charge)
         out.append(data)
     return out
+
+
+@router.get(
+    "/status/{payment_id}",
+    response_model=PaymentStatusResponse,
+    dependencies=[Depends(rate_limited("payment_status", limit=60, window_seconds=60))],
+)
+async def get_payment_status_by_token(
+    payment_id: uuid.UUID,
+    session: SessionDep,
+    t: Annotated[str, Query(max_length=64, description="payment_status_token")],
+) -> PaymentStatusResponse:
+    """The status of a payment for whoever holds its signed token — the return
+    page of a 3-D Secure finished in another browser, signed out (audit
+    2026-11). A wrong token answers like an unknown payment."""
+    payment = await session.get(Payment, payment_id)
+    if payment is None or not check_payment_status_token(payment_id, t):
+        raise AppError(
+            code="payment.not_found",
+            status_code=404,
+            message="Paiement introuvable",
+            details={"payment_id": str(payment_id)},
+        )
+    return await _payment_status_response(session, payment)
 
 
 @router.get("/me/{payment_id}", response_model=PaymentStatusResponse)

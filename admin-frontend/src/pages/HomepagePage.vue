@@ -111,6 +111,7 @@
             <q-item-section side>
               <div class="row no-wrap">
                 <q-btn
+                  :aria-label="$t('homepage.up')"
                   flat
                   round
                   dense
@@ -121,6 +122,7 @@
                   <q-tooltip>{{ $t('homepage.up') }}</q-tooltip>
                 </q-btn>
                 <q-btn
+                  :aria-label="$t('homepage.down')"
                   flat
                   round
                   dense
@@ -130,10 +132,18 @@
                 >
                   <q-tooltip>{{ $t('homepage.down') }}</q-tooltip>
                 </q-btn>
-                <q-btn flat round dense icon="ph:pencil-simple" @click="openEdit(block)">
+                <q-btn
+                  :aria-label="$t('common.edit')"
+                  flat
+                  round
+                  dense
+                  icon="ph:pencil-simple"
+                  @click="openEdit(block)"
+                >
                   <q-tooltip>{{ $t('common.edit') }}</q-tooltip>
                 </q-btn>
                 <q-btn
+                  :aria-label="$t('common.delete')"
                   flat
                   round
                   dense
@@ -161,7 +171,14 @@
           <h2 class="app-dialog__title col">
             {{ editingId ? $t('homepage.edit_title') : $t('homepage.new_title') }}
           </h2>
-          <q-btn flat round dense icon="ph:x" @click="guard.requestClose()">
+          <q-btn
+            :aria-label="$t('common.close')"
+            flat
+            round
+            dense
+            icon="ph:x"
+            @click="guard.requestClose()"
+          >
             <q-tooltip>{{ $t('common.close') }}</q-tooltip>
           </q-btn>
         </q-card-section>

@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { type Request, type Response } from 'express';
 import {
   defineSsrMiddleware,
@@ -18,6 +19,15 @@ function isRouteNotFoundError(err: unknown): err is SsrRenderRouteNotFoundError 
   return typeof err === 'object' && err !== null && 'routeNotFound' in err;
 }
 
+/**
+ * One scope per render: language, formatting context and i18n composer of
+ * this request only (audit 2026-11, F1 — see src/ssr/requestScope.ts, which
+ * reads it through the same `Symbol.for` key).
+ */
+const requestScopes = new AsyncLocalStorage<Record<string, unknown>>();
+(globalThis as Record<symbol, unknown>)[Symbol.for('natimai.storefront.requestScope')] =
+  requestScopes;
+
 // This middleware should execute as last one
 // since it captures everything and tries to
 // render the page with Vue
@@ -29,7 +39,7 @@ export default defineSsrMiddleware(({ app, resolve, render, serve }) => {
     res.setHeader('Content-Type', 'text/html');
 
     try {
-      const html = await render(/* the ssrContext: */ { req, res });
+      const html = await requestScopes.run({}, () => render(/* the ssrContext: */ { req, res }));
       // now let's send the rendered html to the client
       res.send(html);
     } catch (err) {

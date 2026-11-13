@@ -74,7 +74,22 @@ async def refund_payment(
     amount: Decimal | None = None,
     reason: str | None = None,
 ) -> RefundOutcome:
-    """Refund a captured payment (full when ``amount`` is omitted)."""
+    """Refund a captured payment (full when ``amount`` is omitted).
+
+    The payment row is locked until the caller commits (audit 2026-11): two
+    admins (or a double click) refunding at once each read the same
+    « already refunded » and both went through to the provider.
+    """
+    locked = (
+        await session.exec(
+            select(Payment)
+            .where(col(Payment.id) == payment.id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    ).first()
+    if locked is not None:
+        payment = locked
     # Capture before any commit (expires the ORM instances) -------------------
     payment_total = payment.amount
     payment_id = payment.id

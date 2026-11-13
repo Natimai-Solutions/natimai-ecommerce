@@ -9,8 +9,10 @@ from app.features.base.crud import RecordNotFoundError
 from app.features.user.crud.review import ReviewCrud, crud_review
 from app.features.user.models.review import (
     Review,
+    ReviewAnonymousPublic,
     ReviewCreate,
     ReviewPublic,
+    ReviewsAnonymousPublic,
     ReviewsPublic,
     ReviewUpdate,
 )
@@ -264,7 +266,7 @@ async def delete_user_review(
 
 
 # Product-specific review routes
-@router.get("/products/{product_id}/reviews", response_model=ReviewsPublic)
+@router.get("/products/{product_id}/reviews", response_model=ReviewsAnonymousPublic)
 async def get_product_reviews(
     session: SessionDep,
     product_id: uuid.UUID,
@@ -272,15 +274,15 @@ async def get_product_reviews(
     limit: int = Query(
         default=100, le=100, ge=1, description="Number of reviews to return"
     ),
-) -> ReviewsPublic:
-    """Get all reviews for a specific product."""
+) -> ReviewsAnonymousPublic:
+    """Get all reviews for a specific product (no account ids: public)."""
     reviews = await crud_review.get_by_product_id(
         session=session, product_id=product_id, skip=skip, limit=limit
     )
     count = await crud_review.count_by_product(session=session, product_id=product_id)
 
-    return ReviewsPublic(
-        data=[ReviewPublic.model_validate(r) for r in reviews], count=count
+    return ReviewsAnonymousPublic(
+        data=[ReviewAnonymousPublic.model_validate(r) for r in reviews], count=count
     )
 
 

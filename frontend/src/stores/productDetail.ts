@@ -3,6 +3,7 @@ import { ref } from 'vue';
 import type { components } from '@app/api-types';
 
 import { getProductById, getProductVariants, type ProductVariantsResponse } from '@/api/products';
+import { apiErrorMessage } from '@/utils/errors';
 
 type ProductPublic = components['schemas']['ProductPublic'];
 
@@ -26,6 +27,12 @@ export const useProductDetailStore = defineStore('productDetail', () => {
   const loading = ref(true);
   const loadedKey = ref<string | null>(null);
   const fromServer = ref(false);
+  /**
+   * Only the latest load writes (audit 2026-11, F2): A then B quickly, A's
+   * answer arriving last used to put product A on page B — whose skeleton
+   * then waited forever for B.
+   */
+  let latest = 0;
 
   async function load(productId: string, locale: string): Promise<void> {
     const key = `${productId}|${locale}`;
@@ -34,6 +41,7 @@ export const useProductDetailStore = defineStore('productDetail', () => {
       fromServer.value = false;
       if (loadedKey.value === key && !loading.value) return;
     }
+    const call = ++latest;
     loading.value = true;
     error.value = null;
     try {
@@ -42,34 +50,30 @@ export const useProductDetailStore = defineStore('productDetail', () => {
       if (data.has_variants) {
         found = await getProductVariants(productId).catch(() => null);
       }
+      if (call !== latest) return;
       product.value = data;
       variants.value = found;
       loadedKey.value = key;
       fromServer.value = Boolean(import.meta.env.QUASAR_SERVER);
     } catch (e) {
+      if (call !== latest) return;
       product.value = null;
       variants.value = null;
       // A failure is not cached: the next visit (or the browser after a
       // failed server render) tries again.
       loadedKey.value = null;
-      const requestError = e as {
-        response?: { status?: number; data?: { detail?: string; message?: string } };
-        message?: string;
-      };
-      error.value =
-        requestError.response?.status === 404
-          ? 'not_found'
-          : (requestError.response?.data?.message ??
-            requestError.response?.data?.detail ??
-            requestError.message ??
-            'unknown');
+      const status = (e as { response?: { status?: number } }).response?.status;
+      // The API's own message, never axios' « Request failed with status
+      // code 503 » (audit 2026-11, U2): « unknown » lets the page say it.
+      error.value = status === 404 ? 'not_found' : (apiErrorMessage(e) ?? 'unknown');
     } finally {
-      loading.value = false;
+      if (call === latest) loading.value = false;
     }
   }
 
   /** No id in the route: nothing to show, a « not found » page. */
   function notFound(): void {
+    latest += 1; // a load still on its way no longer writes
     product.value = null;
     variants.value = null;
     loadedKey.value = null;

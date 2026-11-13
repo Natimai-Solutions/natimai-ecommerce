@@ -317,6 +317,8 @@ const fr = {
       'Vide = premier niveau. Une sous-catégorie hérite de la TVA, de la douane et de la marge que sa branche ne fixe pas ; la vitrine liste le parent avec les produits de ses sous-catégories.',
   },
   common: {
+    page_previous: 'Page précédente',
+    page_next: 'Page suivante',
     action_failed: 'Action impossible.',
     active: 'Actif',
     active_f: 'Active',
@@ -1123,6 +1125,7 @@ const fr = {
     theme_light: 'Clair',
   },
   login: {
+    failed: 'Échec de connexion',
     administration: 'Administration',
     code: 'Code de vérification',
     code_required: 'Code requis',
@@ -2132,6 +2135,9 @@ const fr = {
     scan: "Scannez ce QR code avec l'application.",
     title: 'Sécurité du compte',
     type_code: "Tapez le code à 6 chiffres affiché par l'application.",
+    email_step:
+      "Un code de confirmation vient d'être envoyé à l'adresse de votre compte : saisissez-le aussi.",
+    email_code: 'Code reçu par e-mail',
   },
   settings: {
     by: 'par {email}',
@@ -2279,6 +2285,7 @@ const fr = {
     title: 'Commandes fournisseurs',
   },
   suppliers: {
+    import_rows: 'Lignes',
     a_basic: 'Authentification HTTP (basic)',
     a_form: 'Formulaire de connexion + cookies',
     a_none: 'Aucune (lien direct)',

@@ -9,7 +9,7 @@ conversion and the per-session cache. No database.
 from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock
@@ -88,7 +88,8 @@ def test_fixed_mode_returns_the_typed_price_as_is() -> None:
     product = _product(
         pricing_mode=PricingMode.FIXED, base_price=Decimal("2990.555"), cost_amount=1
     )
-    assert context.price(product) == Decimal("2990.56")
+    # Whole francs in XPF (audit 2026-11): 2 990,555 → 2 991.
+    assert context.price(product) == Decimal("2991")
 
 
 def test_domestic_mode_is_cost_times_margin_times_tax() -> None:
@@ -103,7 +104,7 @@ def test_import_mode_applies_customs_and_insurance_without_a_route() -> None:
     # CAF = 1000 + 0 + 0.5 % = 1005 ; × 1.05 × 1.20 × 1.16
     expected = (
         Decimal("1005") * Decimal("1.05") * Decimal("1.20") * Decimal("1.16")
-    ).quantize(Decimal("0.01"))
+    ).quantize(Decimal("1"), rounding=ROUND_HALF_UP)  # whole francs
     assert context.price(product) == expected
 
 
@@ -156,8 +157,8 @@ def test_tax_resolves_product_then_category_then_territory_default() -> None:
 def test_cost_in_a_foreign_currency_is_converted_or_rejected() -> None:
     context = _context(group_margin="0", fx={"EUR": "119.33"})
     product = _product(cost_amount=Decimal("100"), cost_currency="EUR")
-    # 100 EUR → 11933.00 XPF × 1.00 × 1.16
-    assert context.price(product) == Decimal("13842.28")
+    # 100 EUR → 11933.00 XPF × 1.00 × 1.16 = 13 842,28 → 13 842 F
+    assert context.price(product) == Decimal("13842")
 
     with pytest.raises(CurrencyRateMissing):
         context.price(_product(cost_currency="USD"))
@@ -233,7 +234,7 @@ def test_import_product_from_a_foreign_or_unknown_place_pays_customs() -> None:
     context = _with_places()
     # CAF 1005 × 1.20 × 1.16
     expected = (Decimal("1005") * Decimal("1.20") * Decimal("1.16")).quantize(
-        Decimal("0.01")
+        Decimal("1"), rounding=ROUND_HALF_UP
     )
     assert context.price(_import_product(FOREIGN_PLACE)) == expected
     assert context.price(_import_product(None)) == expected  # unknown: historical

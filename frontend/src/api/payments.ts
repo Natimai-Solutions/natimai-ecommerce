@@ -42,6 +42,8 @@ export interface InitiatePaymentResponse {
   public_key: string | null;
   redirect_url: string | null;
   instructions: string | null;
+  /** Signed: reads the status from the return page without a session. */
+  payment_status_token?: string | null;
 }
 
 export interface PaymentStatusResponse {
@@ -81,6 +83,28 @@ export async function initiatePayment(
 export async function getMyPaymentStatus(paymentId: string): Promise<PaymentStatusResponse> {
   const response = await api.get<PaymentStatusResponse>(`/payments/me/${paymentId}`);
   return response.data;
+}
+
+/**
+ * The status of a payment from the signed token of the return URL — no
+ * session needed: 3-D Secure often ends signed out, in the bank's app or
+ * another browser (audit 2026-11).
+ */
+export async function getPaymentStatusByToken(
+  paymentId: string,
+  token: string,
+): Promise<PaymentStatusResponse> {
+  const response = await api.get<PaymentStatusResponse>(`/payments/status/${paymentId}`, {
+    params: { t: token },
+  });
+  return response.data;
+}
+
+/** `?payment=…&t=…` of the return URL of a card payment. */
+export function paymentReturnQuery(paymentId: string, token?: string | null): string {
+  const parts = [`payment=${encodeURIComponent(paymentId)}`];
+  if (token) parts.push(`t=${encodeURIComponent(token)}`);
+  return parts.join('&');
 }
 
 /**

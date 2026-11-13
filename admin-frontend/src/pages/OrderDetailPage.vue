@@ -1011,6 +1011,9 @@ async function changeStatus(status: string) {
   try {
     await setOrderStatus(order.value.order_id, status);
     order.value.status = status;
+    // A status has effects (stock and coupon given back on cancel, payments
+    // captured or released…): show the order as it is now (audit 2026-11).
+    await load();
   } catch (err) {
     error.value = extractApiError(err) ?? t('order.status_failed');
   } finally {

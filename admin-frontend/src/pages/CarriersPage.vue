@@ -66,10 +66,18 @@
       </template>
       <template #body-cell-actions="props">
         <q-td :props="props" align="right">
-          <q-btn flat round dense icon="ph:pencil-simple" @click="openEdit(props.row)">
+          <q-btn
+            :aria-label="$t('common.edit')"
+            flat
+            round
+            dense
+            icon="ph:pencil-simple"
+            @click="openEdit(props.row)"
+          >
             <q-tooltip>{{ $t('common.edit') }}</q-tooltip>
           </q-btn>
           <q-btn
+            :aria-label="$t('carriers.retire')"
             v-if="props.row.is_active"
             flat
             round
@@ -79,7 +87,15 @@
           >
             <q-tooltip>{{ $t('carriers.retire') }}</q-tooltip>
           </q-btn>
-          <q-btn v-else flat round dense icon="ph:eye" @click="restore(props.row)">
+          <q-btn
+            :aria-label="$t('carriers.reactivate')"
+            v-else
+            flat
+            round
+            dense
+            icon="ph:eye"
+            @click="restore(props.row)"
+          >
             <q-tooltip>{{ $t('carriers.reactivate') }}</q-tooltip>
           </q-btn>
         </q-td>

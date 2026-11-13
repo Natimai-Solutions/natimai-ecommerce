@@ -244,7 +244,14 @@
                   </td>
                   <td class="text-right font-mono">{{ lineTotal(line) }}</td>
                   <td>
-                    <q-btn flat round dense icon="ph:x" @click="issueLines.splice(index, 1)">
+                    <q-btn
+                      :aria-label="$t('quotes.remove_line')"
+                      flat
+                      round
+                      dense
+                      icon="ph:x"
+                      @click="issueLines.splice(index, 1)"
+                    >
                       <q-tooltip>{{ $t('quotes.remove_line') }}</q-tooltip>
                     </q-btn>
                   </td>

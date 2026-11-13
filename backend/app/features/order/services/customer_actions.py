@@ -17,13 +17,10 @@ import uuid
 from dataclasses import dataclass, field
 from decimal import Decimal
 
-from sqlalchemy import update
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.errors import AppError
-from app.features.discount.models import Discount
-from app.features.inventory.services.stock_release import release_order_stock
 from app.features.order.models.order import Order
 from app.features.order.models.order_line import OrderLine
 from app.features.order.models.order_status import OrderStatus
@@ -178,16 +175,7 @@ async def cancel_order_by_customer(
         locked.payment_status_id = cancelled_id
         session.add(locked)
 
-    await release_order_stock(session, order_id=order.id)
-    if order.discount_id is not None:
-        # The coupon use taken at checkout comes back.
-        await session.execute(
-            update(Discount)
-            .where(
-                col(Discount.id) == order.discount_id, col(Discount.current_uses) > 0
-            )
-            .values(current_uses=Discount.current_uses - 1)
-        )
+    # The move to Cancelled gives back the reserved stock and the coupon use.
     await set_order_status(
         session,
         order=order,

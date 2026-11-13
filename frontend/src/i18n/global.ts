@@ -1,5 +1,7 @@
 import type { Composer } from 'vue-i18n';
 
+import { currentRequestScope } from '@/ssr/requestScope';
+
 /**
  * The app's i18n, for code outside components (stores' fallback messages).
  * Set by the i18n boot; until then (or in unit tests) keys are returned as is.
@@ -11,5 +13,7 @@ export function setGlobalI18n(value: Composer): void {
 }
 
 export function gt(key: string, named: Record<string, unknown> = {}): string {
-  return composer ? composer.t(key, named) : key;
+  // Server render: the composer of this request (F1), not the last created.
+  const active = currentRequestScope()?.composer ?? composer;
+  return active ? active.t(key, named) : key;
 }

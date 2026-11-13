@@ -29,6 +29,9 @@ export const useHomeStore = defineStore('home', () => {
   const banners = ref<HomepageBlock[]>([]);
   const loaded = ref(false);
   const loading = ref(false);
+  /** Every call failed (API down): the page offers to try again instead of
+   *  an endless skeleton (audit 2026-11, U8). */
+  const failed = ref(false);
 
   async function load(): Promise<void> {
     if (loaded.value || loading.value) return;
@@ -53,6 +56,7 @@ export const useHomeStore = defineStore('home', () => {
     loaded.value = [featuredResult, popularResult, categoriesResult, blocksResult].some(
       (r) => r.status === 'fulfilled',
     );
+    failed.value = !loaded.value;
     loading.value = false;
   }
 
@@ -62,5 +66,5 @@ export const useHomeStore = defineStore('home', () => {
     await load();
   }
 
-  return { featured, popular, categories, hero, banners, loaded, loading, load, reload };
+  return { featured, popular, categories, hero, banners, loaded, loading, failed, load, reload };
 });

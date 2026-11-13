@@ -25,6 +25,9 @@ from decimal import Decimal
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.features.inventory.services.availability import (
+    outstanding_supplier_reservations,
+)
 from app.features.product.models.product import Product
 from app.services.suppliers import resolve_adapter
 
@@ -130,12 +133,18 @@ async def refresh_supplier_availability(
             )
             continue
 
+        held = await outstanding_supplier_reservations(
+            session, [p.id for p in products_by_sku.values()]
+        )
         for sku, data in pricing.items():
             matched = products_by_sku.get(sku)
             if matched is None:
                 continue
-            quantity = Decimal(str(data.quantity or 0))
-            refreshed[sku] = quantity
+            live = Decimal(str(data.quantity or 0))
+            refreshed[sku] = live
+            # The supplier still counts the units our open orders took
+            # (audit 2026-11, B4): what we may sell is the rest.
+            quantity = max(live - held.get(matched.id, Decimal("0")), Decimal("0"))
             if quantity != matched.supplier_quantity:
                 logger.info(
                     "Checkout availability: %s moved from %s to %s since the last sync",
@@ -164,3 +173,33 @@ async def refresh_supplier_availability(
                 session.add(stale)
 
     return refreshed
+
+
+async def settle_live_supplier_quantities(
+    session: AsyncSession, products: list[Product], live_by_sku: dict[str, Decimal]
+) -> None:
+    """Recompute, under the checkout's stock locks, what the live answer
+    leaves for sale (audit 2026-11, B4).
+
+    ``refresh_supplier_availability`` runs before the locks: a concurrent
+    checkout may have reserved since. Once the rows are locked its
+    reservation is committed and counted here, so its units are not sold
+    again. No commit.
+    """
+    by_sku = {
+        str(p.supplier_sku): p
+        for p in products
+        if _eligible(p) and str(p.supplier_sku) in live_by_sku
+    }
+    if not by_sku:
+        return
+    held = await outstanding_supplier_reservations(
+        session, [p.id for p in by_sku.values()]
+    )
+    for sku, product in by_sku.items():
+        quantity = max(
+            live_by_sku[sku] - held.get(product.id, Decimal("0")), Decimal("0")
+        )
+        if quantity != product.supplier_quantity:
+            product.supplier_quantity = quantity
+            session.add(product)

@@ -94,10 +94,9 @@
         <div class="text-center q-mt-sm">
           <q-btn
             flat
-            dense
             no-caps
-            size="sm"
             color="primary"
+            class="login__forgot"
             :label="$t('auth.forgot')"
             :to="{ name: 'forgot-password' }"
           />
@@ -203,3 +202,10 @@ function oauthLogin(provider: 'google' | 'microsoft') {
 const { t: tMeta } = useI18n();
 usePageMeta(() => ({ title: tMeta('auth.login_title'), noindex: true }));
 </script>
+
+<style scoped lang="scss">
+// 44 px touch target (interface guide; audit 2026-11).
+.login__forgot {
+  min-height: 44px;
+}
+</style>

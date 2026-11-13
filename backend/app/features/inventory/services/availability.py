@@ -22,7 +22,7 @@ from collections.abc import Iterable, Sequence
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import case, func, or_
+from sqlalchemy import and_, case, func, or_
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -192,3 +192,83 @@ async def publish_with_availability(
         )
         public.available_quantity = public.stock_local + public.stock_supplier
     return publics
+
+
+#: Orders whose supplier units are still ours to account for: the supplier
+#: has not been ordered from yet, so its own count still includes them.
+#: Past « OrderedFromSupplier » (or cancelled / refunded) they are the
+#: supplier's business again.
+NOT_YET_ORDERED_FROM_SUPPLIER: frozenset[str] = frozenset(
+    {
+        "Pending",
+        "AwaitingPayment",
+        "PartiallyPaid",
+        "PaymentFailed",
+        "PaymentReview",
+        "Paid",
+        "DepositPaid",
+    }
+)
+
+
+async def outstanding_supplier_reservations(
+    session: AsyncSession, product_ids: Any
+) -> dict[Any, Decimal]:
+    """Units of each product our orders took from the supplier's stock and
+    that the supplier's own count still shows (audit 2026-11, B4).
+
+    ``supplier_quantity`` is the supplier's count *less* these: a live
+    check or a sync that wrote the raw count gave them back to sale, and the
+    product was sold twice until the supplier order was placed. Pending
+    reservations always count; confirmed ones (paid) while the order is not
+    yet ordered from the supplier.
+    """
+    from app.features.inventory.models.stock_movement import (
+        InventoryStockMovement,
+        MovementStatus,
+        MovementType,
+        ReferenceType,
+    )
+    from app.features.inventory.services.stock_release import LOCAL_SEGMENT_MARKER
+    from app.features.order.models.order import Order
+    from app.features.order.models.order_status import OrderStatus
+
+    ids = list({pid for pid in product_ids if pid is not None})
+    if not ids:
+        return {}
+    movement = InventoryStockMovement
+    statement = (
+        select(movement.product_id, func.sum(col(movement.quantity)))
+        .outerjoin(Order, col(Order.id) == col(movement.reference_id))
+        .outerjoin(OrderStatus, col(OrderStatus.id) == col(Order.order_status_id))
+        .where(
+            col(movement.product_id).in_(ids),
+            movement.reference_type == ReferenceType.ORDER.value,
+            movement.movement_type == MovementType.OUTGOING.value,
+            col(movement.is_active).is_(True),
+            or_(
+                col(movement.reason).is_(None),
+                ~col(movement.reason).contains(LOCAL_SEGMENT_MARKER),
+            ),
+            or_(
+                col(movement.status) == MovementStatus.PENDING.value,
+                and_(
+                    col(movement.status) == MovementStatus.COMPLETED.value,
+                    col(OrderStatus.name).in_(list(NOT_YET_ORDERED_FROM_SUPPLIER)),
+                ),
+            ),
+        )
+        .group_by(col(movement.product_id))
+    )
+    rows = (await session.exec(statement)).all()
+    return {product_id: Decimal(total or 0) for product_id, total in rows}
+
+
+async def net_supplier_quantity(
+    session: AsyncSession, product_id: Any, supplier_count: Decimal
+) -> Decimal:
+    """The supplier's count less our outstanding reservations, never < 0."""
+    held = (await outstanding_supplier_reservations(session, [product_id])).get(
+        product_id, ZERO
+    )
+    return max(Decimal(supplier_count) - held, ZERO)

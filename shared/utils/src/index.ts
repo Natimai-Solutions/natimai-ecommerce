@@ -14,6 +14,7 @@ export {
   formatContext,
   intlLocale,
   setCurrencyDecimals,
+  setFormatContextResolver,
 } from './format'
 export type { FormatContext } from './format'
 export { fr as i18nFr } from './i18n/fr'

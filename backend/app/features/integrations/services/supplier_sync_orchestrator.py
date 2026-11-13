@@ -34,6 +34,7 @@ from app.features.integrations.services.supplier_data_normalization import (
     evaluate_product_filters,
     normalize_supplier_snapshot,
 )
+from app.features.inventory.services.availability import net_supplier_quantity
 from app.features.place.crud import crud_place
 from app.features.product.crud.product import crud_product
 from app.features.product.models.product import (
@@ -640,6 +641,15 @@ class SupplierSyncOrchestrator:
             product_data_dict = strip_locked(product_data_dict, locks)
             if adopted:
                 product_data_dict["overridden_fields"] = locks
+
+        if existing_product and "supplier_quantity" in product_data_dict:
+            # The supplier's count still includes the units our open orders
+            # took (audit 2026-11, B4).
+            product_data_dict["supplier_quantity"] = await net_supplier_quantity(
+                session,
+                existing_product.id,
+                Decimal(product_data_dict["supplier_quantity"]),
+            )
 
         if existing_product:
             product = await crud_product.update_draft(

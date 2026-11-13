@@ -13,7 +13,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.routes.cart import _quote_checkout, get_checkout_quote
 from app.core.config import settings
 from app.core.errors import AppError
-from app.features.cart.models.cart import Cart, CartItem
+from app.features.cart.models.cart import Cart, CartItem, CheckoutQuoteResponse
 from app.features.payment.models.payment_method import PaymentMethod
 from app.features.place.models import Place
 from app.features.product.models.product import Product
@@ -181,3 +181,56 @@ async def test_helper_is_the_single_source_for_checkout_amounts(
         endpoint.total_amount,
     )
     assert quote.last_leg_route is not None and quote.last_leg_route.id == seed.route.id
+
+
+@pytest.mark.asyncio
+async def test_quote_stops_answering_about_codes_after_repeated_refusals(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Audit 2026-11, S7: the quote said « unknown / expired / exhausted »
+    for any code, with no limit — an oracle to guess promo codes. Refusals
+    are now counted per customer; past the limit the code is not looked up
+    and the quote is priced without it."""
+    from app.api.routes import cart as cart_routes
+
+    monkeypatch.setattr(cart_routes, "QUOTE_COUPON_FAILURES_LIMIT", 3)
+    seed = await _seed(db_session)
+
+    async def quote(code: str) -> CheckoutQuoteResponse:
+        return await get_checkout_quote(
+            session=db_session,
+            current_user=seed.user,
+            address_id=None,
+            delivery_type="home_delivery",
+            payment_method_id=None,
+            discount_code=code,
+        )
+
+    for attempt in range(3):
+        refused = await quote(f"GUESS{attempt}")
+        assert refused.discount_error
+        assert refused.discount_error != cart_routes.QUOTE_COUPON_THROTTLED_MESSAGE
+
+    throttled = await quote("GUESS-NEXT")
+    assert throttled.discount_error == cart_routes.QUOTE_COUPON_THROTTLED_MESSAGE
+    assert throttled.discount_amount == Decimal("0")
+    assert throttled.subtotal_amount == Decimal("160.00")
+
+
+@pytest.mark.asyncio
+async def test_quote_without_code_is_never_throttled(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.api.routes import cart as cart_routes
+
+    monkeypatch.setattr(cart_routes, "QUOTE_COUPON_FAILURES_LIMIT", 1)
+    seed = await _seed(db_session)
+    for _ in range(5):
+        quote = await get_checkout_quote(
+            session=db_session,
+            current_user=seed.user,
+            address_id=None,
+            delivery_type="home_delivery",
+            payment_method_id=None,
+        )
+        assert quote.discount_error is None

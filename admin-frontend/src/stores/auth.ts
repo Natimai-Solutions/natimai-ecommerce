@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import { accessToken, api } from '@/boot/api';
+import { gt } from '@/i18n/global';
 
 interface AccessTokenResponse {
   access_token: string;
@@ -36,7 +37,7 @@ export const useAuthStore = defineStore('auth', () => {
         needsSecondFactor.value = true;
         return false;
       }
-      loginError.value = extractErrorMessage(err) ?? 'Échec de connexion';
+      loginError.value = extractErrorMessage(err) ?? gt('login.failed');
       return false;
     } finally {
       loggingIn.value = false;

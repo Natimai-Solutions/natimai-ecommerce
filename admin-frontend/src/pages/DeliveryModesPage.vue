@@ -120,7 +120,14 @@
         </template>
         <template #body-cell-actions="props">
           <q-td :props="props" align="right">
-            <q-btn flat round dense icon="ph:pencil-simple" @click="openEdit(props.row)">
+            <q-btn
+              :aria-label="$t('common.edit')"
+              flat
+              round
+              dense
+              icon="ph:pencil-simple"
+              @click="openEdit(props.row)"
+            >
               <q-tooltip>{{ $t('common.edit') }}</q-tooltip>
             </q-btn>
           </q-td>

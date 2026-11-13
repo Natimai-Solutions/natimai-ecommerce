@@ -293,3 +293,26 @@ async def test_admin_edits_the_deposit_policy_of_a_group(
         await update_price_group(
             uuid.uuid4(), PriceGroupUpdate(deposit_pct=None), db_session, seed.admin
         )
+
+
+@pytest.mark.asyncio
+async def test_a_failed_balance_email_is_not_marked_requested(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Audit 2026-11: the order was stamped « balance requested » before the
+    e-mail went out; a failure left it so, with the customer never told."""
+    seed = await _seed(db_session)
+    monkeypatch.setattr(
+        order_handlers, "_send_order_email", AsyncMock(return_value=False)
+    )
+    monkeypatch.setattr("app.core.runtime_settings.get", AsyncMock(return_value=True))
+    payload = {
+        "order_id": str(seed.order_id),
+        "user_id": str(seed.buyer.id),
+        "new_status": "Received",
+    }
+    with pytest.raises(RuntimeError):  # the outbox retries
+        await order_handlers.on_order_received_request_balance(db_session, payload)
+    await db_session.rollback()
+    order = await db_session.get(Order, seed.order_id)
+    assert order is not None and order.balance_requested_at is None

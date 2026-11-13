@@ -73,6 +73,20 @@ def _install_adapter(
 
 
 @pytest.fixture(autouse=True)
+def _no_open_reservations(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The session here is a stand-in: no order holds supplier units. The
+    subtraction itself (audit 2026-11, B4) is covered with a real database in
+    integration/test_supplier_reservations.py."""
+
+    async def _none(_session: Any, _ids: Any) -> dict[Any, Decimal]:
+        return {}
+
+    monkeypatch.setattr(
+        checkout_availability, "outstanding_supplier_reservations", _none
+    )
+
+
+@pytest.fixture(autouse=True)
 def _enabled(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "CHECKOUT_SUPPLIER_AVAILABILITY_CHECK", True)
     monkeypatch.setattr(settings, "CHECKOUT_SUPPLIER_CHECK_TIMEOUT_SECONDS", 8.0)

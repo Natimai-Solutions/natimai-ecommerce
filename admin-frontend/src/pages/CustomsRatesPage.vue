@@ -100,6 +100,7 @@
       <template #body-cell-actions="props">
         <q-td :props="props" align="right">
           <q-btn
+            :aria-label="$t('customs.set_rate')"
             v-if="props.row.category_id"
             flat
             round

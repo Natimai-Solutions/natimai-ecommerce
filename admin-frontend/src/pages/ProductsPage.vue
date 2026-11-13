@@ -29,7 +29,7 @@
         dense
         clearable
         debounce="300"
-        style="min-width: 320px"
+        class="products__search"
         @update:model-value="onSearchChange"
       >
         <template #prepend>
@@ -267,6 +267,7 @@
       <template #body-cell-actions="props">
         <q-td :props="props" align="right" class="no-wrap">
           <q-btn
+            :aria-label="$t('products.publish')"
             v-if="props.row.is_draft"
             flat
             dense
@@ -279,6 +280,7 @@
             <q-tooltip>{{ $t('products.publish') }}</q-tooltip>
           </q-btn>
           <q-btn
+            :aria-label="$t('products.price_log')"
             flat
             dense
             round
@@ -382,6 +384,7 @@
 </template>
 
 <script setup lang="ts">
+import { extractApiError } from '@/api/errors';
 import { useI18n } from 'vue-i18n';
 import { labels } from '@/i18n/global';
 import { computed, onMounted, ref } from 'vue';
@@ -513,7 +516,7 @@ async function publishSelected(published: boolean) {
       : `${updated} article(s) remis en attente d’enrichissement.`;
     selected.value = [];
   } catch (err: unknown) {
-    store.error = err instanceof Error ? err.message : t('products.publish_failed');
+    store.error = extractApiError(err) ?? t('products.publish_failed');
   } finally {
     publishing.value = false;
   }
@@ -560,7 +563,7 @@ async function openHistory(product: ProductPublic) {
   try {
     history.value = await store.priceHistory(product.id);
   } catch (err: unknown) {
-    historyError.value = err instanceof Error ? err.message : t('common.load_failed');
+    historyError.value = extractApiError(err) ?? t('common.load_failed');
   } finally {
     historyLoading.value = false;
   }
@@ -577,7 +580,7 @@ async function publish(ids: string[]) {
       already: res.already_published ? t('products.already_n', { n: res.already_published }) : '',
     });
   } catch (err: unknown) {
-    store.error = err instanceof Error ? err.message : t('products.publish_failed');
+    store.error = extractApiError(err) ?? t('products.publish_failed');
   } finally {
     publishing.value = false;
   }
@@ -640,6 +643,16 @@ async function loadPlaces() {
 </script>
 
 <style scoped lang="scss">
+// Inline min-width forced a horizontal scroll on a phone (audit 2026-11).
+.products__search {
+  min-width: 320px;
+
+  @media (max-width: 599px) {
+    min-width: 0;
+    width: 100%;
+  }
+}
+
 .product-thumb {
   border-radius: 6px;
 }

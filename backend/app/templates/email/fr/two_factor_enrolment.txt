@@ -1,0 +1,14 @@
+Bonjour,
+
+Une activation de la double authentification a été demandée pour votre
+compte d'administration {{ shop_name }}. Pour la confirmer, saisissez ce code
+dans l'écran « Sécurité » :
+
+{{ code }}
+
+Ce code est valable {{ valid_minutes }} minutes.
+
+Si vous n'êtes pas à l'origine de cette demande, ne communiquez ce code à
+personne et changez votre mot de passe sans attendre : quelqu'un le connaît.
+
+L'équipe {{ shop_name }}

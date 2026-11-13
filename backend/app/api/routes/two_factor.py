@@ -14,19 +14,24 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 
 from app.api.deps import CurrentSuperUserEnrolling, SessionDep
 from app.core.config import settings
 from app.core.errors import AppError
-from app.core.rate_limit import get_client_ip
+from app.core.rate_limit import get_client_ip, rate_limited
 from app.core.security import averify_password
 from app.features.system import audit
+from app.features.user.crud.refresh_token import crud_user_refresh_token
 from app.features.user.models.user import User
-from app.features.user.services import two_factor
+from app.features.user.services import two_factor, two_factor_email
 
 router = APIRouter(prefix="/users/me/2fa", tags=["user"])
+
+#: The code-checking endpoints, per address (audit 2026-11): ten tries per
+#: ten minutes is plenty for a person, nothing for a script.
+_code_limit = Depends(rate_limited("two_factor", limit=10, window_seconds=600))
 
 
 class TwoFactorStatus(BaseModel):
@@ -39,10 +44,18 @@ class TwoFactorSetup(BaseModel):
     secret: str
     otpauth_uri: str
     qr_svg_data_uri: str
+    #: A one-time code was e-mailed to the account: /confirm needs it.
+    email_code_sent: bool = True
 
 
 class TwoFactorCode(BaseModel):
     code: str = Field(min_length=6, max_length=20)
+
+
+class TwoFactorConfirm(TwoFactorCode):
+    """The authenticator's code, and the one e-mailed by /setup."""
+
+    email_code: str = Field(min_length=4, max_length=20)
 
 
 class TwoFactorDisable(TwoFactorCode):
@@ -86,8 +99,11 @@ async def setup(
     from app.core import runtime_settings
 
     shop_name = await runtime_settings.get("shop_name", session)
+    user_id, email = current_user.id, current_user.email
     enrollment = two_factor.start_enrollment(current_user, shop_name=shop_name)
     session.add(current_user)
+    # Proof that the mailbox is the owner's (audit 2026-11, S5).
+    await two_factor_email.send_code(session, user_id=user_id, email=email)
     await session.commit()
     return TwoFactorSetup(
         secret=enrollment.secret,
@@ -96,23 +112,42 @@ async def setup(
     )
 
 
-@router.post("/confirm", response_model=RecoveryCodes)
+@router.post(
+    "/confirm",
+    response_model=RecoveryCodes,
+    dependencies=[_code_limit],
+)
 async def confirm(
     request: Request,
-    payload: TwoFactorCode,
+    payload: TwoFactorConfirm,
     session: SessionDep,
     current_user: CurrentSuperUserEnrolling,
 ) -> RecoveryCodes:
-    """Turn 2FA on; the recovery codes are shown this once."""
+    """Turn 2FA on; the recovery codes are shown this once.
+
+    Needs the code e-mailed by /setup as well as the authenticator's: a
+    stolen password alone no longer enrols the thief's authenticator.
+    """
     user_id, email = current_user.id, current_user.email
     codes = two_factor.confirm(current_user, payload.code)
+    # After the authenticator's code (a typo there must not burn the e-mailed
+    # one). Wrong: the enabled-in-memory user is rolled back.
+    try:
+        await two_factor_email.check_code(user_id, payload.email_code)
+    except AppError:
+        await session.rollback()
+        raise
     session.add(current_user)
     await session.commit()
     await _journal(request, "auth.2fa.enabled", user_id, email)
     return RecoveryCodes(recovery_codes=codes)
 
 
-@router.post("/recovery-codes", response_model=RecoveryCodes)
+@router.post(
+    "/recovery-codes",
+    response_model=RecoveryCodes,
+    dependencies=[_code_limit],
+)
 async def regenerate_recovery_codes(
     request: Request,
     payload: TwoFactorCode,
@@ -127,7 +162,11 @@ async def regenerate_recovery_codes(
     return RecoveryCodes(recovery_codes=codes)
 
 
-@router.post("/disable", response_model=TwoFactorStatus)
+@router.post(
+    "/disable",
+    response_model=TwoFactorStatus,
+    dependencies=[_code_limit],
+)
 async def disable(
     request: Request,
     payload: TwoFactorDisable,
@@ -138,22 +177,26 @@ async def disable(
     user_id, email = current_user.id, current_user.email
     if not current_user.totp_enabled:
         return _status(current_user)
-    if not await averify_password(payload.password, current_user.hashed_password):
+    # One answer for either mistake (audit 2026-11): telling a wrong
+    # password from a wrong code let a stolen session test passwords.
+    password_ok = await averify_password(payload.password, current_user.hashed_password)
+    code_ok = password_ok and (
+        two_factor.verify_second_factor(current_user, payload.code) is not None
+    )
+    if not code_ok:
         raise AppError(
-            code="auth.password.invalid",
+            code="auth.2fa.disable_refused",
             status_code=400,
-            message="Mot de passe incorrect",
-            details={},
-        )
-    if two_factor.verify_second_factor(current_user, payload.code) is None:
-        raise AppError(
-            code="auth.totp.invalid",
-            status_code=400,
-            message="Code incorrect",
+            message="Mot de passe ou code incorrect",
             details={},
         )
     two_factor.disable(current_user)
     session.add(current_user)
+    # The new security stamp ends the access tokens; the stored refresh
+    # sessions go too (a stolen one would otherwise live 30 days).
+    await crud_user_refresh_token.revoke_all_active_for_user(
+        session=session, user_id=user_id, reason="2fa_disabled"
+    )
     await session.commit()
     await session.refresh(current_user)
     await _journal(request, "auth.2fa.disabled", user_id, email)

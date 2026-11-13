@@ -176,3 +176,44 @@ async def test_expiring_authorisations_are_alerted_once(
     again = await authorizations.alert_expiring_authorizations(db_session, now=now)
     assert again == {"alerted": 0, "expiring": 1}
     alert.assert_awaited_once()
+
+
+async def _order_status(session: AsyncSession, order_id: uuid.UUID) -> str | None:
+    session.expire_all()
+    order = await session.get(Order, order_id)
+    assert order is not None
+    status = await session.get(OrderStatus, order.order_status_id)
+    return status.name if status else None
+
+
+@pytest.mark.asyncio
+async def test_an_authorisation_secures_the_order_and_its_capture_keeps_it_moving(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Audit 2026-11, B3 + B6. The AUTHORISED notification published nothing:
+    the order stayed « Pending », the sweep gave its stock away and it never
+    reached the shipment that captures it. Then the capture at « InTransit »
+    sent the order back to « Paid »."""
+    from app.handlers.payment import on_payment_authorized, on_payment_captured
+
+    monkeypatch.setattr(_CAPTURE_UTIL, AsyncMock(return_value={}))
+    ids = await _seed(db_session)
+    pending = OrderStatus(name="Pending")
+    db_session.add(pending)
+    await db_session.flush()
+    order = await db_session.get(Order, ids.order_id)
+    assert order is not None
+    order.order_status_id = pending.id
+    await db_session.commit()
+
+    event = {"payment_id": str(ids.payment_id), "order_id": str(ids.order_id)}
+    await on_payment_authorized(db_session, event)
+    assert await _order_status(db_session, ids.order_id) == "Paid"
+
+    # The departure ships: the authorisation is captured…
+    await on_order_status_changed_capture_or_void(
+        db_session, await _payload(db_session, ids.order_id, "InTransit")
+    )
+    # …and its payment.captured no longer moves the order back.
+    await on_payment_captured(db_session, event)
+    assert await _order_status(db_session, ids.order_id) == "InTransit"

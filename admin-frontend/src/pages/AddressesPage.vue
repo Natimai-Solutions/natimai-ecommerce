@@ -95,6 +95,7 @@
 </template>
 
 <script setup lang="ts">
+import { extractApiError } from '@/api/errors';
 import { useI18n } from 'vue-i18n';
 import { computed, onMounted, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
@@ -148,7 +149,7 @@ async function reload() {
     rows.value = data.data;
     count.value = data.count;
   } catch (err: unknown) {
-    error.value = err instanceof Error ? err.message : t('addresses.load_failed');
+    error.value = extractApiError(err) ?? t('addresses.load_failed');
   } finally {
     loading.value = false;
   }
@@ -167,7 +168,7 @@ async function onValidate(address: AdminAddress) {
       address.is_validated = true;
     }
   } catch (err: unknown) {
-    error.value = err instanceof Error ? err.message : t('addresses.validate_failed');
+    error.value = extractApiError(err) ?? t('addresses.validate_failed');
   } finally {
     validatingIds.value.delete(address.id);
     validatingIds.value = new Set(validatingIds.value);

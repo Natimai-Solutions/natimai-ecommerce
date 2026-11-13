@@ -266,6 +266,15 @@ const en: MessageSchema = {
     credit_covers: 'Your store credit covers the full amount due now: no payment is needed.',
     cgv_accept: 'I have read and accept the',
     cgv_link: 'terms and conditions of sale',
+    blocker_address: 'Choose a delivery address to continue.',
+    blocker_delivery: 'Choose a delivery method to continue.',
+    blocker_method: 'Choose a payment method to continue.',
+    blocker_quote_loading: 'Working out the amount…',
+    blocker_quote: 'The amount could not be worked out: check your choices or try again.',
+    blocker_cgv: 'Accept the terms and conditions of sale to pay.',
+    card_form_failed:
+      'The payment form could not be shown. Your order is saved: try again, or pay it later from « My orders ».',
+    card_form_retry: 'Try again',
     secure: 'Encrypted card payment handled by our bank. No card data is stored on this site.',
     summary: 'Summary',
     item: 'Item',
@@ -362,6 +371,7 @@ const en: MessageSchema = {
     cart_email: 'Please enter a valid customer e-mail.',
     cart_empty: 'The cart is empty.',
     unknown: 'Unknown error',
+    catalogue_unavailable: 'The catalogue is temporarily unavailable. Try again in a moment.',
   },
   catalogue: {
     categories: 'Categories',
@@ -568,6 +578,9 @@ const en: MessageSchema = {
     yours: 'Your price group',
   },
   home: {
+    unavailable: 'The shop is temporarily unavailable.',
+    retry: 'Try again',
+    dismiss: 'Close',
     add_failed: 'This item could not be added to the cart.',
     all: 'Whole catalogue',
     categories: 'Categories',

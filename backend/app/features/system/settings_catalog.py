@@ -660,8 +660,9 @@ register(
         "str",
         "logistics",
         "Webhook des rappels de départs",
-        "URL https d'un webhook (Make, Zapier, Buffer…) recevant les rappels "
-        "des départs groupés : {text, link, image_url, departure}.",
+        "URL https d'un webhook (Make, Zapier, Slack, IFTTT…) recevant les "
+        "rappels des départs groupés : {text, link, image_url, departure}. "
+        "Seuls les hôtes de OUTBOUND_WEBHOOK_ALLOWED_HOSTS sont acceptés.",
         default="",
         format="url",
         secret=True,

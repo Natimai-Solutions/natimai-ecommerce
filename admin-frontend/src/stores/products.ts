@@ -1,3 +1,5 @@
+import { gt } from '@/i18n/global';
+import { extractApiError } from '@/api/errors';
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import type { components } from '@app/api-types';
@@ -88,7 +90,7 @@ export const useProductsStore = defineStore('products', () => {
       items.value = list;
       totalCount.value = data.count ?? list.length;
     } catch (err: unknown) {
-      error.value = err instanceof Error ? err.message : 'Erreur de chargement';
+      error.value = extractApiError(err) ?? gt('common.load_failed');
     } finally {
       loading.value = false;
     }
@@ -101,7 +103,7 @@ export const useProductsStore = defineStore('products', () => {
       await api.put(`/product/${product.id}`, { is_admin_active: next });
       product.is_admin_active = next;
     } catch (err: unknown) {
-      error.value = err instanceof Error ? err.message : 'Échec de mise à jour';
+      error.value = extractApiError(err) ?? gt('common.save_failed');
     } finally {
       togglingIds.value.delete(product.id);
       togglingIds.value = new Set(togglingIds.value);
@@ -115,7 +117,7 @@ export const useProductsStore = defineStore('products', () => {
       await api.put(`/product/${product.id}`, { supplier_place_id: placeId });
       product.supplier_place_id = placeId;
     } catch (err: unknown) {
-      error.value = err instanceof Error ? err.message : 'Échec de mise à jour';
+      error.value = extractApiError(err) ?? gt('common.save_failed');
     } finally {
       savingOriginIds.value.delete(product.id);
       savingOriginIds.value = new Set(savingOriginIds.value);

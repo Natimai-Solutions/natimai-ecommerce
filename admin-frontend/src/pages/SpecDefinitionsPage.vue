@@ -71,10 +71,18 @@
       </template>
       <template #body-cell-actions="props">
         <q-td :props="props" align="right" class="no-wrap">
-          <q-btn flat round dense icon="ph:pencil-simple" @click="openEdit(props.row)">
+          <q-btn
+            :aria-label="$t('common.edit')"
+            flat
+            round
+            dense
+            icon="ph:pencil-simple"
+            @click="openEdit(props.row)"
+          >
             <q-tooltip>{{ $t('common.edit') }}</q-tooltip>
           </q-btn>
           <q-btn
+            :aria-label="$t('specs.disable')"
             v-if="props.row.is_active"
             flat
             round

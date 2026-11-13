@@ -37,6 +37,75 @@ def _utcnow() -> datetime.datetime:
     return datetime.datetime.now(datetime.UTC)
 
 
+def _pair_keys(user_id: uuid.UUID, client_ip: str | None) -> tuple[str, str]:
+    pair = f"{user_id}:{client_ip or 'unknown'}"
+    return f"login:fail:{pair}", f"login:lock:{pair}"
+
+
+async def _redis_call(operation: Any) -> Any:
+    """Run a Redis call; fail closed (503) like the login throttle."""
+    from app.core.errors import AppError
+
+    try:
+        return await operation
+    except Exception as exc:  # noqa: BLE001 — any Redis failure closes the login
+        raise AppError(
+            code="rate_limit.unavailable",
+            status_code=503,
+            message="Service momentanément indisponible : réessayez dans un instant.",
+            details={},
+        ) from exc
+
+
+async def _pair_locked_until(
+    user_id: uuid.UUID, client_ip: str | None
+) -> datetime.datetime | None:
+    """When this address may try this account again, if it is locked out."""
+    from app.core.rate_limit import shared_redis
+
+    _, lock_key = _pair_keys(user_id, client_ip)
+    ttl = await _redis_call(shared_redis().ttl(lock_key))
+    if ttl is None or int(ttl) <= 0:
+        return None
+    return _utcnow() + datetime.timedelta(seconds=int(ttl))
+
+
+async def _count_pair_failure(
+    user_id: uuid.UUID, client_ip: str | None
+) -> datetime.datetime | None:
+    """Count a failure from this address; returns the lock end once it locks."""
+    from app.core.rate_limit import shared_redis
+
+    fail_key, lock_key = _pair_keys(user_id, client_ip)
+    window = settings.LOGIN_LOCKOUT_MINUTES * 60
+    redis = shared_redis()
+
+    async def _incr() -> Any:
+        async with redis.pipeline(transaction=True) as pipe:
+            pipe.incr(fail_key)
+            pipe.expire(fail_key, window, nx=True)
+            return await pipe.execute()
+
+    count, _ = await _redis_call(_incr())
+    if int(count) < settings.LOGIN_LOCKOUT_MAX_FAILURES:
+        return None
+
+    async def _lock() -> Any:
+        async with redis.pipeline(transaction=True) as pipe:
+            pipe.set(lock_key, "1", ex=window)
+            pipe.delete(fail_key)
+            return await pipe.execute()
+
+    await _redis_call(_lock())
+    return _utcnow() + datetime.timedelta(seconds=window)
+
+
+async def _clear_pair(user_id: uuid.UUID, client_ip: str | None) -> None:
+    from app.core.rate_limit import shared_redis
+
+    await _redis_call(shared_redis().delete(*_pair_keys(user_id, client_ip)))
+
+
 def mark_logged_in(user: User) -> None:
     """Horodater une connexion réussie (mot de passe, OAuth, inscription).
 
@@ -88,13 +157,21 @@ class CrudUser(CrudBase[User, UserCreate, UserUpdate]):
         )
 
     async def authenticate(
-        self, session: AsyncSession, *, email: str, password: str
+        self,
+        session: AsyncSession,
+        *,
+        email: str,
+        password: str,
+        client_ip: str | None = None,
     ) -> User | None:
-        """Authenticate user by email and password, with account lockout.
+        """Authenticate user by email and password, with lockout.
 
-        After ``LOGIN_LOCKOUT_MAX_FAILURES`` consecutive wrong passwords the
-        account is locked for ``LOGIN_LOCKOUT_MINUTES`` (brute-force guard);
-        a successful login resets the counter.
+        After ``LOGIN_LOCKOUT_MAX_FAILURES`` wrong passwords from one address,
+        that address is locked out of the account for
+        ``LOGIN_LOCKOUT_MINUTES`` — the owner, from elsewhere, still signs in
+        (audit 2026-11, S11). ``LOGIN_ACCOUNT_LOCKOUT_MAX_FAILURES``
+        consecutive failures from anywhere lock the account itself (a
+        password reset lifts it). A successful login resets both counters.
 
         Raises:
             AccountLockedError: while the lock is active (also on a correct
@@ -111,27 +188,20 @@ class CrudUser(CrudBase[User, UserCreate, UserUpdate]):
             return None
 
         now = _utcnow()
+        pair_until = await _pair_locked_until(user.id, client_ip)
+        if pair_until is not None:
+            raise AccountLockedError(pair_until)
         if user.locked_until is not None and user.locked_until > now:
             raise AccountLockedError(user.locked_until)
 
         if not await averify_password(password, user.hashed_password):
-            user.failed_login_attempts += 1
-            locked_until: datetime.datetime | None = None
-            if user.failed_login_attempts >= settings.LOGIN_LOCKOUT_MAX_FAILURES:
-                locked_until = now + datetime.timedelta(
-                    minutes=settings.LOGIN_LOCKOUT_MINUTES
-                )
-                user.locked_until = locked_until
-                user.failed_login_attempts = 0
-            session.add(user)
-            await session.commit()
-            if locked_until is not None:
-                raise AccountLockedError(locked_until)
+            await self.register_failed_attempt(session, user, client_ip=client_ip)
             return None
 
         # Successful login: clear any stale counter/expired lock. The commit
         # expires the instance, so refresh before handing it to the caller
         # (post-commit attribute reads would MissingGreenlet).
+        await _clear_pair(user.id, client_ip)
         if user.failed_login_attempts or user.locked_until is not None:
             user.failed_login_attempts = 0
             user.locked_until = None
@@ -140,15 +210,19 @@ class CrudUser(CrudBase[User, UserCreate, UserUpdate]):
             await session.refresh(user)
         return user
 
-    async def register_failed_attempt(self, session: AsyncSession, user: User) -> None:
-        """Count a failed sign-in (wrong second factor too) towards the lockout.
+    async def register_failed_attempt(
+        self, session: AsyncSession, user: User, *, client_ip: str | None = None
+    ) -> None:
+        """Count a failed sign-in (wrong second factor too) towards the lockouts:
+        the address's on this account, and the account-wide guard.
 
-        Raises :class:`AccountLockedError` when this failure locks the account.
+        Raises :class:`AccountLockedError` when this failure locks either.
         """
         now = _utcnow()
+        user_id = user.id
         user.failed_login_attempts += 1
         locked_until: datetime.datetime | None = None
-        if user.failed_login_attempts >= settings.LOGIN_LOCKOUT_MAX_FAILURES:
+        if user.failed_login_attempts >= settings.LOGIN_ACCOUNT_LOCKOUT_MAX_FAILURES:
             locked_until = now + datetime.timedelta(
                 minutes=settings.LOGIN_LOCKOUT_MINUTES
             )
@@ -156,8 +230,10 @@ class CrudUser(CrudBase[User, UserCreate, UserUpdate]):
             user.failed_login_attempts = 0
         session.add(user)
         await session.commit()
-        if locked_until is not None:
-            raise AccountLockedError(locked_until)
+        pair_until = await _count_pair_failure(user_id, client_ip)
+        until = locked_until or pair_until
+        if until is not None:
+            raise AccountLockedError(until)
 
     async def get_by_email(self, session: AsyncSession, *, email: str) -> User | None:
         """

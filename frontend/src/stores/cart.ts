@@ -16,6 +16,7 @@ import {
 import { useAuthStore } from '@/stores/auth';
 import { getProductById } from '@/api/products';
 import { gt } from '@/i18n/global';
+import { apiErrorMessage } from '@/utils/errors';
 
 type ProductPublic = components['schemas']['ProductPublic'];
 
@@ -144,6 +145,11 @@ export const useCartStore = defineStore('cart', () => {
   }
 
   function adoptServerCart(detail: CartDetailPublic) {
+    // The server's cart wins: a mirror still pending would overwrite it.
+    if (mirrorTimer !== null) {
+      clearTimeout(mirrorTimer);
+      mirrorTimer = null;
+    }
     cart.value = {
       currency: detail.currency || cart.value.currency,
       total_amount: '0.00',
@@ -428,6 +434,26 @@ export const useCartStore = defineStore('cart', () => {
     cart.value.total_amount = toMoneyString(subtotal);
   }
 
+  /**
+   * Sign-out: this device forgets the cart (audit 2026-11). On a shared
+   * computer the next person saw — and could order — the previous one's
+   * articles. The account's server cart is untouched: it comes back at the
+   * next sign-in. A pending mirror is cancelled so it cannot write the old
+   * lines back.
+   */
+  function forgetLocalCart() {
+    if (mirrorTimer !== null) {
+      clearTimeout(mirrorTimer);
+      mirrorTimer = null;
+    }
+    cart.value = emptyCart(cart.value.currency);
+    productsById.value = {};
+    error.value = null;
+    quoteMessage.value = null;
+    persistCart(cart.value);
+    forgetGuestToken();
+  }
+
   function handleError(err: unknown, fallback: string) {
     error.value = extractErrorMessage(err, fallback);
   }
@@ -454,6 +480,8 @@ export const useCartStore = defineStore('cart', () => {
     updateItemQuantity,
     removeItem,
     clearCart,
+    forgetLocalCart,
+    adoptServerCart,
     applyServerPrices,
     sendQuoteByEmail,
     clearMessages,
@@ -596,6 +624,9 @@ function isValidEmail(value: string): boolean {
 }
 
 function extractErrorMessage(err: unknown, fallback: string): string {
+  // The backend's envelope first: `{ error: { code, message } }` (U2).
+  const enveloped = apiErrorMessage(err);
+  if (enveloped) return enveloped;
   if (typeof err === 'object' && err !== null && 'response' in err) {
     const response = (err as { response?: { data?: unknown } }).response;
     const data = response?.data;
@@ -632,9 +663,7 @@ function extractErrorMessage(err: unknown, fallback: string): string {
     }
   }
 
-  if (err instanceof Error && err.message.trim().length > 0) {
-    return err.message;
-  }
-
+  // An axios error's own message (« Request failed with status code 503 »,
+  // « Network Error ») is English and technical: the caller's fallback says it.
   return fallback;
 }

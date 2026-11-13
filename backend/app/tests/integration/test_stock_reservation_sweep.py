@@ -189,7 +189,8 @@ async def test_sweep_leaves_awaiting_payment_alone(
     result = await _run_sweep(db_session, monkeypatch)
 
     assert result["released_orders"] == 0
-    assert result["skipped_orders"] == 1
+    # Filtered out by the query itself (B7): never even read.
+    assert result["skipped_orders"] == 0
 
     db_session.expire_all()
     product = await db_session.get(Product, product_id)
@@ -212,7 +213,8 @@ async def test_sweep_leaves_paid_orders_alone(
     result = await _run_sweep(db_session, monkeypatch)
 
     assert result["released_orders"] == 0
-    assert result["skipped_orders"] == 1
+    # Filtered out by the query itself (B7): never even read.
+    assert result["skipped_orders"] == 0
     db_session.expire_all()
     product = await db_session.get(Product, product_id)
     assert product is not None

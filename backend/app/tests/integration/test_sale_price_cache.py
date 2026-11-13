@@ -13,7 +13,7 @@ Real Postgres. Three things must hold:
 from __future__ import annotations
 
 from datetime import date, timedelta
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 
 import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -266,7 +266,7 @@ async def test_context_price_follows_the_origin_regime_like_the_reference(
     assert prices["Import depuis Tahiti (pas de douane)"] == Decimal("130.00")
     assert prices["Import depuis la France (douane)"] == (
         Decimal("100.50") * Decimal("1.20") * Decimal("1.30")
-    ).quantize(Decimal("0.01"))
+    ).quantize(Decimal("1"), rounding=ROUND_HALF_UP)  # 156,78 → 157 F
     assert prices["TTC fixé, origine étrangère"] == Decimal("500.00")
 
 

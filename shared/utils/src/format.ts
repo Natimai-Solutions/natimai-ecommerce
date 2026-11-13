@@ -16,16 +16,36 @@ export interface FormatContext {
 
 const context: FormatContext = { locale: 'fr', timeZone: 'Pacific/Tahiti' }
 
+/**
+ * Server-side rendering: the context of the request being rendered, when
+ * the host provides one. A module-level context is shared by every render of
+ * the process, so concurrent French and English requests formatted with each
+ * other's language or zone (audit 2026-11, F1). Unset (browser, admin): the
+ * module context applies.
+ */
+let scopedContext: (() => FormatContext | undefined) | null = null
+
+export function setFormatContextResolver(
+  resolver: (() => FormatContext | undefined) | null,
+): void {
+  scopedContext = resolver
+}
+
+function current(): FormatContext {
+  return scopedContext?.() ?? context
+}
+
 /** Number of decimals per currency, as published by the backend. */
 const currencyDecimals = new Map<string, number>([['XPF', 0]])
 
 export function configureFormatting(next: Partial<FormatContext>): void {
-  if (next.locale) context.locale = next.locale
-  if (next.timeZone) context.timeZone = next.timeZone
+  const target = current()
+  if (next.locale) target.locale = next.locale
+  if (next.timeZone) target.timeZone = next.timeZone
 }
 
 export function formatContext(): Readonly<FormatContext> {
-  return context
+  return current()
 }
 
 /** Declare the decimals of currencies (from `/currency/display-rates`). */
@@ -57,10 +77,10 @@ export function decimalsOf(currency: string): number {
  * conventions (`fr-PF` when the shop lives in Tahiti), other languages
  * their own defaults.
  */
-export function intlLocale(locale: string = context.locale): string {
+export function intlLocale(locale: string = current().locale): string {
   const base = locale.toLowerCase()
   if (base === 'fr' || base.startsWith('fr-')) {
-    return context.timeZone === 'Pacific/Tahiti' ? 'fr-PF' : 'fr-FR'
+    return current().timeZone === 'Pacific/Tahiti' ? 'fr-PF' : 'fr-FR'
   }
   if (base === 'en') return 'en-GB'
   return locale

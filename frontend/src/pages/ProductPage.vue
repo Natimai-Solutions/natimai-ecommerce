@@ -41,28 +41,25 @@
             :alt="product.name"
             :ratio="4 / 3"
             glyph-size="120px"
+            sizes="(max-width: 1023px) 100vw, 50vw"
             eager
           />
-          <div
-            v-if="gallery.length > 1"
-            class="product__thumbs"
-            role="list"
-            :aria-label="$t('product.photos')"
-          >
-            <button
-              v-for="(url, i) in gallery"
-              :key="url"
-              type="button"
-              role="listitem"
-              class="product__thumb"
-              :class="{ 'product__thumb--active': url === mainImage }"
-              :aria-label="$t('product.photo_n', { n: i + 1 })"
-              :aria-current="url === mainImage ? 'true' : undefined"
-              @click="selectedImage = url"
-            >
-              <ProductImage :src="url" :alt="''" glyph-size="28px" />
-            </button>
-          </div>
+          <!-- A real list of real buttons (audit 2026-11): role="listitem" on
+               the <button> took its button role away from screen readers. -->
+          <ul v-if="gallery.length > 1" class="product__thumbs" :aria-label="$t('product.photos')">
+            <li v-for="(url, i) in gallery" :key="url" class="product__thumb-item">
+              <button
+                type="button"
+                class="product__thumb"
+                :class="{ 'product__thumb--active': url === mainImage }"
+                :aria-label="$t('product.photo_n', { n: i + 1 })"
+                :aria-current="url === mainImage ? 'true' : undefined"
+                @click="selectedImage = url"
+              >
+                <ProductImage :src="url" :alt="''" glyph-size="28px" />
+              </button>
+            </li>
+          </ul>
         </div>
 
         <div class="product__buy">
@@ -1284,11 +1281,18 @@ watch(
   min-width: 0;
 }
 
+.product__thumb-item {
+  display: contents;
+}
+
 .product__thumbs {
   display: flex;
   gap: 8px;
   overflow-x: auto;
   scrollbar-width: none;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .product__thumb {

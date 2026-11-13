@@ -146,6 +146,7 @@
       <template #body-cell-actions="props">
         <q-td :props="props" align="right" class="no-wrap">
           <q-btn
+            :aria-label="$t('gift_cards.cancel')"
             v-if="props.row.state === 'active' || props.row.state === 'expired'"
             flat
             dense
@@ -157,6 +158,7 @@
             <q-tooltip>{{ $t('gift_cards.cancel') }}</q-tooltip>
           </q-btn>
           <q-btn
+            :aria-label="$t('gift_cards.restore')"
             v-else-if="props.row.state === 'cancelled'"
             flat
             dense
@@ -186,6 +188,7 @@
         dense
         no-caps
         icon="ph:caret-left"
+        :aria-label="$t('common.page_previous')"
         :disable="page === 0"
         @click="goTo(page - 1)"
       />
@@ -194,6 +197,7 @@
         dense
         no-caps
         icon="ph:caret-right"
+        :aria-label="$t('common.page_next')"
         :disable="(page + 1) * PAGE_SIZE >= count"
         @click="goTo(page + 1)"
       />

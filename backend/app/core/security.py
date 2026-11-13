@@ -54,9 +54,17 @@ def create_access_token(
 
 
 def create_refresh_token(
-    subject: str | Any, expires_delta: timedelta, jti: str | None = None
+    subject: str | Any,
+    expires_delta: timedelta,
+    jti: str | None = None,
+    stamp: str | None = None,
 ) -> str:
-    """Create refresh token."""
+    """Create refresh token.
+
+    It carries the user's ``security_stamp`` like the access token: the
+    refresh endpoint refuses it once the stamp changed (password, 2FA reset,
+    deactivation…), even if a path forgot to revoke the stored session.
+    """
     expire = datetime.now(UTC) + expires_delta
     refresh_jti = jti or str(uuid.uuid4())
     to_encode = {
@@ -64,6 +72,7 @@ def create_refresh_token(
         "sub": str(subject),
         "type": "refresh",
         "jti": refresh_jti,
+        "stp": stamp,
     }
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt

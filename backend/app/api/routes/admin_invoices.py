@@ -7,7 +7,6 @@ document.
 
 from __future__ import annotations
 
-import csv
 import io
 import uuid
 from decimal import Decimal
@@ -34,6 +33,7 @@ from app.features.invoice.services.pdf import (
     invoice_pdf_filename,
     render_invoice_pdf,
 )
+from app.utils.csv_export import csv_writer
 
 router = APIRouter(prefix="/admin/invoices", tags=["admin-invoices"])
 
@@ -127,7 +127,7 @@ async def export_invoices_csv(
     invoices = list(result.all())
 
     buffer = io.StringIO()
-    writer = csv.writer(buffer, delimiter=";", quoting=csv.QUOTE_MINIMAL)
+    writer = csv_writer(buffer)  # formulas neutralised (S10)
     writer.writerow(_EXPORT_COLUMNS)
 
     for invoice in invoices:

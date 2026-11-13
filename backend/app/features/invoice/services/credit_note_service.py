@@ -28,7 +28,7 @@ from app.features.invoice.models.invoice import Invoice
 from app.features.invoice.services.integrity import seal_document
 from app.features.invoice.services.numbering import allocate_credit_note_number
 from app.features.payment.models.refund import Refund
-from app.utils.money import quantize_amount
+from app.utils.money import quantize_amount, split_incl_tax
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +55,11 @@ def credit_note_to_public(credit_note: CreditNote) -> CreditNotePublic:
         order_number=order_snapshot.get("number") or None,
         invoice_number=invoice_snapshot.get("number") or None,
     )
+
+
+class InvoiceNotIssuedError(RuntimeError):
+    """The order has no invoice *yet*: it is issued asynchronously after the
+    capture, and a quick refund can overtake it (audit 2026-11)."""
 
 
 class CreditNoteIssuanceError(RuntimeError):
@@ -115,14 +120,12 @@ def _prorated_breakdown(
             incl = quantize_amount(credited_incl * share, currency)
         allocated_incl += incl
 
-        rate_pct = Decimal(row["rate_pct"])
-        divisor = Decimal("1") + (rate_pct / Decimal("100"))
-        excl = quantize_amount(incl / divisor, currency)
+        excl, tax = split_incl_tax(incl, Decimal(row["rate_pct"]), currency)
         rows.append(
             {
                 "rate_pct": row["rate_pct"],
                 "base_excl_tax": str(excl),
-                "tax_amount": str(incl - excl),
+                "tax_amount": str(tax),
                 "total_incl_tax": str(incl),
             }
         )
@@ -189,9 +192,7 @@ async def issue_credit_note_for_refund(
     )
     invoice = result.first()
     if invoice is None:
-        raise CreditNoteIssuanceError(
-            f"Order {refund.order_id} has no invoice to correct"
-        )
+        raise InvoiceNotIssuedError(f"Order {refund.order_id} has no invoice yet")
 
     currency = invoice.currency
     credited_incl = quantize_amount(refund.amount, currency)

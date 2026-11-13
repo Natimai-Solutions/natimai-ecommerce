@@ -123,6 +123,9 @@ export interface paths {
         /**
          * Confirm
          * @description Turn 2FA on; the recovery codes are shown this once.
+         *
+         *     Needs the code e-mailed by /setup as well as the authenticator's: a
+         *     stolen password alone no longer enrols the thief's authenticator.
          */
         post: operations["user-confirm"];
         delete?: never;
@@ -702,6 +705,28 @@ export interface paths {
          *     as a payment_id UUID (422).
          */
         get: operations["payment-list_my_payment_methods"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/payments/status/{payment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Payment Status By Token
+         * @description The status of a payment for whoever holds its signed token — the return
+         *     page of a 3-D Secure finished in another browser, signed out (audit
+         *     2026-11). A wrong token answers like an unknown payment.
+         */
+        get: operations["payment-get_payment_status_by_token"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5726,7 +5751,7 @@ export interface paths {
         };
         /**
          * Get Product Reviews
-         * @description Get all reviews for a specific product.
+         * @description Get all reviews for a specific product (no account ids: public).
          */
         get: operations["review-get_product_reviews"];
         put?: never;
@@ -5974,7 +5999,7 @@ export interface paths {
         };
         /**
          * Get Public Wishlists
-         * @description Get all public wishlists.
+         * @description Get all public wishlists (no owner ids).
          */
         get: operations["wishlist-get_public_wishlists"];
         put?: never;
@@ -10454,6 +10479,8 @@ export interface components {
              * Format: uuid
              */
             payment_id: string;
+            /** Payment Status Token */
+            payment_status_token?: string | null;
             /**
              * Cart Id
              * Format: uuid
@@ -15947,6 +15974,8 @@ export interface components {
             redirect_url?: string | null;
             /** Instructions */
             instructions?: string | null;
+            /** Payment Status Token */
+            payment_status_token?: string | null;
         };
         /**
          * PaymentsPublic
@@ -18525,6 +18554,30 @@ export interface components {
             password: string;
         };
         /**
+         * ReviewAnonymousPublic
+         * @description A review as anyone may read it: no user id (audit 2026-11 — the
+         *     public list linked every review to an account id, the key of the other
+         *     per-user routes).
+         */
+        ReviewAnonymousPublic: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Rating */
+            rating: number;
+            /** Comment */
+            comment?: string | null;
+            /** Created At */
+            created_at?: string | null;
+        };
+        /**
          * ReviewCreate
          * @description Represents review create.
          */
@@ -18723,6 +18776,16 @@ export interface components {
             rating: number;
             /** Comment */
             comment?: string | null;
+        };
+        /** ReviewsAnonymousPublic */
+        ReviewsAnonymousPublic: {
+            /** Data */
+            data?: components["schemas"]["ReviewAnonymousPublic"][];
+            /**
+             * Count
+             * @default 0
+             */
+            count: number;
         };
         /**
          * ReviewsPublic
@@ -21866,6 +21929,16 @@ export interface components {
             /** Code */
             code: string;
         };
+        /**
+         * TwoFactorConfirm
+         * @description The authenticator's code, and the one e-mailed by /setup.
+         */
+        TwoFactorConfirm: {
+            /** Code */
+            code: string;
+            /** Email Code */
+            email_code: string;
+        };
         /** TwoFactorDisable */
         TwoFactorDisable: {
             /** Code */
@@ -21881,6 +21954,11 @@ export interface components {
             otpauth_uri: string;
             /** Qr Svg Data Uri */
             qr_svg_data_uri: string;
+            /**
+             * Email Code Sent
+             * @default true
+             */
+            email_code_sent: boolean;
         };
         /** TwoFactorStatus */
         TwoFactorStatus: {
@@ -22171,6 +22249,28 @@ export interface components {
             code: string;
         };
         /**
+         * WishlistAnonymousPublic
+         * @description A public wishlist as anyone may read it: no owner id (audit 2026-11).
+         */
+        WishlistAnonymousPublic: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Description */
+            description?: string | null;
+            /**
+             * Is Public
+             * @default true
+             */
+            is_public: boolean;
+            /** Created At */
+            created_at?: string | null;
+        };
+        /**
          * WishlistCreate
          * @description Represents wishlist create.
          */
@@ -22352,6 +22452,16 @@ export interface components {
             /** Is Public */
             is_public?: boolean | null;
         };
+        /** WishlistsAnonymousPublic */
+        WishlistsAnonymousPublic: {
+            /** Data */
+            data?: components["schemas"]["WishlistAnonymousPublic"][];
+            /**
+             * Count
+             * @default 0
+             */
+            count: number;
+        };
         /**
          * WishlistsPublic
          * @description Represents wishlists public.
@@ -22514,7 +22624,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["TwoFactorCode"];
+                "application/json": components["schemas"]["TwoFactorConfirm"];
             };
         };
         responses: {
@@ -23698,6 +23808,40 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     }[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "payment-get_payment_status_by_token": {
+        parameters: {
+            query: {
+                /** @description payment_status_token */
+                t: string;
+            };
+            header?: never;
+            path: {
+                payment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentStatusResponse"];
                 };
             };
             /** @description Validation Error */
@@ -33360,7 +33504,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ReviewsPublic"];
+                    "application/json": components["schemas"]["ReviewsAnonymousPublic"];
                 };
             };
             /** @description Validation Error */
@@ -33843,7 +33987,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["WishlistsPublic"];
+                    "application/json": components["schemas"]["WishlistsAnonymousPublic"];
                 };
             };
             /** @description Validation Error */

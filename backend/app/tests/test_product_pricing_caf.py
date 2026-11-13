@@ -142,7 +142,7 @@ async def test_calculate_sale_price_no_route_old_formula() -> None:
     price = await calculate_sale_price(session, product, group=group)
 
     expected = Decimal("100000") * Decimal("1.05") * Decimal("1.30") * Decimal("1.16")
-    assert price == expected.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    assert price == expected.quantize(Decimal("1"), rounding=ROUND_HALF_UP)  # XPF
 
 
 # ---------------------------------------------------------------------------
@@ -170,7 +170,7 @@ async def test_calculate_sale_price_caf_with_route_no_volume() -> None:
 
     caf = Decimal("103750")
     expected = caf * Decimal("1.05") * Decimal("1.30") * Decimal("1.16")
-    assert price == expected.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    assert price == expected.quantize(Decimal("1"), rounding=ROUND_HALF_UP)  # XPF
 
 
 @pytest.mark.anyio
@@ -305,7 +305,7 @@ async def test_insurance_is_charged_on_cost_plus_freight(
 
     caf = Decimal("104787.50")
     expected = caf * Decimal("1.05") * Decimal("1.30") * Decimal("1.16")
-    assert price == expected.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    assert price == expected.quantize(Decimal("1"), rounding=ROUND_HALF_UP)  # XPF
 
 
 @pytest.mark.anyio

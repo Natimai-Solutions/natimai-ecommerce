@@ -1,6 +1,7 @@
+import hmac
 import uuid
 from datetime import UTC, datetime, timedelta
-from typing import Annotated, Never
+from typing import Annotated, Any, Never
 
 from fastapi import APIRouter, Depends, Form, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
@@ -66,6 +67,7 @@ def _build_token_bundle(
         user_id,
         expires_delta=refresh_token_expires,
         jti=refresh_jti,
+        stamp=stamp,
     )
     refresh_expires_at = datetime.now(UTC) + refresh_token_expires
 
@@ -113,7 +115,10 @@ async def login_access_token(
     user_agent = request.headers.get("user-agent")
     try:
         user = await crud_user.authenticate(
-            session=session, email=form_data.username, password=form_data.password
+            session=session,
+            email=form_data.username,
+            password=form_data.password,
+            client_ip=client_ip,
         )
     except AccountLockedError as exc:
         raise AppError(
@@ -163,7 +168,9 @@ async def login_access_token(
                 user_agent=user_agent,
             )
             try:
-                await crud_user.register_failed_attempt(session, user)
+                await crud_user.register_failed_attempt(
+                    session, user, client_ip=client_ip
+                )
             except AccountLockedError as exc:
                 raise AppError(
                     code="login.account.locked",
@@ -237,6 +244,30 @@ async def _audit_failed_admin_login(
         )
 
 
+def _check_admin_origin(request: Request, user: Any) -> None:
+    """A superuser's session is refreshed from the back-office only.
+
+    The storefront and the admin share the API and its refresh cookie, and
+    CORS lets both call it with credentials: a script injected in the
+    storefront could exchange an admin's cookie for an admin access token.
+    The browser sets ``Origin`` itself (a page cannot forge it), so the
+    exchange is refused from any other origin — without revoking anything,
+    the admin's own session goes on (audit 2026-11, S2). A request without
+    ``Origin`` does not come from a page script.
+    """
+    admin_host = (settings.ADMIN_FRONTEND_HOST or "").strip().rstrip("/")
+    if not admin_host or not getattr(user, "is_superuser", False):
+        return
+    origin = (request.headers.get("origin") or "").strip().rstrip("/")
+    if origin and origin != admin_host:
+        raise AppError(
+            code="login.refresh_token.admin_origin",
+            status_code=403,
+            message="Session d'administration : reconnectez-vous depuis l'admin.",
+            details={},
+        )
+
+
 @router.post(
     "/login/refresh-token",
     # Generous: the SPA refreshes at every page load, behind shared NAT IPs.
@@ -288,6 +319,25 @@ async def refresh_access_token(
             message="Utilisateur désactivé",
             details={"user_id": str(user.id)},
         )
+
+    if not token_data.stp or not hmac.compare_digest(
+        token_data.stp, user.security_stamp
+    ):
+        # The stamp changed since this session opened (password, 2FA reset or
+        # disabled, deactivation): every session of the account is over.
+        await crud_user_refresh_token.revoke_all_active_for_user(
+            session=session,
+            user_id=user_id,
+            reason="security_stamp_changed",
+        )
+        raise AppError(
+            code="login.refresh_token.revoked",
+            status_code=401,
+            message="Refresh token révoqué",
+            details={"user_id": str(user_id), "jti": token_jti},
+        )
+
+    _check_admin_origin(request, user)
 
     current_refresh_session = await crud_user_refresh_token.get_by_user_and_jti(
         session=session,

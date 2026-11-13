@@ -281,3 +281,15 @@ async def test_clear_cart_deactivates_every_line(db_session: AsyncSession) -> No
     rows = list((await db_session.exec(select(CartItem))).all())
     assert len(rows) == 3 and all(row.is_active is False for row in rows)
     assert await crud_cart.sync_total(db_session, cart_id=cart_id) == Decimal("0")
+
+
+@pytest.mark.asyncio
+async def test_a_cart_line_is_bounded() -> None:
+    """Audit 2026-11: an unbounded quantity overflowed (500)."""
+    from pydantic import ValidationError
+
+    from app.features.cart.models.cart import MAX_LINE_QUANTITY, CartItemAddRequest
+
+    with pytest.raises(ValidationError):
+        CartItemAddRequest(product_id=uuid.uuid4(), quantity=MAX_LINE_QUANTITY + 1)
+    assert CartItemAddRequest(product_id=uuid.uuid4(), quantity=MAX_LINE_QUANTITY)

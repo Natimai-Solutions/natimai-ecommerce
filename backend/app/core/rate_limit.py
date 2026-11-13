@@ -77,6 +77,23 @@ async def hit_rate_limit(key: str, *, limit: int, window_seconds: int) -> bool:
     return int(count) > limit
 
 
+async def rate_limit_reached(key: str, *, limit: int) -> bool:
+    """Whether ``key`` already counts more than ``limit`` hits, without adding
+    one. For limits that only count failures (see ``hit_rate_limit``): read
+    before the attempt, hit after a failure. Fail-closed like the hit."""
+    try:
+        raw = await _get_client().get(f"rate:{key}")
+    except Exception as exc:  # noqa: BLE001 — any Redis failure closes the route
+        logger.error("rate limiter unavailable, refusing request", exc_info=True)
+        raise AppError(
+            code="rate_limit.unavailable",
+            status_code=503,
+            message="Service momentanément indisponible : réessayez dans un instant.",
+            details={},
+        ) from exc
+    return raw is not None and int(raw) >= limit
+
+
 def rate_limited(
     scope: str, *, limit: int, window_seconds: int
 ) -> Callable[[Request], Awaitable[None]]:

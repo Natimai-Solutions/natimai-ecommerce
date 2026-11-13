@@ -24,6 +24,8 @@ from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.utils.money import reference_price
+
 
 @dataclass(frozen=True)
 class PricingParameterSpec:
@@ -121,11 +123,13 @@ def apply_fx_safety_margin(
 
 
 def apply_payment_commission(price: Decimal, commission_pct: Decimal) -> Decimal:
-    """Gross the price up so that ``price`` is what remains after the commission."""
+    """Gross the price up so that ``price`` is what remains after the
+    commission. The last step of the sale price: the result is rounded to the
+    reference currency's unit (whole francs in XPF — audit 2026-11)."""
     if commission_pct <= 0:
-        return price
+        return reference_price(price)
     grossed = price / (Decimal("1") - commission_pct / Decimal("100"))
-    return grossed.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    return reference_price(grossed)
 
 
 __all__ = [

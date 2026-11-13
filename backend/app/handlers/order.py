@@ -292,10 +292,7 @@ async def request_balance(session: AsyncSession, order: Order) -> bool:
         pay_url=_order_pay_url(order.id),
         shop_name=_shop_name(),
     )
-    order.balance_requested_at = datetime.now(UTC)
-    session.add(order)
-    await session.flush()
-    return await _send_order_email(
+    sent = await _send_order_email(
         session,
         user_id_raw=str(order.user_id),
         subject=email.subject,
@@ -304,6 +301,13 @@ async def request_balance(session: AsyncSession, order: Order) -> bool:
         event_type="order.balance_due",
         payload={"order_id": str(order.id), "order_number": order.order_number},
     )
+    if sent:
+        # Stamped only once the request is out (audit 2026-11): a failed
+        # e-mail left the order « balance requested » with nobody told.
+        order.balance_requested_at = datetime.now(UTC)
+        session.add(order)
+        await session.flush()
+    return sent
 
 
 @outbox_handler(EVENT_ORDER_STATUS_CHANGED)
@@ -322,7 +326,12 @@ async def on_order_received_request_balance(
         return
     if order.balance_paid_at is not None or order.balance_requested_at is not None:
         return
-    await request_balance(session, order)
+    order_id = order.id
+    if not await request_balance(session, order):
+        if not await runtime_settings.get("notifications_email_enabled", session):
+            return  # e-mails switched off on purpose: nothing to retry
+        # Not stamped: the outbox retries (and the admin can re-send).
+        raise RuntimeError(f"balance request e-mail not sent for order {order_id}")
     await session.commit()
 
 

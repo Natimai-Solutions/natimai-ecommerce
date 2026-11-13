@@ -31,6 +31,7 @@ from app.features.integrations.services.supplier_data_normalization import (
 from app.features.integrations.services.supplier_sync_orchestrator import (
     SupplierSyncOrchestrator,
 )
+from app.features.inventory.services.availability import net_supplier_quantity
 from app.features.product.crud.product import crud_product
 from app.features.product.models.product import Product, ProductUpdate
 from app.features.product.services.overrides import strip_locked
@@ -383,7 +384,11 @@ async def sync_supplier_inventory_task(
                                 "cost_currency": snapshot.supplier_price_currency,
                                 "supplier_price": snapshot.supplier_price,
                                 "supplier_price_currency": snapshot.supplier_price_currency,
-                                "supplier_quantity": snapshot.supplier_quantity,
+                                # Less the units our open orders took
+                                # (audit 2026-11, B4).
+                                "supplier_quantity": await net_supplier_quantity(
+                                    session, product.id, snapshot.supplier_quantity
+                                ),
                                 "is_active": meets_sync_thresholds(
                                     snapshot,
                                     price_in_xpf=price_in_xpf,

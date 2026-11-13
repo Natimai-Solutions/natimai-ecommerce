@@ -1,8 +1,10 @@
 # mypy: disable-error-code="arg-type"
 
 import uuid
+from collections.abc import Iterable
 from datetime import datetime
 
+from sqlalchemy import func, or_
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -68,6 +70,7 @@ class InventoryStockMovementCrud(
         *,
         older_than: datetime,
         limit: int = 500,
+        order_status_names: Iterable[str] | None = None,
     ) -> list[uuid.UUID]:
         """Return order ids still holding PENDING outgoing reservations.
 
@@ -75,9 +78,20 @@ class InventoryStockMovementCrud(
         order being checked out right now is never picked up. Used by the
         reservation sweep: without it, a checkout never followed by a payment
         held its stock forever.
+
+        ``order_status_names``: only orders in these statuses (or vanished
+        ones). Filtering here, oldest first, rather than in the caller: 500
+        orders the sweep must skip (awaiting a transfer…) no longer fill
+        every batch and hide the others for good (audit 2026-11, B7).
         """
+        from app.features.order.models.order import Order
+        from app.features.order.models.order_status import OrderStatus
+
+        oldest = func.min(col(InventoryStockMovement.created_at))
         statement = (
             select(InventoryStockMovement.reference_id)
+            .outerjoin(Order, col(Order.id) == col(InventoryStockMovement.reference_id))
+            .outerjoin(OrderStatus, col(OrderStatus.id) == col(Order.order_status_id))
             .where(
                 InventoryStockMovement.reference_type == ReferenceType.ORDER.value,
                 InventoryStockMovement.movement_type == MovementType.OUTGOING.value,
@@ -86,9 +100,17 @@ class InventoryStockMovementCrud(
                 col(InventoryStockMovement.created_at) < older_than,
                 col(InventoryStockMovement.is_active).is_(True),
             )
-            .distinct()
+            .group_by(col(InventoryStockMovement.reference_id))
+            .order_by(oldest)
             .limit(limit)
         )
+        if order_status_names is not None:
+            statement = statement.where(
+                or_(
+                    col(Order.id).is_(None),
+                    col(OrderStatus.name).in_(list(order_status_names)),
+                )
+            )
         result = await session.exec(statement)
         return [reference_id for reference_id in result.all() if reference_id]
 

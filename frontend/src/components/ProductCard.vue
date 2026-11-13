@@ -323,7 +323,8 @@ const promoBadge = computed(() => {
 
 .product-card__compare {
   flex-shrink: 0;
-  width: 36px;
+  // 44 × 44 px: the touch target the interface guide asks for (audit 2026-11).
+  width: 44px;
   height: 44px;
   display: flex;
   align-items: center;

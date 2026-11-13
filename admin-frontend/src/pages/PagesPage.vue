@@ -84,10 +84,25 @@
       </template>
       <template #body-cell-actions="props">
         <q-td :props="props" align="right">
-          <q-btn flat round dense icon="ph:pencil-simple" @click="openEdit(props.row)">
+          <q-btn
+            :aria-label="$t('common.edit')"
+            flat
+            round
+            dense
+            icon="ph:pencil-simple"
+            @click="openEdit(props.row)"
+          >
             <q-tooltip>{{ $t('common.edit') }}</q-tooltip>
           </q-btn>
-          <q-btn flat round dense icon="ph:trash" color="negative" @click="remove(props.row)">
+          <q-btn
+            :aria-label="$t('pages.delete')"
+            flat
+            round
+            dense
+            icon="ph:trash"
+            color="negative"
+            @click="remove(props.row)"
+          >
             <q-tooltip>{{ $t('pages.delete') }}</q-tooltip>
           </q-btn>
         </q-td>
@@ -108,7 +123,14 @@
           <h2 class="app-dialog__title col">
             {{ editing ? $t('pages.edit_title', { slug: form.slug }) : $t('pages.new_title') }}
           </h2>
-          <q-btn flat round dense icon="ph:x" @click="guard.requestClose()">
+          <q-btn
+            :aria-label="$t('common.close')"
+            flat
+            round
+            dense
+            icon="ph:x"
+            @click="guard.requestClose()"
+          >
             <q-tooltip>{{ $t('common.close') }}</q-tooltip>
           </q-btn>
         </q-card-section>

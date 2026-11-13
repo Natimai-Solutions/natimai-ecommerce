@@ -8,8 +8,10 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
+from app.core.errors import AppError
 from app.features.base.crud import CrudBase, RecordNotFoundError
 from app.features.cart.models.cart import (
+    MAX_LINE_QUANTITY,
     Cart,
     CartCreate,
     CartItem,
@@ -322,6 +324,16 @@ class CartItemCrud(CrudBase[CartItem, CartItemCreate, CartItemUpdate]):
         )
 
         if existing_item is not None:
+            if existing_item.quantity + quantity > MAX_LINE_QUANTITY:
+                raise AppError(
+                    code="cart.quantity.too_large",
+                    status_code=400,
+                    message=(
+                        f"{MAX_LINE_QUANTITY} unités au plus par article : "
+                        "demandez un devis pour une plus grande quantité."
+                    ),
+                    details={"max": MAX_LINE_QUANTITY},
+                )
             existing_item.quantity += quantity
             existing_item.unit_price = product.base_price
             existing_item.fx_rate_used = fx_rate_used

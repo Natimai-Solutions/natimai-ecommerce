@@ -24,7 +24,15 @@
         bottom-slots
         class="col"
       />
-      <q-btn flat dense round color="negative" icon="ph:trash" @click="bands.splice(index, 1)">
+      <q-btn
+        :aria-label="$t('logistics.remove_band')"
+        flat
+        dense
+        round
+        color="negative"
+        icon="ph:trash"
+        @click="bands.splice(index, 1)"
+      >
         <q-tooltip>{{ $t('logistics.remove_band') }}</q-tooltip>
       </q-btn>
     </div>

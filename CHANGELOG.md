@@ -164,6 +164,179 @@ takes a tag as its `ref`.
 
 ### Fixed
 
+- Security (audit 2026-11, S1): outside `ENVIRONMENT=local` the API refuses
+  to start when `SECRET_KEY`, `POSTGRES_PASSWORD` or
+  `FIRST_SUPERUSER_PASSWORD` still holds a `changeme-…` placeholder of
+  `.env.example` (only `changethis` was rejected).
+- Security (S4): the refresh token carries the user's security stamp and
+  `POST /login/refresh-token` refuses it once the stamp changed; disabling or
+  resetting the 2FA also revokes the stored sessions. A stolen session no
+  longer survives 30 days. Users signed in before this release sign in again.
+- Security (S7): `GET /cart/me/checkout-quote` counts the refused promo codes
+  per customer (10 per 10 minutes); past that the code is not looked up and
+  the quote says to retry later, so it no longer serves as an oracle to guess
+  codes. A customer re-pricing a valid code is never throttled.
+- Money (audit 2026-11, S3): a gift card is always sold at its reference
+  price — no promo code, group price or promotion applies to it (a card
+  bought 20 % off was still issued at face value, i.e. free store credit).
+- Money (S6): a full refund cancels the order's unused gift cards and takes
+  back the store credit of the redeemed ones, within the holder's balance;
+  what was already spent, and the cards of a partially refunded order, are
+  reported to the admin (log + `ALERT_WEBHOOK_URL`).
+- Stock (audit 2026-11, B1): every move of an order to « Cancelled » (the
+  admin's included, not only the customer's) releases its pending stock
+  reservations and gives the promo-code use back, once
+  (`release_cancelled_order_holds`, called by `set_order_status`).
+- Stock (B2): a new payment attempt on an order whose reservations were
+  released (refused card, reservation sweep) takes the same quantities again
+  under the stock locks, or is refused with `payment.order.out_of_stock`
+  (409). Paid later, such an order used to be sold with no stock behind it.
+  The sweep now also covers « PaymentFailed » orders.
+- Payments (B3): with `PAYZEN_MANUAL_VALIDATION`, the `AUTHORISED`
+  notification publishes `payment.authorized`; the order moves to « Paid »
+  (« DepositPaid ») so the sweep keeps its stock and it reaches the step that
+  captures it. Stock confirmation, invoice and gift cards still wait for the
+  capture.
+- Stock (B5): a released reservation is credited back to `supplier_quantity`
+  for every product the checkout took it from, manual products with a
+  `supplier_name` included (they lost it for good).
+- Orders (B6): a settled payment moves an order to « Paid » only from a
+  status before payment; the capture at « InTransit » no longer sends it back.
+- Stock (B7): the reservation sweep filters and orders its batch in SQL, so
+  orders it must skip no longer fill every batch.
+- Payments (audit 2026-11, S9): `POST /payments/initiate` refuses
+  (`payment.method.fee_mismatch`, 409) a method other than the checkout's
+  whose fee differs from the one billed on the order — quoting with a free
+  method and paying with a charged one skipped its fee.
+- Security (audit 2026-11, S5): with `ADMIN_2FA_REQUIRED`, a superuser who
+  has not enrolled is refused (`auth.totp.enrollment_required`) by
+  `get_current_user` itself, on every route — the routes checking
+  `is_superuser` by hand and `BaseRouter` granted admin powers, and the
+  internal fields were revealed before the check. `GET /users/me` and the
+  enrolment endpoints use the new `CurrentUserEnrolling`.
+- Security (audit 2026-11, S2): new `ADMIN_FRONTEND_HOST`. A superuser's
+  refresh token is only exchanged from that origin
+  (`login.refresh_token.admin_origin`, 403, nothing revoked): the storefront
+  and the admin share the API and its cookie, so an XSS on the storefront
+  could mint an admin access token. **Set it in production** (warned when
+  missing outside `local`).
+- Stock (audit 2026-11, B4): the live supplier check at checkout, the
+  inventory sync and the catalogue sync no longer write the supplier's raw
+  count into `supplier_quantity`: they subtract the units our open orders
+  took (pending reservations, and paid orders not yet ordered from the
+  supplier). At checkout the live answer is settled again under the stock
+  locks, so a concurrent reservation is counted.
+- Security (audit 2026-11, S11): the login lockout is per (account,
+  address): five wrong passwords lock that address out of the account for
+  15 minutes, the owner still signs in from elsewhere — anyone could lock
+  any account, an administrator's included, indefinitely. A new
+  `LOGIN_ACCOUNT_LOCKOUT_MAX_FAILURES` (50 consecutive failures, any
+  address) locks the account itself against a distributed brute force; a
+  password reset lifts it.
+- Security (S5, end): enrolling an administrator's 2FA needs a one-time
+  code e-mailed to the account by `POST /users/me/2fa/setup` (8 digits,
+  15 minutes, 5 tries), sent with the authenticator's code to `/confirm`
+  (`email_code`). A stolen password alone no longer enrols the thief's
+  authenticator. Admin → Sécurité asks for it.
+- Storefront (audit 2026-11, F1): each server render runs in its own
+  `AsyncLocalStorage` scope (`src-ssr/middlewares/render.ts`); the API
+  language, the formatting context (`setFormatContextResolver` in
+  `@app/utils`) and the i18n composer of the store messages are read from
+  it. Concurrent French and English renders shared them as module
+  variables: wrong `Accept-Language`, wrong date format, hydration
+  mismatches.
+- Storefront (audit 2026-11, F2): only the latest request writes on the
+  product page, the catalogue search and the checkout quote. An older answer
+  arriving last showed another product (and an endless skeleton), results of
+  an earlier query, or wrong amounts on « Payer X ».
+- Storefront (U2): the catalogue, the product page and the cart show the
+  API's message (`{ error: { message } }`) or a translated fallback, never
+  axios' « Request failed with status code 503 ».
+- Storefront: signing out forgets the cart on this device (the account's
+  server cart is kept); on a shared computer the next person saw it.
+- Storefront (audit 2026-11, U3–U7): on mobile the checkout recap folds
+  behind a one-line total; « Payer » says what is still missing; the
+  address form takes the browser's autofill (`autocomplete`, no field
+  waiting for another); the mobile filter panel is a modal dialog (focus
+  trapped, Escape, no scroll behind); the search suggestions are a keyboard
+  combobox (arrows, Enter, `aria-activedescendant`).
+- Admin: the 57 icon-only buttons have an `aria-label` (their tooltip was
+  the only name); `shared/ui/src/a11y-guard.test.ts` refuses an icon
+  `q-btn` without one in both apps.
+- Storefront: shop images get a `srcset` of their WebP widths (480 / 960 /
+  1600 px, derived from the stored URL) and `sizes`; the product page's
+  main photo is `fetchpriority="high"`.
+- Security (audit 2026-11, S10): admin CSV exports neutralise any text
+  cell starting with `= + - @`, tab or carriage return (leading apostrophe);
+  numbers stay numbers.
+- Security (S8): abandoned-cart reminders go to accounts only. A visitor's
+  e-mail was never confirmed, so anyone could make the shop mail any
+  address; their carts are stamped and counted as `skipped_unverified`.
+- Security hardening (audit 2026-11, low severity): rate limit and a single
+  error on the 2FA endpoints; recovery codes hashed with HMAC; erasing an
+  OAuth-only account needs a sign-in of the last 15 minutes; a password
+  change voids a pending reset link; `/payments/me/{id}/confirm` never
+  captures a cancelled or refunded payment; PayZen IPN currency required
+  and compared; admin refunds and « one code per customer » under a row
+  lock; cart lines capped at 999; outbound webhook and supplier feed reach
+  public addresses only, checked at connection time (no DNS rebinding);
+  Icecat key out of the logs; supplier files scanned by ClamAV and zip bombs
+  refused; public reviews and wishlists without account ids; stock alerts
+  of a signed-in customer go to their own address; `ADMIN_ALLOWED_IPS`
+  enforced by the API on every superuser request; CI with read-only
+  `permissions`, third-party actions pinned by SHA, the gist secret limited
+  to the badge steps, no CI bypass for a production deploy; optional Redis
+  `requirepass` (`REDIS_PASSWORD`).
+- Backend robustness (audit 2026-11): the outbox puts back to PENDING an
+  event a dead poller left RUNNING, and gives up after `MAX_ATTEMPTS` with an
+  alert (it retried forever); the tracking link of the checkout runs in a
+  savepoint (a failure no longer turns the checkout into a 500); the
+  balance request is stamped only once its e-mail is out (retried
+  otherwise); a refund that overtakes the invoice of a captured order waits
+  for it instead of losing its credit note; a missing order in a payment
+  event is logged instead of failing the handler.
+- Storefront bugs (audit 2026-11): the shop's time zone applies in the
+  browser after the server render; every catalogue filter (price,
+  specifications, page) is in the URL — the price filter no longer survives
+  unseen; the checkout prices its quote again after `cart.price.changed`;
+  a card form whose PayZen script failed can be loaded again (the order was
+  placed and the cart emptied with nothing to click); ordering an accepted
+  quote adopts the server cart at the quote's prices (it was mirrored back
+  at catalogue prices); the order page fetches its own invoice
+  (`/invoices/me/by-order/{id}`) instead of searching the 50 latest; the
+  payment return page reads the status signed out, with the signed token
+  of the return URL (new `GET /payments/status/{id}?t=`,
+  `payment_status_token` in the checkout and initiation responses).
+- Admin bugs (audit 2026-11): a second « Enregistrer » after a failed
+  step of a new product updates it instead of creating a duplicate (and the
+  API's message is shown); a departure's order cutoff is typed on the shop's
+  clock; the order page reloads after a status change.
+- UX (audit 2026-11): the admin shows the API's error messages, never
+  axios' « Request failed with status code … » (design-guard rule); the
+  add-to-cart error of the home page is a fixed, announced toast near the
+  action; the home page offers « Réessayer » when every API fails (endless
+  skeleton before); gallery thumbnails are buttons in a real list; 44 px
+  touch targets for « Mot de passe oublié ? » and « Comparer »; the product
+  form of the admin is full screen on a phone with sticky actions; the
+  product search field no longer forces a horizontal scroll; the last
+  hard-coded admin strings are translated; legal pages say they are in
+  French in another language, default text included.
+- Prices (audit 2026-11): every price shown or billed — computed sale
+  price, typed fixed price, group price, promotion, variant supplement — is
+  rounded to the reference currency's unit (whole francs in XPF; cents in
+  EUR) by `reference_price`; intermediate amounts keep their precision.
+  11 600,37 F was shown 11 600 F and two of them billed 23 201 F. One
+  `split_incl_tax(amount, rate, currency)` now splits « TTC → HT + TVA » for
+  the invoice, the credit note and the margin (the margin rounded to the
+  cent in XPF). Stored prices move by less than one franc at the next
+  nightly price refresh (`refresh_sale_prices`), or at once from the admin.
+- Security: the outbound webhook (departure reminders) only reaches the
+  hosts of the new `OUTBOUND_WEBHOOK_ALLOWED_HOSTS` (default: Make, Zapier,
+  Slack, IFTTT, Discord); the request is rebuilt on the allow-list entry,
+  and the public-address check stays. Extend the list for another service.
+- Storefront (U1): the mobile menu button announced `$t('layout.menu')`
+  literally to screen readers; the design guard now rejects a static
+  attribute containing `$t(`.
 - Admin → Paiements: the status tag was always grey (a payment status name
   was read as a colour); settled payments, payments to capture or validate
   and failed payments now show their tone.

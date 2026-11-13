@@ -45,9 +45,12 @@
       <!-- Filtres : colonne sur ordinateur, panneau plein écran sur mobile -->
       <aside
         id="catalogue-filters"
+        ref="filtersPanel"
         class="filters"
         :class="{ 'filters--open': filtersOpen }"
         :aria-label="$t('catalogue.filters')"
+        :role="filtersOpen ? 'dialog' : undefined"
+        :aria-modal="filtersOpen ? 'true' : undefined"
       >
         <div class="filters__sheet-head">
           <span class="filters__sheet-title">{{ $t('catalogue.filters') }}</span>
@@ -255,6 +258,7 @@
             @update:model-value="onSortChange"
           />
           <q-btn
+            ref="filtersOpener"
             outline
             color="primary"
             icon="ph:sliders-horizontal"
@@ -377,6 +381,8 @@ import { catalogueCategoryChoices, categoryChildren, categoryLineage } from '@/u
 import { useI18n } from 'vue-i18n';
 import { intlLocale } from '@app/utils';
 import { useShopModulesStore } from '@/stores/shopModules';
+import { useModalSheet } from '@/composables/useModalSheet';
+import { specSelectionsFromQuery } from '@/utils/catalogueQuery';
 import { useRoute, useRouter, type LocationQuery } from 'vue-router';
 import { useProductsStore } from '@/stores/products';
 import { useCartStore } from '@/stores/cart';
@@ -453,6 +459,10 @@ const priceMin = ref<number | ''>('');
 const priceMax = ref<number | ''>('');
 const cartError = ref<string | null>(null);
 const filtersOpen = ref(false);
+const filtersPanel = ref<HTMLElement | null>(null);
+const filtersOpener = ref<{ $el?: HTMLElement } | null>(null);
+// Mobile sheet = modal dialog: focus trapped, Escape, no scroll behind (U6).
+useModalSheet(filtersOpen, filtersPanel, filtersOpener);
 const showAllManufacturers = ref(false);
 
 // The chips of the current level: the selected category's sub-categories,
@@ -665,6 +675,7 @@ const currentPage = computed({
 
 async function onPageChange(page: number) {
   await store.setPage(page);
+  syncQueryParams();
   window.scrollTo({ top: 0 });
 }
 
@@ -705,6 +716,7 @@ async function onCategoryChange(catId: string | null) {
 
 function onSpecChange() {
   void store.applyFilters({ specs: buildSpecs() });
+  syncQueryParams();
 }
 
 function onNumericSelect(key: string, event: Event) {
@@ -729,6 +741,7 @@ async function onPriceChange() {
     price_min: priceMin.value === '' ? null : priceMin.value,
     price_max: priceMax.value === '' ? null : priceMax.value,
   });
+  syncQueryParams();
 }
 
 async function resetFilters() {
@@ -765,7 +778,24 @@ function stateQuery(): Record<string, string> {
   if (selectedCondition.value) query['cond'] = selectedCondition.value;
   if (selectedStock.value) query['stock'] = selectedStock.value;
   if (selectedSort.value !== 'relevance') query['tri'] = selectedSort.value;
+  // Every filter is in the URL (audit 2026-11): a shared link, a reload or
+  // « back » shows the same selection — the price used to survive unseen.
+  if (priceMin.value !== '') query['pmin'] = String(priceMin.value);
+  if (priceMax.value !== '') query['pmax'] = String(priceMax.value);
+  for (const [key, values] of Object.entries(enumSelections.value)) {
+    if (values.length > 0) query[`f.${key}`] = values.join('|');
+  }
+  for (const [key, min] of Object.entries(numericMin.value)) {
+    if (min != null) query[`min.${key}`] = String(min);
+  }
+  if (store.currentPage > 1) query['page'] = String(store.currentPage);
   return query;
+}
+
+function queryNumber(raw: unknown): number | '' {
+  if (typeof raw !== 'string' || raw.trim() === '') return '';
+  const value = Number(raw);
+  return Number.isFinite(value) && value >= 0 ? value : '';
 }
 
 function syncQueryParams() {
@@ -795,6 +825,13 @@ function initFromQuery(query: LocationQuery = route.query) {
   selectedStock.value = stock === 'local' || stock === 'supplier' ? stock : null;
   const sort = query['tri'];
   selectedSort.value = SORTS.find((value) => value === sort) ?? 'relevance';
+  priceMin.value = queryNumber(query['pmin']);
+  priceMax.value = queryNumber(query['pmax']);
+  const specs = specSelectionsFromQuery(query);
+  enumSelections.value = specs.enums;
+  numericMin.value = specs.mins;
+  const page = Number(query['page']);
+  store.currentPage = Number.isInteger(page) && page > 1 ? page : 1;
 }
 
 async function loadCatalogueData() {
@@ -808,8 +845,13 @@ async function loadCatalogueData() {
     condition: selectedCondition.value,
     stock: selectedStock.value,
     sort: selectedSort.value,
+    price_min: priceMin.value === '' ? null : priceMin.value,
+    price_max: priceMax.value === '' ? null : priceMax.value,
     specs: buildSpecs(),
   });
+  // applyFilters goes back to page 1: the page of the URL is applied after.
+  const page = Number(route.query['page']);
+  if (Number.isInteger(page) && page > 1) await store.setPage(page);
 }
 
 // La recherche de l'en-tête (ou un lien) change l'URL : on recharge alors le
@@ -819,16 +861,9 @@ watch(
   (query) => {
     if (route.name !== 'catalogue') return;
     const current = stateQuery();
-    const keys = ['q', 'mfr', 'cat', 'cond', 'stock', 'tri'];
-    const same =
-      keys.every((k) => (query[k] ?? undefined) === current[k]) &&
-      Object.keys(query).every((k) => keys.includes(k));
+    const keys = new Set([...Object.keys(query), ...Object.keys(current)]);
+    const same = [...keys].every((k) => (query[k] ?? undefined) === current[k]);
     if (same) return;
-    const categoryChanged = (query['cat'] ?? null) !== selectedCategory.value;
-    if (categoryChanged) {
-      enumSelections.value = {};
-      numericMin.value = {};
-    }
     void loadCatalogueData();
   },
 );

@@ -78,10 +78,20 @@
             >
               <q-tooltip>{{ $t('departures.next_step') }}</q-tooltip>
             </q-btn>
-            <q-btn flat round dense icon="ph:pencil-simple" @click.stop="openEdit(props.row)">
+            <q-btn
+              :aria-label="$t('common.edit')"
+              flat
+              round
+              dense
+              icon="ph:pencil-simple"
+              @click.stop="openEdit(props.row)"
+            >
               <q-tooltip>{{ $t('common.edit') }}</q-tooltip>
             </q-btn>
             <q-btn
+              :aria-label="
+                props.row.orders_count > 0 ? $t('departures.move_first') : $t('departures.delete')
+              "
               flat
               round
               dense
@@ -205,7 +215,14 @@
           </template>
           <template #body-cell-actions="props">
             <q-td :props="props" align="right">
-              <q-btn flat round dense icon="ph:arrow-right" :to="`/orders/${props.row.order_id}`">
+              <q-btn
+                :aria-label="$t('departures.open_order')"
+                flat
+                round
+                dense
+                icon="ph:arrow-right"
+                :to="`/orders/${props.row.order_id}`"
+              >
                 <q-tooltip>{{ $t('departures.open_order') }}</q-tooltip>
               </q-btn>
             </q-td>
@@ -271,7 +288,15 @@
               </q-item-label>
             </q-item-section>
             <q-item-section side>
-              <q-btn flat round dense color="negative" icon="ph:trash" @click="removePo(i)">
+              <q-btn
+                :aria-label="$t('departures.delete_text')"
+                flat
+                round
+                dense
+                color="negative"
+                icon="ph:trash"
+                @click="removePo(i)"
+              >
                 <q-tooltip>{{ $t('departures.delete_text') }}</q-tooltip>
               </q-btn>
             </q-item-section>
@@ -516,10 +541,18 @@
           </template>
           <template #body-cell-actions="props">
             <q-td :props="props" align="right">
-              <q-btn flat round dense icon="ph:paper-plane-tilt" @click="publishNow(props.row)">
+              <q-btn
+                :aria-label="$t('departures.publish_now')"
+                flat
+                round
+                dense
+                icon="ph:paper-plane-tilt"
+                @click="publishNow(props.row)"
+              >
                 <q-tooltip>{{ $t('departures.publish_now') }}</q-tooltip>
               </q-btn>
               <q-btn
+                :aria-label="$t('common.edit')"
                 v-if="props.row.status !== 'sent'"
                 flat
                 round
@@ -530,6 +563,7 @@
                 <q-tooltip>{{ $t('common.edit') }}</q-tooltip>
               </q-btn>
               <q-btn
+                :aria-label="$t('departures.delete_text')"
                 flat
                 round
                 dense
@@ -900,6 +934,8 @@ import {
   formatDateTime,
   formatMoney as formatMoneyIn,
   nextDepartureStatus,
+  fromShopDateTimeInput,
+  toShopDateTimeInput,
 } from '@app/utils';
 import PageHeader from '@/components/PageHeader.vue';
 import HelpPanel, { type HelpItem } from '@/components/HelpPanel.vue';
@@ -1712,7 +1748,8 @@ function openEdit(d: Departure) {
   editId.value = d.id;
   Object.assign(form, {
     name: d.name,
-    order_cutoff_at: toInput(d.order_cutoff_at, true) ?? '',
+    // On the shop's clock, wherever the admin's browser is (audit 2026-11).
+    order_cutoff_at: toShopDateTimeInput(d.order_cutoff_at) ?? '',
     estimated_delivery_at: toInput(d.estimated_delivery_at, false),
     departure_at: toInput(d.departure_at, false),
     status: d.status,
@@ -1732,7 +1769,7 @@ async function submit() {
   dialogError.value = null;
   const payload: DepartureWrite = {
     name: form.name.trim(),
-    order_cutoff_at: toIso(form.order_cutoff_at) ?? '',
+    order_cutoff_at: fromShopDateTimeInput(form.order_cutoff_at) ?? '',
     estimated_delivery_at: toIso(form.estimated_delivery_at),
     departure_at: toIso(form.departure_at),
     status: form.status,

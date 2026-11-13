@@ -168,8 +168,8 @@ async def test_an_imported_article_counts_customs_in_its_cost(
             tax_rate_id=vat,
         ),
     )
-    # 100 € → 11 933,20 F, + 10 % de douane (assurance 0 %).
-    assert created.unit_cost_cached == Decimal("13126.52")
+    # 100 € → 11 933,20 F, + 10 % de douane (assurance 0 %) = 13 126,52 → 13 127 F.
+    assert created.unit_cost_cached == Decimal("13127")
     assert created.margin_cached is not None
     assert created.margin_cached > 0
 

@@ -281,17 +281,19 @@
               :label="submitLabel"
               class="checkout__submit"
               :loading="initiating"
-              :disable="
-                initiating ||
-                !cgvAccepted ||
-                (!selectedMethodId && !creditCoversEverything) ||
-                !selectedAddressId ||
-                (deliveryOptions.length > 0 && !selectedDelivery) ||
-                quoteLoading ||
-                !quote
-              "
+              :disable="initiating || payBlocker !== null"
+              :aria-describedby="payBlocker ? 'checkout-pay-blocker' : undefined"
               @click="startPayment"
             />
+            <p
+              v-if="payBlocker && !initiating"
+              id="checkout-pay-blocker"
+              class="checkout__blocker"
+              role="status"
+              data-testid="checkout-pay-blocker"
+            >
+              {{ payBlocker }}
+            </p>
             <p v-if="paysByCard" class="checkout__secure">
               <q-icon name="ph:lock-simple" size="14px" /> {{ $t('checkout.secure') }}
             </p>
@@ -304,11 +306,51 @@
             {{ $t('checkout.order_ref') }} <span class="font-mono">{{ placedOrderRef }}</span>
           </p>
           <div id="kr-smart-form-container" />
+          <AppNotice
+            v-if="smartFormFailed"
+            tone="error"
+            class="q-mt-md"
+            data-testid="checkout-card-form-failed"
+          >
+            {{ $t('checkout.card_form_failed') }}
+            <template #action>
+              <q-btn
+                flat
+                no-caps
+                color="primary"
+                :label="$t('checkout.card_form_retry')"
+                data-testid="checkout-card-form-retry"
+                @click="showSmartForm"
+              />
+            </template>
+          </AppNotice>
         </div>
       </div>
 
       <aside v-if="!orderPlaced" class="checkout__aside" :aria-label="$t('checkout.summary')">
-        <div class="app-panel summary">
+        <!-- Mobile (U3): the full recap came before step 1; a one-line total
+             opens it on demand. Desktop always shows it, beside the steps. -->
+        <button
+          type="button"
+          class="summary-toggle lt-md"
+          :aria-expanded="summaryOpen"
+          aria-controls="checkout-summary"
+          data-testid="checkout-summary-toggle"
+          @click="summaryOpen = !summaryOpen"
+        >
+          <span>{{ $t('checkout.summary') }}</span>
+          <span class="summary-toggle__total">
+            <span class="font-mono">{{
+              formatMoney(quote ? quote.total_amount : String(cartStore.totalAmount))
+            }}</span>
+            <q-icon :name="summaryOpen ? 'ph:caret-up' : 'ph:caret-down'" size="16px" />
+          </span>
+        </button>
+        <div
+          id="checkout-summary"
+          class="app-panel summary"
+          :class="{ 'summary--collapsed': !summaryOpen }"
+        >
           <h2 class="summary__title">{{ $t('checkout.summary') }}</h2>
           <ul class="summary__lines">
             <li v-for="{ item, product } in cartStore.detailedItems" :key="item.id">
@@ -482,6 +524,7 @@ import {
   confirmDocumentUploaded,
   issueDocumentUploadUrl,
   listMyPaymentMethods,
+  paymentReturnQuery,
   uploadFileToPresignedUrl,
   type PaymentMethod,
 } from '@/api/payments';
@@ -494,7 +537,7 @@ import {
   type CheckoutQuote,
 } from '@/api/cart';
 import { listMyAddresses, type Address } from '@/api/addresses';
-import { PENDING_PAYMENT_KEY, loadPayzenSmartForm } from '@/utils/payzen';
+import { PENDING_PAYMENT_KEY, loadPayzenSmartForm, type SmartFormOptions } from '@/utils/payzen';
 
 const cartStore = useCartStore();
 const authStore = useAuthStore();
@@ -520,6 +563,23 @@ const initiating = ref(false);
 const cgvAccepted = ref(false);
 const orderPlaced = ref(false);
 const formToken = ref<string | null>(null);
+/**
+ * The card form of the order just placed, kept to load it again (audit
+ * 2026-11): when PayZen's script failed to load, the order existed, the cart
+ * was emptied, and the customer was left with an error and nothing to click.
+ */
+const smartFormOptions = ref<SmartFormOptions | null>(null);
+const smartFormFailed = ref(false);
+
+async function showSmartForm(): Promise<void> {
+  if (!smartFormOptions.value) return;
+  smartFormFailed.value = false;
+  try {
+    await loadPayzenSmartForm(smartFormOptions.value);
+  } catch {
+    smartFormFailed.value = true;
+  }
+}
 const instructions = ref<string | null>(null);
 // PayPal : départ vers la page d'approbation après création de la commande.
 const redirecting = ref(false);
@@ -662,8 +722,16 @@ function clearDiscountCode() {
   void loadQuote();
 }
 
+/**
+ * Only the latest quote is shown (audit 2026-11, F2): changing the address
+ * then the payment method quickly, an older answer arriving last put wrong
+ * amounts in the recap and on « Payer X ».
+ */
+let latestQuote = 0;
+
 async function loadQuote() {
   if (!isAuthenticated.value) return;
+  const call = ++latestQuote;
   quoteLoading.value = true;
   try {
     const next = await getCheckoutQuote({
@@ -676,6 +744,7 @@ async function loadQuote() {
       quoteRequestId: quoteRequestId.value,
       useStoreCredit: useStoreCredit.value,
     });
+    if (call !== latestQuote) return;
     // A refused code is reported by the quote (the amounts stay valid
     // without it); it must not be sent to the checkout either.
     if (next.discount_error) discountCode.value = null;
@@ -691,6 +760,7 @@ async function loadQuote() {
       await loadMethods(basis);
     }
   } catch {
+    if (call !== latestQuote) return;
     // Le devis est indispensable : sans lui le bouton reste grisé et le
     // client voit le montant des articles seuls. Les moyens de paiement
     // restent proposés (sur le montant des articles) pour ne pas figer
@@ -700,7 +770,7 @@ async function loadQuote() {
       await loadMethods(cartStore.totalAmount);
     }
   } finally {
-    quoteLoading.value = false;
+    if (call === latestQuote) quoteLoading.value = false;
   }
 }
 
@@ -873,6 +943,27 @@ function stepNumber(step: 'plan' | 'payment'): number {
   if (quote.value?.deposit_available) n += 1;
   return n + 1;
 }
+
+/**
+ * Why « Payer » is not available yet, the first missing step first (audit
+ * 2026-11, U4): seven conditions greyed the button with no word on which.
+ */
+/** Mobile recap folded by default (U3); ignored on desktop. */
+const summaryOpen = ref(false);
+
+const payBlocker = computed<string | null>(() => {
+  if (!selectedAddressId.value) return t('checkout.blocker_address');
+  if (deliveryOptions.value.length > 0 && !selectedDelivery.value) {
+    return t('checkout.blocker_delivery');
+  }
+  if (!selectedMethodId.value && !creditCoversEverything.value) {
+    return t('checkout.blocker_method');
+  }
+  if (quoteLoading.value) return t('checkout.blocker_quote_loading');
+  if (!quote.value) return t('checkout.blocker_quote');
+  if (!cgvAccepted.value) return t('checkout.blocker_cgv');
+  return null;
+});
 
 const submitLabel = computed(() => {
   const q = quote.value;
@@ -1050,13 +1141,17 @@ async function startPayment() {
       // 3-D Secure often finishes in the bank's app or another browser, and the
       // customer then lands on the return page with an empty local store —
       // which used to greet a successful payment with "no pending transaction".
-      await loadPayzenSmartForm({
+      smartFormOptions.value = {
         serverUrl: checkout.server_url,
         publicKey: checkout.public_key,
         token: checkout.form_token,
-        returnUrl: `${returnUrl}?payment=${encodeURIComponent(checkout.payment_id)}`,
+        returnUrl: `${returnUrl}?${paymentReturnQuery(
+          checkout.payment_id,
+          checkout.payment_status_token,
+        )}`,
         language: locale.value,
-      });
+      };
+      await showSmartForm();
       return;
     }
 
@@ -1097,6 +1192,9 @@ async function startPayment() {
     const drifted = extractPriceDrift(err);
     if (drifted) {
       cartStore.applyServerPrices(drifted);
+      // The recap reads the quote: price it again, at the new prices (the
+      // server cart was updated with the refusal — audit 2026-11).
+      void loadQuote();
     }
     errorMessage.value = apiErrorMessage(err) ?? t('checkout.failed');
   } finally {
@@ -1354,6 +1452,12 @@ async function uploadDocument() {
   color: var(--n-ink-3);
 }
 
+.checkout__blocker {
+  margin: 0;
+  font-size: 13px;
+  color: var(--n-ink-2);
+}
+
 .checkout__card-form {
   max-width: 480px;
 }
@@ -1365,6 +1469,39 @@ async function uploadDocument() {
   @media (max-width: 1023px) {
     position: static;
     order: -1;
+  }
+}
+
+.summary-toggle {
+  width: 100%;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  font: inherit;
+  font-weight: 600;
+  color: var(--n-ink);
+  background: var(--n-paper);
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-radius);
+  cursor: pointer;
+}
+
+.summary-toggle__total {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+@media (max-width: 1023px) {
+  .summary {
+    margin-top: 8px;
+  }
+
+  .summary--collapsed {
+    display: none;
   }
 }
 

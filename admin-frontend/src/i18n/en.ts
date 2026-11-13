@@ -319,6 +319,8 @@ const en: MessageSchema = {
       "Blank = top level. A sub-category inherits the VAT, customs and margin its branch leaves unset; the storefront lists the parent with its sub-categories' products.",
   },
   common: {
+    page_previous: 'Previous page',
+    page_next: 'Next page',
     action_failed: 'Action failed.',
     active: 'Active',
     active_f: 'Enabled',
@@ -1116,6 +1118,7 @@ const en: MessageSchema = {
     theme_light: 'Light',
   },
   login: {
+    failed: 'Sign-in failed',
     administration: 'Administration',
     code: 'Verification code',
     code_required: 'Code required',
@@ -2119,6 +2122,8 @@ const en: MessageSchema = {
     scan: 'Scan this QR code with the app.',
     title: 'Account security',
     type_code: 'Type the 6-digit code shown by the app.',
+    email_step: "A confirmation code was just sent to your account's address: type it too.",
+    email_code: 'Code received by e-mail',
   },
   settings: {
     by: 'by {email}',
@@ -2265,6 +2270,7 @@ const en: MessageSchema = {
     title: 'Supplier orders',
   },
   suppliers: {
+    import_rows: 'Rows',
     a_basic: 'HTTP authentication (basic)',
     a_form: 'Login form + cookies',
     a_none: 'None (direct link)',

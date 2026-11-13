@@ -8,6 +8,7 @@ from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.alerting import send_alert
 from app.features.base.crud import RecordNotFoundError
 from app.features.inventory.services.stock_release import (
     confirm_order_stock,
@@ -15,6 +16,7 @@ from app.features.inventory.services.stock_release import (
 )
 from app.features.invoice.services.credit_note_service import (
     CreditNoteIssuanceError,
+    InvoiceNotIssuedError,
     issue_credit_note_for_refund,
 )
 from app.features.invoice.services.invoice_service import issue_invoice_for_order
@@ -37,6 +39,9 @@ from app.features.payment.services.deposit import (
     ORDER_STATUS_DEPOSIT_PAID,
 )
 from app.features.payment.services.gift_cards import issue_for_order
+from app.features.payment.services.gift_cards import (
+    revoke_for_refund as revoke_gift_cards_for_refund,
+)
 from app.features.payment.services.loyalty import earn_for_order, revoke_for_refund
 from app.features.payment.services.notifications import (
     send_payment_event_notifications,
@@ -59,6 +64,13 @@ ORDER_STATUS_PARTIALLY_PAID = "PartiallyPaid"
 _BEFORE_PAYMENT_ORDER_STATUSES: frozenset[str] = frozenset(
     {"Pending", "AwaitingPayment", "PartiallyPaid", "PaymentFailed"}
 )
+#: Statuses a settled payment moves to « Paid » / « DepositPaid ». An order
+#: already paid, or on its way, keeps its status: the capture of an
+#: authorisation at the shipment (``InTransit``) used to send it back to
+#: « Paid » (audit 2026-11, B6).
+_ADVANCE_ON_PAYMENT_ORDER_STATUSES: frozenset[str] = _BEFORE_PAYMENT_ORDER_STATUSES | {
+    "PaymentReview"
+}
 # Terminal-for-automation status: money was taken but the amounts disagree, so a
 # human must decide. Never set by the nominal flow — see
 # ``_handle_captured_amount_mismatch``.
@@ -153,7 +165,12 @@ async def _sync_order_status(
         )
         return
 
-    order = await crud_order.read(session, id=order_uuid)
+    # crud_order.read raises on a missing row (the `is None` test never ran,
+    # and the handler failed and retried forever instead — audit 2026-11).
+    try:
+        order = await crud_order.read(session, id=order_uuid)
+    except RecordNotFoundError:
+        order = None
     if order is None:
         logger.warning(
             "Order %s not found while syncing status %s",
@@ -321,6 +338,67 @@ async def _handle_captured_amount_mismatch(
     )
 
 
+async def _advance_order_on_payment(
+    session: AsyncSession,
+    *,
+    payload: dict[str, Any],
+    order: Order | None,
+    kind: str,
+) -> None:
+    """« Paid » (or « DepositPaid ») — only from a status before payment."""
+    if order is not None:
+        current = await session.get(OrderStatus, order.order_status_id)
+        if (
+            current is not None
+            and current.name not in _ADVANCE_ON_PAYMENT_ORDER_STATUSES
+        ):
+            logger.info(
+                "Order %s kept in %s on payment %s",
+                order.id,
+                current.name,
+                payload.get("payment_id"),
+            )
+            return
+    await _sync_order_status(
+        session,
+        payload=payload,
+        target_status_name=(
+            ORDER_STATUS_DEPOSIT_PAID if kind == KIND_DEPOSIT else ORDER_STATUS_PAID
+        ),
+    )
+
+
+@outbox_handler("payment.authorized")
+async def on_payment_authorized(session: AsyncSession, payload: dict[str, Any]) -> None:
+    """A card authorised, its capture deferred (``PAYZEN_MANUAL_VALIDATION``).
+
+    The order is secured: it moves to « Paid » (« DepositPaid ») like on a
+    capture, so the sweep leaves its reservation alone and it follows its
+    departure up to the step that captures it. Nothing is consumed yet: the
+    stock is confirmed, the invoice and the gift cards issued, when
+    ``payment.captured`` arrives (audit 2026-11, B3).
+    """
+    logger.info(
+        "Payment authorized: payment_id=%s order_id=%s",
+        payload.get("payment_id"),
+        payload.get("order_id"),
+    )
+    mismatch = await _captured_amount_mismatch(session, payload=payload)
+    if mismatch == PARTIAL:
+        return
+    if isinstance(mismatch, dict):
+        await _handle_captured_amount_mismatch(
+            session, payload=payload, mismatch=mismatch
+        )
+        return
+    payment, order = await _load_payment_and_order(session, payload)
+    kind = _payment_kind(payment)
+    if kind == KIND_BALANCE:
+        # The deposit already secured the order; the capture settles it.
+        return
+    await _advance_order_on_payment(session, payload=payload, order=order, kind=kind)
+
+
 @outbox_handler("payment.captured")
 async def on_payment_captured(session: AsyncSession, payload: dict[str, Any]) -> None:
     """Handle the payment captured event."""
@@ -356,13 +434,7 @@ async def on_payment_captured(session: AsyncSession, payload: dict[str, Any]) ->
             )
         await session.commit()
         return
-    await _sync_order_status(
-        session,
-        payload=payload,
-        target_status_name=(
-            ORDER_STATUS_DEPOSIT_PAID if kind == KIND_DEPOSIT else ORDER_STATUS_PAID
-        ),
-    )
+    await _advance_order_on_payment(session, payload=payload, order=order, kind=kind)
     # The stock reserved at checkout is now definitively consumed.
     order_id = _parse_order_id(payload)
     if order_id is not None:
@@ -553,6 +625,22 @@ async def on_payment_refunded(session: AsyncSession, payload: dict[str, Any]) ->
             session, order_id=refund_order_id, refunded=refunded, fully=fully
         ):
             await session.commit()
+        # The gift cards it issued go back too (audit 2026-11, S6).
+        revocation = await revoke_gift_cards_for_refund(
+            session, order_id=refund_order_id, fully=fully
+        )
+        refunded_order = await session.get(Order, refund_order_id)
+        message = revocation.alert(
+            str(
+                (refunded_order.order_number if refunded_order else None)
+                or refund_order_id
+            )
+        )
+        if revocation.changed:
+            await session.commit()
+        if message:
+            logger.error("%s", message)
+            await send_alert(message, source="gift_cards")
     # Only a *fully* refunded order gives its stock back, and only the
     # reservations still PENDING. A captured payment has already confirmed its
     # movements (COMPLETED), so this is a no-op on the normal flow — it exists
@@ -571,6 +659,30 @@ async def on_payment_refunded(session: AsyncSession, payload: dict[str, Any]) ->
                 order_id,
                 released,
             )
+
+
+async def _order_was_captured(session: AsyncSession, payload: dict[str, Any]) -> bool:
+    """Whether a capture of the refunded order was published (its invoice
+    follows it). A « Refunded » payment status alone does not say so: an
+    authorisation can be refunded without ever being captured."""
+    from sqlmodel import col, select
+
+    from app.outbox.models import OutboxEvent
+
+    order_id = _parse_order_id(payload)
+    if order_id is None:
+        return False
+    row = (
+        await session.exec(
+            select(OutboxEvent.id)
+            .where(
+                col(OutboxEvent.type) == "payment.captured",
+                col(OutboxEvent.payload)["order_id"].as_string() == str(order_id),
+            )
+            .limit(1)
+        )
+    ).first()
+    return row is not None
 
 
 @outbox_handler("payment.refunded")
@@ -600,6 +712,16 @@ async def on_payment_refunded_issue_credit_note(
 
     try:
         credit_note = await issue_credit_note_for_refund(session, refund_id=refund_id)
+    except InvoiceNotIssuedError as exc:
+        # A refund right after the capture can overtake the invoice, issued
+        # asynchronously: when the order was captured the invoice is coming,
+        # so the job fails and is retried — the credit note used to be lost
+        # (audit 2026-11). Never captured (authorise then refund): nothing
+        # was invoiced, nothing to correct.
+        if await _order_was_captured(session, payload):
+            raise RuntimeError(f"credit note waits for the invoice: {exc}") from exc
+        logger.info("No credit note for refund %s: %s", refund_id, exc)
+        return
     except CreditNoteIssuanceError as exc:
         # An order refunded before it was ever invoiced has nothing to correct;
         # retrying would never succeed, so log loudly and stop.

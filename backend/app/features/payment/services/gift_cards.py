@@ -6,6 +6,7 @@ from __future__ import annotations
 import logging
 import secrets
 import uuid
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
@@ -369,6 +370,97 @@ async def issue_for_order(
     )
     logger.info("Order %s: %d gift card(s) issued", order_id, len(cards))
     return cards
+
+
+@dataclass
+class RefundRevocation:
+    """What a refund did to the gift cards of its order."""
+
+    cancelled: list[GiftCard] = field(default_factory=list)
+    #: Redeemed cards whose store credit was taken back (in full or in part).
+    reclaimed: Decimal = Decimal(0)
+    #: Store credit already spent: what could not be taken back, to recover
+    #: by hand (one line per card).
+    shortfalls: list[str] = field(default_factory=list)
+    #: Partial refund of an order carrying cards: left to the admin.
+    to_review: list[GiftCard] = field(default_factory=list)
+
+    @property
+    def changed(self) -> bool:
+        return bool(self.cancelled) or self.reclaimed > 0
+
+    def alert(self, order_label: str) -> str | None:
+        """The message for the admin, when there is something to do by hand."""
+        lines: list[str] = []
+        if self.shortfalls:
+            lines.append(
+                f"Commande {order_label} remboursée : avoir de cartes cadeaux "
+                "déjà dépensé, à récupérer manuellement — "
+                + " ; ".join(self.shortfalls)
+            )
+        if self.to_review:
+            codes = ", ".join(mask_code(c.code) for c in self.to_review)
+            lines.append(
+                f"Commande {order_label} remboursée en partie : elle a émis des "
+                f"cartes cadeaux ({codes}). À annuler dans « Cartes cadeaux » si "
+                "le remboursement les concerne."
+            )
+        return "\n".join(lines) or None
+
+
+async def revoke_for_refund(
+    session: AsyncSession, *, order_id: uuid.UUID, fully: bool
+) -> RefundRevocation:
+    """Take back the gift cards a refunded order issued (audit 2026-11, S6).
+
+    Full refund: an unredeemed card is cancelled; a redeemed one has its store
+    credit taken back from the holder, within their balance (what was already
+    spent is reported for the admin) and is then cancelled too. A partial
+    refund does not say which lines it covers: the cards are only listed for
+    the admin. Idempotent (a cancelled card is skipped); flushes, no commit.
+    """
+    outcome = RefundRevocation()
+    cards = (
+        await session.exec(
+            select(GiftCard)
+            .where(col(GiftCard.order_id) == order_id, col(GiftCard.is_active))
+            .order_by(col(GiftCard.created_at))
+            .with_for_update()
+        )
+    ).all()
+    if not cards:
+        return outcome
+    if not fully:
+        outcome.to_review = list(cards)
+        return outcome
+    for card in cards:
+        if card.redeemed_at is not None and card.redeemed_by_id is not None:
+            await store_credit.lock_wallet(session, card.redeemed_by_id)
+            available = await store_credit.balance(session, card.redeemed_by_id)
+            take = min(Decimal(card.amount), max(available, Decimal(0)))
+            if take > 0:
+                await store_credit.grant(
+                    session,
+                    user_id=card.redeemed_by_id,
+                    amount=-take,
+                    reason=f"Carte cadeau {mask_code(card.code)} remboursée",
+                    currency=card.currency,
+                    order_id=order_id,
+                    admin=None,
+                )
+                outcome.reclaimed += take
+            missing = Decimal(card.amount) - take
+            if missing > 0:
+                outcome.shortfalls.append(
+                    f"{mask_code(card.code)} : {missing} {card.currency} "
+                    f"(compte {card.redeemed_by_id})"
+                )
+        else:
+            outcome.cancelled.append(card)
+        card.is_active = False
+        session.add(card)
+    await session.flush()
+    return outcome
 
 
 async def cards_of_entry(

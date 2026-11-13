@@ -65,13 +65,21 @@ def eligible_lines(
     category_ancestors: dict[uuid.UUID, tuple[uuid.UUID, ...]] | None = None,
 ) -> list[Any]:
     """Cart lines the discount's target covers. ``category_ancestors`` (category
-    → its ancestors) lets a code on « Réseau » cover the WiFi access points."""
+    → its ancestors) lets a code on « Réseau » cover the WiFi access points.
+
+    Gift cards are never covered (audit 2026-11, S3): a card bought 20 % off
+    is still issued at its face value, so a code on it would turn into store
+    credit, again and again.
+    """
     target = discount.target
-    if target == DiscountTarget.ORDER:
-        return list(items)
     out = []
     for item in items:
         product = products_by_id.get(item.product_id)
+        if product is not None and getattr(product, "gift_card_amount", None):
+            continue
+        if target == DiscountTarget.ORDER:
+            out.append(item)
+            continue
         if product is None:
             continue
         if target == DiscountTarget.PRODUCT and product.id == discount.product_id:

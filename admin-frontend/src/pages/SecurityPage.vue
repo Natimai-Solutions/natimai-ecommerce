@@ -72,6 +72,7 @@
                   <span class="font-mono setup__secret">{{ groupedSecret }}</span>
                 </li>
                 <li>{{ $t('security.type_code') }}</li>
+                <li>{{ $t('security.email_step') }}</li>
               </ol>
               <q-form class="row items-start" style="gap: 8px" @submit.prevent="onConfirm">
                 <q-input
@@ -84,6 +85,16 @@
                   style="max-width: 180px"
                   data-testid="2fa-code"
                 />
+                <q-input
+                  v-model="emailCode"
+                  :label="$t('security.email_code')"
+                  outlined
+                  dense
+                  inputmode="numeric"
+                  autocomplete="off"
+                  style="max-width: 180px"
+                  data-testid="2fa-email-code"
+                />
                 <q-btn
                   type="submit"
                   color="primary"
@@ -91,7 +102,7 @@
                   no-caps
                   :label="$t('security.confirm')"
                   :loading="busy"
-                  :disable="!code.trim()"
+                  :disable="!code.trim() || !emailCode.trim()"
                   data-testid="2fa-confirm"
                 />
               </q-form>
@@ -221,6 +232,7 @@ const status = ref<TwoFactorStatus | null>(null);
 const setup = ref<TwoFactorSetup | null>(null);
 const recoveryCodes = ref<string[]>([]);
 const code = ref('');
+const emailCode = ref('');
 const password = ref('');
 const loading = ref(false);
 const busy = ref(false);
@@ -278,14 +290,16 @@ function onStart() {
   void run(async () => {
     setup.value = await startTwoFactorSetup();
     code.value = '';
+    emailCode.value = '';
   }, t('security.gen_failed'));
 }
 
 function onConfirm() {
   void run(async () => {
-    recoveryCodes.value = await confirmTwoFactor(code.value.trim());
+    recoveryCodes.value = await confirmTwoFactor(code.value.trim(), emailCode.value.trim());
     setup.value = null;
     code.value = '';
+    emailCode.value = '';
     notice.value = t('security.enabled');
     await load();
   }, t('security.code_refused'));

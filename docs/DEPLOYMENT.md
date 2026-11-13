@@ -67,6 +67,8 @@ random fallback still applies, with a warning.
 | `PROJECT_NAME` | `FastAPI Ecommerce` | Used as default email "from" name |
 | `SHOP_NAME` | `Natimai` | Storefront brand name |
 | `FRONTEND_HOST` | `http://localhost:5173` | Public storefront URL (CORS + email links) |
+| `OUTBOUND_WEBHOOK_ALLOWED_HOSTS` | Make, Zapier, Slack, IFTTT, Discord | Hosts the outbound webhook of the departure reminders may reach (exact names, comma-separated); any other is refused, on top of the public-address check. |
+| `ADMIN_FRONTEND_HOST` | — | Public back-office URL (`https://admin.<DOMAIN>`). An administrator's session is refreshed from this origin only, so a script injected in the storefront cannot obtain it. Empty = no check (warned outside `local`). **Set it in production.** |
 | `BACKEND_CORS_ORIGINS` | `[]` | Extra CORS origins (comma list or JSON array) |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `15` | Access token TTL — do **not** increase |
 | `REFRESH_TOKEN_EXPIRE_DAYS` | `30` | Refresh token TTL |
@@ -95,7 +97,7 @@ random fallback still applies, with a warning.
 |----------|---------|-------------|
 | `REDIS_SERVER` | `redis` | Redis host |
 | `REDIS_PORT` | `6379` | Redis port |
-| `REDIS_USER` / `REDIS_PASSWORD` | — | Auth (if Redis requires it) |
+| `REDIS_USER` / `REDIS_PASSWORD` | — | `REDIS_PASSWORD` set: the compose starts Redis with `requirepass` and every process sends it (user optional). Empty = no password, internal network only (warned outside `local`). **Recommended in production.** |
 
 ### 3.3 Email (transactional)
 
@@ -465,8 +467,9 @@ widget adds it); the API verifies it at
 the widget at <https://dash.cloudflare.com/?to=/:account/turnstile> with the
 shop's bare domain; the storefront CSP already allows
 `challenges.cloudflare.com`. Leave both keys empty for no captcha.
-| `LOGIN_LOCKOUT_MAX_FAILURES` | `5` | Consecutive wrong passwords before the account locks |
-| `LOGIN_LOCKOUT_MINUTES` | `15` | Account lock duration |
+| `LOGIN_LOCKOUT_MAX_FAILURES` | `5` | Wrong passwords from one address before that address is locked out of the account (the owner, elsewhere, still signs in) |
+| `LOGIN_LOCKOUT_MINUTES` | `15` | Lock duration (per address, and account-wide) |
+| `LOGIN_ACCOUNT_LOCKOUT_MAX_FAILURES` | `50` | Consecutive failures from any addresses before the account itself locks (distributed brute force); a password reset lifts it |
 
 ---
 
@@ -610,11 +613,13 @@ POSTGRES_USER=postgres
 POSTGRES_PASSWORD=replace-with-strong-password
 POSTGRES_DB=fastapi_ecommerce
 REDIS_SERVER=redis
+REDIS_PASSWORD=replace-with-strong-password
 FIRST_SUPERUSER=admin@example.com
 FIRST_SUPERUSER_PASSWORD=replace-with-strong-password
 
 # --- URLs / CORS ---
 FRONTEND_HOST=https://shop.example.com
+ADMIN_FRONTEND_HOST=https://admin.example.com
 BACKEND_CORS_ORIGINS=https://shop.example.com,https://admin.example.com
 # Public API origin baked into the frontends at `docker compose build`
 VITE_API_URL=https://api.example.com
@@ -872,6 +877,7 @@ no third-party script) runs with `script-src 'self'`. Images may come from any
 2. **Root `.env`** — `DOMAIN=example.com` and `ACME_EMAIL=<contact>`.
 3. **Consistent public URLs** (see §3.1, §3.4, §4):
    - `FRONTEND_HOST=https://example.com`
+   - `ADMIN_FRONTEND_HOST=https://admin.example.com`
    - `BACKEND_CORS_ORIGINS=https://example.com,https://admin.example.com`
    - `OAUTH_REDIRECT_BASE_URL=https://api.example.com` (if OAuth is enabled)
    - `FRONTEND_OAUTH_REDIRECT_URL=https://example.com/oauth/callback`

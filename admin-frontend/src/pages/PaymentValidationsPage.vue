@@ -253,6 +253,7 @@
               </q-item-section>
               <q-item-section side>
                 <q-btn
+                  :aria-label="$t('payments.download')"
                   flat
                   round
                   dense

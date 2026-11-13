@@ -159,13 +159,28 @@
       <template #body-cell-actions="props">
         <q-td :props="props" align="right" class="no-wrap">
           <template v-if="!props.row.merged_into_id">
-            <q-btn flat round dense icon="ph:pencil-simple" @click="openEdit(props.row)">
+            <q-btn
+              :aria-label="$t('categories.edit')"
+              flat
+              round
+              dense
+              icon="ph:pencil-simple"
+              @click="openEdit(props.row)"
+            >
               <q-tooltip>{{ $t('categories.edit') }}</q-tooltip>
             </q-btn>
-            <q-btn flat round dense icon="ph:git-merge" @click="openMerge(props.row)">
+            <q-btn
+              :aria-label="$t('categories.merge_into')"
+              flat
+              round
+              dense
+              icon="ph:git-merge"
+              @click="openMerge(props.row)"
+            >
               <q-tooltip>{{ $t('categories.merge_into') }}</q-tooltip>
             </q-btn>
             <q-btn
+              :aria-label="props.row.is_active ? $t('categories.disable') : $t('categories.enable')"
               flat
               round
               dense

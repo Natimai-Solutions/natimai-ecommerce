@@ -73,6 +73,16 @@ const RULES: Rule[] = [
     why: 'point de rupture hors échelle Quasar (599/600, 1023/1024, 1439/1440 px)',
     pattern: /@media[^{]*-width:\s*(?!(?:599|600|1023|1024|1439|1440)px)\d+px/,
   },
+  {
+    why: 'attribut statique qui contient $t( : le texte part tel quel (lecteur d\'écran compris) ; lier l\'attribut avec « : »',
+    // `aria-label="$t('x')"` sans « : » : Vue ne l'évalue pas (audit 2026-11, U1).
+    pattern: /(?:^|\s)(?!v-)[a-z][\w-]*="[^"]*\$t\(/,
+  },
+  {
+    why: "message d'erreur brut (« Request failed with status code … ») : extractApiError / apiErrorMessage, puis un repli traduit",
+    // Audit 2026-11, U2 : l'enveloppe { error: { message } } de l'API était ignorée.
+    pattern: /instanceof Error \? \w+\.message :/,
+  },
 ];
 
 describe('interface : jetons, couleurs et points de rupture', () => {

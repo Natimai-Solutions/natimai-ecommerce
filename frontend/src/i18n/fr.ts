@@ -268,6 +268,15 @@ const fr = {
       "Votre avoir couvre la totalité du montant à régler maintenant : aucun paiement n'est nécessaire.",
     cgv_accept: "J'ai lu et j'accepte les",
     cgv_link: 'conditions générales de vente',
+    blocker_address: 'Choisissez une adresse de livraison pour continuer.',
+    blocker_delivery: 'Choisissez un mode de livraison pour continuer.',
+    blocker_method: 'Choisissez un moyen de paiement pour continuer.',
+    blocker_quote_loading: 'Calcul du montant en cours…',
+    blocker_quote: "Le montant n'a pas pu être calculé : vérifiez vos choix ou réessayez.",
+    blocker_cgv: 'Acceptez les conditions générales de vente pour payer.',
+    card_form_failed:
+      "Le formulaire de paiement n'a pas pu s'afficher. Votre commande est enregistrée : réessayez, ou payez-la plus tard depuis « Mes commandes ».",
+    card_form_retry: 'Réessayer',
     secure:
       "Paiement par carte chiffré, géré par notre banque. Aucune donnée de carte n'est conservée sur ce site.",
     summary: 'Récapitulatif',
@@ -365,6 +374,8 @@ const fr = {
     cart_email: 'Veuillez renseigner un email client valide.',
     cart_empty: 'Le panier est vide.',
     unknown: 'Erreur inconnue',
+    catalogue_unavailable:
+      'Le catalogue est momentanément indisponible. Réessayez dans un instant.',
   },
   catalogue: {
     categories: 'Catégories',
@@ -574,6 +585,9 @@ const fr = {
     yours: 'Votre groupe tarifaire',
   },
   home: {
+    unavailable: 'La boutique est momentanément indisponible.',
+    retry: 'Réessayer',
+    dismiss: 'Fermer',
     add_failed: "Impossible d'ajouter cet article au panier.",
     all: 'Tout le catalogue',
     categories: 'Catégories',

@@ -7,7 +7,7 @@
           flat
           round
           icon="ph:list"
-          aria-label="$t('layout.menu')"
+          :aria-label="$t('layout.menu')"
           class="lt-md app-header__icon"
           @click="toggleDrawer"
         />
@@ -47,9 +47,15 @@
               :placeholder="$t('layout.search_placeholder')"
               autocomplete="off"
               class="search-field__input"
+              role="combobox"
+              aria-autocomplete="list"
+              aria-controls="suggest-desktop"
+              :aria-expanded="desktopSuggest?.expanded ?? false"
+              :aria-activedescendant="desktopSuggest?.activeId"
               @focus="searchFocused = 'desktop'"
               @blur="searchFocused = null"
               @keydown.esc="searchFocused = null"
+              @keydown="desktopSuggest?.handleKey($event)"
             />
             <!-- Rappel du raccourci clavier « / » : infobulle au survol,
                  masqué sur les écrans tactiles ou étroits où il n'a pas de sens. -->
@@ -63,6 +69,8 @@
             >
             <SearchSuggestions
               :query="searchText"
+              ref="desktopSuggest"
+              listbox-id="suggest-desktop"
               :open="searchFocused === 'desktop'"
               @picked="closeSuggestions"
               @submit="submitSearch"
@@ -167,12 +175,20 @@
             :placeholder="$t('layout.search_placeholder')"
             autocomplete="off"
             class="search-field__input"
+            role="combobox"
+            aria-autocomplete="list"
+            aria-controls="suggest-mobile"
+            :aria-expanded="mobileSuggest?.expanded ?? false"
+            :aria-activedescendant="mobileSuggest?.activeId"
             @focus="searchFocused = 'mobile'"
             @blur="searchFocused = null"
             @keydown.esc="searchFocused = null"
+            @keydown="mobileSuggest?.handleKey($event)"
           />
           <SearchSuggestions
             :query="searchText"
+            ref="mobileSuggest"
+            listbox-id="suggest-mobile"
             :open="searchFocused === 'mobile'"
             @picked="closeSuggestions"
             @submit="submitSearch"
@@ -283,6 +299,9 @@ const cartStore = useCartStore();
 const authStore = useAuthStore();
 const currencyStore = useCurrencyStore();
 const route = useRoute();
+/** The header's two search fields drive their suggestions by keyboard (U7). */
+const desktopSuggest = ref<InstanceType<typeof SearchSuggestions> | null>(null);
+const mobileSuggest = ref<InstanceType<typeof SearchSuggestions> | null>(null);
 const departureStore = useDepartureStore();
 const router = useRouter();
 const cartCount = computed(() => cartStore.totalItems);

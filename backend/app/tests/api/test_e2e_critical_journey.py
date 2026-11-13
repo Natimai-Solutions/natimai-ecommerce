@@ -115,6 +115,16 @@ class InMemorySession:
     async def rollback(self) -> None:
         return
 
+    def begin_nested(self) -> Any:
+        """The checkout links tracking inside a savepoint."""
+        import contextlib
+
+        @contextlib.asynccontextmanager
+        async def _savepoint() -> Any:
+            yield self
+
+        return _savepoint()
+
 
 @pytest.fixture
 def e1_state() -> E1State:

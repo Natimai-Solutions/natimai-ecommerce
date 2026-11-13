@@ -52,7 +52,10 @@ const page = ref<ContentPage | null>(null);
 const loading = ref(true);
 /** Served in the shop's default language although the interface is in another one. */
 const frenchOnly = computed(
-  () => page.value !== null && (page.value.lang ?? 'fr') !== locale.value,
+  // The built-in fallback text (legal pages) is French too: say so in any
+  // other language, not only for a page written in the back-office (audit
+  // 2026-11).
+  () => (page.value === null ? 'fr' : (page.value.lang ?? 'fr')) !== locale.value,
 );
 
 async function fetchPage(slug: string): Promise<ContentPage | null> {

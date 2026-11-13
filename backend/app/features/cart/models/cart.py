@@ -193,11 +193,18 @@ class CartItemsPublic(SQLModel):
     count: int = Field(default=0, description="Total number of cart items")
 
 
+#: Units of one product per cart line (audit 2026-11): an unbounded quantity
+#: overflowed the integer column and the price arithmetic (500).
+MAX_LINE_QUANTITY = 999
+
+
 class CartItemAddRequest(SQLModel):
     """Represents cart item add request."""
 
     product_id: uuid.UUID = Field(description="ID of the product to add")
-    quantity: int = Field(default=1, ge=1, description="Quantity to add")
+    quantity: int = Field(
+        default=1, ge=1, le=MAX_LINE_QUANTITY, description="Quantity to add"
+    )
 
 
 class CartReplaceRequest(SQLModel):
@@ -218,7 +225,7 @@ class CartReplaceRequest(SQLModel):
 class CartItemQuantityUpdateRequest(SQLModel):
     """Represents cart item quantity update request."""
 
-    quantity: int = Field(ge=1, description="New quantity")
+    quantity: int = Field(ge=1, le=MAX_LINE_QUANTITY, description="New quantity")
 
 
 class CartItemDetail(SQLModel):
@@ -407,6 +414,9 @@ class CheckoutResponse(DepositTerms):
     # affiche la date de clôture / livraison estimée sans second appel.
     grouped_departure_id: uuid.UUID | None = None
     payment_id: uuid.UUID
+    #: Reads the payment's status from the return page without a session
+    #: (3-D Secure finished in another browser): ``GET /payments/status/{id}``.
+    payment_status_token: str | None = None
     cart_id: uuid.UUID
     subtotal_amount: Decimal
     discount_code: str | None = None

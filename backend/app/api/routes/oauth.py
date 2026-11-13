@@ -340,7 +340,7 @@ def _build_token_bundle(
         user_id, expires_delta=access_token_expires, stamp=stamp
     )
     refresh_tok = security.create_refresh_token(
-        user_id, expires_delta=refresh_token_expires, jti=refresh_jti
+        user_id, expires_delta=refresh_token_expires, jti=refresh_jti, stamp=stamp
     )
     refresh_expires_at = datetime.now(UTC) + refresh_token_expires
     return access_tok, refresh_tok, refresh_jti, refresh_expires_at

@@ -112,6 +112,7 @@
       <template #body-cell-actions="props">
         <q-td :props="props" align="right">
           <q-btn
+            :aria-label="$t('suppliers.import_tip')"
             flat
             round
             dense
@@ -123,6 +124,7 @@
             <q-tooltip>{{ $t('suppliers.import_tip') }}</q-tooltip>
           </q-btn>
           <q-btn
+            :aria-label="$t('suppliers.sync_tip')"
             v-if="props.row.kind === 'api'"
             flat
             round
@@ -135,6 +137,7 @@
             <q-tooltip>{{ $t('suppliers.sync_tip') }}</q-tooltip>
           </q-btn>
           <q-btn
+            :aria-label="$t('suppliers.test_tip')"
             v-if="props.row.kind === 'api'"
             flat
             round
@@ -146,6 +149,7 @@
             <q-tooltip>{{ $t('suppliers.test_tip') }}</q-tooltip>
           </q-btn>
           <q-btn
+            :aria-label="$t('suppliers.categories_tip')"
             v-if="props.row.kind !== 'manual'"
             flat
             round
@@ -157,6 +161,7 @@
             <q-tooltip>{{ $t('suppliers.categories_tip') }}</q-tooltip>
           </q-btn>
           <q-btn
+            :aria-label="$t('suppliers.allowlist_title_tip')"
             v-if="props.row.kind !== 'manual'"
             flat
             round
@@ -168,10 +173,18 @@
           >
             <q-tooltip>{{ $t('suppliers.allowlist_title_tip') }}</q-tooltip>
           </q-btn>
-          <q-btn flat round dense icon="ph:pencil-simple" @click="openEdit(props.row)">
+          <q-btn
+            :aria-label="$t('common.edit')"
+            flat
+            round
+            dense
+            icon="ph:pencil-simple"
+            @click="openEdit(props.row)"
+          >
             <q-tooltip>{{ $t('common.edit') }}</q-tooltip>
           </q-btn>
           <q-btn
+            :aria-label="$t('suppliers.disable_tip')"
             v-if="props.row.is_active"
             flat
             round
@@ -184,6 +197,7 @@
             <q-tooltip>{{ $t('suppliers.disable_tip') }}</q-tooltip>
           </q-btn>
           <q-btn
+            :aria-label="$t('suppliers.enable_tip')"
             v-else
             flat
             round
@@ -934,7 +948,7 @@
                 :pairs="importResult.category_pairs"
                 :categories="categories"
                 :saving="categoriesSaving"
-                count-label="Lignes"
+                :count-label="$t('suppliers.import_rows')"
                 @save="saveImportRules"
               />
             </q-expansion-item>
@@ -1302,8 +1316,7 @@ async function submitForm() {
     formDialog.value = false;
     await load();
   } catch (err) {
-    dialogError.value =
-      extractApiError(err) ?? (err instanceof Error ? err.message : t('common.save_failed'));
+    dialogError.value = extractApiError(err) ?? t('common.save_failed');
   } finally {
     saving.value = false;
   }
