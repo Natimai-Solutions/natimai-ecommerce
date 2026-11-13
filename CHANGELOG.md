@@ -330,6 +330,10 @@ takes a tag as its `ref`.
   the invoice, the credit note and the margin (the margin rounded to the
   cent in XPF). Stored prices move by less than one franc at the next
   nightly price refresh (`refresh_sale_prices`), or at once from the admin.
+- Security: the outbound webhook (departure reminders) only reaches the
+  hosts of the new `OUTBOUND_WEBHOOK_ALLOWED_HOSTS` (default: Make, Zapier,
+  Slack, IFTTT, Discord); the request is rebuilt on the allow-list entry,
+  and the public-address check stays. Extend the list for another service.
 - Storefront (U1): the mobile menu button announced `$t('layout.menu')`
   literally to screen readers; the design guard now rejects a static
   attribute containing `$t(`.

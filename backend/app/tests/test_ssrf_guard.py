@@ -8,7 +8,8 @@ import httpx
 import pytest
 
 from app.core import ssrf
-from app.core.webhook import post_json
+from app.core.config import settings
+from app.core.webhook import allowed_webhook_url, post_json
 
 
 @pytest.mark.parametrize(
@@ -42,10 +43,44 @@ async def test_the_feed_transport_never_dials_a_private_address() -> None:
 
 
 @pytest.mark.asyncio
-async def test_the_outbound_webhook_never_reaches_the_internal_network() -> None:
-    delivered, error = await post_json("https://localhost:9/hook", {"x": 1})
+async def test_the_outbound_webhook_never_reaches_the_internal_network(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Even an allow-listed name resolving to a private address is refused.
+    monkeypatch.setattr(settings, "OUTBOUND_WEBHOOK_ALLOWED_HOSTS", ["localhost"])
+    delivered, error = await post_json("https://localhost/hook", {"x": 1})
     assert delivered is False
     assert error is not None and "privé" in error
+
+
+@pytest.mark.parametrize(
+    ("typed", "expected"),
+    [
+        (
+            "https://hooks.zapier.com/hooks/catch/1/abc/?x=1",
+            "https://hooks.zapier.com/hooks/catch/1/abc/?x=1",
+        ),
+        ("https://HOOK.EU1.MAKE.COM/abc", "https://hook.eu1.make.com/abc"),
+        ("http://hooks.zapier.com/x", None),  # https only
+        ("https://evil.test/x", None),  # not allow-listed
+        ("https://hooks.zapier.com.evil.test/x", None),  # suffix trick
+        ("https://user:pw@hooks.zapier.com/x", None),  # credentials
+        ("https://hooks.zapier.com:8443/x", None),  # other port
+        ("https://169.254.169.254/latest/meta-data", None),
+    ],
+)
+def test_the_webhook_url_must_be_on_an_allowed_host(
+    typed: str, expected: str | None
+) -> None:
+    """Audit 2026-11 / CodeQL: the request is rebuilt on the allow-list entry."""
+    assert allowed_webhook_url(typed) == expected
+
+
+@pytest.mark.asyncio
+async def test_a_refused_webhook_sends_nothing() -> None:
+    delivered, error = await post_json("https://evil.test/hook", {"x": 1})
+    assert delivered is False
+    assert error is not None and "OUTBOUND_WEBHOOK_ALLOWED_HOSTS" in error
 
 
 @pytest.mark.asyncio

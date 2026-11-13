@@ -128,6 +128,24 @@ class Settings(BaseSettings):
         list[AnyUrl] | str, BeforeValidator(parse_cors)
     ] = []
 
+    # Hosts the outbound webhook (departure reminders: Make, Zapier, Slack…)
+    # may reach, exact names, comma-separated. Anything else is refused
+    # before any request, on top of the public-address check of
+    # app/core/ssrf.py (audit 2026-11 / CodeQL). Extend it for another
+    # automation service.
+    OUTBOUND_WEBHOOK_ALLOWED_HOSTS: Annotated[
+        list[str] | str, BeforeValidator(parse_cors)
+    ] = [
+        "hook.eu1.make.com",
+        "hook.eu2.make.com",
+        "hook.us1.make.com",
+        "hook.us2.make.com",
+        "hooks.zapier.com",
+        "hooks.slack.com",
+        "maker.ifttt.com",
+        "discord.com",
+    ]
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def all_cors_origins(self) -> list[str]:

@@ -67,6 +67,7 @@ random fallback still applies, with a warning.
 | `PROJECT_NAME` | `FastAPI Ecommerce` | Used as default email "from" name |
 | `SHOP_NAME` | `Natimai` | Storefront brand name |
 | `FRONTEND_HOST` | `http://localhost:5173` | Public storefront URL (CORS + email links) |
+| `OUTBOUND_WEBHOOK_ALLOWED_HOSTS` | Make, Zapier, Slack, IFTTT, Discord | Hosts the outbound webhook of the departure reminders may reach (exact names, comma-separated); any other is refused, on top of the public-address check. |
 | `ADMIN_FRONTEND_HOST` | — | Public back-office URL (`https://admin.<DOMAIN>`). An administrator's session is refreshed from this origin only, so a script injected in the storefront cannot obtain it. Empty = no check (warned outside `local`). **Set it in production.** |
 | `BACKEND_CORS_ORIGINS` | `[]` | Extra CORS origins (comma list or JSON array) |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `15` | Access token TTL — do **not** increase |
