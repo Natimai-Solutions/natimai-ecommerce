@@ -709,17 +709,28 @@ async def _order_was_captured(session: AsyncSession, payload: dict[str, Any]) ->
     order_id = _parse_order_id(payload)
     if order_id is None:
         return False
-    row = (
+    rows = (
         await session.exec(
-            select(OutboxEvent.id)
+            select(OutboxEvent.payload)
             .where(
                 col(OutboxEvent.type) == "payment.captured",
                 col(OutboxEvent.payload)["order_id"].as_string() == str(order_id),
             )
-            .limit(1)
+            .limit(20)
         )
-    ).first()
-    return row is not None
+    ).all()
+    # A deposit gets no invoice (it comes with the balance): its capture is
+    # not an invoice on its way, and the refund waited for one 8 times
+    # before a pointless alert.
+    for captured in rows:
+        raw_payment_id = (captured or {}).get("payment_id")
+        try:
+            payment = await session.get(Payment, uuid.UUID(str(raw_payment_id)))
+        except (TypeError, ValueError):
+            payment = None
+        if _payment_kind(payment) != KIND_DEPOSIT:
+            return True
+    return False
 
 
 @outbox_handler("payment.refunded")

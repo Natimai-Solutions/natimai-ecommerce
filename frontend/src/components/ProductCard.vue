@@ -1,7 +1,7 @@
 <template>
   <article class="product-card" data-testid="product-card">
     <router-link :to="productRoute" class="product-card__media" tabindex="-1" aria-hidden="true">
-      <ProductImage :src="imageUrl" :alt="product.name" />
+      <ProductImage :src="imageUrl" :alt="product.name" :eager="eager" />
     </router-link>
 
     <div class="product-card__info">
@@ -127,7 +127,10 @@ import { conditionLabel, isRefurbished, productAvailability } from '@/utils/avai
 // sold by several suppliers) but the generated schema may lag — read it loosely.
 type ProductPublic = components['schemas']['ProductPublic'] & { offers_count?: number };
 
-const props = defineProps<{ product: ProductPublic }>();
+const props = defineProps<{
+  product: ProductPublic;
+  /** Above the fold: loaded at once (LCP). */ eager?: boolean;
+}>();
 const emit = defineEmits<{ 'add-to-cart': [product: ProductPublic]; 'compare-full': [] }>();
 
 // Comparison shortlist (R8 / confort): a toggle on every card.

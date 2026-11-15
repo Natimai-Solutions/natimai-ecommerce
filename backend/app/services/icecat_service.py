@@ -17,6 +17,7 @@ from app.core.http_retry import (
     AsyncRateLimiter,
     RetryableHTTPError,
     parse_retry_after,
+    redact_secrets,
     request_with_retry,
 )
 from app.features.integrations.models.icecat_sync import IcecatProductData
@@ -382,7 +383,9 @@ class IcecatService:
             return product
 
         except Exception as e:
-            logger.error(f"Failed to fetch Icecat product data for EAN {ean}: {e}")
+            logger.error(
+                f"Failed to fetch Icecat product data for EAN {ean}: {redact_secrets(e)}"
+            )
             return None
 
     async def get_product_by_upc(self, upc: str) -> IcecatProductData | None:
@@ -440,10 +443,12 @@ class IcecatService:
 
         except Exception as e:
             if "403" in str(e):
-                logger.debug(f"Product not in Icecat scope for {brand} - {mpn}: {e}")
+                logger.debug(
+                    f"Product not in Icecat scope for {brand} - {mpn}: {redact_secrets(e)}"
+                )
             else:
                 logger.error(
-                    f"Failed to fetch Icecat product data for {brand} - {mpn}: {e}"
+                    f"Failed to fetch Icecat product data for {brand} - {mpn}: {redact_secrets(e)}"
                 )
             return None
 

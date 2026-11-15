@@ -420,7 +420,7 @@ async function onResetTwoFactor(user: AdminUser) {
   await withBusy(user.id, async () => {
     try {
       await resetUserTwoFactor(user.id);
-      notice.value = `${user.email} activera de nouveau la double authentification à sa prochaine connexion.`;
+      notice.value = t('users.two_factor_reset_done', { email: user.email });
       await load();
     } catch (err) {
       error.value = extractApiError(err) ?? t('users.reset_failed');

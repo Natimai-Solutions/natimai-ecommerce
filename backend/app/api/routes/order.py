@@ -8,6 +8,7 @@ from app.api.base_router import BaseRouter
 from app.api.deps import CurrentUser, SessionDep, get_current_user_optional
 from app.core.errors import AppError
 from app.features.base.crud import RecordNotFoundError
+from app.features.inventory.services.stock_release import release_order_stock
 from app.features.order.crud.order_crud import OrderCrud, crud_order
 from app.features.order.crud.order_status_crud import crud_order_status
 from app.features.order.models.order import (
@@ -171,6 +172,9 @@ class OrderRouter(
         ) -> dict[str, str]:
             """Execute delete."""
             await self._check_auth(session, "delete", current_user)
+            # A deleted order's reservations were held for good.
+            if await release_order_stock(session, order_id=id):
+                await session.commit()
             try:
                 await self.crud.delete(session, id=id, user=current_user)
             except RecordNotFoundError as exc:

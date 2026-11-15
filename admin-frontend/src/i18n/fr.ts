@@ -224,6 +224,8 @@ const fr = {
     title: 'Identité visuelle',
   },
   carriers: {
+    removed_from_picker: '{name} retiré du sélecteur.',
+    reactivated: '{name} réactivé.',
     code: 'Code *',
     code_hint: 'Identifiant stable (ex. dhl, chronopost). Minuscules, sans espace.',
     code_rule: 'Code requis',
@@ -317,6 +319,7 @@ const fr = {
       'Vide = premier niveau. Une sous-catégorie hérite de la TVA, de la douane et de la marge que sa branche ne fixe pas ; la vitrine liste le parent avec les produits de ses sous-catégories.',
   },
   common: {
+    network_error: 'Serveur injoignable : vérifiez la connexion puis réessayez.',
     page_previous: 'Page précédente',
     page_next: 'Page suivante',
     action_failed: 'Action impossible.',
@@ -559,6 +562,9 @@ const fr = {
     zones: '{n} zone | {n} zones',
   },
   departures: {
+    webhook_hint: 'https uniquement. Réglage global, commun à tous les départs.',
+    orders_moved: '{n} commande(s) déplacée(s).',
+    orders_out_of_stock: '{n} commande(s) marquée(s) en rupture, clients prévenus.',
     add_po: 'Enregistrer un BC',
     add_reminder: 'Ajouter un rappel',
     advanced: '« {name} » → {status}. {n} commande(s) mise(s) à jour et client(s) prévenu(s).',
@@ -1910,6 +1916,8 @@ const fr = {
     width: 'Larg. (cm)',
   },
   products: {
+    published_as_is_n: '{n} article(s) publié(s) tel(s) quel(s).',
+    back_to_enrichment: '{n} article(s) remis en attente d’enrichissement.',
     already_n: ', {n} déjà publié(s)',
     back_pending: 'Remettre en attente',
     col_active: 'Actif admin',
@@ -2289,6 +2297,16 @@ const fr = {
     title: 'Commandes fournisseurs',
   },
   suppliers: {
+    allowlist_saved:
+      '{name} : {n} référence(s) suivie(s), {removed} article(s) retiré(s) de la vitrine.',
+    allowlist_cleared: '{name} : liste vidée, tout le catalogue synchronisé est suivi.',
+    reactivated_unconfigured:
+      '{name} réactivé — ses identifiants manquent encore dans l’environnement.',
+    reactivated: '{name} réactivé : les synchronisations reprennent sans redémarrage.',
+    rules_saved: '{n} règle(s) enregistrée(s).',
+    rules_applied: '{moved} article(s) rangé(s), {removed} retiré(s) de la vitrine.',
+    hint_list: 'Valeurs séparées par des virgules ; « [] » = toutes.',
+    hint_json: 'Format JSON.',
     import_rows: 'Lignes',
     a_basic: 'Authentification HTTP (basic)',
     a_form: 'Formulaire de connexion + cookies',
@@ -2529,6 +2547,8 @@ const fr = {
     validity: 'Validité',
   },
   users: {
+    two_factor_reset_done:
+      '{email} activera de nouveau la double authentification à sa prochaine connexion.',
     admin: 'Administrateur',
     all_groups: 'Tous les groupes',
     col_account: 'Compte',

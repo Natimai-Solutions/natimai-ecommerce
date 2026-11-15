@@ -164,6 +164,33 @@ takes a tag as its `ref`.
 
 ### Fixed
 
+- Review of the November 2026 audit fixes — low-severity points:
+  - money: the balance of a deposit order cannot be paid with a method dearer
+    than the one billed (S9); a gift card is issued for what its line cost
+    when sold below its face value (S3); a refund that cannot take back
+    points already spent alerts the shop (S6); a group price typed with cents
+    is rounded like every price; a provider notification of success without
+    amount or currency goes to review;
+  - orders: cancelling an order (admin included) closes its card / PayPal
+    payments still pending; deleting an order releases its reservations;
+  - hardening: the two-factor endpoints are limited per account as well as
+    per address; an IP literal on `OUTBOUND_WEBHOOK_ALLOWED_HOSTS` is not a
+    webhook host; errors logged by the HTTP retries and Icecat no longer
+    quote the API key; the decompressed XLSX cap goes from 300 to 120 Mo; an
+    unreachable antivirus refuses the import with a message (it was a 500);
+  - outbox: an event left RUNNING counts as an attempt and is abandoned at
+    `MAX_ATTEMPTS`; the credit note of a refunded deposit no longer waits
+    for an invoice that is not coming;
+  - storefront: one catalogue search for `?page=N` (page 1 flashed); one
+    refresh at the OAuth return; « Mes commandes » reads every invoice, not
+    the 50 latest; the « show password » control is a button (keyboard,
+    name); `srcset` on the category tiles and the first catalogue images
+    loaded eagerly;
+  - admin: departure dates saved on the shop's clock; « server unreachable »
+    instead of axios' own words; the last hard-coded French notices are
+    translated; the icon-button guard also covers dropdowns, FABs and
+    clickable icons.
+
 - Review of the November 2026 audit fixes — storefront: the « could not add
   to cart » message is a toast at the bottom of the screen on every page
   with product cards (catalogue, related products, wishlist, comparison; U8

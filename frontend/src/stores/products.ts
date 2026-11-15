@@ -82,9 +82,9 @@ export const useProductsStore = defineStore('products', () => {
     await search();
   }
 
-  async function applyFilters(newFilters: Partial<typeof filters.value>) {
+  async function applyFilters(newFilters: Partial<typeof filters.value>, page = 1) {
     filters.value = { ...filters.value, ...newFilters };
-    currentPage.value = 1;
+    currentPage.value = page;
     await search();
   }
 

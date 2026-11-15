@@ -1718,7 +1718,8 @@ async function onSubmit() {
     // The API's message, never axios' « Request failed with status code… ».
     error.value =
       extractApiError(err) ??
-      (err instanceof Error && !('response' in err) ? err.message : null) ??
+      // No answer at all (offline, timeout): said in words, not axios' own.
+      (err instanceof Error && !('response' in err) ? t('common.network_error') : null) ??
       t('common.save_failed');
   } finally {
     saving.value = false;

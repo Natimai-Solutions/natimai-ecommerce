@@ -480,6 +480,8 @@ const en: MessageSchema = {
     zone_unknown: 'Postal code not recognised. Tell us your island or delivery zone.',
   },
   auth: {
+    show_password: 'Show the password',
+    hide_password: 'Hide the password',
     activate_my_account: 'Activate my account',
     activate_title: 'Activate your account',
     back_to_login: 'Back to sign in',

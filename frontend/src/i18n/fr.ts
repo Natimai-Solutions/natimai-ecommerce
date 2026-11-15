@@ -484,6 +484,8 @@ const fr = {
     zone_unknown: 'Code postal non reconnu. Indiquez votre île ou zone de livraison.',
   },
   auth: {
+    show_password: 'Afficher le mot de passe',
+    hide_password: 'Masquer le mot de passe',
     activate_my_account: 'Activer mon compte',
     activate_title: 'Activez votre compte',
     back_to_login: 'Retour à la connexion',

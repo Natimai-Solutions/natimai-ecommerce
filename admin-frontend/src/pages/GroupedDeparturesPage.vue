@@ -508,7 +508,7 @@
         <q-input
           v-model="webhookUrl"
           :label="$t('departures.webhook')"
-          hint="https uniquement. Réglage global, commun à tous les départs."
+          :hint="$t('departures.webhook_hint')"
           outlined
           dense
           class="q-mb-md"
@@ -1365,7 +1365,7 @@ async function moveSelected() {
       selectedOrders.value.map((o) => o.order_id),
       moveTarget.value,
     );
-    notice.value = `${updated} commande(s) déplacée(s).`;
+    notice.value = t('departures.orders_moved', { n: updated });
     await Promise.all([load(), loadOrders()]);
   } catch (err) {
     error.value = extractApiError(err) ?? t('departures.move_failed');
@@ -1404,7 +1404,7 @@ async function markBackordered(orderIds: string[]) {
     await Promise.all(
       orderIds.map((id) => setOrderStatus(id, 'Backordered', t('departures.shortage_reason'))),
     );
-    notice.value = `${orderIds.length} commande(s) marquée(s) en rupture, clients prévenus.`;
+    notice.value = t('departures.orders_out_of_stock', { n: orderIds.length });
     await loadOrders();
   } catch (err) {
     error.value = extractApiError(err) ?? t('departures.status_failed');
@@ -1724,11 +1724,12 @@ function toInput(iso: string | null, withTime: boolean): string | null {
   return withTime ? `${date}T${pad(d.getHours())}:${pad(d.getMinutes())}` : date;
 }
 
-/** Input value (local) → ISO for the API. A bare date is sent at local noon so
- * it stays on the same calendar day once shown in Tahiti (UTC-10). */
+/** Input value → ISO for the API, read on the shop's clock. A bare date is
+ * sent at the shop's noon so it stays on the same calendar day there — at
+ * the browser's noon, an admin far east of the shop saved the day before. */
 function toIso(value: string | null): string | null {
   if (!value) return null;
-  return new Date(value.includes('T') ? value : `${value}T12:00`).toISOString();
+  return fromShopDateTimeInput(value.includes('T') ? value : `${value}T12:00`);
 }
 
 /** `v-model.number` yields '' on a cleared field: treat it as null. */

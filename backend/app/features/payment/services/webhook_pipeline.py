@@ -339,9 +339,11 @@ async def apply_provider_outcome(
     provider_data = (
         dict(payment.provider_data) if isinstance(payment.provider_data, dict) else {}
     )
-    if outcome.status in _SUCCESS and outcome.amount_minor is not None:
+    if outcome.status in _SUCCESS:
+        # A success that states no amount or no currency is not checked
+        # against anything: it goes to review like a wrong one.
         expected_minor, expected_currency = expected_charge(payment)
-        received_currency = (outcome.currency or expected_currency).upper()
+        received_currency = (outcome.currency or "").upper()
         if (
             outcome.amount_minor != expected_minor
             or received_currency != expected_currency

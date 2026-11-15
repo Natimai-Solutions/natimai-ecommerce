@@ -863,9 +863,9 @@ async def _validate_order_for_initiation(
                 "kind": kind,
             },
         )
-    if kind != KIND_BALANCE and payment_method_id is not None:
+    if payment_method_id is not None:
         await _check_method_fee_amount(
-            session, order, order_payments, payment_method_id, currency
+            session, order, order_payments, payment_method_id, currency, kind
         )
     if kind != KIND_BALANCE:
         # A refused payment or the reservation sweep gave the stock back:
@@ -880,6 +880,7 @@ async def _check_method_fee_amount(
     order_payments: list[tuple[Any, str | None]],
     payment_method_id: uuid.UUID,
     currency: str,
+    kind: str = KIND_FULL,
 ) -> None:
     """The method paid with must carry the fee the order was billed
     (audit 2026-11, S9).
@@ -901,7 +902,11 @@ async def _check_method_fee_amount(
     billed = quantize_amount(
         Decimal(getattr(order, "payment_fee_amount", None) or 0), currency
     )
-    if quantize_amount(Decimal(method.fee or 0), currency) != billed:
+    fee = quantize_amount(Decimal(method.fee or 0), currency)
+    # The balance of a deposit order may be paid with a cheaper method than
+    # the one billed (card for the deposit, transfer for the rest), never
+    # with a dearer one: its fee is not in the order.
+    if fee > billed if kind == KIND_BALANCE else fee != billed:
         raise AppError(
             code="payment.method.fee_mismatch",
             status_code=409,

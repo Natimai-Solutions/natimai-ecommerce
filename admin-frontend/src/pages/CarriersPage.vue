@@ -283,7 +283,7 @@ async function retire(c: Carrier) {
   error.value = null;
   try {
     await retireCarrier(c.id);
-    notice.value = `${c.name} retiré du sélecteur.`;
+    notice.value = t('carriers.removed_from_picker', { name: c.name });
     await load();
   } catch (err) {
     error.value = extractApiError(err) ?? t('common.op_failed');
@@ -294,7 +294,7 @@ async function restore(c: Carrier) {
   error.value = null;
   try {
     await updateCarrier(c.id, { is_active: true });
-    notice.value = `${c.name} réactivé.`;
+    notice.value = t('carriers.reactivated', { name: c.name });
     await load();
   } catch (err) {
     error.value = extractApiError(err) ?? t('common.op_failed');

@@ -512,8 +512,8 @@ async function publishSelected(published: boolean) {
       published,
     );
     notice.value = published
-      ? `${updated} article(s) publié(s) tel(s) quel(s).`
-      : `${updated} article(s) remis en attente d’enrichissement.`;
+      ? t('products.published_as_is_n', { n: updated })
+      : t('products.back_to_enrichment', { n: updated });
     selected.value = [];
   } catch (err: unknown) {
     store.error = extractApiError(err) ?? t('products.publish_failed');

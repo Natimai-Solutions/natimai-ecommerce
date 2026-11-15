@@ -100,6 +100,8 @@
               <img
                 v-if="category.image_url"
                 :src="category.image_url"
+                :srcset="mediaSrcset(category.image_url)"
+                sizes="(max-width: 599px) 50vw, 240px"
                 :alt="category.image_alt ?? ''"
                 loading="lazy"
                 decoding="async"
@@ -174,6 +176,7 @@
 </template>
 
 <script setup lang="ts">
+import { mediaSrcset } from '@/utils/mediaSrcset';
 import CartErrorToast from '@/components/CartErrorToast.vue';
 import { useI18n } from 'vue-i18n';
 import { useShopModulesStore } from '@/stores/shopModules';

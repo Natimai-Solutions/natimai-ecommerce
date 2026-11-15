@@ -299,6 +299,16 @@ async def set_active(
     return card
 
 
+def _issued_amount(face: Decimal, line: OrderLine) -> Decimal:
+    quantity = Decimal(line.quantity or 0)
+    if quantity <= 0:
+        return face
+    paid = Decimal(line.unit_price or 0) - (
+        Decimal(line.discount_amount or 0) / quantity
+    )
+    return min(face, paid) if paid > 0 else face
+
+
 async def issue_for_order(
     session: AsyncSession, *, order_id: uuid.UUID
 ) -> list[GiftCard]:
@@ -327,8 +337,13 @@ async def issue_for_order(
         ).all():
             if product.gift_card_amount is not None:
                 amounts[product.id] = Decimal(product.gift_card_amount)
+    # Worth its face value, or the line's unit price when it was sold for
+    # less (a quote, a price typed lower): never more than what was paid
+    # (audit 2026-11, S3).
     rows = [
-        (line, amounts[line.product_id]) for line in lines if line.product_id in amounts
+        (line, _issued_amount(amounts[line.product_id], line))
+        for line in lines
+        if line.product_id in amounts
     ]
     if not rows:
         return []

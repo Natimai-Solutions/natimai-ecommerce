@@ -280,7 +280,11 @@ async def load_group_pricing(
                 col(ProductGroupPrice.product_id).in_(ids),
             )
         )
-        prices = {row.product_id: Decimal(row.price) for row in rows.all()}
+        # Typed with cents in the back office: whole francs in XPF like every
+        # other price, or two units were billed one franc more than shown.
+        prices = {
+            row.product_id: reference_price(Decimal(row.price)) for row in rows.all()
+        }
     return GroupPricing(
         group_id=group.id,
         discount_pct=Decimal(group.discount_pct or 0),

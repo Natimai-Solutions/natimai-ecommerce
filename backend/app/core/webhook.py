@@ -13,6 +13,7 @@ and move on. The URL is typed by an administrator, so three guards apply
 
 from __future__ import annotations
 
+import ipaddress
 import logging
 from typing import Any
 from urllib.parse import urlsplit
@@ -25,6 +26,14 @@ from app.core.ssrf import public_only_connector
 logger = logging.getLogger(__name__)
 
 _TIMEOUT = aiohttp.ClientTimeout(total=15, connect=5)
+
+
+def _is_ip_literal(host: str) -> bool:
+    try:
+        ipaddress.ip_address(host.strip("[]"))
+    except ValueError:
+        return False
+    return True
 
 
 def allowed_webhook_url(url: str) -> str | None:
@@ -45,7 +54,9 @@ def allowed_webhook_url(url: str) -> str | None:
         if str(host).strip()
     ]
     for host in allowed:
-        if hostname == host:
+        # A name only: the connector checks what a name resolves to, an IP
+        # literal would skip that check.
+        if hostname == host and not _is_ip_literal(host):
             path = parts.path or "/"
             query = f"?{parts.query}" if parts.query else ""
             # The host part comes from the allow-list, not from the input.
