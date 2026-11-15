@@ -234,3 +234,41 @@ async def test_quote_without_code_is_never_throttled(
             payment_method_id=None,
         )
         assert quote.discount_error is None
+
+
+@pytest.mark.asyncio
+async def test_a_code_refused_for_this_cart_is_not_a_guess(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Review of S7: a real code below its minimum was counted like a guess —
+    the customer, re-quoted at every change of the cart, was locked out of
+    their own code. Only refusals that tell a code exists or not count."""
+    from app.api.routes import cart as cart_routes
+    from app.features.discount.models import Discount, DiscountTarget, DiscountType
+
+    monkeypatch.setattr(cart_routes, "QUOTE_COUPON_FAILURES_LIMIT", 2)
+    seed = await _seed(db_session)
+    code = f"MIN{uuid.uuid4().hex[:5].upper()}"
+    db_session.add(
+        Discount(
+            name="Dès 1 000 000",
+            discount_type=DiscountType.COUPON,
+            target=DiscountTarget.ORDER,
+            code=code,
+            amount=Decimal("10"),
+            min_order_amount=Decimal("1000000"),
+        )
+    )
+    await db_session.commit()
+
+    for _ in range(5):
+        quote = await get_checkout_quote(
+            session=db_session,
+            current_user=seed.user,
+            address_id=None,
+            delivery_type="home_delivery",
+            payment_method_id=None,
+            discount_code=code,
+        )
+        assert quote.discount_error
+        assert quote.discount_error != cart_routes.QUOTE_COUPON_THROTTLED_MESSAGE

@@ -17,7 +17,12 @@ from app.core.auth_cookies import (
 )
 from app.core.config import settings
 from app.core.errors import AppError
-from app.core.rate_limit import get_client_ip, hit_rate_limit, rate_limited
+from app.core.rate_limit import (
+    get_client_ip,
+    hit_rate_limit,
+    rate_limit_reached,
+    rate_limited,
+)
 from app.features.base.crud import RecordNotFoundError
 from app.features.system import audit
 from app.features.user.crud.refresh_token import crud_user_refresh_token
@@ -148,6 +153,10 @@ async def login_access_token(
             details={"user_id": str(user.id)},
         )
 
+    # Signing in on the storefront left an admin access token in a page a
+    # script injected there could read (audit 2026-11, S2).
+    _check_admin_origin(request, user)
+
     second_factor: str | None = None
     if getattr(user, "is_superuser", False) and getattr(user, "totp_enabled", False):
         user_id, user_email = user.id, user.email
@@ -158,8 +167,29 @@ async def login_access_token(
                 message="Saisissez le code de votre application d'authentification.",
                 details={"reason": "totp_required"},
             )
+        # The password was right, so the password counters were just cleared:
+        # wrong codes never added up and the second factor could be guessed
+        # at the rate of the per-IP throttle alone (audit 2026-11, S11).
+        totp_key = f"login:totp:{user_id}"
+        if await rate_limit_reached(
+            totp_key, limit=settings.LOGIN_LOCKOUT_MAX_FAILURES
+        ):
+            raise AppError(
+                code="login.account.locked",
+                status_code=429,
+                message=(
+                    "Compte temporairement verrouillé après trop de tentatives. "
+                    "Réessayez plus tard."
+                ),
+                details={"reason": "totp_locked"},
+            )
         second_factor = verify_second_factor(user, totp_code)
         if second_factor is None:
+            await hit_rate_limit(
+                totp_key,
+                limit=settings.LOGIN_LOCKOUT_MAX_FAILURES,
+                window_seconds=settings.LOGIN_LOCKOUT_MINUTES * 60,
+            )
             await audit.record(
                 event="auth.login.totp_failed",
                 actor_id=user_id,
@@ -263,7 +293,7 @@ def _check_admin_origin(request: Request, user: Any) -> None:
         raise AppError(
             code="login.refresh_token.admin_origin",
             status_code=403,
-            message="Session d'administration : reconnectez-vous depuis l'admin.",
+            message="Compte d'administration : connectez-vous depuis l'admin.",
             details={},
         )
 

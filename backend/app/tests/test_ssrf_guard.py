@@ -22,6 +22,7 @@ from app.core.webhook import allowed_webhook_url, post_json
         ("169.254.169.254", False),  # cloud metadata
         ("::1", False),
         ("fe80::1%eth0", False),
+        ("100.100.100.200", False),  # shared address space (CGNAT)
         ("not-an-ip", False),
     ],
 )

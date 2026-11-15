@@ -164,6 +164,20 @@ takes a tag as its `ref`.
 
 ### Fixed
 
+- Review of the November 2026 audit fixes — sessions and hardening: an
+  administrator signs in from the back office only (the refresh alone was
+  checked), and `ADMIN_FRONTEND_HOST` defaults to `https://admin.<DOMAIN>`
+  outside local (the check was off until the variable was set, S2); wrong
+  authenticator codes now lock the second factor for
+  `LOGIN_LOCKOUT_MINUTES` (the right password cleared the counter before the
+  code was checked, S11); the promo-code limit of the checkout quote is
+  counted atomically and only for guesses — a code refused for the cart
+  (minimum not reached…) no longer locks the customer out (S7);
+  `POST /users/me/2fa/setup` is rate-limited; the Slack notification webhook
+  goes through the same allow-list and public-address guard as the outbound
+  webhook; the FEC export neutralises formulas; the SSRF guard refuses the
+  shared address space (100.64.0.0/10).
+
 - Review of the November 2026 audit fixes — stock, cancellation and refunds:
   money that arrives after an order's reservation was given back (sweep,
   refused attempt, late notification) takes the stock again before

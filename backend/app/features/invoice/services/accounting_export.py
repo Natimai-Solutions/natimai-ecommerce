@@ -30,6 +30,7 @@ from decimal import Decimal
 from typing import Any
 
 from app.features.invoice.models.invoice import Invoice
+from app.utils.csv_export import safe_cell
 
 FEC_COLUMNS = [
     "JournalCode",
@@ -154,5 +155,10 @@ def export_invoices_to_fec(invoices: list[Invoice]) -> str:
     )
     writer.writeheader()
     for invoice in invoices:
-        writer.writerows(invoice_to_fec_rows(invoice))
+        # The file is often opened in a spreadsheet: a customer name starting
+        # with « = » must not run there (audit 2026-11, S10).
+        writer.writerows(
+            {key: safe_cell(value) for key, value in row.items()}
+            for row in invoice_to_fec_rows(invoice)
+        )
     return buffer.getvalue()

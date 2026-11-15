@@ -307,3 +307,30 @@ def test_arq_gets_the_raw_redis_password(monkeypatch: pytest.MonkeyPatch) -> Non
 
     monkeypatch.setattr(live, "REDIS_PASSWORD", "")
     assert arq_pool.arq_redis_settings().password is None
+
+
+def test_the_admin_origin_defaults_to_the_admin_subdomain() -> None:
+    """Audit 2026-11, S2 (review): the check was off until someone set
+    ADMIN_FRONTEND_HOST; a deployment that only has DOMAIN gets it."""
+    derived = Settings(
+        ENVIRONMENT="staging",
+        CLAMAV_ENABLED=True,
+        DOMAIN="shop.example",
+        **_VALID_BASE_SETTINGS,
+    )
+    assert derived.ADMIN_FRONTEND_HOST == "https://admin.shop.example"
+    explicit = Settings(
+        ENVIRONMENT="staging",
+        CLAMAV_ENABLED=True,
+        DOMAIN="shop.example",
+        ADMIN_FRONTEND_HOST="https://bo.shop.example",
+        **_VALID_BASE_SETTINGS,
+    )
+    assert explicit.ADMIN_FRONTEND_HOST == "https://bo.shop.example"
+    local = Settings(
+        ENVIRONMENT="local",
+        CLAMAV_ENABLED=True,
+        DOMAIN="shop.example",
+        **_VALID_BASE_SETTINGS,
+    )
+    assert not local.ADMIN_FRONTEND_HOST

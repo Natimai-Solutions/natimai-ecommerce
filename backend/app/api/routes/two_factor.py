@@ -91,7 +91,14 @@ async def get_status(current_user: CurrentSuperUserEnrolling) -> TwoFactorStatus
     return _status(current_user)
 
 
-@router.post("/setup", response_model=TwoFactorSetup)
+@router.post(
+    "/setup",
+    response_model=TwoFactorSetup,
+    # Each call e-mails a code: not without a limit.
+    dependencies=[
+        Depends(rate_limited("two_factor_setup", limit=5, window_seconds=600))
+    ],
+)
 async def setup(
     session: SessionDep, current_user: CurrentSuperUserEnrolling
 ) -> TwoFactorSetup:
