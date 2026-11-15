@@ -99,6 +99,12 @@ async def unexpected_exception_handler(
     )
 
 
+class PriceUnavailableError(Exception):
+    """A price that cannot be computed (the pricing layer's
+    ``CurrencyRateMissing`` derives from it, so this module imports nothing
+    from the features)."""
+
+
 async def currency_rate_missing_handler(
     _request: Request, exc: Exception
 ) -> JSONResponse:
@@ -117,9 +123,7 @@ async def currency_rate_missing_handler(
 
 def register_error_handlers(app: FastAPI) -> None:
     """Register all API-wide exception handlers."""
-    from app.features.product.services.pricing import CurrencyRateMissing
-
-    app.add_exception_handler(CurrencyRateMissing, currency_rate_missing_handler)
+    app.add_exception_handler(PriceUnavailableError, currency_rate_missing_handler)
     app.add_exception_handler(AppError, app_error_handler)
     app.add_exception_handler(RecordNotFoundError, record_not_found_handler)
     app.add_exception_handler(Exception, unexpected_exception_handler)

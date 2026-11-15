@@ -12,6 +12,7 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
+from app.core.errors import PriceUnavailableError
 from app.features.place.models import Place
 from app.features.product.models.category import Category
 from app.features.product.models.currency_rate import CurrencyRate
@@ -90,7 +91,7 @@ class ShippingModePrice:
     carbon_footprint_kg_co2e: float | None
 
 
-class CurrencyRateMissing(Exception):
+class CurrencyRateMissing(PriceUnavailableError):
     """Raised when no active CurrencyRate exists for a given currency."""
 
     def __init__(self, currency_code: str) -> None:
