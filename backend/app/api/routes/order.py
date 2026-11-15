@@ -172,9 +172,6 @@ class OrderRouter(
         ) -> dict[str, str]:
             """Execute delete."""
             await self._check_auth(session, "delete", current_user)
-            # A deleted order's reservations were held for good.
-            if await release_order_stock(session, order_id=id):
-                await session.commit()
             try:
                 await self.crud.delete(session, id=id, user=current_user)
             except RecordNotFoundError as exc:
@@ -184,6 +181,9 @@ class OrderRouter(
                     message=f"Order '{id}' not found",
                     details={"order_id": str(id)},
                 ) from exc
+            # A deleted order's reservations were held for good.
+            if await release_order_stock(session, order_id=id):
+                await session.commit()
             return {"message": "Deleted successfully"}
 
         delete.__name__ = f"delete_{self.name}"
