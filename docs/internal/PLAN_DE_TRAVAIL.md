@@ -58,6 +58,12 @@ Détail, fichiers et scénarios : [`AUDIT_2026-11.md`](AUDIT_2026-11.md) (identi
 - Audit du 11/11/2026, gravité moyenne ([`AUDIT_2026-11.md`](AUDIT_2026-11.md) §1) — M au total :
   - **S8 (suite, si voulu)** : les paniers invités ne sont plus relancés (adresse non vérifiée) ; pour les relancer à nouveau, un double opt-in de l'adresse saisie (e-mail de confirmation) — M.
 - Audit, durcissement restant : *required reviewers* sur l'environnement GitHub `production` (réglage du dépôt, hors code).
+- **Relecture des correctifs de l'audit (15/11/2026)** — corrigé : voir CHANGELOG. Reste, gravité basse :
+  - *Sessions* : un compte reste verrouillable à la demande depuis une dizaine d'adresses (`LOGIN_ACCOUNT_LOCKOUT_MAX_FAILURES`, levé par un reset) ; limites 2FA par adresse et non par compte ; suppression de compte avec lien OAuth prouvée par une connexion récente du compte, pas de la session ; anciens codes de secours SHA-256 acceptés jusqu'à régénération.
+  - *Argent* : frais du moyen de paiement non recontrôlés sur le solde d'une commande à acompte (S9) ; révocation des points de fidélité plafonnée au solde, sans alerte (S6) ; carte cadeau émise à sa valeur faciale même vendue moins cher par un devis admin (S3) ; l'annulation admin ne ferme pas les paiements PayPal en attente ; clé d'idempotence PayPal aléatoire ; `webhook_pipeline` accepte un succès PayPal sans montant ; prix de groupe saisi avec décimales non arrondi en XPF ; `sale_price_cached` en centimes jusqu'au recalcul nocturne.
+  - *Stock* : une commande payée puis annulée ou remboursée ne rend pas son stock (retour manuel) ; `DELETE /orders/{id}` ne libère rien ; sous-vente possible quand le fournisseur a déjà décompté nos réservations (B4) ; les changements de statut faits par les gestionnaires de paiement ne publient pas `order.status_changed`.
+  - *Infra* : `ALERT_WEBHOOK_URL` (variable d'environnement) sans garde réseau ; `public_only_connector` ne filtre pas une adresse IP littérale (sans effet tant que la liste d'hôtes ne contient que des noms) ; URL Icecat (clé comprise) dans le message d'une réponse non JSON ; plafond XLSX décompressé (300 Mo) au-dessus de la mémoire du worker ; `AntivirusError` non rattrapée à l'import (500, mais refus).
+  - *Outbox* : un événement qui tue le poller à chaque passage n'incrémente pas `attempts` ; avoir d'un acompte remboursé réessayé 8 fois avant une alerte sans objet.
 
 ---
 
@@ -66,7 +72,7 @@ Détail, fichiers et scénarios : [`AUDIT_2026-11.md`](AUDIT_2026-11.md) (identi
 - **Retours, RMA et formulaire de rétractation** (obligation légale, c'est du code) : demande depuis « Mes commandes », validation admin, enchaînement sur le remboursement et l'avoir existants — L.
 - **SMS** (expédition, solde dû) — M.
 - Newsletter double opt-in (outil externe ou intégré, à choisir) ; analytics sans cookie (Plausible / Matomo).
-- Bugs vitrine relevés par l'audit du 11/11/2026 : faits (voir CHANGELOG). Reste : la liste « Mes commandes » associe ses factures parmi les 50 dernières (`AccountOrders`).
+- Bugs vitrine relevés par l'audit du 11/11/2026 : faits (voir CHANGELOG). Reste : la liste « Mes commandes » associe ses factures parmi les 50 dernières (`AccountOrders`). Relecture du 15/11/2026, reste (gravité basse) : `?page=N` du catalogue lance deux recherches (la page 1 s'affiche un instant) ; deux `tryRestore` au retour OAuth (la fusion du panier, elle, ne part plus qu'une fois) ; dates `estimated_delivery_at` / `departure_at` de l'admin envoyées à midi du navigateur ; `ProductFormDialog` affiche « Network Error » sans réponse du serveur ; chaînes françaises en dur dans l'admin (~14 notifications) ; `srcset` absent des tuiles catégorie et image LCP du catalogue en `lazy` ; icônes « afficher le mot de passe » sans accès clavier ; le garde-fou `a11y-guard` ne voit que les `q-btn` à attribut `icon`.
 
 ---
 
