@@ -127,6 +127,11 @@ async def set_order_status(
     """
     if status_name not in ALL_ORDER_STATUSES:
         raise ValueError(f"unknown order status '{status_name}'")
+    if status_name == ORDER_STATUS_CANCELLED:
+        # Read the status again under the row lock: two cancellations at the
+        # same time (double click, admin and customer) both read « Pending »
+        # and each gave the promo code's use back.
+        await session.refresh(order, with_for_update=True)
     current = await session.get(OrderStatus, order.order_status_id)
     old_name = current.name if current else None
     if old_name == status_name:

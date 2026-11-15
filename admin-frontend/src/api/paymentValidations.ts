@@ -77,6 +77,11 @@ export async function refundPayment(
   return data;
 }
 
+/** The refunds recorded « pending » were done in the provider's back office. */
+export async function confirmPendingRefunds(paymentId: string): Promise<void> {
+  await api.post(`/admin/payments/${paymentId}/refunds/confirm`);
+}
+
 export interface CaptureResult {
   payment_id: string;
   payment_status_id: string | null;

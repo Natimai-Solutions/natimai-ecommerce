@@ -17,6 +17,11 @@ from app.features.order.models.order import (
     OrdersPublic,
     OrderUpdate,
 )
+from app.features.order.models.order_status import OrderStatus
+from app.features.order.services.status import (
+    ALL_ORDER_STATUSES,
+    set_order_status,
+)
 
 
 class OrderRouter(
@@ -108,6 +113,15 @@ class OrderRouter(
         ) -> OrderPublic:
             """Execute update."""
             await self._check_auth(session, "update", current_user)
+            # A status written here went around ``set_order_status``: no
+            # stock or coupon given back on « Cancelled », no event (audit
+            # 2026-11, B1). The other fields are saved as before; the status
+            # takes the one path.
+            target_status_id = data.order_status_id
+            if target_status_id is not None:
+                data = OrderUpdate(
+                    **data.model_dump(exclude_unset=True, exclude={"order_status_id"})
+                )
             try:
                 updated = await self.crud.update(
                     session,
@@ -122,6 +136,26 @@ class OrderRouter(
                     message=f"Order '{id}' not found",
                     details={"order_id": str(id)},
                 ) from exc
+            if (
+                target_status_id is not None
+                and updated.order_status_id != target_status_id
+            ):
+                target = await session.get(OrderStatus, target_status_id)
+                if target is None or target.name not in ALL_ORDER_STATUSES:
+                    raise AppError(
+                        code="order.status.invalid",
+                        status_code=400,
+                        message="Statut de commande inconnu",
+                        details={"order_status_id": str(target_status_id)},
+                    )
+                await set_order_status(
+                    session,
+                    order=updated,
+                    status_name=target.name,
+                    changed_by_id=current_user.id if current_user else None,
+                )
+                await session.commit()
+                await session.refresh(updated)
             return OrderPublic.model_validate(updated)
 
         update.__name__ = f"update_{self.name}"

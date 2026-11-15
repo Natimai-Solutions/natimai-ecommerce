@@ -129,7 +129,7 @@ async def test_credit_settles_its_share_and_the_card_settles_the_rest(
 ) -> None:
     seed = await _seed(db_session)
     monkeypatch.setattr(
-        payment_handlers, "confirm_order_stock", AsyncMock(return_value=0)
+        payment_handlers, "secure_order_stock", AsyncMock(return_value=(0, []))
     )
     notify = AsyncMock()
     monkeypatch.setattr(payment_handlers, "send_payment_event_notifications", notify)

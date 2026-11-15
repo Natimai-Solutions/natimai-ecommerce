@@ -30,11 +30,14 @@ from app.outbox.models import OutboxEvent
 NOW = datetime(2026, 9, 10, 12, 0, tzinfo=UTC)
 
 
-async def _user(session: AsyncSession, *, marketing: bool | None = None) -> User:
+async def _user(
+    session: AsyncSession, *, marketing: bool | None = None, verified: bool = True
+) -> User:
     user = User(
         email=f"c+{uuid.uuid4().hex[:8]}@test.local",
         full_name="Client Test",
         is_active=True,
+        is_verified=verified,
         hashed_password="x",
     )
     session.add(user)
@@ -137,3 +140,28 @@ async def test_quiet_open_carts_are_reminded_once(
     assert {row["cart_id"] for row in page} == {
         str(c.id) for c in (quiet, fresh, ancient, opted_out)
     }
+
+
+@pytest.mark.asyncio
+async def test_a_guest_checkout_account_is_not_reminded(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Audit 2026-11, S8 (review): ``POST /signup/guest`` creates an account
+    for any address, unverified. Its cart has a ``user_id`` — it was still
+    reminded, at an address nobody confirmed."""
+    monkeypatch.setattr(settings, "CART_ABANDONMENT_REMINDER_DELAY_HOURS", 24)
+    monkeypatch.setattr(settings, "CART_ABANDONMENT_MAX_AGE_DAYS", 14)
+    product = Product(
+        name="Câble", pricing_mode=PricingMode.FIXED, base_price=Decimal("1500")
+    )
+    db_session.add(product)
+    await db_session.flush()
+    guest = await _user(db_session, verified=False)
+    cart = await _cart(db_session, guest, product, quiet_hours=30)
+    await db_session.commit()
+
+    stats = await remind_abandoned_carts(db_session, now=NOW)
+
+    assert stats["reminded"] == 0 and stats["skipped_unverified"] == 1
+    await db_session.refresh(cart)
+    assert cart.abandonment_reminded_at is not None  # stamped, never mailed

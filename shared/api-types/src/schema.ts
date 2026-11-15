@@ -976,6 +976,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/payments/{payment_id}/refunds/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Payment Refunds Route
+         * @description Confirm the refunds recorded « pending » on a payment, once done in the
+         *     provider's back office: credit note, order status, gift cards and points.
+         */
+        post: operations["admin-payment-confirm_payment_refunds_route"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/payments/{payment_id}/capture": {
         parameters: {
             query?: never;
@@ -8983,6 +9004,11 @@ export interface components {
              */
             can_refund: boolean;
             /**
+             * Pending Refund Amount
+             * @default 0
+             */
+            pending_refund_amount: number;
+            /**
              * Received Amount
              * @default 0
              */
@@ -15762,6 +15788,19 @@ export interface components {
             fully_refunded: boolean;
             /** Message */
             message?: string | null;
+        };
+        /**
+         * PaymentRefundsConfirmedResponse
+         * @description The refunds confirmed as done at the provider.
+         */
+        PaymentRefundsConfirmedResponse: {
+            /**
+             * Payment Id
+             * Format: uuid
+             */
+            payment_id: string;
+            /** Refunds */
+            refunds: components["schemas"]["RefundPublic"][];
         };
         /**
          * PaymentRejectRequest
@@ -24168,6 +24207,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PaymentRefundResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-payment-confirm_payment_refunds_route": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                payment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentRefundsConfirmedResponse"];
                 };
             };
             /** @description Validation Error */

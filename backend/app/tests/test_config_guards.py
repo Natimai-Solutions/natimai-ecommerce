@@ -298,11 +298,12 @@ def test_arq_gets_the_raw_redis_password(monkeypatch: pytest.MonkeyPatch) -> Non
     password holding ``+``, ``/`` or ``=`` locked the worker and the outbox
     poller out while the API connected."""
     from app.core import arq_pool
+    from app.core.config import settings as live
 
-    monkeypatch.setattr(arq_pool.settings, "REDIS_SERVER", "redis")
-    monkeypatch.setattr(arq_pool.settings, "REDIS_PASSWORD", "p@ss+w/0rd=")
+    monkeypatch.setattr(live, "REDIS_SERVER", "redis")
+    monkeypatch.setattr(live, "REDIS_PASSWORD", "p@ss+w/0rd=")
     built = arq_pool.arq_redis_settings()
     assert (built.host, built.password) == ("redis", "p@ss+w/0rd=")
 
-    monkeypatch.setattr(arq_pool.settings, "REDIS_PASSWORD", "")
+    monkeypatch.setattr(live, "REDIS_PASSWORD", "")
     assert arq_pool.arq_redis_settings().password is None

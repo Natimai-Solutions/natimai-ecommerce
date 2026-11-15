@@ -120,6 +120,15 @@ async def marketing_emails_allowed(
     return preference is None or bool(preference.marketing_email_enabled)
 
 
+async def _address_is_verified(session: AsyncSession, user_id: uuid.UUID) -> bool:
+    from app.features.user.models.user import User
+
+    verified = (
+        await session.exec(select(User.is_verified).where(col(User.id) == user_id))
+    ).first()
+    return bool(verified)
+
+
 async def remind_abandoned_carts(
     session: AsyncSession, *, now: datetime | None = None
 ) -> dict[str, int]:
@@ -178,11 +187,13 @@ async def remind_abandoned_carts(
     ) in snapshots:
         cart.abandonment_reminded_at = _utc(current)
         session.add(cart)
-        if user_id is None:
+        if user_id is None or not await _address_is_verified(session, user_id):
             # A visitor's address was typed in a form, never confirmed:
             # anyone could make the shop mail any address (audit 2026-11,
-            # S8). Only accounts — address verified, opt-out honoured — are
-            # reminded. Stamped so the cart is not re-read every hour.
+            # S8). The same goes for a guest-checkout account
+            # (``POST /signup/guest``): it has a ``user_id`` and an address
+            # nobody confirmed. Only verified accounts — opt-out honoured —
+            # are reminded. Stamped so the cart is not re-read every hour.
             unverified += 1
             await session.commit()
             continue

@@ -99,6 +99,8 @@ export interface AdminOrderPaymentItem {
   created_at: string | null;
   /** Backend-computed: provider supports an in-app refund and the payment is refundable. */
   can_refund: boolean;
+  /** Refunds recorded, still to be done at the provider and confirmed here. */
+  pending_refund_amount?: number;
   /** Σ of the instalments received so far (pending manual payment). */
   received_amount?: number;
   /** A pending manual payment: the admin can record instalments on it. */

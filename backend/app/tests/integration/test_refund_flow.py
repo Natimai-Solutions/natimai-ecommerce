@@ -165,3 +165,50 @@ async def test_payzen_refund_is_pending_without_status_change(
         select(Refund).where(col(Refund.payment_id) == payment_id)
     )
     assert len(refunds.all()) == 1
+
+
+@pytest.mark.asyncio
+async def test_a_pending_refund_is_confirmed_once_done_at_the_provider(
+    db_session: AsyncSession,
+) -> None:
+    """Audit 2026-11, S6 (review): nothing ever completed a « pending » PayZen
+    refund — no status, no credit note, gift cards and points never taken
+    back. The admin confirms it; the event leaves then, once."""
+    from app.features.payment.services.refund_service import confirm_pending_refunds
+
+    seed = await _seed_payment(
+        db_session, amount=Decimal("1000"), provider_code="payzen"
+    )
+    payment_id = seed.payment.id
+    await refund_payment(session=db_session, payment=seed.payment, admin=seed.admin)
+    await _status_id(db_session, "Refunded")
+    await db_session.commit()
+    await db_session.refresh(seed.payment)
+    await db_session.refresh(seed.admin)
+
+    confirmed = await confirm_pending_refunds(
+        session=db_session, payment=seed.payment, admin=seed.admin
+    )
+    assert [r.status for r in confirmed] == ["completed"]
+    assert confirmed[0].processed_at is not None
+
+    events = (
+        await db_session.exec(
+            select(OutboxEvent).where(col(OutboxEvent.type) == "payment.refunded")
+        )
+    ).all()
+    assert len(events) == 1
+    assert events[0].payload["refund_id"] == str(confirmed[0].id)
+    assert events[0].payload["payment_fully_refunded"] is True
+    payment = await db_session.get(Payment, payment_id)
+    assert payment is not None
+    await db_session.refresh(payment)
+    assert payment.payment_status_id == await _status_id(db_session, "Refunded")
+
+    # Nothing left to confirm: a second click is refused, no second event.
+    await db_session.refresh(seed.admin)
+    with pytest.raises(AppError) as nothing:
+        await confirm_pending_refunds(
+            session=db_session, payment=payment, admin=seed.admin
+        )
+    assert nothing.value.code == "refund.nothing_pending"

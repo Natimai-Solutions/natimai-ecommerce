@@ -1539,6 +1539,10 @@ const fr = {
     reference: 'Référence',
     refund: 'Rembourser',
     refund_amount: 'Montant à rembourser (optionnel)',
+    refund_confirm: 'Confirmer le remboursement de {amount}',
+    refund_confirm_hint:
+      'Une fois le remboursement fait chez le prestataire (back-office PayZen) : émet l’avoir, met la commande à jour et reprend cartes cadeaux et points.',
+    refund_confirmed: 'Remboursement confirmé.',
     refund_failed: 'Remboursement impossible.',
     refund_hint: '. Laissez le montant vide pour un remboursement total.',
     refund_title: 'Rembourser le paiement',

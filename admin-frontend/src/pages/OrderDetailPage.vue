@@ -202,6 +202,23 @@
                       :label="$t('order.refund')"
                       @click="openRefund(p)"
                     />
+                    <q-btn
+                      v-if="(p.pending_refund_amount ?? 0) > 0"
+                      flat
+                      dense
+                      no-caps
+                      icon="ph:check-circle"
+                      data-testid="order-refund-confirm"
+                      :label="
+                        $t('order.refund_confirm', {
+                          amount: formatMoney(p.pending_refund_amount ?? 0),
+                        })
+                      "
+                      :loading="confirmingRefundId === p.payment_id"
+                      @click="confirmRefundRow(p)"
+                    >
+                      <q-tooltip>{{ $t('order.refund_confirm_hint') }}</q-tooltip>
+                    </q-btn>
                   </td>
                 </tr>
                 <tr v-if="order.payments.length === 0">
@@ -964,6 +981,7 @@ async function sendBalanceRequest() {
 import {
   cancelReceipt,
   capturePayment,
+  confirmPendingRefunds,
   RECEIPT_METHOD_LABELS,
   refundPayment,
   type PaymentReceipt,
@@ -1337,6 +1355,23 @@ async function captureRow(p: AdminOrderPaymentItem) {
     error.value = extractApiError(err) ?? t('order.capture_failed');
   } finally {
     capturingId.value = null;
+  }
+}
+
+// --- Refund done at the provider (PayZen back office): confirm it ---
+const confirmingRefundId = ref<string | null>(null);
+
+async function confirmRefundRow(p: AdminOrderPaymentItem) {
+  confirmingRefundId.value = p.payment_id;
+  error.value = null;
+  try {
+    await confirmPendingRefunds(p.payment_id);
+    refundNotice.value = t('order.refund_confirmed');
+    await load();
+  } catch (err) {
+    error.value = extractApiError(err) ?? t('order.refund_failed');
+  } finally {
+    confirmingRefundId.value = null;
   }
 }
 

@@ -1528,6 +1528,10 @@ const en: MessageSchema = {
     reference: 'Reference',
     refund: 'Refund',
     refund_amount: 'Amount to refund (optional)',
+    refund_confirm: 'Confirm the refund of {amount}',
+    refund_confirm_hint:
+      'Once the refund is done at the provider (PayZen back office): issues the credit note, updates the order and takes gift cards and points back.',
+    refund_confirmed: 'Refund confirmed.',
     refund_failed: 'Refund failed.',
     refund_hint: '. Leave the amount empty for a full refund.',
     refund_title: 'Refund the payment',

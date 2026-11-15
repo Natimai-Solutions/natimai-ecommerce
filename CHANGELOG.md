@@ -164,6 +164,25 @@ takes a tag as its `ref`.
 
 ### Fixed
 
+- Review of the November 2026 audit fixes — stock, cancellation and refunds:
+  money that arrives after an order's reservation was given back (sweep,
+  refused attempt, late notification) takes the stock again before
+  confirming it, and alerts when the goods are gone (B2 was fixed on
+  `/payments/initiate` only); a receipt at the counter is refused for a
+  cancelled order or one whose stock is gone; two attempts started together
+  no longer reserve twice; a refusal no longer revives a cancelled order nor
+  an order another payment secured; « awaiting validation » on a balance no
+  longer sends a shipped order back to « awaiting payment »; a validated
+  manual payment cannot be rejected; two cancellations at once give the promo
+  code back once; `PUT /orders/{id}` changes the status through the one
+  status service.
+- A refund recorded « pending » (PayZen, done in its back office) can now be
+  confirmed from the order (`POST /admin/payments/{id}/refunds/confirm`):
+  nothing completed it before, so no credit note was issued, the order kept
+  its status and the gift cards and points were never taken back (S6).
+- Guest-checkout accounts (unverified address) are no longer sent the
+  abandoned-cart reminder (S8).
+
 - Review of the November 2026 audit fixes — defects the fixes themselves
   introduced: the account's cart is read back at sign-in (signing out emptied
   the device and the first article added then replaced the server cart; the

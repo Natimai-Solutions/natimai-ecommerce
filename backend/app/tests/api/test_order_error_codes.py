@@ -142,7 +142,7 @@ async def test_order_update_returns_order_not_found(
         await endpoint(
             session=session,
             id=order_id,
-            data=SimpleNamespace(),
+            data=SimpleNamespace(order_status_id=None),
             current_user=current_user,
         )
 
