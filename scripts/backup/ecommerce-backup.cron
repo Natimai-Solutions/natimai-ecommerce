@@ -2,9 +2,9 @@
 #   sudo cp scripts/backup/ecommerce-backup.cron /etc/cron.d/ecommerce-backup
 #   sudo chown root:root /etc/cron.d/ecommerce-backup && sudo chmod 644 /etc/cron.d/ecommerce-backup
 #
-# Adapter APP_DIR, l'utilisateur (doit être dans le groupe docker) et surtout
-# BACKUP_REMOTE : sans copie hors serveur, la sauvegarde disparaît avec le
-# serveur qu'elle est censée protéger.
+# Adapter le répertoire, l'utilisateur (doit être dans le groupe docker) et
+# surtout OFFSITE_RCLONE_REMOTE : sans copie hors serveur, la sauvegarde
+# disparaît avec le serveur qu'elle est censée protéger.
 #
 # Vérifier ensuite que la restauration fonctionne VRAIMENT :
 #   ./scripts/backup/restore.sh backups/db_<STAMP>.dump
@@ -14,10 +14,17 @@ SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # Copie hors serveur (rclone configuré au préalable pour l'utilisateur du cron).
-BACKUP_REMOTE=remote:ecommerce-backups
-BACKUP_REMOTE_CMD=rclone
+# (Ce fichier posait BACKUP_REMOTE, que backup.sh ne lit pas : installé tel
+# quel, rien ne quittait le serveur.)
+OFFSITE_RCLONE_REMOTE=remote:ecommerce-backups
+# Fichiers stockés dans un bucket (FILE_STORAGE_BACKEND=s3) : le remote rclone
+# du bucket, copié lui aussi hors serveur. Vide = volume local du conteneur.
+STORAGE_RCLONE_SOURCE=
+# Signal de vie : une URL appelée après chaque sauvegarde réussie (service de
+# type healthchecks). Un cron qui ne tourne plus se voit par son silence.
+BACKUP_HEARTBEAT_URL=
 # Webhook d'alerting — même valeur que ALERT_WEBHOOK_URL dans le .env racine.
 ALERT_WEBHOOK_URL=
 
 # m  h  dom mon dow  user      command
-  0  2  *   *   *    deploy    cd /opt/fastapi-ecommerce && ./scripts/backup/backup.sh >> /var/log/ecommerce-backup.log 2>&1
+  0  2  *   *   *    deploy    cd /opt/natimai-ecommerce && ./scripts/backup/backup.sh >> /var/log/ecommerce-backup.log 2>&1

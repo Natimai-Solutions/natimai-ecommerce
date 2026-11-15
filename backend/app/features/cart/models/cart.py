@@ -136,6 +136,14 @@ class CartItemBase(Base):
         decimal_places=2,
         description="Unit price snapshot in cart currency",
     )
+    import_service_level: str | None = Field(
+        default=None,
+        max_length=50,
+        description=(
+            "Service level of the import route the unit price is computed on "
+            "(rapide / economique…). Null = the default import route."
+        ),
+    )
     fx_source_currency: str | None = Field(
         default=None,
         max_length=8,
@@ -205,6 +213,14 @@ class CartItemAddRequest(SQLModel):
     quantity: int = Field(
         default=1, ge=1, le=MAX_LINE_QUANTITY, description="Quantity to add"
     )
+    import_service_level: str | None = Field(
+        default=None,
+        max_length=50,
+        description=(
+            "Import mode chosen on the product page (rapide / economique…): "
+            "the line is priced on that route. Omitted = the default route."
+        ),
+    )
 
 
 class CartReplaceRequest(SQLModel):
@@ -236,6 +252,8 @@ class CartItemDetail(SQLModel):
     quantity: int
     unit_price: Decimal
     line_total: Decimal
+    #: Import mode the unit price is computed on (None: not an import).
+    import_service_level: str | None = None
 
 
 class CartDetailPublic(SQLModel):

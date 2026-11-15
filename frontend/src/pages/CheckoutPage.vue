@@ -1234,6 +1234,7 @@ async function syncCartToBackend() {
     items: cartStore.detailedItems.map(({ item }) => ({
       product_id: item.product_id,
       quantity: item.quantity,
+      import_service_level: item.import_service_level ?? null,
     })),
   });
 }

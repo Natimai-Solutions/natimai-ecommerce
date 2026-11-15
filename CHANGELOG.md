@@ -9,6 +9,10 @@ takes a tag as its `ref`.
 
 ### Added
 
+- `docs/internal/AUDIT_FONCTIONNEL_2026-11.md`: functional audit (are the
+  features solid, which ones are missing), three parallel reviews of the
+  customer journey, the back office and operations, and the business engine.
+
 - `docs/internal/AUDIT_2026-11.md`: security, functional and UI/UX audit of
   the stack before opening (findings verified against the code, with file,
   scenario and fix). The pre-opening fixes it calls for are tracked in
@@ -163,6 +167,32 @@ takes a tag as its `ref`.
   (superuser-only), as the base of the future fine-grained roles.
 
 ### Fixed
+
+- **The import freight is billed.** The product page showed the price of the
+  chosen import mode, freight included, while the catalogue, the cart and the
+  order priced with no route — no freight — and the checkout skipped the
+  import leg as « already in the price »: the freight (and the customs,
+  margin and tax computed on it) was billed nowhere, and the cost price
+  ignored it too. A price asked without a route is now computed on the
+  **default import route**; a cart line and an order line carry the mode
+  their price is computed on (`import_service_level`, migration
+  `a7b8c9d0e1f2`); the product page passes the mode it shows, and the cart
+  lets the customer switch the whole cart to another mode
+  (`GET /cart/import-modes`). The cached catalogue prices are refreshed when
+  an import route changes. **Prices of imported articles rise by the default
+  freight at the first refresh after deployment.**
+- An unpaid order can be paid again: `GET /orders/me/{id}` says what is
+  payable now (`pay_now_kind`, `pay_now_amount`); the order page shows
+  « Payer », the payment-return page « Réessayer le paiement » (it sent back
+  to an emptied cart), and the « payment refused » e-mail links to it.
+- « Demander un devis » in the cart: the request, its admin screen, the PDF
+  and the e-mail existed, nothing in the storefront reached them.
+- Backups: the shipped crontab set `BACKUP_REMOTE`, which `backup.sh` does
+  not read — nothing left the server; it now sets `OFFSITE_RCLONE_REMOTE`
+  and the documented directory. `STORAGE_RCLONE_SOURCE` backs up the bucket
+  when files are stored in S3 (the local volume is then empty, and the
+  script says so), and a successful run leaves `backups/last_success` and
+  calls `BACKUP_HEARTBEAT_URL`.
 
 - Review of the November 2026 audit fixes — low-severity points:
   - money: the balance of a deposit order cannot be paid with a method dearer

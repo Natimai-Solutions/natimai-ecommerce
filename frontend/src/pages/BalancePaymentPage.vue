@@ -3,7 +3,9 @@
     <router-link :to="{ name: 'order-tracking', params: { id: orderId } }" class="balance__back">
       <q-icon name="ph:arrow-left" size="16px" /> {{ $t('balance.order', { ref: orderLabel }) }}
     </router-link>
-    <h1 class="page-title balance__title">{{ $t('balance.title') }}</h1>
+    <h1 class="page-title balance__title">
+      {{ payingBalance ? $t('balance.title') : $t('balance.title_order') }}
+    </h1>
 
     <div v-if="loading" aria-busy="true">
       <q-skeleton type="text" width="40%" /><q-skeleton type="text" width="60%" />
@@ -57,7 +59,7 @@
               data-testid="balance-submit"
               unelevated
               color="primary"
-              :label="$t('balance.pay', { amount: money(order.balance_amount) })"
+              :label="$t('balance.pay', { amount: money(dueAmount) })"
               class="balance__submit"
               :loading="initiating"
               :disable="!selectedMethodId || initiating"
@@ -76,15 +78,21 @@
             <span>{{ $t('balance.total') }}</span>
             <span class="font-mono">{{ money(order.total_amount) }}</span>
           </div>
-          <div class="app-kv">
+          <div v-if="payingBalance" class="app-kv">
             <span>{{ $t('balance.deposit_paid') }}</span>
             <span class="font-mono">{{ money(order.deposit_amount) }}</span>
           </div>
           <div class="app-kv app-kv--total">
-            <span>{{ $t('balance.balance_due') }}</span>
-            <span class="font-mono" data-testid="balance-amount">{{
-              money(order.balance_amount)
-            }}</span>
+            <span>
+              {{
+                payingBalance
+                  ? $t('balance.balance_due')
+                  : order.pay_now_kind === 'deposit'
+                    ? $t('balance.deposit_due')
+                    : $t('balance.amount_due')
+              }}
+            </span>
+            <span class="font-mono" data-testid="balance-amount">{{ money(dueAmount) }}</span>
           </div>
         </aside>
       </div>
@@ -103,7 +111,7 @@ import AppNotice from '@app/ui/AppNotice.vue';
 import ChoiceList, { type ChoiceOption } from '@/components/ChoiceList.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useCurrencyStore } from '@/stores/currency';
-import { getMyOrder, type Order } from '@/api/orders';
+import { getMyOrder, type OrderDetail } from '@/api/orders';
 import { apiErrorMessage } from '@/utils/errors';
 import { orderMoney } from '@/utils/money';
 import {
@@ -124,7 +132,7 @@ const currencyStore = useCurrencyStore();
 const orderId = computed(() => String(route.params.id ?? ''));
 const loading = ref(true);
 const errorMessage = ref<string | null>(null);
-const order = ref<Order | null>(null);
+const order = ref<OrderDetail | null>(null);
 const methods = ref<PaymentMethod[]>([]);
 const selectedMethodId = ref<string | null>(null);
 const initiating = ref(false);
@@ -134,12 +142,16 @@ const instructions = ref<string | null>(null);
 const orderLabel = computed(() =>
   order.value ? orderRef(order.value.order_number, order.value.id) : orderId.value.slice(0, 8),
 );
+/*
+ * The part payable now. This page only paid the balance of a deposit order:
+ * an order whose first payment failed or was abandoned (card refused, PayPal
+ * left, page reloaded during the card form) had no way to be paid at all —
+ * the cart was already emptied (functional audit, November 2026).
+ */
+const dueAmount = computed(() => order.value?.pay_now_amount ?? '0');
+const payingBalance = computed(() => order.value?.pay_now_kind === 'balance');
 const nothingDue = computed(
-  () =>
-    !order.value ||
-    order.value.payment_plan !== 'deposit' ||
-    order.value.balance_paid_at !== null ||
-    Number.parseFloat(order.value.balance_amount) <= 0,
+  () => !order.value?.pay_now_kind || !(Number.parseFloat(dueAmount.value) > 0),
 );
 
 function money(raw: string): string {
@@ -163,7 +175,7 @@ async function pay() {
     const returnUrl = `${window.location.origin}/paiement/retour`;
     const result = await initiatePayment({
       payment_method_id: selectedMethodId.value,
-      amount: order.value.balance_amount,
+      amount: dueAmount.value,
       currency: order.value.currency ?? currencyStore.reference,
       order_id: order.value.id,
       return_url: returnUrl,
@@ -194,7 +206,9 @@ async function pay() {
     }
     errorMessage.value = t('balance.method_unavailable');
   } catch (err) {
-    errorMessage.value = apiErrorMessage(err) ?? t('balance.failed');
+    errorMessage.value =
+      apiErrorMessage(err) ??
+      (payingBalance.value ? t('balance.failed') : t('balance.failed_order'));
   } finally {
     initiating.value = false;
   }
@@ -211,8 +225,10 @@ onMounted(async () => {
   try {
     order.value = await getMyOrder(orderId.value);
     if (!nothingDue.value) {
-      methods.value = await listMyPaymentMethods(Number.parseFloat(order.value.balance_amount));
-      selectedMethodId.value = methods.value[0]?.id ?? null;
+      methods.value = await listMyPaymentMethods(Number.parseFloat(dueAmount.value));
+      // The order's own method first: its fee is the one the order carries.
+      const chosen = methods.value.find((m) => m.id === order.value?.payment_method_id);
+      selectedMethodId.value = chosen?.id ?? methods.value[0]?.id ?? null;
     }
   } catch (err) {
     errorMessage.value =
@@ -222,7 +238,10 @@ onMounted(async () => {
   }
 });
 
-usePageMeta(() => ({ title: t('balance.title'), noindex: true }));
+usePageMeta(() => ({
+  title: payingBalance.value ? t('balance.title') : t('balance.title_order'),
+  noindex: true,
+}));
 </script>
 
 <style scoped lang="scss">

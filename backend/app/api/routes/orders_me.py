@@ -33,8 +33,15 @@ from app.features.order.services.tracking_link import (
 )
 from app.features.payment.models.payment import Payment
 from app.features.payment.models.payment_method import PaymentMethod
-from app.features.payment.services.deposit import balance_amount, balance_due
-from app.features.payment.services.receipts import order_payment_summary
+from app.features.payment.services.deposit import (
+    KIND_BALANCE,
+    balance_amount,
+    balance_due,
+)
+from app.features.payment.services.receipts import (
+    next_part_due,
+    order_payment_summary,
+)
 from app.features.shipping.crud import (
     crud_shipping_route_tracking,
     crud_status_definition,
@@ -167,6 +174,57 @@ class MyOrderDetail(MyOrderPublic):
     amount_due: Decimal = Decimal("0")
     #: Whether « Annuler la commande » is offered (nothing paid yet).
     can_cancel: bool = False
+    #: The part payable online now — ``full`` / ``deposit`` for an order still
+    #: unpaid, ``balance`` for a deposit order — and its amount. None when
+    #: there is nothing to pay. An order whose card was refused or whose
+    #: PayPal was abandoned had no way back to a payment (functional audit,
+    #: November 2026): ``POST /payments/initiate`` accepted it, no screen did.
+    pay_now_kind: str | None = None
+    pay_now_amount: Decimal = Decimal("0")
+    #: Method chosen at checkout (its fee is the one the order carries).
+    payment_method_id: uuid.UUID | None = None
+
+
+#: Order statuses from which a first payment can still be made online
+#: (``_validate_order_for_initiation`` in payments.py refuses the others).
+_FIRST_PAYMENT_STATUSES: frozenset[str] = frozenset(
+    {"Pending", "AwaitingPayment", "PaymentFailed", "PartiallyPaid"}
+)
+#: Statuses that close the balance of a deposit order.
+_NO_BALANCE_STATUSES: frozenset[str] = frozenset(
+    {"Refunded", "PartiallyRefunded", "PaymentReview", "Cancelled"}
+)
+
+
+async def _pay_now(
+    session: SessionDep, order: Order, status_name: str | None
+) -> tuple[str | None, Decimal]:
+    """What the customer can pay online right now, as the initiation route
+    will accept it."""
+    kind, amount = await next_part_due(session, order=order)
+    if kind is None or amount <= 0:
+        return None, Decimal("0")
+    if kind == KIND_BALANCE:
+        allowed = status_name not in _NO_BALANCE_STATUSES
+    else:
+        allowed = status_name in _FIRST_PAYMENT_STATUSES
+    return (kind, amount) if allowed else (None, Decimal("0"))
+
+
+async def _payment_method_id(
+    session: SessionDep, order_id: uuid.UUID
+) -> uuid.UUID | None:
+    """The method of the order's first payment: the one chosen at checkout."""
+    result = await session.exec(
+        select(Payment.payment_method_id)
+        .where(
+            col(Payment.order_id) == order_id,
+            col(Payment.payment_method_id).is_not(None),
+        )
+        .order_by(col(Payment.created_at).asc().nulls_last())
+        .limit(1)
+    )
+    return result.first()
 
 
 async def _payment_method_name(session: SessionDep, order_id: uuid.UUID) -> str | None:
@@ -202,6 +260,10 @@ async def get_my_order(
     summary = await order_payment_summary(session, order=order)
     item.amount_paid, item.amount_due = summary.paid, summary.due
     item.can_cancel = await cancellation_refusal(session, order) is None
+    item.pay_now_kind, item.pay_now_amount = await _pay_now(
+        session, order, item.order_status_name
+    )
+    item.payment_method_id = await _payment_method_id(session, order.id)
     return item
 
 

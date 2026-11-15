@@ -132,6 +132,25 @@
           <span>{{ $t('cart.subtotal') }}</span>
           <span class="font-mono">{{ moneyNumberLabel(cartStore.totalAmount) }}</span>
         </div>
+        <!-- Imported articles are priced freight included, on one import
+             mode: the customer chooses it here, for the whole cart. -->
+        <q-select
+          v-if="importModes.length > 1"
+          :model-value="currentImportMode"
+          :options="importModeOptions"
+          :label="$t('cart.import_mode')"
+          :hint="
+            currentImportMode === null ? $t('cart.import_mode_mixed') : $t('cart.import_mode_hint')
+          "
+          outlined
+          dense
+          emit-value
+          map-options
+          class="cart__import-mode"
+          data-testid="cart-import-mode"
+          :disable="cartStore.mutating"
+          @update:model-value="changeImportMode"
+        />
         <p class="cart__note">
           {{ $t('cart.note') }}
         </p>
@@ -145,6 +164,18 @@
           class="cart__checkout"
           :disable="cartStore.items.length === 0 || cartStore.mutating"
           @click="goToCheckout"
+        />
+        <q-btn
+          v-if="shopModules.isOn('quotes')"
+          flat
+          no-caps
+          color="primary"
+          icon="ph:file-text"
+          :label="$t('quote_request.open')"
+          class="cart__quote"
+          data-testid="cart-quote"
+          :disable="cartStore.items.length === 0 || cartStore.mutating"
+          @click="quoteDialog = true"
         />
         <q-btn
           outline
@@ -180,6 +211,7 @@
         />
       </div>
     </section>
+    <QuoteRequestDialog v-model="quoteDialog" />
   </q-page>
 </template>
 
@@ -195,11 +227,16 @@ import ProductImage from '@/components/ProductImage.vue';
 import ProductCard from '@/components/ProductCard.vue';
 import ShippingEstimate from '@/components/ShippingEstimate.vue';
 import { getRelatedToProducts } from '@/api/products';
+import { listImportModes, type ImportMode } from '@/api/cart';
+import QuoteRequestDialog from '@/components/QuoteRequestDialog.vue';
+import { useShopModulesStore } from '@/stores/shopModules';
 import type { components } from '@app/api-types';
 import { getProductRoute } from '@/utils/productRoute';
 
 const { t } = useI18n();
 const cartStore = useCartStore();
+const shopModules = useShopModulesStore();
+const quoteDialog = ref(false);
 const currencyStore = useCurrencyStore();
 const router = useRouter();
 
@@ -222,6 +259,35 @@ function fallbackProductName(productId: string): string {
 
 async function loadCart() {
   await cartStore.loadCart();
+}
+
+// --- Import mode of the cart (rapide, économique…) -------------------------
+const importModes = ref<ImportMode[]>([]);
+const importModeOptions = computed(() =>
+  importModes.value.map((mode) => ({
+    value: mode.service_level,
+    label:
+      mode.eta_days != null
+        ? t('cart.import_mode_option', { label: mode.label, days: mode.eta_days })
+        : mode.label,
+  })),
+);
+/** The mode every line is priced on; null when the lines differ. */
+const currentImportMode = computed<string | null>(() => {
+  const fallback = importModes.value[0]?.service_level ?? null;
+  const levels = new Set(cartStore.items.map((item) => item.import_service_level ?? fallback));
+  return levels.size === 1 ? ([...levels][0] ?? null) : null;
+});
+async function changeImportMode(level: string | null) {
+  if (!level || level === currentImportMode.value) return;
+  await cartStore.setImportMode(level);
+}
+async function loadImportModes() {
+  try {
+    importModes.value = await listImportModes();
+  } catch {
+    importModes.value = []; // no choice offered; lines keep their mode
+  }
 }
 
 function increaseQuantity(itemId: string, currentQuantity: number) {
@@ -275,7 +341,7 @@ async function addRelatedToCart(item: RelatedProduct) {
 }
 
 onMounted(async () => {
-  await loadCart();
+  await Promise.all([loadCart(), loadImportModes()]);
 });
 
 // R8 / U6 : a cart is private — never indexed.
@@ -283,6 +349,15 @@ usePageMeta(() => ({ title: t('cart.title'), noindex: true }));
 </script>
 
 <style scoped lang="scss">
+.cart__quote {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.cart__import-mode {
+  margin: 12px 0 4px;
+}
+
 .cart {
   padding-top: 32px;
   padding-bottom: 96px;

@@ -2,7 +2,7 @@
 # Sauvegarde PostgreSQL (pg_dump format custom) + volume des uploads.
 #
 # À planifier en cron sur le serveur de production, par exemple :
-#   0 2 * * * cd /opt/fastapi-ecommerce && ./scripts/backup/backup.sh >> /var/log/ecommerce-backup.log 2>&1
+#   0 2 * * * cd /opt/natimai-ecommerce && ./scripts/backup/backup.sh >> /var/log/ecommerce-backup.log 2>&1
 #
 # La copie HORS SERVEUR est indispensable : un backup sur le disque du serveur
 # ne protège ni d'une panne disque ni d'un ransomware. Renseigner
@@ -19,6 +19,12 @@
 #                          replicas: 2 en prod, `exec` sans --index est ambigu)
 #   PGUSER / PGDATABASE    identifiants Postgres (défauts du compose)
 #   OFFSITE_RCLONE_REMOTE  destination rclone (ex. "remote:ecommerce-backups")
+#   STORAGE_RCLONE_SOURCE  remote rclone du bucket des fichiers quand le stockage
+#                          est S3 (ex. "s3prod:natimai-files") : synchronisé vers
+#                          $OFFSITE_RCLONE_REMOTE/storage-bucket. Sans elle, seul
+#                          le volume local du conteneur api est archivé — vide
+#                          en mode S3.
+#   BACKUP_HEARTBEAT_URL   URL appelée après une sauvegarde réussie (signal de vie)
 #   RETENTION_LOCAL_ONLY   "true" pour autoriser la rotation sans copie distante
 #   ALERT_WEBHOOK_URL      si défini, tout échec y est notifié (même webhook que
 #                          l'application, cf. app/core/alerting.py)
@@ -31,6 +37,8 @@ API_INDEX="${API_INDEX:-1}"
 PGUSER="${PGUSER:-postgres}"
 PGDATABASE="${PGDATABASE:-fastapi_ecommerce}"
 OFFSITE_RCLONE_REMOTE="${OFFSITE_RCLONE_REMOTE:-}"
+STORAGE_RCLONE_SOURCE="${STORAGE_RCLONE_SOURCE:-}"
+BACKUP_HEARTBEAT_URL="${BACKUP_HEARTBEAT_URL:-}"
 RETENTION_LOCAL_ONLY="${RETENTION_LOCAL_ONLY:-false}"
 ALERT_WEBHOOK_URL="${ALERT_WEBHOOK_URL:-}"
 
@@ -82,6 +90,14 @@ if ! tar tzf "$STORAGE_FILE.part" > /dev/null 2>&1; then
   echo "ERREUR : archive des uploads illisible" >&2
   exit 1
 fi
+# En stockage S3 le volume local est vide : l'archive est valide et ne contient
+# rien. Sans la copie du bucket, les fichiers ne sont pas sauvegardés du tout.
+storage_entries="$(tar tzf "$STORAGE_FILE.part" | grep -vc '/$' || true)"
+if [ "${storage_entries:-0}" -eq 0 ] && [ -z "$STORAGE_RCLONE_SOURCE" ]; then
+  echo "[$(date -Is)] AVERTISSEMENT : l'archive des uploads est vide. Si les" \
+       "fichiers sont dans un bucket (S3), définir STORAGE_RCLONE_SOURCE :" \
+       "ils ne sont PAS sauvegardés." >&2
+fi
 mv "$STORAGE_FILE.part" "$STORAGE_FILE"
 
 echo "[$(date -Is)] Sauvegardes vérifiées :"
@@ -93,6 +109,11 @@ if [ -n "$OFFSITE_RCLONE_REMOTE" ]; then
   echo "[$(date -Is)] Copie hors serveur vers $OFFSITE_RCLONE_REMOTE …"
   rclone copy "$DB_FILE" "$OFFSITE_RCLONE_REMOTE"
   rclone copy "$STORAGE_FILE" "$OFFSITE_RCLONE_REMOTE"
+  if [ -n "$STORAGE_RCLONE_SOURCE" ]; then
+    echo "[$(date -Is)] Copie du bucket $STORAGE_RCLONE_SOURCE …"
+    # copy, pas sync : un fichier supprimé du bucket reste dans la copie.
+    rclone copy "$STORAGE_RCLONE_SOURCE" "$OFFSITE_RCLONE_REMOTE/storage-bucket"
+  fi
   offsite_done=true
 else
   echo "[$(date -Is)] AVERTISSEMENT : OFFSITE_RCLONE_REMOTE non défini —" \
@@ -110,3 +131,13 @@ else
 fi
 
 echo "[$(date -Is)] OK — $(ls -1 "$BACKUP_DIR" | wc -l) fichier(s) dans $BACKUP_DIR"
+
+# ── Signal de vie ─────────────────────────────────────────────────────────────
+# Le trap n'alerte que sur un échec ; un cron désinstallé ou un serveur éteint
+# ne dit rien. Ce fichier et cet appel disent « la dernière sauvegarde a réussi ».
+date -Is > "$BACKUP_DIR/last_success"
+if [ -n "$BACKUP_HEARTBEAT_URL" ]; then
+  curl -fsS --max-time 10 "$BACKUP_HEARTBEAT_URL" >/dev/null 2>&1 \
+    || echo "[$(date -Is)] AVERTISSEMENT : signal de vie non envoyé" >&2
+fi
+echo "[$(date -Is)] Sauvegarde terminée."

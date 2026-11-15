@@ -1083,6 +1083,16 @@ archives that never left this disk.
 Local-only rotation can be forced with `RETENTION_LOCAL_ONLY=true` if you push
 the backups elsewhere by another means (`scp`, object storage, snapshots).
 
+**Files in a bucket** (`FILE_STORAGE_BACKEND=s3`): the uploads volume is then
+empty and its archive holds nothing — the script says so. Set
+`STORAGE_RCLONE_SOURCE` to the bucket's rclone remote (`s3prod:natimai-files`):
+it is copied to `$OFFSITE_RCLONE_REMOTE/storage-bucket` (a copy, not a mirror:
+a file deleted from the bucket stays in the backup).
+
+**Sign of life**: a successful run writes `backups/last_success` and, when
+`BACKUP_HEARTBEAT_URL` is set, calls it (a healthchecks-style monitor then
+alerts when the cron stops running — the failure webhook cannot).
+
 Any failure exits non-zero and, when `ALERT_WEBHOOK_URL` is set, posts to the
 alerting webhook — a backup that fails silently is worse than none, because you
 believe you are covered. A ready-to-install crontab lives at

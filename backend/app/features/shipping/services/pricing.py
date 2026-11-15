@@ -143,7 +143,7 @@ def _to_decimal(value: Any, default: Decimal = Decimal("0")) -> Decimal:
         return default
 
 
-def _route_metadata_to_dict(route: ShippingRoute) -> dict[str, Any]:
+def _route_metadata_to_dict(route: Any) -> dict[str, Any]:
     """Execute route metadata to dict."""
     raw_metadata = route.route_metadata
     if raw_metadata is None:

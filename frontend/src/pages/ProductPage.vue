@@ -1122,7 +1122,15 @@ async function onAddToCart() {
   }
 
   cartError.value = null;
-  const ok = await cartStore.addItem(target.id, quantity.value, target);
+  // The line is billed on the import mode whose price is shown here.
+  const ok = await cartStore.addItem(
+    target.id,
+    quantity.value,
+    target,
+    selectedMode.value
+      ? { serviceLevel: selectedMode.value.service_level ?? null, unitPrice: priceValue.value }
+      : null,
+  );
   if (ok) {
     justAdded.value = true;
     return;

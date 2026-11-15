@@ -4165,6 +4165,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/cart/import-modes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Import Modes
+         * @description The import modes on offer (rapide, économique…), the default first.
+         *
+         *     Each cart line is priced freight included on one of them; the cart lets
+         *     the customer switch — the line then takes that mode's price.
+         */
+        get: operations["cart-list_import_modes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/cart/me": {
         parameters: {
             query?: never;
@@ -9820,6 +9843,11 @@ export interface components {
              * @default 1
              */
             quantity: number;
+            /**
+             * Import Service Level
+             * @description Import mode chosen on the product page (rapide / economique…): the line is priced on that route. Omitted = the default route.
+             */
+            import_service_level?: string | null;
         };
         /**
          * CartItemDetail
@@ -9842,6 +9870,8 @@ export interface components {
             unit_price: string;
             /** Line Total */
             line_total: string;
+            /** Import Service Level */
+            import_service_level?: string | null;
         };
         /**
          * CartItemQuantityUpdateRequest
@@ -13086,6 +13116,23 @@ export interface components {
              */
             banners: components["schemas"]["HomepageBlockPublic"][];
         };
+        /**
+         * ImportModePublic
+         * @description An import mode the customer can price the cart on.
+         */
+        ImportModePublic: {
+            /** Service Level */
+            service_level: string;
+            /** Label */
+            label: string;
+            /** Eta Days */
+            eta_days?: number | null;
+            /**
+             * Is Default
+             * @default false
+             */
+            is_default: boolean;
+        };
         /** IntegrityBreakPublic */
         IntegrityBreakPublic: {
             /** Number */
@@ -13893,6 +13940,15 @@ export interface components {
              * @default false
              */
             can_cancel: boolean;
+            /** Pay Now Kind */
+            pay_now_kind?: string | null;
+            /**
+             * Pay Now Amount
+             * @default 0
+             */
+            pay_now_amount: string;
+            /** Payment Method Id */
+            payment_method_id?: string | null;
         };
         /**
          * MyOrderLine
@@ -14492,6 +14548,11 @@ export interface components {
              */
             tax_rate_id?: string | null;
             /**
+             * Import Service Level
+             * @description Service level of the import route the unit price is computed on (rapide / economique…). Null = the default import route.
+             */
+            import_service_level?: string | null;
+            /**
              * Cost Amount Snapshot
              * @description Snapshot du coût produit au moment de la commande
              */
@@ -14593,6 +14654,11 @@ export interface components {
              * @description Snapshot du taux de taxe applique a la ligne
              */
             tax_rate_id?: string | null;
+            /**
+             * Import Service Level
+             * @description Service level of the import route the unit price is computed on (rapide / economique…). Null = the default import route.
+             */
+            import_service_level?: string | null;
             /**
              * Cost Amount Snapshot
              * @description Snapshot du coût produit au moment de la commande
@@ -29939,6 +30005,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "cart-list_import_modes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportModePublic"][];
                 };
             };
         };
