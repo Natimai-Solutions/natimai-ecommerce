@@ -1424,7 +1424,7 @@ def _build_cart_detail(cart: Cart, items: list[CartItem]) -> CartDetailPublic:
             quantity=item.quantity,
             unit_price=item.unit_price,
             line_total=quantize_amount(item.unit_price * item.quantity, cart.currency),
-            import_service_level=item.import_service_level,
+            import_service_level=getattr(item, "import_service_level", None),
         )
         for item in items
     ]
@@ -2228,7 +2228,7 @@ async def create_quote_request(
             session,
             product_id=item.product_id,
             user=current_user,
-            service_level=item.import_service_level,
+            service_level=getattr(item, "import_service_level", None),
         )
         line_total = quantize_amount(item.unit_price * item.quantity, cart.currency)
         subtotal_amount += line_total
@@ -3074,7 +3074,7 @@ async def get_checkout_quote(
             session,
             product_id=item.product_id,
             user=current_user,
-            service_level=item.import_service_level,
+            service_level=getattr(item, "import_service_level", None),
         )
     fixed_shipping_fee: Decimal | None = None
     # isinstance: called directly (tests) the FastAPI defaults are Query objects.
@@ -3166,7 +3166,7 @@ async def _priced_last_leg_options(
                 session,
                 product_id=item.product_id,
                 user=user,
-                service_level=item.import_service_level,
+                service_level=getattr(item, "import_service_level", None),
             )
     except AppError:
         # A cart line is no longer purchasable; no quote to show (checkout will
@@ -3419,7 +3419,7 @@ async def checkout_my_cart(
             session,
             product_id=item.product_id,
             user=current_user,
-            service_level=item.import_service_level,
+            service_level=getattr(item, "import_service_level", None),
         )
         products_by_id[item.product_id] = product
 
@@ -3636,9 +3636,9 @@ async def checkout_my_cart(
                     ),
                     price_group_id_snapshot=getattr(price_group, "id", None),
                     unit_cost_snapshot=await _unit_cost_snapshot(
-                        session, product, item.import_service_level
+                        session, product, getattr(item, "import_service_level", None)
                     ),
-                    import_service_level=item.import_service_level,
+                    import_service_level=getattr(item, "import_service_level", None),
                 ),
                 user=current_user,
             )

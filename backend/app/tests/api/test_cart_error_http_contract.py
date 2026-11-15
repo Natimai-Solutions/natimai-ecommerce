@@ -48,6 +48,10 @@ def test_add_cart_item_product_not_found_returns_error_payload(
     cart_id = uuid.uuid4()
     product_id = uuid.uuid4()
 
+    # No import route in this fake database: the line has no mode.
+    monkeypatch.setattr(
+        "app.api.routes.cart.import_route_for_level", AsyncMock(return_value=None)
+    )
     monkeypatch.setattr(
         crud_cart,
         "get_or_create_active_cart",

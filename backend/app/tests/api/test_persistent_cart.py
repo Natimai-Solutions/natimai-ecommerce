@@ -89,6 +89,10 @@ async def test_add_cart_item_increments_and_recomputes_total(
         quantity=3,
         unit_price=Decimal("10.50"),
     )
+    # No import route in this fake database: the line has no mode.
+    monkeypatch.setattr(
+        "app.api.routes.cart.import_route_for_level", AsyncMock(return_value=None)
+    )
 
     session = AsyncMock()
     current_user = cast(User, SimpleNamespace(id=user_id))
