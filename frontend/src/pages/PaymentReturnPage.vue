@@ -197,10 +197,14 @@ async function confirmThenPoll(paymentId: string) {
   } catch {
     // The provider's notification may still settle it — keep polling.
   }
-  startPolling(paymentId);
+  // The customer may have left while PayPal answered: a poll started now
+  // would run for two minutes with no page to stop it.
+  if (!unmounted) startPolling(paymentId);
 }
 
+let unmounted = false;
 onUnmounted(() => {
+  unmounted = true;
   stopPolling();
 });
 

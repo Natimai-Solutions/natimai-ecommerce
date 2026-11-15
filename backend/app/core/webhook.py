@@ -29,10 +29,14 @@ _TIMEOUT = aiohttp.ClientTimeout(total=15, connect=5)
 
 def allowed_webhook_url(url: str) -> str | None:
     """``url`` rebuilt on its allow-listed host, or None when refused."""
-    parts = urlsplit(url.strip())
+    try:
+        parts = urlsplit(url.strip())
+        port = parts.port  # raises on "host:abc"
+    except ValueError:
+        return None
     if parts.scheme.lower() != "https" or parts.username or parts.password:
         return None
-    if parts.port not in (None, 443):
+    if port not in (None, 443):
         return None
     hostname = (parts.hostname or "").lower()
     allowed = [

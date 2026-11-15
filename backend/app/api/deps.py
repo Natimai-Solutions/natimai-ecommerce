@@ -12,7 +12,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import security
 from app.core.cache import RedisCache
-from app.core.config import settings
+from app.core.config import parse_admin_networks, settings
 from app.core.db import get_db
 from app.core.errors import AppError
 from app.core.field_visibility import reveal_internal_fields
@@ -109,8 +109,7 @@ def _enrollment_required(user: User) -> AppError:
 
 
 def _admin_networks() -> list[ipaddress.IPv4Network | ipaddress.IPv6Network]:
-    raw = (settings.ADMIN_ALLOWED_IPS or "").split()
-    return [ipaddress.ip_network(cidr, strict=False) for cidr in raw]
+    return parse_admin_networks(settings.ADMIN_ALLOWED_IPS)
 
 
 def _check_admin_network(user: User, request: Request | None) -> None:
@@ -191,13 +190,18 @@ CurrentVerifiedUser = Annotated[User, Depends(get_current_verified_user)]
 
 
 async def get_current_user_optional(
-    session: SessionDep, token: str | None = Depends(optional_reusable_oauth2)
+    session: SessionDep,
+    token: str | None = Depends(optional_reusable_oauth2),
+    request: Request = None,  # type: ignore[assignment]  # injected by FastAPI
 ) -> CurrentUser | None:
-    """Get current user optional."""
+    """The signed-in user, or None. A superuser outside
+    ``ADMIN_ALLOWED_IPS`` is anonymous here: the request used to be passed
+    to no one, so every optional-auth route (the generic CRUD of
+    ``BaseRouter``) skipped the network check."""
     if token is None:
         return None
     try:
-        return await get_current_user(session, token)
+        return await get_current_user(session, token, request)
     except AppError:
         return None
 

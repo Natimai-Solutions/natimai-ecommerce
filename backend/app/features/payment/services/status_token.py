@@ -25,6 +25,12 @@ def payment_status_token(payment_id: uuid.UUID) -> str:
 
 
 def check_payment_status_token(payment_id: uuid.UUID, token: str | None) -> bool:
+    # Bytes: ``compare_digest`` raises on a non-ASCII ``str`` (a 500 that
+    # told an existing payment from an unknown one).
     return bool(token) and hmac.compare_digest(
-        payment_status_token(payment_id), str(token)
+        payment_status_token(payment_id).encode(), str(token).encode()
     )
+
+
+#: The return page polls for minutes; the link stays in the browser history.
+PAYMENT_STATUS_TOKEN_DAYS = 7

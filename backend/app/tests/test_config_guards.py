@@ -291,3 +291,18 @@ def test_redis_url_carries_the_password_alone() -> None:
         ENVIRONMENT="local", CLAMAV_ENABLED=True, **_VALID_BASE_SETTINGS
     )
     assert "@" not in no_password.REDIS_URL
+
+
+def test_arq_gets_the_raw_redis_password(monkeypatch: pytest.MonkeyPatch) -> None:
+    """arq does not decode a DSN's password: built from ``REDIS_URL``, a
+    password holding ``+``, ``/`` or ``=`` locked the worker and the outbox
+    poller out while the API connected."""
+    from app.core import arq_pool
+
+    monkeypatch.setattr(arq_pool.settings, "REDIS_SERVER", "redis")
+    monkeypatch.setattr(arq_pool.settings, "REDIS_PASSWORD", "p@ss+w/0rd=")
+    built = arq_pool.arq_redis_settings()
+    assert (built.host, built.password) == ("redis", "p@ss+w/0rd=")
+
+    monkeypatch.setattr(arq_pool.settings, "REDIS_PASSWORD", "")
+    assert arq_pool.arq_redis_settings().password is None

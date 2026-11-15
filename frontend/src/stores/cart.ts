@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import type { components } from '@app/api-types';
 import {
+  getMyCart,
   attachGuestCartEmail,
   clearGuestCart,
   clearMyCart,
@@ -108,9 +109,32 @@ export const useCartStore = defineStore('cart', () => {
    * ones added here. Silent on failure: the local cart then simply mirrors
    * itself as before.
    */
-  async function mergeAfterLogin(): Promise<void> {
+  let mergeInFlight: Promise<void> | null = null;
+  function mergeAfterLogin(): Promise<void> {
+    // One at a time: the boot and the OAuth return both call it, and two
+    // merges of the same visitor cart raced each other.
+    mergeInFlight ??= mergeOnce().finally(() => {
+      mergeInFlight = null;
+    });
+    return mergeInFlight;
+  }
+  async function mergeOnce(): Promise<void> {
     const token = guestToken(false);
-    if (!token) return;
+    if (!token) {
+      // Nothing to fold in. An empty local cart (first visit on this device,
+      // or after a sign-out, which empties it) takes the account's: it was
+      // never read back, and the first article added then replaced it.
+      if (cart.value.items.length > 0) return;
+      try {
+        const mine = await getMyCart();
+        if (cart.value.items.length === 0 && (mine.items ?? []).length > 0) {
+          adoptServerCart(mine);
+        }
+      } catch {
+        // no server cart, or offline: the local one stays the truth
+      }
+      return;
+    }
     try {
       const merged = await mergeGuestCart(token);
       adoptServerCart(merged);

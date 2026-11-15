@@ -1,5 +1,6 @@
 import logging
 import uuid
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Annotated, Any
 
@@ -56,6 +57,7 @@ from app.features.payment.services.provider_dispatch import (
     resolve_api_provider,
 )
 from app.features.payment.services.status_token import (
+    PAYMENT_STATUS_TOKEN_DAYS,
     check_payment_status_token,
     payment_status_token,
 )
@@ -1251,6 +1253,15 @@ async def list_my_payment_methods(
     return out
 
 
+def _status_token_expired(payment: Payment) -> bool:
+    created = payment.created_at
+    if created is None:
+        return False
+    if created.tzinfo is None:
+        created = created.replace(tzinfo=UTC)
+    return datetime.now(UTC) - created > timedelta(days=PAYMENT_STATUS_TOKEN_DAYS)
+
+
 @router.get(
     "/status/{payment_id}",
     response_model=PaymentStatusResponse,
@@ -1265,7 +1276,11 @@ async def get_payment_status_by_token(
     page of a 3-D Secure finished in another browser, signed out (audit
     2026-11). A wrong token answers like an unknown payment."""
     payment = await session.get(Payment, payment_id)
-    if payment is None or not check_payment_status_token(payment_id, t):
+    if (
+        payment is None
+        or not check_payment_status_token(payment_id, t)
+        or _status_token_expired(payment)
+    ):
         raise AppError(
             code="payment.not_found",
             status_code=404,

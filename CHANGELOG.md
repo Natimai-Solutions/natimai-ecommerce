@@ -164,6 +164,19 @@ takes a tag as its `ref`.
 
 ### Fixed
 
+- Review of the November 2026 audit fixes — defects the fixes themselves
+  introduced: the account's cart is read back at sign-in (signing out emptied
+  the device and the first article added then replaced the server cart; the
+  merge also runs once when the boot and the OAuth return both ask);
+  `ADMIN_ALLOWED_IPS` now applies to the optional-auth routes too (the generic
+  CRUD skipped it), accepts commas and stops the start on a typo; the ARQ
+  worker and the outbox poller get the raw `REDIS_PASSWORD` (a password with
+  `+`, `/` or `=` locked them out); `GET /payments/status/{id}` answers 404
+  to a non-ASCII token (it was a 500) and the token expires after 7 days; a
+  malformed webhook URL is refused instead of crashing the departure
+  reminders; the address form applies an autofilled country (it stayed on
+  PF); the PayPal return no longer starts polling after the page is left.
+
 - Security (audit 2026-11, S1): outside `ENVIRONMENT=local` the API refuses
   to start when `SECRET_KEY`, `POSTGRES_PASSWORD` or
   `FIRST_SUPERUSER_PASSWORD` still holds a `changeme-…` placeholder of

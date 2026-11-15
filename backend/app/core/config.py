@@ -1,3 +1,5 @@
+import ipaddress
+import re
 import secrets
 import warnings
 from decimal import Decimal
@@ -49,6 +51,17 @@ def secret_is_set(value: str | None) -> bool:
 
 #: Shortest SECRET_KEY accepted outside local (what `openssl rand -hex 32` gives).
 MIN_SECRET_KEY_LENGTH = 32
+
+
+def parse_admin_networks(
+    raw: str | None,
+) -> list[ipaddress.IPv4Network | ipaddress.IPv6Network]:
+    """``ADMIN_ALLOWED_IPS`` as networks; spaces or commas separate them."""
+    return [
+        ipaddress.ip_network(cidr, strict=False)
+        for cidr in re.split(r"[\s,]+", (raw or "").strip())
+        if cidr
+    ]
 
 
 class Settings(BaseSettings):
@@ -829,6 +842,8 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def _enforce_non_default_secrets(self) -> Self:
         """Execute enforce non default secrets."""
+        # A typo must stop the start, not answer 500 to every admin request.
+        parse_admin_networks(self.ADMIN_ALLOWED_IPS)
         self._check_admin_frontend_host()
         self._check_redis_password()
         self._check_secret_key()
