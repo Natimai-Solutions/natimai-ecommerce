@@ -47,6 +47,8 @@ from app.features.shipping.services.origin import CUSTOMS_REGIME_DOMESTIC
 CUSTOMS_RATE_UNRESOLVED = "customs_rate_unresolved"
 WEIGHT_MISSING = "weight_missing"
 FIXED_PRICE_MISSING = "fixed_price_missing"
+#: The cost is in a currency with no rate in force: no price can be computed.
+CURRENCY_RATE_MISSING = "currency_rate_missing"
 #: Created as a draft by a sync / import: the admin has not published it yet.
 DRAFT = "draft"
 
@@ -140,6 +142,20 @@ def publication_conditions() -> list[Any]:
     ]
 
 
+async def _currency_rate_missing(session: AsyncSession, product: Product) -> bool:
+    from app.features.product.services.pricing import PricingContext
+
+    raw_cost = getattr(product, "cost_amount", None)
+    currency = getattr(product, "cost_currency", None)
+    if raw_cost is None or not currency:
+        return False
+    try:
+        context = await PricingContext.for_session(session)
+    except Exception:  # noqa: BLE001 - never blocks on an unreadable referential
+        return False
+    return currency != context.reference_currency and currency not in context.fx_rates
+
+
 async def publication_blockers(
     session: AsyncSession,
     product: Product,
@@ -165,6 +181,13 @@ async def publication_blockers(
         except Exception:
             blockers.append(FIXED_PRICE_MISSING)
         return blockers
+
+    # A cost in a currency whose rate is missing or expired has no price: the
+    # product page and the cart answered 500 (functional audit, November
+    # 2026). Not sellable until the rate is entered — the page says « not
+    # found », the cart « not available », and the catalogue hides the price.
+    if await _currency_rate_missing(session, product):
+        blockers.append(CURRENCY_RATE_MISSING)
 
     if mode is PricingMode.DOMESTIC:
         return blockers

@@ -99,8 +99,27 @@ async def unexpected_exception_handler(
     )
 
 
+async def currency_rate_missing_handler(
+    _request: Request, exc: Exception
+) -> JSONResponse:
+    """A price that cannot be computed is a product not on sale, not a crash."""
+    logger.warning("Price not computable: %s", exc)
+    error = AppError(
+        code="product.price_unavailable",
+        status_code=409,
+        message="Le prix de cet article n'est pas disponible pour le moment.",
+        details={"currency": getattr(exc, "currency_code", None)},
+    )
+    return JSONResponse(
+        status_code=error.status_code, content=_app_error_payload(error)
+    )
+
+
 def register_error_handlers(app: FastAPI) -> None:
     """Register all API-wide exception handlers."""
+    from app.features.product.services.pricing import CurrencyRateMissing
+
+    app.add_exception_handler(CurrencyRateMissing, currency_rate_missing_handler)
     app.add_exception_handler(AppError, app_error_handler)
     app.add_exception_handler(RecordNotFoundError, record_not_found_handler)
     app.add_exception_handler(Exception, unexpected_exception_handler)

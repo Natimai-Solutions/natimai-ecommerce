@@ -244,14 +244,22 @@ def _plan_checkout_fulfillment_segments(
         raise AppError(
             code="cart.stock.insufficient",
             status_code=409,
+            # Named and counted: the customer read « Insufficient stock for
+            # product <uuid>: requested=… » and could not tell which line.
             message=(
-                f"Insufficient stock for product {product.id}: "
-                f"requested={requested_quantity}, "
-                f"local_available={local_available}, "
-                f"supplier_available={supplier_available}"
+                f"« {getattr(product, 'name', None) or 'Un article'} » : "
+                + (
+                    f"il n'en reste que {int(total_available)} "
+                    f"(vous en demandez {int(requested_quantity)}). "
+                    if total_available > 0
+                    else "cet article n'est plus en stock. "
+                )
+                + "Ajustez votre panier pour continuer."
             ),
             details={
                 "product_id": str(product.id),
+                "product_name": getattr(product, "name", None),
+                "available": str(total_available),
                 "requested": str(requested_quantity),
                 "local_available": str(local_available),
                 "supplier_available": str(supplier_available),
@@ -1310,8 +1318,15 @@ async def _reserve_stock_for_checkout(
         raise AppError(
             code="cart.stock.unavailable",
             status_code=409,
-            message=f"Product {product.id} is not available from the supplier",
-            details={"product_id": str(product.id), "availability_mode": mode},
+            message=(
+                f"« {getattr(product, 'name', None) or 'Un article'} » n'est plus "
+                "disponible chez le fournisseur. Retirez-le du panier pour continuer."
+            ),
+            details={
+                "product_id": str(product.id),
+                "product_name": getattr(product, "name", None),
+                "availability_mode": mode,
+            },
         )
 
     supplier_place_id = getattr(product, "supplier_place_id", None)
@@ -3402,6 +3417,28 @@ async def checkout_my_cart(
         )
         cart = await crud_cart.get_or_create_active_cart(
             session=session, user_id=user_id
+        )
+
+    # One checkout per cart. Two submissions at once (double click, two tabs,
+    # a retry after a timeout) both read the same open cart and each created
+    # an order, its reservations and a payment. The cart row is locked until
+    # the order commits; the second request then finds the cart ordered.
+    locked_cart = (
+        await session.exec(
+            select(Cart)
+            .where(col(Cart.id) == cart.id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    ).first()
+    if isinstance(locked_cart, Cart) and (
+        locked_cart.is_checked_out or not locked_cart.is_active
+    ):
+        raise AppError(
+            code="cart.already_checked_out",
+            status_code=409,
+            message="Cette commande vient d'être enregistrée.",
+            details={"cart_id": str(cart.id)},
         )
 
     items = await crud_cart_item.get_by_cart_id(session=session, cart_id=cart.id)

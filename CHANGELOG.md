@@ -168,6 +168,18 @@ takes a tag as its `ref`.
 
 ### Fixed
 
+- One checkout per cart: the cart row is locked until the order commits, so
+  two submissions at once (double click, two tabs, a retry) no longer create
+  two orders (`cart.already_checked_out`, 409).
+- A product whose cost is in a currency with no rate in force is no longer
+  sellable (`currency_rate_missing` blocker): its page and the cart answered
+  500, and one such article failed a whole list. An uncomputable price is a
+  409 `product.price_unavailable`, never a 500.
+- Checkout errors speak the customer's language: the codes raised with an
+  English, technical message (« Cart is empty », « Insufficient stock for
+  product <uuid> ») have a French message, the French ones an English one;
+  a stock refusal names the article and what is left, and links to the cart.
+
 - **The import freight is billed.** The product page showed the price of the
   chosen import mode, freight included, while the catalogue, the cart and the
   order priced with no route — no freight — and the checkout skipped the

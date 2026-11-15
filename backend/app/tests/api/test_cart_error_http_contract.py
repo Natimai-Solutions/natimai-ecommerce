@@ -20,7 +20,8 @@ def current_user() -> SimpleNamespace:
 
 @pytest.fixture
 def db_session() -> SimpleNamespace:
-    return SimpleNamespace(get=AsyncMock(return_value=None))
+    # exec: the checkout locks its cart row first (a fake row here).
+    return SimpleNamespace(get=AsyncMock(return_value=None), exec=AsyncMock())
 
 
 @pytest.fixture(autouse=True)
@@ -75,7 +76,7 @@ def test_add_cart_item_product_not_found_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "cart.product.not_found",
-            "message": f"Product '{product_id}' not found",
+            "message": "Cet article n'est plus en vente.",
             "details": {"product_id": str(product_id)},
         }
     }
@@ -102,7 +103,7 @@ def test_update_cart_item_quantity_item_missing_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "cart.item.not_found",
-            "message": f"Cart item '{item_id}' not found",
+            "message": "Cette ligne n'est plus dans votre panier.",
             "details": {"item_id": str(item_id)},
         }
     }
@@ -144,7 +145,7 @@ def test_quote_request_no_active_cart_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "cart.active.not_found",
-            "message": "No active cart found",
+            "message": "Votre panier est vide.",
             "details": {"user_id": str(current_user.id)},
         }
     }
@@ -174,7 +175,7 @@ def test_quote_request_empty_cart_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "cart.empty",
-            "message": "Cart is empty",
+            "message": "Votre panier est vide.",
             "details": {"cart_id": str(cart_id)},
         }
     }
@@ -197,7 +198,7 @@ def test_checkout_no_active_cart_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "cart.active.not_found",
-            "message": "No active cart found",
+            "message": "Votre panier est vide.",
             "details": {"user_id": str(current_user.id)},
         }
     }
@@ -226,7 +227,7 @@ def test_checkout_empty_cart_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "cart.empty",
-            "message": "Cart is empty",
+            "message": "Votre panier est vide.",
             "details": {"cart_id": str(cart_id)},
         }
     }

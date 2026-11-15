@@ -226,6 +226,7 @@ const en: MessageSchema = {
     offer_failed: 'The link could not be sent: try again.',
   },
   checkout: {
+    edit_cart: 'Edit the cart',
     back_to_cart: 'Cart',
     title_done: 'Order placed',
     title: 'Checkout',

@@ -16,6 +16,19 @@ sur le serveur, chez un tiers ou une décision.
 Détail, fichiers et scénarios : [`AUDIT_2026-11.md`](AUDIT_2026-11.md) (identifiants S·, B·, F·, U·).
 
 
+### Audit fonctionnel du 15/11/2026 (code)
+
+Détail : [`AUDIT_FONCTIONNEL_2026-11.md`](AUDIT_FONCTIONNEL_2026-11.md) (identifiants D·, Z·, M·). Les sept défauts D1 à D7 sont corrigés (voir CHANGELOG). Reste, à traiter avant l'ouverture :
+
+- **Z1 / M1 — pannes silencieuses** : alerte sur l'échec de la synchro prix et stock, du recalcul des prix et au-delà d'un seuil d'e-mails en échec ; page « État du système » (dernière exécution de chaque tâche, outbox, sauvegarde) — M.
+- **Z2 — outbox** : enregistrer en base l'abandon d'un handler (aujourd'hui un log), ne plus publier les événements CRUD sans handler, planifier la purge — M. Prérequis de l'écran des événements en échec (§4).
+- **Z6 — statuts de commande** : table de transitions, confirmation et motif sur le changement de statut et sur « Étape suivante » d'un départ — S.
+- **Z11 — départs groupés** : clôture automatique à la date limite ; délai annoncé incluant le transit d'import — M.
+- **Z12** : exercice fiscal d'une facture dans le fuseau de la boutique (UTC aujourd'hui) — S.
+- **D5 (suite)** : sortir l'appel au prestataire de paiement de la section sous verrou de stock — M.
+- **D1 (suite)** : le délai de livraison affiché ignore encore le mode d'import choisi ; un départ groupé ne porte pas de mode.
+- **Z16** : refuser une commande sans mode de livraison quand leur chargement a échoué — S.
+
 ### Exploitation (sur le serveur, hors code)
 
 - **Sauvegardes réelles** : planifier le cron de `scripts/backup/backup.sh`, configurer la copie hors site (rclone / scp), **exécuter une restauration réelle** avant la première commande (DEPLOYMENT.md §12).
@@ -72,6 +85,8 @@ Détail, fichiers et scénarios : [`AUDIT_2026-11.md`](AUDIT_2026-11.md) (identi
 
 ## 3. Fonctionnel — client
 
+- **Audit fonctionnel du 15/11/2026, manques côté client** (détail dans l'audit, §4) : identité de facturation B2B (M3, M) ; e-mail de confirmation complet et notification de retard d'un départ (M4, S + M) ; destinataire et téléphone sur l'adresse, page contact (M8, S) ; pages catégorie et marque indexables (M9, M) ; demande d'avis après livraison, e-mail de décision de groupe tarifaire, carte cadeau saisissable au checkout (M14, S chacun) ; rupture partielle après commande (M6, M à L).
+
 - **Retours, RMA et formulaire de rétractation** (obligation légale, c'est du code) : demande depuis « Mes commandes », validation admin, enchaînement sur le remboursement et l'avoir existants — L.
 - **SMS** (expédition, solde dû) — M.
 - Newsletter double opt-in (outil externe ou intégré, à choisir) ; analytics sans cookie (Plausible / Matomo).
@@ -80,6 +95,8 @@ Détail, fichiers et scénarios : [`AUDIT_2026-11.md`](AUDIT_2026-11.md) (identi
 ---
 
 ## 4. Fonctionnel — admin
+
+- **Audit fonctionnel du 15/11/2026, manques côté admin** (détail dans l'audit, §4) : suivi des encours avec relance (M2, S à M) ; commande et devis créés par l'admin (M5, L) ; garde-fou sur les coûts fournisseur (M7, M) ; export des paiements et rapport de ventes par taux de TVA (M10, M) ; historique des synchros, écran Icecat, boutons de maintenance (M11, S à M) ; journal des mouvements de stock (M12, M) ; outils RGPD et purges planifiées (M13, S à M) ; factures : recherche, pagination, bouton FEC, « émettre / renvoyer » (Z7, M).
 
 - **Historique de la commande** (statuts, paiement, expédition, auteur) et notes internes, en chronologie sur la fiche ; sert aussi d'audit par objet — M.
 - **Écran du journal des e-mails** (`email_log`, déjà alimenté : statut, erreur, renvoi possible sauf secrets) avec « renvoyer » ; écran des événements outbox en échec — M.

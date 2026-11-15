@@ -57,3 +57,18 @@ def test_an_ip_literal_on_the_allow_list_is_not_a_webhook_host(
     )
     assert allowed_webhook_url("https://127.0.0.1/x") is None
     assert allowed_webhook_url("https://hooks.zapier.com/x") is not None
+
+
+def test_customer_errors_follow_the_callers_language() -> None:
+    """Functional audit, November 2026: the checkout answered « Cart is
+    empty » and « Insufficient stock for product <uuid> » to French
+    customers. A code raised in one language has its message in the other."""
+    from app.core.error_messages import localized_message
+
+    assert localized_message("cart.empty", "Cart is empty", "fr") == (
+        "Votre panier est vide."
+    )
+    assert localized_message("cart.empty", "Cart is empty", "en") == "Cart is empty"
+    raised = "« Écran » : il n'en reste que 1 (vous en demandez 3)."
+    assert localized_message("cart.stock.insufficient", raised, "fr") == raised
+    assert "adjust" in localized_message("cart.stock.insufficient", raised, "en")

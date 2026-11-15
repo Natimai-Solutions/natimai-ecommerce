@@ -129,12 +129,21 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
 
         try:
             context = await PricingContext.for_session(session)
-            for product in products:
-                product.base_price = context.price(product)
-        except CurrencyRateMissing:
-            raise
         except Exception as exc:  # noqa: BLE001
             logger.warning("Failed to apply runtime pricing: %s", exc)
+            return
+        for product in products:
+            try:
+                product.base_price = context.price(product)
+            except CurrencyRateMissing as exc:
+                # One article whose currency has no rate used to fail the
+                # whole request (500): it is shown unpriced, and is neither
+                # opened nor sold (publication_blockers).
+                logger.warning("Product %s left unpriced: %s", product.id, exc)
+                product.base_price = Decimal("0")
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Failed to apply runtime pricing: %s", exc)
+                return
 
     # -- materialized storefront price ----------------------------------------
 

@@ -226,6 +226,7 @@ const fr = {
     offer_failed: "Le lien n'a pas pu être envoyé : réessayez.",
   },
   checkout: {
+    edit_cart: 'Modifier le panier',
     back_to_cart: 'Panier',
     title_done: 'Commande enregistrée',
     title: 'Finaliser la commande',

@@ -10,6 +10,15 @@ specifics for the clients that need them.
 from __future__ import annotations
 
 EN: dict[str, str] = {
+    "cart.already_checked_out": "This order has just been placed.",
+    "cart.quantity.too_large": "Too many units of one item: request a quote for a larger quantity.",
+    "cart.stock.insufficient": "Not enough stock for an item of your cart: adjust its quantity.",
+    "cart.stock.unavailable": "An item of your cart is no longer available from the supplier.",
+    "payment.method.fee_mismatch": "This payment method does not carry the order's fee: choose the order's one.",
+    "payment.order.cancelled": "This order is cancelled: it can no longer be paid.",
+    "payment.order.out_of_stock": "An item of this order is no longer in stock: it can no longer be paid.",
+    "product.price_unavailable": "The price of this item is not available at the moment.",
+    "quote.not_found": "Quote not found.",
     "address.not_found": "Address not found.",
     "admin.user.already_activated": "This account is already activated: the invitation is no longer needed.",
     "admin.user.email_taken": "An account already uses this address.",
@@ -153,11 +162,40 @@ EN: dict[str, str] = {
 }
 
 
+#: French messages of the customer-facing codes raised with an English,
+#: technical message (functional audit, November 2026: the checkout showed
+#: « Cart is empty » or « Insufficient stock for product <uuid> » to a French
+#: customer). Generic like the English ones; ``details`` carry the specifics.
+FR: dict[str, str] = {
+    "cart.active.not_found": "Votre panier est vide.",
+    "cart.empty": "Votre panier est vide.",
+    "cart.checkout.failed": "La commande n'a pas pu être enregistrée. Réessayez dans un instant.",
+    "cart.item.not_found": "Cette ligne n'est plus dans votre panier.",
+    "cart.not_found": "Panier introuvable.",
+    "cart.product.has_variants": "Choisissez une déclinaison de cet article.",
+    "cart.product.not_found": "Cet article n'est plus en vente.",
+    "cart.product.not_purchasable": "Cet article n'est pas disponible à la vente pour le moment.",
+    "cart.total.invalid": "Le montant du panier est nul.",
+    "checkout.delivery_type.unavailable": "Ce mode de livraison n'est pas proposé pour cette destination.",
+    "order.cancel_refused": "Cette commande ne peut plus être annulée depuis votre compte.",
+    "order.not_found": "Commande introuvable.",
+    "payment.amount.mismatch": "Le montant ne correspond pas à ce qui reste à régler sur la commande.",
+    "payment.currency.mismatch": "La devise ne correspond pas à celle de la commande.",
+    "payment.not_found": "Paiement introuvable.",
+    "payment.order.already_paid": "Cette commande est déjà réglée.",
+    "payment.order.no_reference": "Cette commande ne peut pas être payée en ligne : contactez-nous.",
+    "payment.order.not_found": "Commande introuvable.",
+    "payment.order.not_payable": "Cette commande n'accepte plus de paiement.",
+    "shipping.route.destination_not_served": "Ce mode de livraison ne dessert pas cette destination : choisissez-en un autre.",
+    "shipping.route.unknown_or_inactive": "Ce mode de livraison n'est plus disponible : choisissez-en un autre.",
+}
+
+
 def localized_message(code: str, message: str, locale: str) -> str:
     """The message to send for ``code`` in ``locale``."""
     if locale == "en":
         return EN.get(code, message)
-    return message
+    return FR.get(code, message)
 
 
-__all__ = ["EN", "localized_message"]
+__all__ = ["EN", "FR", "localized_message"]
