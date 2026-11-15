@@ -301,9 +301,7 @@
           {{ $t('catalogue.approximate', { q: store.filters.q }) }}
         </AppNotice>
 
-        <AppNotice v-if="cartError" tone="warning" class="catalogue__notice">
-          {{ cartError }}
-        </AppNotice>
+        <CartErrorToast v-model="cartError" />
 
         <!-- Chargement : squelettes à la forme des cartes -->
         <div v-if="store.loading" class="product-grid" aria-busy="true">
@@ -374,6 +372,7 @@
 </template>
 
 <script setup lang="ts">
+import CartErrorToast from '@/components/CartErrorToast.vue';
 import { computed, onMounted, onServerPrefetch, ref, watch } from 'vue';
 import { useMeta } from 'quasar';
 import { absoluteUrl, breadcrumbList, jsonLd } from '@/utils/seo';
@@ -462,7 +461,7 @@ const filtersOpen = ref(false);
 const filtersPanel = ref<HTMLElement | null>(null);
 const filtersOpener = ref<{ $el?: HTMLElement } | null>(null);
 // Mobile sheet = modal dialog: focus trapped, Escape, no scroll behind (U6).
-useModalSheet(filtersOpen, filtersPanel, filtersOpener);
+useModalSheet(filtersOpen, filtersPanel, filtersOpener, '(min-width: 1024px)');
 const showAllManufacturers = ref(false);
 
 // The chips of the current level: the selected category's sub-categories,

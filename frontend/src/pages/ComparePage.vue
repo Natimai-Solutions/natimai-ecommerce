@@ -20,7 +20,7 @@
       {{ error }}
       <template #action><q-btn flat :label="$t('common.retry')" @click="load" /></template>
     </AppNotice>
-    <AppNotice v-if="cartError" tone="warning" dense class="q-mb-md">{{ cartError }}</AppNotice>
+    <CartErrorToast v-model="cartError" />
 
     <div v-if="loading && !products.length" class="compare__loading" aria-busy="true">
       <q-skeleton type="rect" height="320px" />
@@ -137,6 +137,7 @@
 </template>
 
 <script setup lang="ts">
+import CartErrorToast from '@/components/CartErrorToast.vue';
 import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { components } from '@app/api-types';

@@ -75,23 +75,7 @@
       </ul>
     </section>
 
-    <!-- Fixed at the bottom of the screen (U8): the card clicked may be far
-         below the top of the page, where this message used to appear. -->
-    <div v-if="cartError" class="home__toast" role="alert" data-testid="home-cart-error">
-      <AppNotice tone="error">
-        {{ cartError }}
-        <template #action>
-          <q-btn
-            flat
-            round
-            dense
-            icon="ph:x"
-            :aria-label="$t('home.dismiss')"
-            @click="cartError = null"
-          />
-        </template>
-      </AppNotice>
-    </div>
+    <CartErrorToast v-model="cartError" />
 
     <section
       v-if="home.categories.length"
@@ -190,6 +174,7 @@
 </template>
 
 <script setup lang="ts">
+import CartErrorToast from '@/components/CartErrorToast.vue';
 import { useI18n } from 'vue-i18n';
 import { useShopModulesStore } from '@/stores/shopModules';
 import { computed, onMounted, onServerPrefetch, ref, watch } from 'vue';
@@ -493,17 +478,6 @@ a.banner:hover {
 
 .home__notice {
   margin-bottom: 24px;
-}
-
-.home__toast {
-  position: fixed;
-  left: 16px;
-  right: 16px;
-  bottom: 16px;
-  z-index: 2500;
-  max-width: 560px;
-  margin: 0 auto;
-  box-shadow: var(--n-shadow);
 }
 
 .home-section {

@@ -35,7 +35,16 @@
       </span>
       <span class="search-suggest__price font-mono">{{ money(product.base_price) }}</span>
     </router-link>
-    <button type="button" class="search-suggest__all" @click="emit('submit')">
+    <button
+      :id="optionId(suggestions.length)"
+      type="button"
+      class="search-suggest__all"
+      :class="{ 'search-suggest__all--active': active === suggestions.length }"
+      role="option"
+      :aria-selected="active === suggestions.length"
+      tabindex="-1"
+      @click="emit('submit')"
+    >
       {{ $t('layout.suggest_all', { q: query.trim() }) }}
     </button>
   </div>
@@ -143,8 +152,14 @@ function handleKey(event: KeyboardEvent): boolean {
   if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
     event.preventDefault();
     const step = event.key === 'ArrowDown' ? 1 : -1;
-    active.value = (active.value + step + count + 1) % (count + 1);
-    if (active.value === count) active.value = -1; // back to the typed text
+    // The suggestions, then « all results », then back to the typed text.
+    const stops = count + 2;
+    active.value = ((active.value + 1 + step + stops) % stops) - 1;
+    return true;
+  }
+  if (event.key === 'Enter' && active.value === count) {
+    event.preventDefault();
+    emit('submit');
     return true;
   }
   if (event.key === 'Enter' && active.value >= 0) {
@@ -244,5 +259,10 @@ defineExpose({ handleKey, expanded, activeId });
   font-size: 13px;
   text-align: left;
   cursor: pointer;
+}
+
+.search-suggest__all--active {
+  outline: 2px solid var(--n-accent);
+  outline-offset: -2px;
 }
 </style>

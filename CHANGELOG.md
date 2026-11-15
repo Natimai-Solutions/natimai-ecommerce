@@ -164,6 +164,16 @@ takes a tag as its `ref`.
 
 ### Fixed
 
+- Review of the November 2026 audit fixes — storefront: the « could not add
+  to cart » message is a toast at the bottom of the screen on every page
+  with product cards (catalogue, related products, wishlist, comparison; U8
+  only covered the home page) and closes by itself; the mobile filter sheet
+  closes when the screen becomes wide (the page stayed locked, U6); the
+  search suggestions reopen after Escape when typing or pressing ↓, and
+  « all results » is an option reachable with the arrows (U7); a slower load
+  of a product left meanwhile no longer clears the variant selected on the
+  current one.
+
 - Review of the November 2026 audit fixes — sessions and hardening: an
   administrator signs in from the back office only (the refresh alone was
   checked), and `ADMIN_FRONTEND_HOST` defaults to `https://admin.<DOMAIN>`

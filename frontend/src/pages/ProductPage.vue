@@ -493,9 +493,11 @@
         </q-card>
       </q-dialog>
     </template>
+    <CartErrorToast v-model="relatedCartError" />
   </q-page>
 </template>
 <script setup lang="ts">
+import CartErrorToast from '@/components/CartErrorToast.vue';
 import AppNotice from '@app/ui/AppNotice.vue';
 import DOMPurify from 'isomorphic-dompurify';
 import { useMeta } from 'quasar';
@@ -1077,6 +1079,9 @@ async function loadProduct() {
   }
 
   await productDetail.load(routeId, locale.value);
+  // A slower load of the page left meanwhile must not touch this one: it
+  // cleared the variant already selected for the product now shown.
+  if (route.params.id !== routeId) return;
   const data = product.value;
   selectedOptions.value = {};
   if (!data || data.id !== routeId) return;
@@ -1170,11 +1175,13 @@ async function loadRelated() {
     // a suggestion block that fails to load is simply not shown
   }
 }
+// The related cards sit far below the buy block and its notice.
+const relatedCartError = ref<string | null>(null);
 async function addRelatedToCart(item: ProductPublic) {
-  cartError.value = null;
+  relatedCartError.value = null;
   const ok = await cartStore.addItem(item.id, 1, item);
   if (ok) uiStore.openCartDrawer(item.id);
-  else cartError.value = cartStore.error ?? t('product.add_failed');
+  else relatedCartError.value = cartStore.error ?? t('product.add_failed');
 }
 watch(
   () => product.value?.id,
