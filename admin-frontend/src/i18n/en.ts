@@ -321,6 +321,7 @@ const en: MessageSchema = {
       "Blank = top level. A sub-category inherits the VAT, customs and margin its branch leaves unset; the storefront lists the parent with its sub-categories' products.",
   },
   common: {
+    reason_optional: 'Reason (optional)',
     network_error: 'Server unreachable: check the connection and try again.',
     page_previous: 'Previous page',
     page_next: 'Next page',
@@ -559,6 +560,10 @@ const en: MessageSchema = {
     zones: '{n} zone | {n} zones',
   },
   departures: {
+    advance_confirm_title: 'Move “{name}” to “{status}”?',
+    advance_confirm:
+      '{n} order(s) follow this departure: they change status and each customer gets an e-mail.',
+    advance_confirm_ok: 'Go to the next step',
     webhook_hint: 'https only. Global setting, shared by every departure.',
     orders_moved: '{n} order(s) moved.',
     orders_out_of_stock: '{n} order(s) marked out of stock, customers notified.',
@@ -1428,6 +1433,11 @@ const en: MessageSchema = {
     title: 'Page not found',
   },
   order: {
+    status_confirm_title: 'Move the order to “{status}”?',
+    status_confirm: 'The customer is told by e-mail.',
+    status_confirm_cancel:
+      'The reserved stock and the promo code use are given back, and the customer is told by e-mail. A cancelled order cannot change status again.',
+    status_confirm_ok: 'Change the status',
     actions: 'Actions',
     amount: 'Amount',
     attach_failed: 'Attaching failed.',

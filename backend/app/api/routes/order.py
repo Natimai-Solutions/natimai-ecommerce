@@ -21,6 +21,7 @@ from app.features.order.models.order import (
 from app.features.order.models.order_status import OrderStatus
 from app.features.order.services.status import (
     ALL_ORDER_STATUSES,
+    OrderStatusTransitionError,
     set_order_status,
 )
 
@@ -149,12 +150,24 @@ class OrderRouter(
                         message="Statut de commande inconnu",
                         details={"order_status_id": str(target_status_id)},
                     )
-                await set_order_status(
-                    session,
-                    order=updated,
-                    status_name=target.name,
-                    changed_by_id=current_user.id if current_user else None,
-                )
+                try:
+                    await set_order_status(
+                        session,
+                        order=updated,
+                        status_name=target.name,
+                        changed_by_id=current_user.id if current_user else None,
+                    )
+                except OrderStatusTransitionError as exc:
+                    await session.rollback()
+                    raise AppError(
+                        code="order.status.transition_refused",
+                        status_code=409,
+                        message=(
+                            f"Une commande « {exc.old} » ne peut pas passer à "
+                            f"« {exc.new} »."
+                        ),
+                        details={"from": exc.old, "to": exc.new},
+                    ) from exc
                 await session.commit()
                 await session.refresh(updated)
             return OrderPublic.model_validate(updated)

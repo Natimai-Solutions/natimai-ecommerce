@@ -29,7 +29,11 @@ from app.features.order.crud.order_line_crud import crud_order_line
 from app.features.order.models.order import Order
 from app.features.order.models.order_line import OrderLine
 from app.features.order.models.order_status import OrderStatus
-from app.features.order.services.status import ALL_ORDER_STATUSES, set_order_status
+from app.features.order.services.status import (
+    ALL_ORDER_STATUSES,
+    OrderStatusTransitionError,
+    set_order_status,
+)
 from app.features.payment.models.payment import Payment
 from app.features.payment.models.payment_receipt import PaymentReceiptPublic
 from app.features.payment.models.payment_status import PaymentStatus
@@ -604,13 +608,29 @@ async def change_order_status(
             message="Commande introuvable",
             details={"order_id": str(order_id)},
         )
-    changed = await set_order_status(
-        session,
-        order=order,
-        status_name=body.status,
-        changed_by_id=admin.id,
-        reason=body.reason,
-    )
+    try:
+        changed = await set_order_status(
+            session,
+            order=order,
+            status_name=body.status,
+            changed_by_id=admin.id,
+            reason=body.reason,
+        )
+    except OrderStatusTransitionError as exc:
+        await session.rollback()
+        raise AppError(
+            code="order.status.transition_refused",
+            status_code=409,
+            message=(
+                f"Une commande « {exc.old} » ne peut pas passer à « {exc.new} »"
+                + (
+                    " : une commande annulée ou remboursée est close."
+                    if exc.old in ("Cancelled", "Refunded")
+                    else " : elle a déjà été payée ou expédiée."
+                )
+            ),
+            details={"from": exc.old, "to": exc.new},
+        ) from exc
     await session.commit()
     return OrderStatusChangeResponse(
         order_id=order_id, status=body.status, changed=changed

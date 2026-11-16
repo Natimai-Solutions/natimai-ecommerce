@@ -23,10 +23,9 @@ describe('admin messages', () => {
       leaves(tree as Tree).filter((key) => {
         const text = key
           .split('.')
-          .reduce<Tree | string | undefined>(
-            (node, part) => (typeof node === 'object' ? node[part] : undefined),
-            tree as Tree,
-          );
+          .reduce<
+            Tree | string | undefined
+          >((node, part) => (typeof node === 'object' ? node[part] : undefined), tree as Tree);
         return typeof text === 'string' && entity.test(text);
       }),
     );

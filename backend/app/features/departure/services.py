@@ -38,7 +38,8 @@ from app.features.product.models.product import Product
 logger = logging.getLogger(__name__)
 
 SOCIAL_WEBHOOK_SETTING_KEY = "social_webhook_url"
-LOCAL_TZ = ZoneInfo("Pacific/Tahiti")
+#: The shop's clock: cut-off days, reminder hour (``SHOP_TIMEZONE``).
+LOCAL_TZ = ZoneInfo(settings.SHOP_TIMEZONE or "Pacific/Tahiti")
 REMINDER_HOUR = time(9, 0)
 
 

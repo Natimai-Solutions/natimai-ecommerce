@@ -44,5 +44,35 @@ export function useConfirm() {
     });
   }
 
-  return { ask, confirmDelete };
+  /**
+   * A confirmation that also takes a reason (kept in the order history).
+   * Resolves to the reason typed (possibly empty), or null when cancelled.
+   */
+  function askWithReason(options: {
+    title: string;
+    message?: string;
+    okLabel?: string;
+    destructive?: boolean;
+  }): Promise<string | null> {
+    return new Promise((resolve) => {
+      $q.dialog({
+        title: options.title,
+        message: options.message ?? '',
+        persistent: true,
+        prompt: { model: '', type: 'text', label: t('common.reason_optional') },
+        ok: {
+          label: options.okLabel ?? t('common.confirm'),
+          color: options.destructive ? 'negative' : 'primary',
+          flat: true,
+          noCaps: true,
+        },
+        cancel: { label: t('common.cancel'), flat: true, noCaps: true },
+      })
+        .onOk((reason: string) => resolve(reason ?? ''))
+        .onCancel(() => resolve(null))
+        .onDismiss(() => resolve(null));
+    });
+  }
+
+  return { ask, askWithReason, confirmDelete };
 }

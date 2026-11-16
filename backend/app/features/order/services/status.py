@@ -51,6 +51,37 @@ FULFILLMENT_STATUSES: tuple[str, ...] = (
 )
 ALL_ORDER_STATUSES: tuple[str, ...] = PAYMENT_STATUSES + FULFILLMENT_STATUSES
 
+#: Closed: nothing moves an order out of these (functional audit, November
+#: 2026: « Cancelled → Paid » revived an order whose stock and coupon were
+#: given back, without taking them again). A cancelled order is ordered again.
+TERMINAL_STATUSES: frozenset[str] = frozenset({"Cancelled", "Refunded"})
+#: The order still waits for its money. Once it was paid or set on its way,
+#: going back here (« Delivered → Pending ») made it payable a second time.
+BEFORE_PAYMENT_STATUSES: frozenset[str] = frozenset(
+    {"Pending", "AwaitingPayment", "PaymentFailed", "PartiallyPaid"}
+)
+
+
+class OrderStatusTransitionError(ValueError):
+    """A move the order's lifecycle does not allow."""
+
+    def __init__(self, old: str | None, new: str) -> None:
+        self.old, self.new = old, new
+        super().__init__(f"order status '{old}' cannot move to '{new}'")
+
+
+def check_status_transition(old: str | None, new: str) -> None:
+    """Raise :class:`OrderStatusTransitionError` when ``old → new`` is not
+    allowed. Unknown or missing old statuses (data written before the
+    statuses existed) are let through."""
+    if old is None or old == new:
+        return
+    if old in TERMINAL_STATUSES:
+        raise OrderStatusTransitionError(old, new)
+    if new in BEFORE_PAYMENT_STATUSES and old not in BEFORE_PAYMENT_STATUSES:
+        raise OrderStatusTransitionError(old, new)
+
+
 #: Orders that follow their departure's progress: paid, or already on the way.
 DEPARTURE_FOLLOWER_STATUSES: frozenset[str] = frozenset(
     {"Paid", "DepositPaid", "OrderedFromSupplier", "InTransit", "AtCustoms", "Received"}
@@ -183,6 +214,7 @@ async def set_order_status(
     old_name = current.name if current else None
     if old_name == status_name:
         return False
+    check_status_transition(old_name, status_name)
 
     if status_name == ORDER_STATUS_CANCELLED:
         await release_cancelled_order_holds(session, order=order)

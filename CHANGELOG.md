@@ -168,6 +168,17 @@ takes a tag as its `ref`.
 
 ### Fixed
 
+- Order statuses follow a lifecycle: a cancelled or refunded order is closed,
+  and an order paid or on its way no longer goes back to « awaiting
+  payment » (`order.status.transition_refused`, 409); a fulfilment step back
+  stays possible. The back office asks for confirmation (and an optional
+  reason) before changing an order's status, and before moving a departure to
+  its next step, which moves all its orders and e-mails each customer.
+- Invoice and credit-note numbers take the fiscal year on the shop's clock
+  (`SHOP_TIMEZONE`): issued in UTC, a document of 31 December after 14:00 at
+  Tahiti took the next year's number. The departure reminders and cut-off
+  days follow `SHOP_TIMEZONE` too.
+
 - One checkout per cart: the cart row is locked until the order commits, so
   two submissions at once (double click, two tabs, a retry) no longer create
   two orders (`cart.already_checked_out`, 409).

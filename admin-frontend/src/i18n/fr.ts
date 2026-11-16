@@ -319,6 +319,7 @@ const fr = {
       'Vide = premier niveau. Une sous-catégorie hérite de la TVA, de la douane et de la marge que sa branche ne fixe pas ; la vitrine liste le parent avec les produits de ses sous-catégories.',
   },
   common: {
+    reason_optional: 'Motif (facultatif)',
     network_error: 'Serveur injoignable : vérifiez la connexion puis réessayez.',
     page_previous: 'Page précédente',
     page_next: 'Page suivante',
@@ -562,6 +563,10 @@ const fr = {
     zones: '{n} zone | {n} zones',
   },
   departures: {
+    advance_confirm_title: 'Passer « {name} » à « {status} » ?',
+    advance_confirm:
+      '{n} commande(s) suivent ce départ : elles changent de statut et chaque client reçoit un e-mail.',
+    advance_confirm_ok: 'Passer à l’étape suivante',
     webhook_hint: 'https uniquement. Réglage global, commun à tous les départs.',
     orders_moved: '{n} commande(s) déplacée(s).',
     orders_out_of_stock: '{n} commande(s) marquée(s) en rupture, clients prévenus.',
@@ -1437,6 +1442,11 @@ const fr = {
     title: 'Page introuvable',
   },
   order: {
+    status_confirm_title: 'Passer la commande en « {status} » ?',
+    status_confirm: 'Le client est prévenu par e-mail.',
+    status_confirm_cancel:
+      'Le stock réservé et l’utilisation du code promo sont rendus, le client est prévenu par e-mail. Une commande annulée ne peut plus changer de statut.',
+    status_confirm_ok: 'Changer le statut',
     actions: 'Actions',
     amount: 'Montant',
     attach_failed: 'Rattachement impossible.',

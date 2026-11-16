@@ -992,7 +992,7 @@ const helpItems = computed<HelpItem[]>(() => [
   { title: t('help.departures_transit_title'), text: t('help.departures_transit') },
   { title: t('help.departures_distributed_title'), text: t('help.departures_distributed') },
 ]);
-const { confirmDelete } = useConfirm();
+const { ask, confirmDelete } = useConfirm();
 const departureStatusLabel = (status: string) => t(`departure_status.${status}`);
 
 const departures = ref<Departure[]>([]);
@@ -1634,6 +1634,17 @@ async function advance(d: Departure) {
     await closeSelected(false, d);
     return;
   }
+  // Every order of the departure moves, and each customer gets an e-mail.
+  const confirmed = await ask({
+    title: t('departures.advance_confirm_title', {
+      name: d.name,
+      status: departureStatusLabel(next),
+    }),
+    message: t('departures.advance_confirm', { n: d.orders_count }),
+    okLabel: t('departures.advance_confirm_ok'),
+    destructive: false,
+  });
+  if (!confirmed) return;
   error.value = null;
   try {
     const updated = await updateDeparture(d.id, { status: next });

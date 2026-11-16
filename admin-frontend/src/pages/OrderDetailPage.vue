@@ -868,6 +868,7 @@ import { toneIcon } from '@app/ui/statusTone';
 import { formatMoney as money, intlLocale } from '@app/utils';
 import { useShopConfigStore } from '@/stores/shopConfig';
 import PageHeader from '@/components/PageHeader.vue';
+import { useConfirm } from '@/composables/useConfirm';
 import {
   getOrder,
   listOrderStatuses,
@@ -1022,12 +1023,24 @@ const statusOptions = computed(() =>
   statusNames.value.map((s) => ({ label: orderStatusLabel(s), value: s })),
 );
 
+const { askWithReason } = useConfirm();
+
 async function changeStatus(status: string) {
   if (!order.value || status === order.value.status) return;
+  // A status has effects (stock and coupon given back, an e-mail to the
+  // customer): one click on the list did it (functional audit, November 2026).
+  const cancelling = status === 'Cancelled';
+  const reason = await askWithReason({
+    title: t('order.status_confirm_title', { status: orderStatusLabel(status) }),
+    message: cancelling ? t('order.status_confirm_cancel') : t('order.status_confirm'),
+    okLabel: t('order.status_confirm_ok'),
+    destructive: cancelling,
+  });
+  if (reason === null) return;
   statusSaving.value = true;
   error.value = null;
   try {
-    await setOrderStatus(order.value.order_id, status);
+    await setOrderStatus(order.value.order_id, status, reason.trim() || undefined);
     order.value.status = status;
     // A status has effects (stock and coupon given back on cancel, payments
     // captured or released…): show the order as it is now (audit 2026-11).
