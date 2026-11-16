@@ -28,4 +28,36 @@ async def send_queued_email_task(ctx: dict[str, Any], *, log_id: str) -> str:
         return "missing"
     if log.status == STATUS_FAILED and int(ctx.get("job_try", 1)) < EMAIL_MAX_TRIES:
         raise Retry(defer=30 * int(ctx.get("job_try", 1)))
+    if log.status == STATUS_FAILED:
+        await _alert_failed_email(log.event_type, log.last_error)
     return log.status
+
+
+#: At most one alert per window: an expired provider key fails every mail.
+_ALERT_WINDOW_SECONDS = 3600
+
+
+async def _alert_failed_email(event_type: str, error: str | None) -> None:
+    """A message given up after its retries: the shop is told (once an hour).
+
+    An expired Mailgun key stopped every e-mail — order confirmations,
+    invoices, password resets — with nothing but a line in ``email_log``
+    (functional audit, November 2026)."""
+    try:
+        from app.core.rate_limit import shared_redis
+
+        first = await shared_redis().set(
+            "alert:email_failed", "1", nx=True, ex=_ALERT_WINDOW_SECONDS
+        )
+    except Exception:  # noqa: BLE001 - no Redis: alert anyway
+        first = True
+    if not first:
+        return
+    from app.core.alerting import send_alert
+
+    await send_alert(
+        f"E-mail abandonné après {EMAIL_MAX_TRIES} tentatives ({event_type}) : "
+        f"{(error or '')[:200]}. Vérifiez le fournisseur d'e-mails ; d'autres "
+        "envois échouent peut-être (journal des e-mails).",
+        source="email",
+    )

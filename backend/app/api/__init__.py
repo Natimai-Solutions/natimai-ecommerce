@@ -36,6 +36,7 @@ from app.api.routes.admin_supplier_orders import (
     router as admin_supplier_orders_router,
 )
 from app.api.routes.admin_suppliers import router as admin_suppliers_router
+from app.api.routes.admin_system_status import router as admin_system_status_router
 from app.api.routes.admin_tax_rates import router as admin_tax_rates_router
 from app.api.routes.admin_users import router as admin_users_router
 from app.api.routes.brand import router as brand_router
@@ -105,6 +106,7 @@ api_router.include_router(payment_method_router)
 api_router.include_router(payments_router)
 api_router.include_router(admin_dashboard_router)
 api_router.include_router(admin_setup_checklist_router)
+api_router.include_router(admin_system_status_router)
 api_router.include_router(admin_payments_router)
 api_router.include_router(admin_payment_providers_router)
 api_router.include_router(admin_payment_methods_router)

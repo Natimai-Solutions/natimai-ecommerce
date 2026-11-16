@@ -9,6 +9,18 @@ takes a tag as its `ref`.
 
 ### Added
 
+- Back office → « État du système » (`GET /admin/system-status`): the last
+  run of every background task (succeeded, with errors, failed, and the
+  error), the outbox backlog and its oldest pending event, the e-mails given
+  up in the last 24 h or stuck in the queue, the age of each currency rate,
+  and whether the e-mail provider and the alert webhook are configured.
+- Every background task run is journaled (`task_runs`, migration
+  `b8c9d0e1f2a3`) and a failure — an exception, or a result reporting errors
+  (the price and stock sync returned « success » with errors) — posts to
+  `ALERT_WEBHOOK_URL`, on the first failure then at most every 6 hours.
+- An e-mail given up after its retries alerts the shop (at most once an
+  hour): an expired provider key stopped every e-mail without a sound.
+
 - `docs/internal/AUDIT_FONCTIONNEL_2026-11.md`: functional audit (are the
   features solid, which ones are missing), three parallel reviews of the
   customer journey, the back office and operations, and the business engine.

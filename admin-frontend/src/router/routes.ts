@@ -46,6 +46,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'languages', component: () => import('@/pages/LanguagesPage.vue') },
       { path: 'security', component: () => import('@/pages/SecurityPage.vue') },
       { path: 'audit-log', component: () => import('@/pages/AuditLogPage.vue') },
+      { path: 'system-status', component: () => import('@/pages/SystemStatusPage.vue') },
       { path: 'pages', component: () => import('@/pages/PagesPage.vue') },
       { path: 'homepage', component: () => import('@/pages/HomepagePage.vue') },
       {

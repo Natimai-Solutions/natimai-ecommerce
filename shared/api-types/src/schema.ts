@@ -848,6 +848,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/system-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get System Status */
+        get: operations["admin-dashboard-get_system_status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/payments": {
         parameters: {
             query?: never;
@@ -10915,6 +10932,23 @@ export interface components {
             default_display_currency: string;
             /** Hidden Display Currencies */
             hidden_display_currencies?: string[];
+        };
+        /** CurrencyRateAge */
+        CurrencyRateAge: {
+            /** Currency */
+            currency: string;
+            /**
+             * Valid From
+             * Format: date
+             */
+            valid_from: string;
+            /** Age Days */
+            age_days: number;
+            /**
+             * Level
+             * @enum {string}
+             */
+            level: "ok" | "warn" | "error";
         };
         /**
          * CurrencyRatePublic
@@ -21757,6 +21791,66 @@ export interface components {
             /** Description */
             description?: string | null;
         };
+        /** SystemStatus */
+        SystemStatus: {
+            /**
+             * Level
+             * @enum {string}
+             */
+            level: "ok" | "warn" | "error";
+            /** Tasks */
+            tasks: components["schemas"]["TaskRunPublic"][];
+            /** Outbox Pending */
+            outbox_pending: number;
+            /** Outbox Oldest Pending Minutes */
+            outbox_oldest_pending_minutes: number | null;
+            /** Outbox Failed */
+            outbox_failed: number;
+            /**
+             * Outbox Level
+             * @enum {string}
+             */
+            outbox_level: "ok" | "warn" | "error";
+            /** Emails Failed 24H */
+            emails_failed_24h: number;
+            /** Emails Queued Stuck */
+            emails_queued_stuck: number;
+            /**
+             * Email Level
+             * @enum {string}
+             */
+            email_level: "ok" | "warn" | "error";
+            /** Currency Rates */
+            currency_rates: components["schemas"]["CurrencyRateAge"][];
+            /** Alert Webhook Configured */
+            alert_webhook_configured: boolean;
+            /** Email Provider Configured */
+            email_provider_configured: boolean;
+        };
+        /** TaskRunPublic */
+        TaskRunPublic: {
+            /** Name */
+            name: string;
+            /**
+             * Level
+             * @enum {string}
+             */
+            level: "ok" | "warn" | "error";
+            /** Last Status */
+            last_status: string | null;
+            /** Last Started At */
+            last_started_at: string | null;
+            /** Last Success At */
+            last_success_at: string | null;
+            /** Last Failure At */
+            last_failure_at: string | null;
+            /** Last Error */
+            last_error: string | null;
+            /** Consecutive Failures */
+            consecutive_failures: number;
+            /** Runs */
+            runs: number;
+        };
         /**
          * TaxRateAssignBody
          * @description Assign (or clear) a tax rate by id.
@@ -24089,6 +24183,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SetupChecklist"];
+                };
+            };
+        };
+    };
+    "admin-dashboard-get_system_status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemStatus"];
                 };
             };
         };
