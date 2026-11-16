@@ -515,7 +515,7 @@ import { useMeta } from 'quasar';
 import { NOINDEX } from '@/utils/seo';
 import { useI18n } from 'vue-i18n';
 import { useDepartureLabels } from '@/composables/useDepartureLabels';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { countryLabel, formatMoney as formatInCurrency, orderRef } from '@app/utils';
 import { deliveryModeLabel } from '@/utils/deliveryMode';
 
@@ -556,6 +556,7 @@ const { t, locale } = useI18n();
 const { nextDelivery } = useDepartureLabels();
 const currencyStore = useCurrencyStore();
 const route = useRoute();
+const router = useRouter();
 
 useMeta(() => ({ title: t('checkout.meta_title'), meta: NOINDEX }));
 // Ordering an issued quote (`?quote=<id>`): its prices and delivery fee apply.
@@ -1151,6 +1152,18 @@ async function startPayment() {
 
     // 3. Clear the local cart now that the order exists.
     cartStore.clearCart();
+
+    // The order is placed but the card / PayPal form could not be opened
+    // (the provider failed after the order was recorded): pay it from its
+    // page, where « Payer » starts a new attempt.
+    if (checkout.payment_start_failed) {
+      await router.push({
+        name: 'order-balance',
+        params: { id: checkout.order_id },
+        query: { start_failed: '1' },
+      });
+      return;
+    }
 
     // Card (Payzen API): render the SmartForm and poll status on return.
     if (checkout.form_token && checkout.server_url && checkout.public_key) {

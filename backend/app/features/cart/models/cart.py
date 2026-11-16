@@ -461,6 +461,9 @@ class CheckoutResponse(DepositTerms):
     provider_code: str | None = None
     provider_reference: str | None = None
     form_token: str | None = None
+    #: The order is placed but the card / PayPal form could not be opened:
+    #: the customer pays it from the order page (« Payer »).
+    payment_start_failed: bool = False
     server_url: str | None = None
     public_key: str | None = None
     redirect_url: str | None = None

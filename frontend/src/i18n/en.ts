@@ -542,6 +542,7 @@ const en: MessageSchema = {
     with_microsoft: 'Continue with Microsoft',
   },
   balance: {
+    start_failed: 'Your order is recorded, but the payment form could not open. Try again below.',
     title_order: 'Pay the order',
     amount_due: 'Amount due',
     deposit_due: 'Deposit due',

@@ -180,6 +180,13 @@ takes a tag as its `ref`.
 
 ### Fixed
 
+- Checkout: the card / PayPal provider is called once the order is committed,
+  no longer inside the transaction that holds the stock rows locked (a slow
+  provider, up to 30 s, made every other checkout of the same products wait;
+  a failed commit left a payment form open at the provider). If the provider
+  fails at that point the order stays placed (`payment_start_failed`) and the
+  storefront opens its payment page to try again.
+
 - Back office, order page: an order without a shipping leg yet (unpaid, or
   placed before the logistics phase) showed « Commande introuvable » since
   the API messages were translated — the page recognised the empty journey

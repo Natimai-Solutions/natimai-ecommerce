@@ -10641,6 +10641,11 @@ export interface components {
             provider_reference?: string | null;
             /** Form Token */
             form_token?: string | null;
+            /**
+             * Payment Start Failed
+             * @default false
+             */
+            payment_start_failed: boolean;
             /** Server Url */
             server_url?: string | null;
             /** Public Key */

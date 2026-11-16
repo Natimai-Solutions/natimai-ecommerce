@@ -67,6 +67,9 @@ class PaymentInitiationResult:
     public_key: str | None = None
     redirect_url: str | None = None
     instructions: str | None = None
+    #: Set when the provider call was deferred (``defer_api_call``): the
+    #: request to send with :func:`complete_api_initiation`, after commit.
+    pending_api_request: InitiationRequest | None = None
 
 
 def safe_return_url(return_url: str | None) -> str | None:
@@ -116,6 +119,46 @@ def _build_initiation_request(
     )
 
 
+def _apply_api_result(
+    payment: Payment, provider_code: str, provider_result: Any
+) -> None:
+    payment.provider_reference = provider_result.provider_reference or str(payment.id)
+    provider_data: dict[str, object] = {}
+    if isinstance(provider_result.raw_response, dict):
+        provider_data.update(provider_result.raw_response)
+    if provider_code == "payzen":
+        provider_data["form_token"] = provider_result.form_token
+        provider_data["server_url"] = provider_result.server_url
+        provider_data["public_key"] = provider_result.public_key
+        provider_data["order_id"] = str(payment.id)
+    payment.provider_data = provider_data or None
+
+
+async def complete_api_initiation(
+    session: AsyncSession, result: PaymentInitiationResult
+) -> PaymentInitiationResult:
+    """Send the deferred provider request of ``result`` and record its answer
+    on the payment (the caller commits). Raises what the provider raises."""
+    if result.pending_api_request is None:
+        return result
+    provider_result = await initiate_api_payment(
+        result.provider_code, result.pending_api_request
+    )
+    payment = result.payment
+    _apply_api_result(payment, result.provider_code, provider_result)
+    session.add(payment)
+    return PaymentInitiationResult(
+        payment=payment,
+        provider_code=result.provider_code,
+        provider_reference=payment.provider_reference,
+        form_token=provider_result.form_token,
+        server_url=provider_result.server_url,
+        public_key=provider_result.public_key,
+        redirect_url=provider_result.redirect_url,
+        instructions=provider_result.instructions,
+    )
+
+
 async def initiate_payment_for_method(
     session: AsyncSession,
     *,
@@ -127,8 +170,15 @@ async def initiate_payment_for_method(
     metadata: dict[str, Any] | None,
     current_user: Any,
     kind: str = "full",
+    defer_api_call: bool = False,
 ) -> PaymentInitiationResult:
     """Create a payment for ``payment_method_id`` and run the provider initiation.
+
+    ``defer_api_call``: for an API provider (card, PayPal) the payment is
+    created but the provider is not called; the result carries the request,
+    sent by :func:`complete_api_initiation` once the caller has committed. The
+    checkout uses it so the call — up to 30 s — runs outside the stock locks
+    (functional audit, November 2026, D5).
 
     ``kind`` says which part of the order the payment settles (full, deposit
     or balance). Raises ``AppError`` for unknown/inactive/ineligible methods
@@ -239,21 +289,18 @@ async def initiate_payment_for_method(
 
     # 5. Dispatch by provider type.
     if isinstance(provider, ApiPaymentProvider):
-        provider_result = await initiate_api_payment(provider_code, initiation_request)
-
         payment.provider_code = provider_code
-        payment.provider_reference = provider_result.provider_reference or str(
-            payment.id
-        )
-        provider_data: dict[str, object] = {}
-        if isinstance(provider_result.raw_response, dict):
-            provider_data.update(provider_result.raw_response)
-        if provider_code == "payzen":
-            provider_data["form_token"] = provider_result.form_token
-            provider_data["server_url"] = provider_result.server_url
-            provider_data["public_key"] = provider_result.public_key
-            provider_data["order_id"] = str(payment.id)
-        payment.provider_data = provider_data or None
+        if defer_api_call:
+            payment.provider_reference = str(payment.id)
+            session.add(payment)
+            return PaymentInitiationResult(
+                payment=payment,
+                provider_code=provider_code,
+                provider_reference=payment.provider_reference,
+                pending_api_request=initiation_request,
+            )
+        provider_result = await initiate_api_payment(provider_code, initiation_request)
+        _apply_api_result(payment, provider_code, provider_result)
         session.add(payment)
 
     elif isinstance(provider, ManualPaymentProvider):

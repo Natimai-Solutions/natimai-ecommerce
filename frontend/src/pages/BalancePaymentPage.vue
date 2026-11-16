@@ -28,6 +28,14 @@
       <div v-else class="balance__layout">
         <section class="balance__main">
           <AppNotice v-if="errorMessage" tone="error" class="q-mb-md">{{ errorMessage }}</AppNotice>
+          <AppNotice
+            v-else-if="route.query.start_failed && !formToken && !instructions"
+            tone="warning"
+            class="q-mb-md"
+            data-testid="payment-start-failed"
+          >
+            {{ $t('balance.start_failed') }}
+          </AppNotice>
 
           <template v-if="instructions">
             <AppNotice tone="success" class="q-mb-md">

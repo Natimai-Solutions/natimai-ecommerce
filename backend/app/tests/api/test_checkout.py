@@ -397,6 +397,166 @@ async def test_checkout_with_payment_method_runs_single_payment_initiation(
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize("provider_fails", [False, True])
+async def test_the_card_provider_is_called_after_the_order_commits(
+    monkeypatch: pytest.MonkeyPatch, provider_fails: bool
+) -> None:
+    """Functional audit, D5: the card provider (up to 30 s) was called inside
+    the transaction that holds the stock rows locked. It is now called after
+    the order commits; a provider that fails leaves the order placed, to be
+    paid from its page."""
+    user_id = uuid4()
+    cart_id = uuid4()
+    order_id = uuid4()
+    payment_id = uuid4()
+    product_id = uuid4()
+    method_id = uuid4()
+
+    current_user = cast(User, SimpleNamespace(id=user_id, price_group_id=None))
+    session = AsyncMock()
+    session.add = Mock()
+
+    cart = SimpleNamespace(
+        id=cart_id,
+        user_id=user_id,
+        currency="XPF",
+        total_amount=Decimal("0.00"),
+        is_checked_out=False,
+    )
+    item = SimpleNamespace(
+        id=uuid4(),
+        cart_id=cart_id,
+        product_id=product_id,
+        quantity=1,
+        unit_price=Decimal("100.00"),
+        is_active=True,
+    )
+    product = SimpleNamespace(
+        id=product_id,
+        base_price=Decimal("100.00"),
+        is_active=True,
+        is_admin_active=True,
+        is_supplier_managed=False,
+        supplier_quantity=Decimal("0.00"),
+    )
+    order = SimpleNamespace(id=order_id, total_amount=Decimal("0.00"))
+    payment = SimpleNamespace(id=payment_id, payment_status_id=uuid4())
+
+    monkeypatch.setattr(
+        crud_cart, "get_active_cart_by_user", AsyncMock(return_value=cart)
+    )
+    monkeypatch.setattr(
+        crud_cart_item, "get_by_cart_id", AsyncMock(return_value=[item])
+    )
+    monkeypatch.setattr(
+        "app.api.routes.cart._get_or_create_order_pending_status",
+        AsyncMock(return_value=SimpleNamespace(id=uuid4())),
+    )
+    monkeypatch.setattr(
+        "app.api.routes.cart._get_active_product_or_404",
+        AsyncMock(return_value=product),
+    )
+    monkeypatch.setattr(
+        "app.api.routes.cart._reserve_stock_for_checkout",
+        AsyncMock(return_value=None),
+    )
+    monkeypatch.setattr(crud_order, "create_draft", AsyncMock(return_value=order))
+    monkeypatch.setattr(
+        crud_order_line,
+        "create_draft",
+        AsyncMock(return_value=SimpleNamespace(id=uuid4())),
+    )
+
+    # The placeholder path must NOT be taken.
+    placeholder_status = AsyncMock()
+    placeholder_payment = AsyncMock()
+    monkeypatch.setattr(
+        "app.api.routes.cart._get_or_create_payment_pending_status",
+        placeholder_status,
+    )
+    monkeypatch.setattr(crud_payment, "create_draft", placeholder_payment)
+
+    init_mock = AsyncMock(
+        return_value=SimpleNamespace(
+            payment=payment,
+            provider_code="payzen",
+            provider_reference="REF-1",
+            form_token=None,
+            server_url=None,
+            public_key=None,
+            redirect_url=None,
+            instructions=None,
+            pending_api_request=object(),
+        )
+    )
+    monkeypatch.setattr("app.api.routes.cart.initiate_payment_for_method", init_mock)
+    calls: list[int] = []
+
+    async def complete(_session: object, _result: object) -> object:
+        # The order is already committed when the provider is called.
+        calls.append(session.commit.await_count)
+        if provider_fails:
+            raise RuntimeError("PayZen timeout")
+        return SimpleNamespace(
+            payment=payment,
+            provider_code="payzen",
+            provider_reference="TX-1",
+            form_token="FORM",
+            server_url="https://pz",
+            public_key="pk",
+            redirect_url=None,
+            instructions=None,
+        )
+
+    monkeypatch.setattr("app.api.routes.cart.complete_api_initiation", complete)
+    monkeypatch.setattr(
+        "app.api.routes.cart.resolve_default_price_group",
+        AsyncMock(return_value=None),
+    )
+    # Same for the grouped-departure attachment (real queries live in
+    # tests/integration/test_grouped_departures.py).
+    monkeypatch.setattr(
+        "app.api.routes.cart.crud_grouped_departure.get_next_open",
+        AsyncMock(return_value=None),
+    )
+    monkeypatch.setattr(
+        "app.api.routes.cart._customs_declaration_fees",
+        AsyncMock(return_value=[]),
+    )
+
+    # The fee is now read from the PaymentMethod row; a mocked session cannot
+    # serve that lookup, and the resolution itself is covered by
+    # test_checkout_payment_fee.py.
+    monkeypatch.setattr(
+        "app.api.routes.cart._resolve_payment_fee",
+        AsyncMock(return_value=Decimal("0.00")),
+    )
+
+    response = await checkout_my_cart(
+        session=session,
+        current_user=current_user,
+        payload=CheckoutRequest(
+            shipping_address="Papeete",
+            payment_method_id=method_id,
+            cgv_accepted=True,
+        ),
+    )
+
+    assert response.order_id == order_id
+    assert init_mock.await_args is not None
+    assert init_mock.await_args.kwargs["defer_api_call"] is True
+    assert calls == [1]  # called once, after the order's commit
+    if provider_fails:
+        assert response.payment_start_failed is True
+        assert response.form_token is None
+        session.rollback.assert_awaited_once()
+    else:
+        assert response.payment_start_failed is False
+        assert response.form_token == "FORM"
+        assert session.commit.await_count == 2
+
+
+@pytest.mark.anyio
 async def test_checkout_rejects_missing_active_cart(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

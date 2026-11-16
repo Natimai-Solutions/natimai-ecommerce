@@ -20,7 +20,6 @@ Détail, fichiers et scénarios : [`AUDIT_2026-11.md`](AUDIT_2026-11.md) (identi
 
 Détail : [`AUDIT_FONCTIONNEL_2026-11.md`](AUDIT_FONCTIONNEL_2026-11.md) (identifiants D·, Z·, M·). Les sept défauts D1 à D7 et les zones fragiles Z1 à Z6, Z11, Z12 et Z16 sont corrigés (voir CHANGELOG). Reste :
 
-- **D5 (suite)** : sortir l'appel au prestataire de paiement de la section sous verrou de stock (un appel PayZen lent bloque les autres commandes des mêmes produits ; un commit raté laisse un formToken orphelin) — M.
 - **Z3 (reste)** : un worker « unhealthy » n'est pas redémarré automatiquement (pas d'autoheal dans les compose) — S, à décider avec l'hébergement.
 - **D1 (suite)** : le délai de livraison affiché ignore encore le mode d'import choisi et le délai fournisseur ; un départ groupé ne porte pas de mode — M.
 
