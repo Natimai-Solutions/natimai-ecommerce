@@ -8,6 +8,12 @@
       <span class="badge">Paiement refusé</span>
       <p>Malheureusement, votre paiement pour la commande <strong>{{ order_ref or (order_id | short_ref) }}</strong> n'a pas pu être traité.</p>
       {% if reason %}<div class="reason">{{ reason }}</div>{% endif %}
-      <p>Veuillez réessayer ou contacter notre support si le problème persiste.</p>
+      {% if pay_url %}
+      <p>Votre commande est conservée : vous pouvez la régler à nouveau, avec la même carte ou un autre moyen de paiement.</p>
+      <p style="text-align:center;margin:24px 0">
+        <a href="{{ pay_url }}" style="background:#3949ab;color:#fff;padding:12px 24px;border-radius:4px;text-decoration:none;font-weight:bold">Payer ma commande</a>
+      </p>
+      {% endif %}
+      <p>Contactez notre support si le problème persiste.</p>
       <p>L'équipe {{ shop_name }}</p>
 {% endblock %}

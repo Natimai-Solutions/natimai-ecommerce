@@ -108,7 +108,54 @@ async def release_cancelled_order_holds(session: AsyncSession, *, order: Order) 
             )
             .values(current_uses=Discount.current_uses - 1)
         )
+    await _close_pending_payments(session, order_id=order.id)
     return released
+
+
+async def _close_pending_payments(
+    session: AsyncSession, *, order_id: uuid.UUID
+) -> None:
+    """The card or PayPal payments still « Pending » of a cancelled order are
+    closed: the customer's cancellation did it, the admin's did not, and the
+    return page (``/payments/confirm``) then captured PayPal for an order
+    cancelled meanwhile. A transfer waiting for validation is left to the
+    admin, who rejects it."""
+    from sqlmodel import select
+
+    from app.features.payment.crud.payment import crud_payment
+    from app.features.payment.crud.payment_status import crud_payment_status
+    from app.features.payment.models.payment import Payment
+    from app.features.payment.models.payment_status import PaymentStatus
+
+    pending = [
+        payment
+        for payment, status_name in await crud_payment.list_with_status_by_order_id(
+            session, order_id=order_id
+        )
+        if status_name in (None, "Pending")
+    ]
+    if not pending:
+        return
+    cancelled = await crud_payment_status.get_by_name(session, name="Cancelled")
+    if cancelled is None:
+        cancelled = PaymentStatus(
+            name="Cancelled", description="Order cancelled before any payment"
+        )
+        session.add(cancelled)
+        await session.flush()
+    for payment in pending:
+        locked = (
+            await session.exec(
+                select(Payment)
+                .where(col(Payment.id) == payment.id)
+                .with_for_update()
+                .execution_options(populate_existing=True)
+            )
+        ).one()
+        # Decided on the locked row: a notification may have settled it.
+        if locked.payment_status_id == payment.payment_status_id:
+            locked.payment_status_id = cancelled.id
+            session.add(locked)
 
 
 async def set_order_status(
@@ -127,6 +174,11 @@ async def set_order_status(
     """
     if status_name not in ALL_ORDER_STATUSES:
         raise ValueError(f"unknown order status '{status_name}'")
+    if status_name == ORDER_STATUS_CANCELLED:
+        # Read the status again under the row lock: two cancellations at the
+        # same time (double click, admin and customer) both read « Pending »
+        # and each gave the promo code's use back.
+        await session.refresh(order, with_for_update=True)
     current = await session.get(OrderStatus, order.order_status_id)
     old_name = current.name if current else None
     if old_name == status_name:

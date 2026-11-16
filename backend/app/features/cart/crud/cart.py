@@ -1,6 +1,7 @@
 # mypy: disable-error-code="arg-type,assignment"
 
 import uuid
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from decimal import Decimal
 
@@ -253,6 +254,7 @@ class CartItemCrud(CrudBase[CartItem, CartItemCreate, CartItemUpdate]):
         *,
         cart_id: uuid.UUID,
         entries: list[tuple[Product, int]],
+        levels: Mapping[uuid.UUID, str | None] | None = None,
     ) -> list[CartItem]:
         """Swap the whole cart content in ONE transaction.
 
@@ -291,6 +293,8 @@ class CartItemCrud(CrudBase[CartItem, CartItemCreate, CartItemUpdate]):
                     fx_rate_used=fx_rate_used,
                     fx_source_currency=fx_source_currency,
                 )
+                # The import mode the price above was computed on.
+                item.import_service_level = (levels or {}).get(product.id)
             else:
                 # Reuse the row: the unique key survives a soft delete.
                 item.is_active = True
@@ -298,6 +302,7 @@ class CartItemCrud(CrudBase[CartItem, CartItemCreate, CartItemUpdate]):
                 item.unit_price = product.base_price
                 item.fx_rate_used = fx_rate_used
                 item.fx_source_currency = fx_source_currency
+                item.import_service_level = (levels or {}).get(product.id)
             session.add(item)
             result.append(item)
 
@@ -313,8 +318,10 @@ class CartItemCrud(CrudBase[CartItem, CartItemCreate, CartItemUpdate]):
         cart_id: uuid.UUID,
         product: Product,
         quantity: int,
+        import_service_level: str | None = None,
     ) -> CartItem:
-        """Execute add or increment."""
+        """Execute add or increment (the line takes ``import_service_level``,
+        the mode ``product.base_price`` was computed on)."""
         fx_rate_used, fx_source_currency = await self._fx_snapshot(session, product)
 
         existing_item = await self.get_by_cart_and_product(
@@ -336,6 +343,7 @@ class CartItemCrud(CrudBase[CartItem, CartItemCreate, CartItemUpdate]):
                 )
             existing_item.quantity += quantity
             existing_item.unit_price = product.base_price
+            existing_item.import_service_level = import_service_level
             existing_item.fx_rate_used = fx_rate_used
             existing_item.fx_source_currency = fx_source_currency
             session.add(existing_item)
@@ -351,6 +359,7 @@ class CartItemCrud(CrudBase[CartItem, CartItemCreate, CartItemUpdate]):
             fx_rate_used=fx_rate_used,
             fx_source_currency=fx_source_currency,
         )
+        item.import_service_level = import_service_level
         session.add(item)
         await session.commit()
         await session.refresh(item)

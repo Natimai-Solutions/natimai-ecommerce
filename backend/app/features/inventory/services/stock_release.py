@@ -158,8 +158,19 @@ async def confirm_order_stock(session: AsyncSession, *, order_id: uuid.UUID) -> 
         reference_type=ReferenceType.ORDER.value,
         reference_id=order_id,
     )
+    pending = [
+        movement
+        for movement in movements
+        if movement.movement_type == MovementType.OUTGOING.value
+        and movement.status == MovementStatus.PENDING.value
+    ]
+    # Same locks as a release, then read again: a release running at the same
+    # time (sweep, refused payment) credited the stock back, and the movement
+    # was then written COMPLETED over it.
+    await lock_stock_rows(session, (movement.product_id for movement in pending))
     confirmed = 0
-    for movement in movements:
+    for movement in pending:
+        await session.refresh(movement)
         if (
             movement.movement_type != MovementType.OUTGOING.value
             or movement.status != MovementStatus.PENDING.value
@@ -169,6 +180,54 @@ async def confirm_order_stock(session: AsyncSession, *, order_id: uuid.UUID) -> 
         session.add(movement)
         confirmed += 1
     return confirmed
+
+
+async def _has_live_reservation(session: AsyncSession, *, order_id: uuid.UUID) -> bool:
+    """A PENDING or COMPLETED reservation of the order, read from the database
+    (the ones another transaction just wrote included)."""
+    from app.features.inventory.models.stock_movement import InventoryStockMovement
+
+    found = (
+        await session.exec(
+            select(InventoryStockMovement.id)
+            .where(
+                col(InventoryStockMovement.reference_type) == ReferenceType.ORDER.value,
+                col(InventoryStockMovement.reference_id) == order_id,
+                col(InventoryStockMovement.movement_type)
+                == MovementType.OUTGOING.value,
+                col(InventoryStockMovement.status).in_(
+                    [MovementStatus.PENDING.value, MovementStatus.COMPLETED.value]
+                ),
+            )
+            .limit(1)
+        )
+    ).first()
+    return found is not None
+
+
+async def secure_order_stock(
+    session: AsyncSession, *, order_id: uuid.UUID, confirm: bool
+) -> tuple[int, list[str]]:
+    """The stock of an order whose money just arrived. No commit.
+
+    Confirms the pending reservations (``confirm``) — and, when they were
+    given back meanwhile (sweep, a refused attempt, a late notification, a
+    receipt at the counter), takes them again first: paid, the order was
+    otherwise sold without stock, silently (audit 2026-11, B2). Returns the
+    reservations confirmed (or taken again) and the products that could not
+    be taken — for those, someone must decide: the money is already in.
+    """
+    short: list[str] = []
+    try:
+        taken = await reserve_released_order_stock(session, order_id=order_id)
+    except AppError as exc:
+        if exc.code != "payment.order.out_of_stock":
+            raise
+        short = [str(p) for p in exc.details.get("product_ids", [])]
+        taken = 0
+    if not confirm:
+        return taken, short
+    return await confirm_order_stock(session, order_id=order_id), short
 
 
 async def reserve_released_order_stock(
@@ -202,6 +261,14 @@ async def reserve_released_order_stock(
     if not template:
         return 0
     await lock_stock_rows(session, (m.product_id for m in template))
+    # Read again under the locks: a second attempt started at the same time
+    # (two tabs) waited here and would reserve the same goods twice.
+    for movement in movements:
+        await session.refresh(movement)
+    if any(m.status in live for m in movements) or await _has_live_reservation(
+        session, order_id=order_id
+    ):
+        return 0
 
     short: list[str] = []
     plan: list[tuple[Any, Any]] = []

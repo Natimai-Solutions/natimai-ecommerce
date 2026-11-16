@@ -68,7 +68,7 @@ random fallback still applies, with a warning.
 | `SHOP_NAME` | `Natimai` | Storefront brand name |
 | `FRONTEND_HOST` | `http://localhost:5173` | Public storefront URL (CORS + email links) |
 | `OUTBOUND_WEBHOOK_ALLOWED_HOSTS` | Make, Zapier, Slack, IFTTT, Discord | Hosts the outbound webhook of the departure reminders may reach (exact names, comma-separated); any other is refused, on top of the public-address check. |
-| `ADMIN_FRONTEND_HOST` | — | Public back-office URL (`https://admin.<DOMAIN>`). An administrator's session is refreshed from this origin only, so a script injected in the storefront cannot obtain it. Empty = no check (warned outside `local`). **Set it in production.** |
+| `ADMIN_FRONTEND_HOST` | — | Public back-office URL (`https://admin.<DOMAIN>`). An administrator signs in, and their session is refreshed, from this origin only, so a script injected in the storefront cannot obtain it. Empty = `https://admin.<DOMAIN>` outside `local` (no check in `local`, or without `DOMAIN`: warned). Set it when the back office is served elsewhere. |
 | `BACKEND_CORS_ORIGINS` | `[]` | Extra CORS origins (comma list or JSON array) |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `15` | Access token TTL — do **not** increase |
 | `REFRESH_TOKEN_EXPIRE_DAYS` | `30` | Refresh token TTL |
@@ -1082,6 +1082,16 @@ archives that never left this disk.
 
 Local-only rotation can be forced with `RETENTION_LOCAL_ONLY=true` if you push
 the backups elsewhere by another means (`scp`, object storage, snapshots).
+
+**Files in a bucket** (`FILE_STORAGE_BACKEND=s3`): the uploads volume is then
+empty and its archive holds nothing — the script says so. Set
+`STORAGE_RCLONE_SOURCE` to the bucket's rclone remote (`s3prod:natimai-files`):
+it is copied to `$OFFSITE_RCLONE_REMOTE/storage-bucket` (a copy, not a mirror:
+a file deleted from the bucket stays in the backup).
+
+**Sign of life**: a successful run writes `backups/last_success` and, when
+`BACKUP_HEARTBEAT_URL` is set, calls it (a healthchecks-style monitor then
+alerts when the cron stops running — the failure webhook cannot).
 
 Any failure exits non-zero and, when `ALERT_WEBHOOK_URL` is set, posts to the
 alerting webhook — a backup that fails silently is worse than none, because you

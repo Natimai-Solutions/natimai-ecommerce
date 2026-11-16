@@ -33,6 +33,7 @@ from app.features.order.services.status import ALL_ORDER_STATUSES, set_order_sta
 from app.features.payment.models.payment import Payment
 from app.features.payment.models.payment_receipt import PaymentReceiptPublic
 from app.features.payment.models.payment_status import PaymentStatus
+from app.features.payment.models.refund import Refund
 from app.features.payment.providers import provider_supports_in_app_refund
 from app.features.payment.providers.manual import MANUAL_STATUS_AWAITING_VALIDATION
 from app.features.payment.services.deposit import PLAN_DEPOSIT, balance_amount
@@ -148,6 +149,9 @@ class AdminOrderPaymentItem(BaseModel):
     # True when the admin UI may initiate a refund: the provider supports an
     # in-app refund (card / PayZen) and the payment is in a refundable state.
     can_refund: bool = False
+    #: Refunds recorded but still to be done at the provider (PayZen back
+    #: office); the admin confirms them from the order.
+    pending_refund_amount: float = 0.0
     #: Σ of the instalments received so far on a pending manual payment.
     received_amount: float = 0.0
     #: The admin can record instalments on it (pending manual payment).
@@ -752,6 +756,19 @@ async def get_order_detail(
     summary = await order_payment_summary(session, order=order)
     part_kind, part_due = await next_part_due(session, order=order)
     received = await received_by_payment(session, [p.id for p in payments])
+    pending_refunds: dict[uuid.UUID, Decimal] = {}
+    if payments:
+        for refund_payment_id, pending_total in (
+            await session.exec(
+                select(Refund.payment_id, func.sum(Refund.amount))
+                .where(
+                    col(Refund.payment_id).in_([p.id for p in payments]),
+                    col(Refund.status) == "pending",
+                )
+                .group_by(col(Refund.payment_id))
+            )
+        ).all():
+            pending_refunds[refund_payment_id] = Decimal(pending_total or 0)
     for p in payments:
         payment_status_name = (
             pstatus_by_id.get(p.payment_status_id) if p.payment_status_id else None
@@ -770,6 +787,7 @@ async def get_order_detail(
                     provider_supports_in_app_refund(p.provider_code)
                     and payment_status_name in _REFUNDABLE_PAYMENT_STATUSES
                 ),
+                pending_refund_amount=float(pending_refunds.get(p.id, 0)),
                 received_amount=float(received.get(p.id, 0)),
                 accepts_receipts=(
                     (p.provider_code or "").startswith("manual_")

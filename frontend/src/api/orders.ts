@@ -88,6 +88,15 @@ export interface OrderDetail extends Order {
   amount_due?: string;
   /** « Annuler la commande » is offered: nothing paid yet. */
   can_cancel?: boolean;
+  /**
+   * What the customer can pay online right now: `full` or `deposit` for an
+   * order still unpaid (refused card, abandoned PayPal…), `balance` once the
+   * balance of a deposit order is asked for. Null: nothing to pay.
+   */
+  pay_now_kind?: 'full' | 'deposit' | 'balance' | null;
+  pay_now_amount?: string;
+  /** The method chosen at checkout: the order's fee is this method's. */
+  payment_method_id?: string | null;
 }
 
 /** My orders, most recent first, one page at a time. */

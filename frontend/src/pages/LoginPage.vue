@@ -43,9 +43,13 @@
             :rules="[(v) => !!v || $t('auth.password_required')]"
           >
             <template #append>
-              <q-icon
-                :name="showPassword ? 'ph:eye-slash' : 'ph:eye'"
-                class="cursor-pointer"
+              <q-btn
+                flat
+                round
+                dense
+                :icon="showPassword ? 'ph:eye-slash' : 'ph:eye'"
+                :aria-label="showPassword ? $t('auth.hide_password') : $t('auth.show_password')"
+                :aria-pressed="showPassword"
                 @click="showPassword = !showPassword"
               />
             </template>

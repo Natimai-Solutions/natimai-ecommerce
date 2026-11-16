@@ -221,7 +221,19 @@ async def revoke_for_refund(
         share = min(Decimal(1), Decimal(refunded) / Decimal(order.total_amount))
     to_revoke = int((Decimal(earned) * share).to_integral_value(ROUND_DOWN))
     await store_credit.lock_wallet(session, order.user_id)
+    wanted = to_revoke
     to_revoke = min(to_revoke, max(0, await balance(session, order.user_id)))
+    if to_revoke < wanted:
+        # Already spent or converted into store credit: the shop is told,
+        # the points cannot go below zero.
+        from app.core.alerting import send_alert
+
+        await send_alert(
+            f"Remboursement de la commande {order.order_number or order.id} : "
+            f"{wanted - to_revoke} point(s) de fidélité déjà dépensés ou convertis "
+            "n'ont pas pu être repris.",
+            source="loyalty",
+        )
     if to_revoke <= 0:
         return 0
     _add(

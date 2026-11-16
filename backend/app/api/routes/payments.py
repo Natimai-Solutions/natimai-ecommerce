@@ -1,5 +1,6 @@
 import logging
 import uuid
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Annotated, Any
 
@@ -56,6 +57,7 @@ from app.features.payment.services.provider_dispatch import (
     resolve_api_provider,
 )
 from app.features.payment.services.status_token import (
+    PAYMENT_STATUS_TOKEN_DAYS,
     check_payment_status_token,
     payment_status_token,
 )
@@ -861,9 +863,9 @@ async def _validate_order_for_initiation(
                 "kind": kind,
             },
         )
-    if kind != KIND_BALANCE and payment_method_id is not None:
+    if payment_method_id is not None:
         await _check_method_fee_amount(
-            session, order, order_payments, payment_method_id, currency
+            session, order, order_payments, payment_method_id, currency, kind
         )
     if kind != KIND_BALANCE:
         # A refused payment or the reservation sweep gave the stock back:
@@ -878,6 +880,7 @@ async def _check_method_fee_amount(
     order_payments: list[tuple[Any, str | None]],
     payment_method_id: uuid.UUID,
     currency: str,
+    kind: str = KIND_FULL,
 ) -> None:
     """The method paid with must carry the fee the order was billed
     (audit 2026-11, S9).
@@ -899,7 +902,11 @@ async def _check_method_fee_amount(
     billed = quantize_amount(
         Decimal(getattr(order, "payment_fee_amount", None) or 0), currency
     )
-    if quantize_amount(Decimal(method.fee or 0), currency) != billed:
+    fee = quantize_amount(Decimal(method.fee or 0), currency)
+    # The balance of a deposit order may be paid with a cheaper method than
+    # the one billed (card for the deposit, transfer for the rest), never
+    # with a dearer one: its fee is not in the order.
+    if fee > billed if kind == KIND_BALANCE else fee != billed:
         raise AppError(
             code="payment.method.fee_mismatch",
             status_code=409,
@@ -1251,6 +1258,15 @@ async def list_my_payment_methods(
     return out
 
 
+def _status_token_expired(payment: Payment) -> bool:
+    created = payment.created_at
+    if created is None:
+        return False
+    if created.tzinfo is None:
+        created = created.replace(tzinfo=UTC)
+    return datetime.now(UTC) - created > timedelta(days=PAYMENT_STATUS_TOKEN_DAYS)
+
+
 @router.get(
     "/status/{payment_id}",
     response_model=PaymentStatusResponse,
@@ -1265,7 +1281,11 @@ async def get_payment_status_by_token(
     page of a 3-D Secure finished in another browser, signed out (audit
     2026-11). A wrong token answers like an unknown payment."""
     payment = await session.get(Payment, payment_id)
-    if payment is None or not check_payment_status_token(payment_id, t):
+    if (
+        payment is None
+        or not check_payment_status_token(payment_id, t)
+        or _status_token_expired(payment)
+    ):
         raise AppError(
             code="payment.not_found",
             status_code=404,

@@ -46,14 +46,25 @@
           {{ $t('payment_return.refused_text') }}
         </p>
         <div class="app-result__actions">
+          <!-- The cart was emptied when the order was created: the way on
+               is to pay that order again, not to go back to an empty cart. -->
           <q-btn
             v-if="orderId"
             unelevated
+            color="primary"
+            :label="$t('payment_return.retry')"
+            :to="{ name: 'order-balance', params: { id: orderId } }"
+            data-testid="payment-retry"
+          />
+          <q-btn
+            v-if="orderId"
+            outline
             color="primary"
             :label="$t('payment_return.see_order')"
             :to="{ name: 'order-tracking', params: { id: orderId } }"
           />
           <q-btn
+            v-else
             outline
             color="primary"
             :label="$t('payment_return.back_to_cart')"
@@ -197,10 +208,14 @@ async function confirmThenPoll(paymentId: string) {
   } catch {
     // The provider's notification may still settle it — keep polling.
   }
-  startPolling(paymentId);
+  // The customer may have left while PayPal answered: a poll started now
+  // would run for two minutes with no page to stop it.
+  if (!unmounted) startPolling(paymentId);
 }
 
+let unmounted = false;
 onUnmounted(() => {
+  unmounted = true;
   stopPolling();
 });
 

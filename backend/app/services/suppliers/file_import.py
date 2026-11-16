@@ -177,7 +177,8 @@ def _semicolon_dialect() -> type[csv.Dialect]:
 
 #: A .xlsx is a zip: a few kilobytes can inflate to gigabytes (audit
 #: 2026-11). Checked from the zip directory before openpyxl reads anything.
-MAX_XLSX_UNCOMPRESSED_BYTES = 300 * 1024 * 1024
+# The worker has 512 Mo: openpyxl loads the shared strings whole.
+MAX_XLSX_UNCOMPRESSED_BYTES = 120 * 1024 * 1024
 MAX_XLSX_ENTRIES = 2000
 
 
@@ -276,9 +277,16 @@ async def read_scanned_tabular_file(
     """:func:`read_tabular_file` after the antivirus (audit 2026-11): a
     supplier catalogue, uploaded or downloaded, is a file from outside like
     any attachment. Refused when infected."""
+    from app.features.attachment.antivirus.base import AntivirusError
     from app.features.attachment.antivirus.factory import get_antivirus_scanner
 
-    scan = await get_antivirus_scanner().scan_bytes(content)
+    try:
+        scan = await get_antivirus_scanner().scan_bytes(content)
+    except AntivirusError as exc:
+        # Refused either way; said in words instead of a bare 500.
+        raise FileImportError(
+            "Antivirus indisponible : le fichier n'a pas pu être vérifié, réessayez."
+        ) from exc
     if not scan.is_clean:
         raise FileImportError(
             f"Fichier refusé par l'antivirus ({scan.signature or 'menace détectée'})"

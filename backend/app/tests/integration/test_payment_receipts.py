@@ -46,7 +46,7 @@ from app.outbox.models import OutboxEvent
 def _quiet_side_effects(monkeypatch: pytest.MonkeyPatch) -> None:
     """Stock, invoices and e-mails are covered elsewhere."""
     monkeypatch.setattr(
-        payment_handlers, "confirm_order_stock", AsyncMock(return_value=0)
+        payment_handlers, "secure_order_stock", AsyncMock(return_value=(0, []))
     )
     monkeypatch.setattr(payment_handlers, "issue_invoice_for_order", AsyncMock())
     monkeypatch.setattr(order_handlers, "_send_order_email", AsyncMock())

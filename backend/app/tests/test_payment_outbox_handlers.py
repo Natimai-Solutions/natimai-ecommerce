@@ -72,8 +72,8 @@ async def test_payment_captured_handler_syncs_order_paid(
 
     # The stock confirmation reads real movements through the CRUD layer,
     # which an AsyncMock session cannot serve — mock it at the service boundary.
-    confirm_stock = AsyncMock(return_value=0)
-    monkeypatch.setattr(handlers, "confirm_order_stock", confirm_stock)
+    confirm_stock = AsyncMock(return_value=(0, []))
+    monkeypatch.setattr(handlers, "secure_order_stock", confirm_stock)
     # The order's current status: still before payment.
     session.get = AsyncMock(return_value=_make_status("Pending"))
 
@@ -86,7 +86,7 @@ async def test_payment_captured_handler_syncs_order_paid(
     await handlers.on_payment_captured(cast(Any, session), payload)
 
     assert order.order_status_id == paid_status.id
-    confirm_stock.assert_awaited_once_with(session, order_id=order.id)
+    confirm_stock.assert_awaited_once_with(session, order_id=order.id, confirm=True)
     session.commit.assert_awaited_once()
 
 
@@ -116,8 +116,8 @@ async def test_payment_captured_handler_parks_order_on_amount_mismatch(
     status_mock = AsyncMock(return_value=review_status)
     monkeypatch.setattr(handlers.crud_order_status, "get_by_name", status_mock)
 
-    confirm_stock = AsyncMock(return_value=0)
-    monkeypatch.setattr(handlers, "confirm_order_stock", confirm_stock)
+    confirm_stock = AsyncMock(return_value=(0, []))
+    monkeypatch.setattr(handlers, "secure_order_stock", confirm_stock)
     release_stock = AsyncMock(return_value=0)
     monkeypatch.setattr(handlers, "release_order_stock", release_stock)
 
@@ -167,6 +167,18 @@ async def test_payment_rejected_handler_syncs_order_failed(
         AsyncMock(return_value=failed_status),
     )
 
+    # The order still waits for its money, and no other payment came in.
+    session.get = AsyncMock(return_value=_make_status("Pending"))
+    monkeypatch.setattr(
+        handlers.crud_payment,
+        "read",
+        AsyncMock(return_value=SimpleNamespace(id=uuid4())),
+    )
+    monkeypatch.setattr(
+        handlers.crud_payment,
+        "list_with_status_by_order_id",
+        AsyncMock(return_value=[]),
+    )
     # Same as the captured test: the stock release needs a real session.
     release_stock = AsyncMock(return_value=0)
     monkeypatch.setattr(handlers, "release_order_stock", release_stock)
@@ -195,6 +207,12 @@ async def test_payment_awaiting_validation_handler_syncs_order_awaiting(
     order = _make_order()
     monkeypatch.setattr(handlers.crud_order, "read", AsyncMock(return_value=order))
 
+    session.get = AsyncMock(return_value=_make_status("Pending"))
+    monkeypatch.setattr(
+        handlers.crud_payment,
+        "read",
+        AsyncMock(return_value=SimpleNamespace(id=uuid4())),
+    )
     awaiting_status = _make_status("AwaitingPayment")
     monkeypatch.setattr(
         handlers.crud_order_status,

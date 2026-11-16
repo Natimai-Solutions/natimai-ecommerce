@@ -8,6 +8,12 @@
       <span class="badge">Payment declined</span>
       <p>Unfortunately, your payment for order <strong>{{ order_ref or (order_id | short_ref) }}</strong> could not be processed.</p>
       {% if reason %}<div class="reason">{{ reason }}</div>{% endif %}
-      <p>Please try again or contact our support if the problem persists.</p>
+      {% if pay_url %}
+      <p>Your order is kept: you can pay it again, with the same card or another payment method.</p>
+      <p style="text-align:center;margin:24px 0">
+        <a href="{{ pay_url }}" style="background:#3949ab;color:#fff;padding:12px 24px;border-radius:4px;text-decoration:none;font-weight:bold">Pay my order</a>
+      </p>
+      {% endif %}
+      <p>Contact our support if the problem persists.</p>
       <p>The {{ shop_name }} team</p>
 {% endblock %}

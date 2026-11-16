@@ -64,7 +64,7 @@ def test_order_update_not_found_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "order.not_found",
-            "message": f"Order '{order_id}' not found",
+            "message": "Commande introuvable.",
             "details": {"order_id": str(order_id)},
         }
     }
@@ -90,7 +90,7 @@ def test_order_delete_not_found_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "order.not_found",
-            "message": f"Order '{order_id}' not found",
+            "message": "Commande introuvable.",
             "details": {"order_id": str(order_id)},
         }
     }
@@ -105,7 +105,7 @@ def test_get_user_orders_not_owned_returns_error_payload(client: TestClient) -> 
     assert response.json() == {
         "error": {
             "code": "order.not_found",
-            "message": "Commande introuvable",
+            "message": "Commande introuvable.",
             "details": {"user_id": str(owner_user_id)},
         }
     }

@@ -52,6 +52,10 @@ async def test_document_required_handler_marks_order_awaiting(
     session.add = Mock()
     order = _make_order()
     monkeypatch.setattr(handlers.crud_order, "read", AsyncMock(return_value=order))
+    session.get = AsyncMock(return_value=_make_status("Pending"))
+    monkeypatch.setattr(
+        handlers.crud_payment, "read", AsyncMock(return_value=_make_payment())
+    )
     status = _make_status("AwaitingPayment")
     monkeypatch.setattr(
         handlers.crud_order_status, "get_by_name", AsyncMock(return_value=status)

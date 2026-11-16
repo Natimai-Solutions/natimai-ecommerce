@@ -129,7 +129,7 @@ async def test_deposit_order_is_paid_in_two_guarded_payments(
 ) -> None:
     seed = await _seed(db_session)
     monkeypatch.setattr(
-        payment_handlers, "confirm_order_stock", AsyncMock(return_value=0)
+        payment_handlers, "secure_order_stock", AsyncMock(return_value=(0, []))
     )
     issue_invoice = AsyncMock()
     monkeypatch.setattr(payment_handlers, "issue_invoice_for_order", issue_invoice)

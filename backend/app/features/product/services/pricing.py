@@ -12,6 +12,7 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
+from app.core.errors import PriceUnavailableError
 from app.features.place.models import Place
 from app.features.product.models.category import Category
 from app.features.product.models.currency_rate import CurrencyRate
@@ -32,6 +33,10 @@ from app.features.product.services.pricing_parameters import (
 )
 from app.features.product.services.tax_settings import load_tax_codes, normalize_code
 from app.features.shipping.models.route import ShippingRoute
+from app.features.shipping.services.import_routes import (
+    ImportRoute,
+    default_import_route,
+)
 from app.features.shipping.services.origin import (
     OriginContext,
     OriginRegime,
@@ -86,7 +91,7 @@ class ShippingModePrice:
     carbon_footprint_kg_co2e: float | None
 
 
-class CurrencyRateMissing(Exception):
+class CurrencyRateMissing(PriceUnavailableError):
     """Raised when no active CurrencyRate exists for a given currency."""
 
     def __init__(self, currency_code: str) -> None:
@@ -431,7 +436,7 @@ async def calculate_sale_price(
     *,
     group: PriceGroup | None = None,
     territory: str | None = None,
-    import_route: ShippingRoute | None = None,
+    import_route: ShippingRoute | ImportRoute | None = None,
     origin_regime: OriginRegime | None = None,
 ) -> Decimal:
     """Calculate the product sale price according to its ``pricing_mode``.
@@ -450,11 +455,12 @@ async def calculate_sale_price(
         landed    = caf × (1 + customs_rate_pct / 100)
         sale_price = landed × (1 + margin_rate_pct / 100) × (1 + tax_rate_pct / 100)
 
-    ``import_route``: the import leg (e.g. France → Papeete). When provided,
-    its variable freight (price_per_kg × billable_weight) enters the CAF base.
-    When None the freight component is zero (backward-compatible, useful for
-    admin previews where no route has been chosen yet). Ignored outside the
-    import mode.
+    ``import_route``: the import leg (e.g. France → Papeete). Its variable
+    freight (price_per_kg × billable_weight) enters the CAF base. When None,
+    the **default import route** is used (shipping/services/import_routes.py):
+    « no route » used to mean « no freight », and the catalogue, the cart and
+    the order priced that way — the import freight was billed nowhere. Zero
+    only when no import route exists at all. Ignored outside the import mode.
 
     The margin resolves product → category → price group
     (:func:`resolve_margin_rate_pct`).
@@ -535,6 +541,8 @@ async def calculate_sale_price(
     # The fixed base_price/handling fee is NOT included here: it belongs to
     # the shipment level (per-order), not the unit price.
     freight_variable = Decimal("0")
+    if import_route is None:
+        import_route = await default_import_route(session)
     if import_route is not None:
         weight_kg = _as_decimal(getattr(product, "weight", None))
         volume_m3 = _compute_volume_m3(product)
@@ -689,6 +697,9 @@ class PricingContext:
     payment_commission_pct: Decimal = Decimal("0")
     #: Cushion on costs converted from a foreign currency (same module).
     fx_safety_margin_pct: Decimal = Decimal("0")
+    #: The route a price is computed on when none is given (never « no
+    #: freight »: see shipping/services/import_routes.py).
+    default_import_route: ImportRoute | None = None
     loaded_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     #: How long :meth:`for_session` keeps reusing an instance.
@@ -830,6 +841,7 @@ class PricingContext:
             free_countries=origin.free_countries,
             payment_commission_pct=parameters.payment_commission_pct,
             fx_safety_margin_pct=parameters.fx_safety_margin_pct,
+            default_import_route=await default_import_route(session),
         )
 
     @classmethod
@@ -939,7 +951,10 @@ class PricingContext:
         return _quantize_money(amount * rate)
 
     def unit_cost(
-        self, product: Product, *, import_route: ShippingRoute | None = None
+        self,
+        product: Product,
+        *,
+        import_route: ShippingRoute | ImportRoute | None = None,
     ) -> Decimal | None:
         """Cost price excl. tax in the reference currency (see margin.py).
 
@@ -959,6 +974,8 @@ class PricingContext:
         if self.effective_mode(product) is not PricingMode.IMPORT:
             return _quantize_money(cost)
         freight = Decimal("0")
+        if import_route is None:
+            import_route = self.default_import_route
         if import_route is not None:
             billable = resolve_billable_weight(
                 _as_decimal(getattr(product, "weight", None)),
@@ -974,18 +991,25 @@ class PricingContext:
         )
 
     def margin(
-        self, product: Product, price_incl_tax: Decimal | None
+        self,
+        product: Product,
+        price_incl_tax: Decimal | None,
+        *,
+        import_route: ShippingRoute | ImportRoute | None = None,
     ) -> MarginFigures | None:
         """Margin of one unit sold at ``price_incl_tax`` (None: cost unknown)."""
         return compute_margin(
             price_incl_tax=price_incl_tax,
             tax_rate_pct=self.tax_rate_pct(product),
-            unit_cost=self.unit_cost(product),
+            unit_cost=self.unit_cost(product, import_route=import_route),
             commission_pct=self.payment_commission_pct,
         )
 
     def price(
-        self, product: Product, *, import_route: ShippingRoute | None = None
+        self,
+        product: Product,
+        *,
+        import_route: ShippingRoute | ImportRoute | None = None,
     ) -> Decimal:
         """Same formula as :func:`calculate_sale_price`, no database access."""
         mode = self.effective_mode(product)
@@ -1018,6 +1042,8 @@ class PricingContext:
 
         customs = _as_decimal(self.customs_rate_pct(product))
         freight = Decimal("0")
+        if import_route is None:
+            import_route = self.default_import_route
         if import_route is not None:
             weight_kg = _as_decimal(getattr(product, "weight", None))
             volume_m3 = _compute_volume_m3(product)

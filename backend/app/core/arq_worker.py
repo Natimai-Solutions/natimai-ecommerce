@@ -2,10 +2,10 @@ import logging
 import socket
 from typing import Any
 
-from arq.connections import RedisSettings, create_pool
+from arq.connections import create_pool
 from arq.worker import func
 
-from app.core.config import settings
+from app.core.arq_pool import arq_redis_settings
 from app.core.logging_config import configure_logging
 from app.core.sentry import init_sentry
 from app.features.system.audit import get_audit_cron_jobs, purge_audit_log_task
@@ -80,7 +80,7 @@ logger = logging.getLogger(__name__)
 # Redis pool pour ARQ
 async def get_redis_pool() -> Any:
     """Get Redis pool for ARQ job enqueuing"""
-    return await create_pool(RedisSettings.from_dsn(str(settings.REDIS_URL)))
+    return await create_pool(arq_redis_settings())
 
 
 # Tes handlers ARQ existants
@@ -162,7 +162,7 @@ class WorkerSettings:
     # NOTE: Le polling de l'outbox est géré par un service dédié (outbox-poller)
     # pas besoin de cron job ici
 
-    redis_settings = RedisSettings.from_dsn(str(settings.REDIS_URL))
+    redis_settings = arq_redis_settings()
     job_timeout = 600  # Augmenté pour les tâches de sync qui peuvent prendre du temps
     keep_result = 3600
     # Défaut pour les tâches sans politique propre (sync fournisseurs, Icecat).

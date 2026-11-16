@@ -199,9 +199,23 @@ const addressForm = reactive<AddressInput>({
 const allCountryOptions = countryOptions();
 const filteredCountryOptions = ref<CountryOption[]>(allCountryOptions);
 
+let keepPostalCodeOnce = false;
 function filterCountries(val: string, update: (fn: () => void) => void) {
   update(() => {
     const needle = val.trim().toLowerCase();
+    // The browser's autofill types the whole country ("France", "FR") in
+    // the filter and picks nothing: the address left with the country shown
+    // before (PF), postal code and city of another one.
+    const exact = needle
+      ? allCountryOptions.find(
+          (o) => o.label.toLowerCase() === needle || o.value.toLowerCase() === needle,
+        )
+      : undefined;
+    if (exact && exact.value !== addressForm.country) {
+      // Autofill fills the postal code in the same go: keep it.
+      keepPostalCodeOnce = true;
+      addressForm.country = exact.value;
+    }
     filteredCountryOptions.value = needle
       ? allCountryOptions.filter((o) => o.label.toLowerCase().includes(needle))
       : allCountryOptions;
@@ -275,10 +289,11 @@ watch(
     if (!addressDialog.value) return;
     // Changer de pays invalide le code postal et tout ce qui en découlait :
     // le formulaire redémarre à l'étape « code postal ».
-    if (previous && country !== previous) {
+    if (previous && country !== previous && !keepPostalCodeOnce) {
       addressForm.postal_code = '';
       clearZoneAutofill();
     }
+    keepPostalCodeOnce = false;
     if (country) void loadPostalDirectory(country);
   },
 );

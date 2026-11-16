@@ -22,6 +22,7 @@ from app.core.webhook import allowed_webhook_url, post_json
         ("169.254.169.254", False),  # cloud metadata
         ("::1", False),
         ("fe80::1%eth0", False),
+        ("100.100.100.200", False),  # shared address space (CGNAT)
         ("not-an-ip", False),
     ],
 )
@@ -67,6 +68,8 @@ async def test_the_outbound_webhook_never_reaches_the_internal_network(
         ("https://user:pw@hooks.zapier.com/x", None),  # credentials
         ("https://hooks.zapier.com:8443/x", None),  # other port
         ("https://169.254.169.254/latest/meta-data", None),
+        ("https://hooks.zapier.com:abc/x", None),  # malformed: refused, not raised
+        ("https://[::1/x", None),
     ],
 )
 def test_the_webhook_url_must_be_on_an_allowed_host(

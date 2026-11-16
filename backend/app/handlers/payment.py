@@ -11,8 +11,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.alerting import send_alert
 from app.features.base.crud import RecordNotFoundError
 from app.features.inventory.services.stock_release import (
-    confirm_order_stock,
     release_order_stock,
+    secure_order_stock,
 )
 from app.features.invoice.services.credit_note_service import (
     CreditNoteIssuanceError,
@@ -71,6 +71,11 @@ _BEFORE_PAYMENT_ORDER_STATUSES: frozenset[str] = frozenset(
 _ADVANCE_ON_PAYMENT_ORDER_STATUSES: frozenset[str] = _BEFORE_PAYMENT_ORDER_STATUSES | {
     "PaymentReview"
 }
+#: Another payment of the order in one of these: the order is secured, a
+#: refusal of a different attempt changes nothing.
+_SECURED_PAYMENT_STATUS_NAMES: frozenset[str] = frozenset(
+    {"Completed", "Authorized", "PartiallyPaid"}
+)
 # Terminal-for-automation status: money was taken but the amounts disagree, so a
 # human must decide. Never set by the nominal flow — see
 # ``_handle_captured_amount_mismatch``.
@@ -206,6 +211,20 @@ async def _notify_payment_event(
         )
 
 
+async def _await_payment_status_sync(
+    session: AsyncSession, *, payload: dict[str, Any]
+) -> None:
+    payment, order = await _load_payment_and_order(session, payload)
+    if _payment_kind(payment) == KIND_BALANCE or order is None:
+        return
+    current = await session.get(OrderStatus, order.order_status_id)
+    if current is not None and current.name not in _BEFORE_PAYMENT_ORDER_STATUSES:
+        return
+    await _sync_order_status(
+        session, payload=payload, target_status_name=ORDER_STATUS_AWAITING_PAYMENT
+    )
+
+
 @outbox_handler("payment.awaiting_validation")
 async def on_payment_awaiting_validation(
     session: AsyncSession, payload: dict[str, Any]
@@ -217,11 +236,10 @@ async def on_payment_awaiting_validation(
         payload.get("order_id"),
         payload.get("provider_code"),
     )
-    await _sync_order_status(
-        session,
-        payload=payload,
-        target_status_name=ORDER_STATUS_AWAITING_PAYMENT,
-    )
+    # Only an order still before its payment waits for it: the balance of a
+    # deposit order paid by transfer sent an order already received back to
+    # « awaiting payment », and it stayed there once settled.
+    await _await_payment_status_sync(session, payload=payload)
 
 
 async def _load_payment_and_order(
@@ -397,6 +415,7 @@ async def on_payment_authorized(session: AsyncSession, payload: dict[str, Any]) 
         # The deposit already secured the order; the capture settles it.
         return
     await _advance_order_on_payment(session, payload=payload, order=order, kind=kind)
+    await _secure_stock_on_payment(session, payload=payload, confirm=False)
 
 
 @outbox_handler("payment.captured")
@@ -436,16 +455,34 @@ async def on_payment_captured(session: AsyncSession, payload: dict[str, Any]) ->
         return
     await _advance_order_on_payment(session, payload=payload, order=order, kind=kind)
     # The stock reserved at checkout is now definitively consumed.
+    await _secure_stock_on_payment(session, payload=payload, confirm=True)
+
+
+async def _secure_stock_on_payment(
+    session: AsyncSession, *, payload: dict[str, Any], confirm: bool
+) -> None:
+    """Confirm the order's reservations, taking them again when they were
+    released before the money arrived; alert when the goods are gone."""
     order_id = _parse_order_id(payload)
-    if order_id is not None:
-        confirmed = await confirm_order_stock(session, order_id=order_id)
-        if confirmed:
-            await session.commit()
-            logger.info(
-                "Stock reservations confirmed for order %s (%d movement(s))",
-                order_id,
-                confirmed,
-            )
+    if order_id is None:
+        return
+    done, short = await secure_order_stock(session, order_id=order_id, confirm=confirm)
+    if done:
+        await session.commit()
+        logger.info(
+            "Stock secured for order %s (%d movement(s), confirm=%s)",
+            order_id,
+            done,
+            confirm,
+        )
+    if short:
+        message = (
+            f"Commande {order_id} payée sans stock : sa réservation avait été "
+            f"libérée et {len(short)} article(s) ne sont plus disponibles "
+            f"({', '.join(short)}). À réapprovisionner ou à rembourser."
+        )
+        logger.error(message)
+        await send_alert(message, source="stock")
 
 
 async def _receipt_status_sync(
@@ -672,17 +709,28 @@ async def _order_was_captured(session: AsyncSession, payload: dict[str, Any]) ->
     order_id = _parse_order_id(payload)
     if order_id is None:
         return False
-    row = (
+    rows = (
         await session.exec(
-            select(OutboxEvent.id)
+            select(OutboxEvent.payload)
             .where(
                 col(OutboxEvent.type) == "payment.captured",
                 col(OutboxEvent.payload)["order_id"].as_string() == str(order_id),
             )
-            .limit(1)
+            .limit(20)
         )
-    ).first()
-    return row is not None
+    ).all()
+    # A deposit gets no invoice (it comes with the balance): its capture is
+    # not an invoice on its way, and the refund waited for one 8 times
+    # before a pointless alert.
+    for captured in rows:
+        raw_payment_id = (captured or {}).get("payment_id")
+        try:
+            payment = await session.get(Payment, uuid.UUID(str(raw_payment_id)))
+        except (TypeError, ValueError):
+            payment = None
+        if _payment_kind(payment) != KIND_DEPOSIT:
+            return True
+    return False
 
 
 @outbox_handler("payment.refunded")
@@ -767,9 +815,32 @@ async def on_payment_rejected(session: AsyncSession, payload: dict[str, Any]) ->
     )
     # A refused balance does not undo the order: the deposit is in, the goods
     # are bought and reserved. The customer simply retries from their account.
-    payment, _order = await _load_payment_and_order(session, payload)
+    payment, order = await _load_payment_and_order(session, payload)
     if _payment_kind(payment) == KIND_BALANCE:
         return
+    if order is not None:
+        # A refusal only undoes an order still waiting for its money. One
+        # cancelled meanwhile came back payable (and its coupon was given
+        # back twice); one paid by another attempt went back to « failed »
+        # and lost its stock (audit 2026-11, B1/B2).
+        current = await session.get(OrderStatus, order.order_status_id)
+        if current is not None and current.name not in _BEFORE_PAYMENT_ORDER_STATUSES:
+            logger.info(
+                "payment.rejected ignored: order %s is %s", order.id, current.name
+            )
+            return
+        rows = await crud_payment.list_with_status_by_order_id(
+            session, order_id=order.id
+        )
+        if any(
+            other.id != getattr(payment, "id", None)
+            and status_name in _SECURED_PAYMENT_STATUS_NAMES
+            for other, status_name in rows
+        ):
+            logger.info(
+                "payment.rejected ignored: order %s has another payment in", order.id
+            )
+            return
     await _sync_order_status(
         session, payload=payload, target_status_name=ORDER_STATUS_PAYMENT_FAILED
     )
@@ -797,11 +868,10 @@ async def on_payment_document_required(
         payload.get("payment_id"),
         payload.get("order_id"),
     )
-    await _sync_order_status(
-        session,
-        payload=payload,
-        target_status_name=ORDER_STATUS_AWAITING_PAYMENT,
-    )
+    # Only an order still before its payment waits for it: the balance of a
+    # deposit order paid by transfer sent an order already received back to
+    # « awaiting payment », and it stayed there once settled.
+    await _await_payment_status_sync(session, payload=payload)
 
 
 @outbox_handler("payment.document_uploaded")

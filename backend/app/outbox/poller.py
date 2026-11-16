@@ -174,7 +174,24 @@ async def _release_stale_running(session: AsyncSession) -> None:
             col(OutboxEvent.status) == "RUNNING",
             col(OutboxEvent.updated_at) < cutoff,
         )
-        .values(status="PENDING", next_run_at=datetime.now(UTC))
+        # It counts as an attempt: an event that kills its poller every
+        # time was put back for ever, never reaching MAX_ATTEMPTS.
+        .values(
+            status="PENDING",
+            next_run_at=datetime.now(UTC),
+            attempts=OutboxEvent.attempts + 1,
+        )
+    )
+    await session.execute(
+        update(OutboxEvent)
+        .where(
+            col(OutboxEvent.status) == "PENDING",
+            col(OutboxEvent.attempts) >= MAX_ATTEMPTS,
+        )
+        .values(
+            status="FAILED",
+            last_error="abandonné : son traitement n'aboutit jamais (poller interrompu)",
+        )
     )
     rowcount = getattr(result, "rowcount", 0)
     released = rowcount if isinstance(rowcount, int) else 0

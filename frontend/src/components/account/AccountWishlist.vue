@@ -7,7 +7,7 @@
       </div>
 
       <AppNotice v-if="error" tone="error" class="q-mb-md">{{ error }}</AppNotice>
-      <AppNotice v-if="cartError" dense tone="error" class="q-mb-md">{{ cartError }}</AppNotice>
+      <CartErrorToast v-model="cartError" />
 
       <div v-if="loading" class="product-grid" aria-busy="true">
         <div v-for="n in 4" :key="n" class="skeleton-card">
@@ -94,6 +94,7 @@
 </template>
 
 <script setup lang="ts">
+import CartErrorToast from '@/components/CartErrorToast.vue';
 import { useI18n } from 'vue-i18n';
 import { onMounted, ref } from 'vue';
 import { formatDate } from '@app/utils';

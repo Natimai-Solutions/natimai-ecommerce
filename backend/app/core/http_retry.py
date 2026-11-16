@@ -28,6 +28,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
+import re
 import time
 from collections.abc import Awaitable, Callable
 from typing import TypeVar
@@ -35,6 +36,17 @@ from typing import TypeVar
 import aiohttp
 
 logger = logging.getLogger(__name__)
+
+_SECRET_PARAM = re.compile(
+    r"(?i)\b(app_key|api_key|apikey|access_token|token|password|secret|key)=[^&\s'\"]+"
+)
+
+
+def redact_secrets(text: object) -> str:
+    """``text`` without the value of key-like URL parameters: an exception
+    often quotes the whole URL it failed on, API key included."""
+    return _SECRET_PARAM.sub(r"\1=***", str(text))
+
 
 T = TypeVar("T")
 
@@ -184,13 +196,16 @@ async def request_with_retry(
             description,
             attempt_number,
             max_attempts,
-            last_error,
+            redact_secrets(last_error),
             delay,
         )
         await asyncio.sleep(delay)
 
     logger.error(
-        "%s gave up after %d attempts: %s", description, max_attempts, last_error
+        "%s gave up after %d attempts: %s",
+        description,
+        max_attempts,
+        redact_secrets(last_error),
     )
     assert last_error is not None  # noqa: S101 - loop always sets it before break
     raise last_error

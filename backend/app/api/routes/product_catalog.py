@@ -78,6 +78,7 @@ from app.features.product.services.spec_projection import (
 )
 from app.features.product.services.variants import list_variants, option_axes
 from app.features.shipping.models.route import ShippingRoute
+from app.features.shipping.services.import_routes import default_import_route
 from app.features.user.crud.user_preference import get_preference_for_user
 from app.features.user.models.user import User
 
@@ -185,7 +186,12 @@ async def get_product_shipping_modes(
     # Load import routes ordered by priority asc (highest priority first = lowest number)
     route_stmt = (
         select(ShippingRoute)
-        .where(col(ShippingRoute.service_level).is_not(None))
+        .where(
+            col(ShippingRoute.service_level).is_not(None),
+            # A route switched off is not on offer: the cart would price the
+            # line on the default one instead.
+            col(ShippingRoute.is_active).is_(True),
+        )
         .order_by(
             col(ShippingRoute.priority).asc(),
             col(ShippingRoute.is_default_import).desc(),
@@ -219,12 +225,10 @@ async def get_product_shipping_modes(
     if user_pref_mode:
         default_mode: str | None = user_pref_mode
     else:
-        default_route = next((r for r in import_routes if r.is_default_import), None)
-        default_mode = (
-            default_route.service_level
-            if default_route is not None
-            else (mode_prices[0].service_level if mode_prices else None)
-        )
+        # The very route the catalogue and the cart price on when no mode
+        # is chosen (shipping/services/import_routes.py).
+        fallback = await default_import_route(session)
+        default_mode = fallback.service_level if fallback is not None else None
 
     return ProductShippingModesResponse(
         product_id=product_id,
@@ -285,16 +289,7 @@ async def get_product_offers(
     siblings = await crud_product.find_offers(session, product)
     everyone = [product, *siblings]
 
-    default_route = (
-        await session.exec(
-            select(ShippingRoute)
-            .where(
-                col(ShippingRoute.is_default_import).is_(True),
-                col(ShippingRoute.is_active).is_(True),
-            )
-            .limit(1)
-        )
-    ).first()
+    default_route = await default_import_route(session)
     context = await PricingContext.for_session(session)
 
     codes = {p.supplier_name for p in everyone if p.supplier_name}

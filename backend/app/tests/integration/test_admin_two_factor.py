@@ -370,3 +370,80 @@ def test_recovery_codes_are_hashed_with_the_server_key() -> None:
     user.totp_secret_encrypted = None
     assert two_factor.verify_second_factor(user, code) == "recovery"
     assert user.totp_recovery_hashes == []
+
+
+@pytest.mark.asyncio
+async def test_wrong_codes_lock_the_second_factor(
+    db_session: AsyncSession,
+    _env: list[dict[str, Any]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Audit 2026-11, S11 (review): the right password cleared the failure
+    counters before the code was checked, so wrong codes never added up —
+    with a stolen password the six digits could be tried without end."""
+    hits: dict[str, int] = {}
+
+    async def hit(key: str, *, limit: int, window_seconds: int) -> bool:
+        assert window_seconds > 0
+        hits[key] = hits.get(key, 0) + 1
+        return hits[key] > limit
+
+    async def reached(key: str, *, limit: int) -> bool:
+        return hits.get(key, 0) >= limit
+
+    monkeypatch.setattr(login_routes, "hit_rate_limit", hit)
+    monkeypatch.setattr(login_routes, "rate_limit_reached", reached)
+    monkeypatch.setattr(settings, "LOGIN_LOCKOUT_MAX_FAILURES", 3)
+    monkeypatch.setattr(settings, "LOGIN_RATE_LIMIT_ATTEMPTS", 1000)
+    user_id = await _admin(db_session)
+    secret, _ = await _enrol(db_session, user_id)
+
+    for _ in range(3):
+        with pytest.raises(AppError) as wrong:
+            await _login(db_session, "ops@test.local", "000000")
+        assert wrong.value.code == "login.totp.invalid"
+
+    # Locked: even the right code waits for the window to end.
+    current = totp.code_at(secret, totp.current_step())
+    with pytest.raises(AppError) as locked:
+        await _login(db_session, "ops@test.local", current)
+    assert locked.value.code == "login.account.locked"
+    assert locked.value.details == {"reason": "totp_locked"}
+
+
+@pytest.mark.asyncio
+async def test_an_admin_signs_in_from_the_back_office_only(
+    db_session: AsyncSession,
+    _env: list[dict[str, Any]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Audit 2026-11, S2 (review): only the refresh was checked — signing in
+    on the storefront still left an admin token in a page a script injected
+    there could read."""
+    monkeypatch.setattr(settings, "ADMIN_FRONTEND_HOST", "https://admin.shop.test")
+    await _admin(db_session)
+
+    def request(origin: str) -> Request:
+        return Request(
+            {
+                "type": "http",
+                "method": "POST",
+                "path": "/api/v1/login/access-token",
+                "headers": [(b"user-agent", b"pytest"), (b"origin", origin.encode())],
+                "client": ("203.0.113.7", 1234),
+            }
+        )
+
+    async def login(origin: str) -> Any:
+        return await login_routes.login_access_token(
+            request(origin),
+            Response(),
+            db_session,
+            OAuth2PasswordRequestForm(username="ops@test.local", password=PASSWORD),
+            totp_code=None,
+        )
+
+    with pytest.raises(AppError) as refused:
+        await login("https://shop.test")
+    assert refused.value.code == "login.refresh_token.admin_origin"
+    assert (await login("https://admin.shop.test")).access_token

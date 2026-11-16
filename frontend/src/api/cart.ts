@@ -67,6 +67,14 @@ export interface GuestQuoteRequestResponse {
   message: string;
 }
 
+export type ImportMode = components['schemas']['ImportModePublic'];
+
+/** The import modes the cart can be priced on, the default one first. */
+export async function listImportModes(): Promise<ImportMode[]> {
+  const { data } = await api.get<ImportMode[]>('/cart/import-modes');
+  return data;
+}
+
 export async function getMyCart(): Promise<CartDetailPublic> {
   const { data } = await api.get<CartDetailPublic>('/cart/me');
   return data;

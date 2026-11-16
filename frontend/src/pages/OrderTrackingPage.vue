@@ -247,6 +247,22 @@
               <span class="font-mono">{{ money(order.total_amount) }}</span>
             </div>
 
+            <!-- An order still unpaid (card refused, PayPal abandoned…): the
+                 only way back to a payment. -->
+            <div v-if="firstPaymentDue" class="summary__block" data-testid="order-unpaid">
+              <p class="summary__note">{{ $t('tracking.unpaid_text') }}</p>
+              <q-btn
+                v-if="!linkToken"
+                unelevated
+                color="primary"
+                :label="$t('tracking.pay_now', { amount: money(firstPaymentDue) })"
+                class="summary__cta"
+                :to="{ name: 'order-balance', params: { id: order.id } }"
+                data-testid="order-pay-now"
+              />
+              <p v-else class="summary__note">{{ $t('tracking.balance_login') }}</p>
+            </div>
+
             <div v-if="partialPayment" class="summary__block" data-testid="order-partial">
               <div class="app-kv app-kv--credit">
                 <span>{{ $t('tracking.paid') }}</span>
@@ -508,6 +524,15 @@ const UNPAID_STATUSES = new Set([
   'Cancelled',
   'Refunded',
 ]);
+/** Amount of the first payment still to make online, or null. */
+const firstPaymentDue = computed<string | null>(() => {
+  const detail = order.value as OrderDetail | null;
+  if (!detail || !detail.pay_now_kind || detail.pay_now_kind === 'balance') return null;
+  return Number.parseFloat(detail.pay_now_amount ?? '0') > 0
+    ? (detail.pay_now_amount ?? null)
+    : null;
+});
+
 const balancePayable = computed(() => {
   const o = order.value;
   return (

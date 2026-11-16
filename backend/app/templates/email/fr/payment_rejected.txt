@@ -4,6 +4,9 @@ Votre paiement pour la commande {{ order_ref or (order_id | short_ref) }} n'a pa
 {% if reason %}
 Motif : {{ reason }}
 {% endif %}
-Veuillez réessayer ou contacter notre support si le problème persiste.
+{% if pay_url %}Votre commande est conservée. Pour la régler à nouveau :
+{{ pay_url }}
+
+{% endif %}Contactez notre support si le problème persiste.
 
 L'équipe {{ shop_name }}

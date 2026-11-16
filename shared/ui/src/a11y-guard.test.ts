@@ -20,14 +20,26 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-/** `<q-btn …>` tags showing an icon and no text, without an accessible name. */
+/** A tag's attributes, quoted values included (a `>` in one does not end it). */
+const ATTRS = String.raw`((?:"[^"]*"|'[^']*'|[^>"'])*)`;
+const BUTTON = new RegExp(String.raw`<(?:q-btn|q-btn-dropdown|q-fab|q-fab-action)\b${ATTRS}>`, 'g');
+const ICON = new RegExp(String.raw`<q-icon\b${ATTRS}>`, 'g');
+
+/**
+ * Buttons showing an icon and no text, without an accessible name — and
+ * icons made clickable (`@click` on a `q-icon`): no name, no keyboard.
+ */
 function unnamedIconButtons(source: string): number[] {
   const lines: number[] = [];
-  for (const match of source.matchAll(/<q-btn\b([\s\S]*?)\/?>/g)) {
+  const line = (index: number) => source.slice(0, index).split('\n').length;
+  for (const match of source.matchAll(BUTTON)) {
     const attrs = match[1] ?? '';
     if (!/(^|\s):?icon=/.test(attrs)) continue;
     if (/(^|\s):?label=|aria-label|aria-labelledby/.test(attrs)) continue;
-    lines.push(source.slice(0, match.index).split('\n').length);
+    lines.push(line(match.index));
+  }
+  for (const match of source.matchAll(ICON)) {
+    if (/(^|\s)@click/.test(match[1] ?? '')) lines.push(line(match.index));
   }
   return lines;
 }

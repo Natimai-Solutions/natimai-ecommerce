@@ -400,3 +400,34 @@ async def test_an_admin_cancellation_gives_back_stock_and_coupon(
     assert refreshed_inventory.quantity == Decimal("1")
     refreshed_coupon = await db_session.get(Discount, coupon_id)
     assert refreshed_coupon is not None and refreshed_coupon.current_uses == 4
+
+
+@pytest.mark.asyncio
+async def test_an_unpaid_order_says_what_can_be_paid_now(
+    db_session: AsyncSession,
+) -> None:
+    """Functional audit, November 2026: after a refused card or an abandoned
+    PayPal the order existed, the cart was emptied, and no screen offered to
+    pay — the order page had nothing to read to show « Payer »."""
+    buyer = await _user(db_session)
+
+    failed_id, _ = await _order(
+        db_session, buyer, order_status="PaymentFailed", payment_status="Failed"
+    )
+    await db_session.refresh(buyer)
+    failed = await get_my_order(failed_id, db_session, buyer)
+    assert (failed.pay_now_kind, failed.pay_now_amount) == ("full", Decimal("30000"))
+
+    paid_id, _ = await _order(
+        db_session, buyer, order_status="Paid", payment_status="Completed"
+    )
+    await db_session.refresh(buyer)
+    paid = await get_my_order(paid_id, db_session, buyer)
+    assert paid.pay_now_kind is None and paid.pay_now_amount == Decimal("0")
+
+    cancelled_id, _ = await _order(
+        db_session, buyer, order_status="Cancelled", payment_status="Cancelled"
+    )
+    await db_session.refresh(buyer)
+    cancelled = await get_my_order(cancelled_id, db_session, buyer)
+    assert cancelled.pay_now_kind is None

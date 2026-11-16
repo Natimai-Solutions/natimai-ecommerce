@@ -269,6 +269,13 @@ def _order_pay_url(order_id: uuid.UUID) -> str:
     return f"{settings.FRONTEND_HOST.rstrip('/')}/mon-compte/commandes/{order_id}/solde"
 
 
+def _order_pay_url_or_none(raw_order_id: Any) -> str | None:
+    try:
+        return _order_pay_url(uuid.UUID(str(raw_order_id)))
+    except (TypeError, ValueError):
+        return None
+
+
 async def request_balance(session: AsyncSession, order: Order) -> bool:
     """Ask the customer for the balance of a deposit order: e-mail with the
     amounts and the payment link, ``balance_requested_at`` stamped. Sent
@@ -479,6 +486,8 @@ async def on_payment_rejected_customer(
         order_ref=order_ref,
         reason=payload.get("reason") or "",
         shop_name=_shop_name(),
+        # The way back to a payment: the order page offers « Payer ».
+        pay_url=_order_pay_url_or_none(payload.get("order_id")),
     )
 
     await _send_order_email(

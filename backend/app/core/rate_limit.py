@@ -77,6 +77,15 @@ async def hit_rate_limit(key: str, *, limit: int, window_seconds: int) -> bool:
     return int(count) > limit
 
 
+async def release_rate_limit_hit(key: str) -> None:
+    """Give back a hit taken by :func:`hit_rate_limit` (limits that count
+    failures only: hit first, release on success). Best effort."""
+    try:
+        await _get_client().decr(f"rate:{key}")
+    except Exception:  # noqa: BLE001 — a hit kept is the safe side
+        logger.warning("rate limiter: could not release a hit", exc_info=True)
+
+
 async def rate_limit_reached(key: str, *, limit: int) -> bool:
     """Whether ``key`` already counts more than ``limit`` hits, without adding
     one. For limits that only count failures (see ``hit_rate_limit``): read

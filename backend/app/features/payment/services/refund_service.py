@@ -66,6 +66,125 @@ async def _order_net_collected(session: AsyncSession, order_id: uuid.UUID) -> De
     return collected - Decimal(refunded)
 
 
+async def _settle_completed_refund(
+    session: AsyncSession, *, payment: Payment, refund: Refund
+) -> bool:
+    """What a refund that actually happened changes: the payment's status and
+    the ``payment.refunded`` event (order status, credit note, gift cards and
+    points taken back, customer e-mail). Returns whether the payment is now
+    fully refunded. No commit."""
+    await session.flush()
+    payment_id = payment.id
+    order_id = payment.order_id
+    done = (
+        await session.exec(
+            select(func.coalesce(func.sum(Refund.amount), 0)).where(
+                col(Refund.payment_id) == payment_id,
+                col(Refund.status) == "completed",
+            )
+        )
+    ).one()
+    fully_refunded = Decimal(done) >= Decimal(payment.amount)
+    order_fully_refunded = fully_refunded
+    if order_id is not None:
+        # An order settled by several payments (deposit + balance, avoir +
+        # cash…) is only « remboursée » when nothing it collected is left.
+        order_fully_refunded = await _order_net_collected(session, order_id) <= 0
+    status_name = (
+        PAYMENT_STATUS_REFUNDED if fully_refunded else PAYMENT_STATUS_PARTIALLY_REFUNDED
+    )
+    status = await crud_payment_status.get_by_name(session, name=status_name)
+    if status is not None:
+        payment.payment_status_id = status.id
+        session.add(payment)
+
+    await outbox_registry.publish(
+        session=session,
+        event_type=EVENT_PAYMENT_REFUNDED,
+        payload={
+            # The credit note keys its idempotency on this: the outbox
+            # delivers at least once, and two credit notes for one refund
+            # would each burn a number in a gap-free legal sequence.
+            "refund_id": str(refund.id),
+            "payment_id": str(payment_id),
+            "order_id": str(order_id) if order_id else None,
+            "user_id": str(payment.user_id),
+            "amount": str(refund.amount),
+            "currency": refund.currency,
+            "reason": refund.reason,
+            # Order-level: drives the order status, the stock release and
+            # the wording of the customer e-mail.
+            "fully_refunded": order_fully_refunded,
+            "payment_fully_refunded": fully_refunded,
+            "provider_code": payment.provider_code,
+        },
+        correlation_id=payment_id,
+    )
+    return fully_refunded
+
+
+async def confirm_pending_refunds(
+    session: AsyncSession, *, payment: Payment, admin: User
+) -> list[Refund]:
+    """The admin did the refund at the provider (PayZen back office): the
+    refunds recorded « pending » on ``payment`` become « completed ».
+
+    Nothing ever completed them: the payment stayed « paid », no credit note
+    was issued, and the gift cards and loyalty points of the order were never
+    taken back (audit 2026-11, S6). Commits; returns the refunds confirmed.
+    """
+    locked = (
+        await session.exec(
+            select(Payment)
+            .where(col(Payment.id) == payment.id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    ).first()
+    if locked is not None:
+        payment = locked
+    admin_id = admin.id
+    pending = list(
+        (
+            await session.exec(
+                select(Refund)
+                .where(
+                    col(Refund.payment_id) == payment.id,
+                    col(Refund.status) == "pending",
+                )
+                .order_by(col(Refund.created_at))
+                .with_for_update()
+            )
+        ).all()
+    )
+    if not pending:
+        raise AppError(
+            code="refund.nothing_pending",
+            status_code=409,
+            message="Aucun remboursement en attente sur ce paiement.",
+            details={"payment_id": str(payment.id)},
+        )
+    now = datetime.now(UTC)
+    for refund in pending:
+        refund.status = "completed"
+        refund.processed_at = now
+        session.add(refund)
+        session.add(
+            PaymentValidation(
+                payment_id=payment.id,
+                action="refund_confirmed",
+                admin_user_id=admin_id,
+                reason=refund.reason,
+                extra_data={"amount": str(refund.amount), "refund_id": str(refund.id)},
+            )
+        )
+        await _settle_completed_refund(session, payment=payment, refund=refund)
+    await session.commit()
+    for refund in pending:
+        await session.refresh(refund)
+    return pending
+
+
 async def refund_payment(
     session: AsyncSession,
     *,
@@ -94,7 +213,6 @@ async def refund_payment(
     payment_total = payment.amount
     payment_id = payment.id
     order_id = payment.order_id
-    user_id = payment.user_id
     currency = payment.currency
     provider_code = payment.provider_code
     provider_reference = payment.provider_reference
@@ -182,46 +300,9 @@ async def refund_payment(
     )
 
     fully_refunded = False
-    order_fully_refunded = False
     if completed:
-        fully_refunded = (already_refunded + refund_amount) >= payment_total
-        order_fully_refunded = fully_refunded
-        if order_id is not None:
-            # An order settled by several payments (deposit + balance, avoir +
-            # cash…) is only « remboursée » when nothing it collected is left.
-            await session.flush()
-            order_fully_refunded = await _order_net_collected(session, order_id) <= 0
-        status_name = (
-            PAYMENT_STATUS_REFUNDED
-            if fully_refunded
-            else PAYMENT_STATUS_PARTIALLY_REFUNDED
-        )
-        status = await crud_payment_status.get_by_name(session, name=status_name)
-        if status is not None:
-            payment.payment_status_id = status.id
-            session.add(payment)
-
-        await outbox_registry.publish(
-            session=session,
-            event_type=EVENT_PAYMENT_REFUNDED,
-            payload={
-                # The credit note keys its idempotency on this: the outbox
-                # delivers at least once, and two credit notes for one refund
-                # would each burn a number in a gap-free legal sequence.
-                "refund_id": str(refund.id),
-                "payment_id": str(payment_id),
-                "order_id": str(order_id) if order_id else None,
-                "user_id": str(user_id),
-                "amount": str(refund_amount),
-                "currency": currency,
-                "reason": reason,
-                # Order-level: drives the order status, the stock release and
-                # the wording of the customer e-mail.
-                "fully_refunded": order_fully_refunded,
-                "payment_fully_refunded": fully_refunded,
-                "provider_code": provider_code,
-            },
-            correlation_id=payment_id,
+        fully_refunded = await _settle_completed_refund(
+            session, payment=payment, refund=refund
         )
 
     await session.commit()

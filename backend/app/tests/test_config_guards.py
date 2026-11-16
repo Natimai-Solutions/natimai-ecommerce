@@ -291,3 +291,46 @@ def test_redis_url_carries_the_password_alone() -> None:
         ENVIRONMENT="local", CLAMAV_ENABLED=True, **_VALID_BASE_SETTINGS
     )
     assert "@" not in no_password.REDIS_URL
+
+
+def test_arq_gets_the_raw_redis_password(monkeypatch: pytest.MonkeyPatch) -> None:
+    """arq does not decode a DSN's password: built from ``REDIS_URL``, a
+    password holding ``+``, ``/`` or ``=`` locked the worker and the outbox
+    poller out while the API connected."""
+    from app.core import arq_pool
+    from app.core.config import settings as live
+
+    monkeypatch.setattr(live, "REDIS_SERVER", "redis")
+    monkeypatch.setattr(live, "REDIS_PASSWORD", "p@ss+w/0rd=")
+    built = arq_pool.arq_redis_settings()
+    assert (built.host, built.password) == ("redis", "p@ss+w/0rd=")
+
+    monkeypatch.setattr(live, "REDIS_PASSWORD", "")
+    assert arq_pool.arq_redis_settings().password is None
+
+
+def test_the_admin_origin_defaults_to_the_admin_subdomain() -> None:
+    """Audit 2026-11, S2 (review): the check was off until someone set
+    ADMIN_FRONTEND_HOST; a deployment that only has DOMAIN gets it."""
+    derived = Settings(
+        ENVIRONMENT="staging",
+        CLAMAV_ENABLED=True,
+        DOMAIN="shop.example",
+        **_VALID_BASE_SETTINGS,
+    )
+    assert derived.ADMIN_FRONTEND_HOST == "https://admin.shop.example"
+    explicit = Settings(
+        ENVIRONMENT="staging",
+        CLAMAV_ENABLED=True,
+        DOMAIN="shop.example",
+        ADMIN_FRONTEND_HOST="https://bo.shop.example",
+        **_VALID_BASE_SETTINGS,
+    )
+    assert explicit.ADMIN_FRONTEND_HOST == "https://bo.shop.example"
+    local = Settings(
+        ENVIRONMENT="local",
+        CLAMAV_ENABLED=True,
+        DOMAIN="shop.example",
+        **_VALID_BASE_SETTINGS,
+    )
+    assert not local.ADMIN_FRONTEND_HOST

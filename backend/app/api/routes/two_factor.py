@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 from app.api.deps import CurrentSuperUserEnrolling, SessionDep
 from app.core.config import settings
 from app.core.errors import AppError
-from app.core.rate_limit import get_client_ip, rate_limited
+from app.core.rate_limit import get_client_ip, hit_rate_limit, rate_limited
 from app.core.security import averify_password
 from app.features.system import audit
 from app.features.user.crud.refresh_token import crud_user_refresh_token
@@ -32,6 +32,23 @@ router = APIRouter(prefix="/users/me/2fa", tags=["user"])
 #: The code-checking endpoints, per address (audit 2026-11): ten tries per
 #: ten minutes is plenty for a person, nothing for a script.
 _code_limit = Depends(rate_limited("two_factor", limit=10, window_seconds=600))
+
+
+async def _account_code_limit(current_user: CurrentSuperUserEnrolling) -> None:
+    """The same limit per account: a stolen session changing address went
+    around the per-address one."""
+    if await hit_rate_limit(
+        f"two_factor:user:{current_user.id}", limit=10, window_seconds=600
+    ):
+        raise AppError(
+            code="two_factor.rate_limited",
+            status_code=429,
+            message="Trop de tentatives : réessayez dans quelques minutes.",
+            details={"scope": "two_factor", "window_seconds": 600},
+        )
+
+
+_account_limit = Depends(_account_code_limit)
 
 
 class TwoFactorStatus(BaseModel):
@@ -91,7 +108,14 @@ async def get_status(current_user: CurrentSuperUserEnrolling) -> TwoFactorStatus
     return _status(current_user)
 
 
-@router.post("/setup", response_model=TwoFactorSetup)
+@router.post(
+    "/setup",
+    response_model=TwoFactorSetup,
+    # Each call e-mails a code: not without a limit.
+    dependencies=[
+        Depends(rate_limited("two_factor_setup", limit=5, window_seconds=600))
+    ],
+)
 async def setup(
     session: SessionDep, current_user: CurrentSuperUserEnrolling
 ) -> TwoFactorSetup:
@@ -115,7 +139,7 @@ async def setup(
 @router.post(
     "/confirm",
     response_model=RecoveryCodes,
-    dependencies=[_code_limit],
+    dependencies=[_code_limit, _account_limit],
 )
 async def confirm(
     request: Request,
@@ -146,7 +170,7 @@ async def confirm(
 @router.post(
     "/recovery-codes",
     response_model=RecoveryCodes,
-    dependencies=[_code_limit],
+    dependencies=[_code_limit, _account_limit],
 )
 async def regenerate_recovery_codes(
     request: Request,
@@ -165,7 +189,7 @@ async def regenerate_recovery_codes(
 @router.post(
     "/disable",
     response_model=TwoFactorStatus,
-    dependencies=[_code_limit],
+    dependencies=[_code_limit, _account_limit],
 )
 async def disable(
     request: Request,

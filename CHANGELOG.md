@@ -9,6 +9,10 @@ takes a tag as its `ref`.
 
 ### Added
 
+- `docs/internal/AUDIT_FONCTIONNEL_2026-11.md`: functional audit (are the
+  features solid, which ones are missing), three parallel reviews of the
+  customer journey, the back office and operations, and the business engine.
+
 - `docs/internal/AUDIT_2026-11.md`: security, functional and UI/UX audit of
   the stack before opening (findings verified against the code, with file,
   scenario and fix). The pre-opening fixes it calls for are tracked in
@@ -163,6 +167,127 @@ takes a tag as its `ref`.
   (superuser-only), as the base of the future fine-grained roles.
 
 ### Fixed
+
+- One checkout per cart: the cart row is locked until the order commits, so
+  two submissions at once (double click, two tabs, a retry) no longer create
+  two orders (`cart.already_checked_out`, 409).
+- A product whose cost is in a currency with no rate in force is no longer
+  sellable (`currency_rate_missing` blocker): its page and the cart answered
+  500, and one such article failed a whole list. An uncomputable price is a
+  409 `product.price_unavailable`, never a 500.
+- Checkout errors speak the customer's language: the codes raised with an
+  English, technical message (« Cart is empty », « Insufficient stock for
+  product <uuid> ») have a French message, the French ones an English one;
+  a stock refusal names the article and what is left, and links to the cart.
+
+- **The import freight is billed.** The product page showed the price of the
+  chosen import mode, freight included, while the catalogue, the cart and the
+  order priced with no route — no freight — and the checkout skipped the
+  import leg as « already in the price »: the freight (and the customs,
+  margin and tax computed on it) was billed nowhere, and the cost price
+  ignored it too. A price asked without a route is now computed on the
+  **default import route**; a cart line and an order line carry the mode
+  their price is computed on (`import_service_level`, migration
+  `a7b8c9d0e1f2`); the product page passes the mode it shows, and the cart
+  lets the customer switch the whole cart to another mode
+  (`GET /cart/import-modes`). The cached catalogue prices are refreshed when
+  an import route changes. **Prices of imported articles rise by the default
+  freight at the first refresh after deployment.**
+- An unpaid order can be paid again: `GET /orders/me/{id}` says what is
+  payable now (`pay_now_kind`, `pay_now_amount`); the order page shows
+  « Payer », the payment-return page « Réessayer le paiement » (it sent back
+  to an emptied cart), and the « payment refused » e-mail links to it.
+- « Demander un devis » in the cart: the request, its admin screen, the PDF
+  and the e-mail existed, nothing in the storefront reached them.
+- Backups: the shipped crontab set `BACKUP_REMOTE`, which `backup.sh` does
+  not read — nothing left the server; it now sets `OFFSITE_RCLONE_REMOTE`
+  and the documented directory. `STORAGE_RCLONE_SOURCE` backs up the bucket
+  when files are stored in S3 (the local volume is then empty, and the
+  script says so), and a successful run leaves `backups/last_success` and
+  calls `BACKUP_HEARTBEAT_URL`.
+
+- Review of the November 2026 audit fixes — low-severity points:
+  - money: the balance of a deposit order cannot be paid with a method dearer
+    than the one billed (S9); a gift card is issued for what its line cost
+    when sold below its face value (S3); a refund that cannot take back
+    points already spent alerts the shop (S6); a group price typed with cents
+    is rounded like every price; a provider notification of success without
+    amount or currency goes to review;
+  - orders: cancelling an order (admin included) closes its card / PayPal
+    payments still pending; deleting an order releases its reservations;
+  - hardening: the two-factor endpoints are limited per account as well as
+    per address; an IP literal on `OUTBOUND_WEBHOOK_ALLOWED_HOSTS` is not a
+    webhook host; errors logged by the HTTP retries and Icecat no longer
+    quote the API key; the decompressed XLSX cap goes from 300 to 120 Mo; an
+    unreachable antivirus refuses the import with a message (it was a 500);
+  - outbox: an event left RUNNING counts as an attempt and is abandoned at
+    `MAX_ATTEMPTS`; the credit note of a refunded deposit no longer waits
+    for an invoice that is not coming;
+  - storefront: one catalogue search for `?page=N` (page 1 flashed); one
+    refresh at the OAuth return; « Mes commandes » reads every invoice, not
+    the 50 latest; the « show password » control is a button (keyboard,
+    name); `srcset` on the category tiles and the first catalogue images
+    loaded eagerly;
+  - admin: departure dates saved on the shop's clock; « server unreachable »
+    instead of axios' own words; the last hard-coded French notices are
+    translated; the icon-button guard also covers dropdowns, FABs and
+    clickable icons.
+
+- Review of the November 2026 audit fixes — storefront: the « could not add
+  to cart » message is a toast at the bottom of the screen on every page
+  with product cards (catalogue, related products, wishlist, comparison; U8
+  only covered the home page) and closes by itself; the mobile filter sheet
+  closes when the screen becomes wide (the page stayed locked, U6); the
+  search suggestions reopen after Escape when typing or pressing ↓, and
+  « all results » is an option reachable with the arrows (U7); a slower load
+  of a product left meanwhile no longer clears the variant selected on the
+  current one.
+
+- Review of the November 2026 audit fixes — sessions and hardening: an
+  administrator signs in from the back office only (the refresh alone was
+  checked), and `ADMIN_FRONTEND_HOST` defaults to `https://admin.<DOMAIN>`
+  outside local (the check was off until the variable was set, S2); wrong
+  authenticator codes now lock the second factor for
+  `LOGIN_LOCKOUT_MINUTES` (the right password cleared the counter before the
+  code was checked, S11); the promo-code limit of the checkout quote is
+  counted atomically and only for guesses — a code refused for the cart
+  (minimum not reached…) no longer locks the customer out (S7);
+  `POST /users/me/2fa/setup` is rate-limited; the Slack notification webhook
+  goes through the same allow-list and public-address guard as the outbound
+  webhook; the FEC export neutralises formulas; the SSRF guard refuses the
+  shared address space (100.64.0.0/10).
+
+- Review of the November 2026 audit fixes — stock, cancellation and refunds:
+  money that arrives after an order's reservation was given back (sweep,
+  refused attempt, late notification) takes the stock again before
+  confirming it, and alerts when the goods are gone (B2 was fixed on
+  `/payments/initiate` only); a receipt at the counter is refused for a
+  cancelled order or one whose stock is gone; two attempts started together
+  no longer reserve twice; a refusal no longer revives a cancelled order nor
+  an order another payment secured; « awaiting validation » on a balance no
+  longer sends a shipped order back to « awaiting payment »; a validated
+  manual payment cannot be rejected; two cancellations at once give the promo
+  code back once; `PUT /orders/{id}` changes the status through the one
+  status service.
+- A refund recorded « pending » (PayZen, done in its back office) can now be
+  confirmed from the order (`POST /admin/payments/{id}/refunds/confirm`):
+  nothing completed it before, so no credit note was issued, the order kept
+  its status and the gift cards and points were never taken back (S6).
+- Guest-checkout accounts (unverified address) are no longer sent the
+  abandoned-cart reminder (S8).
+
+- Review of the November 2026 audit fixes — defects the fixes themselves
+  introduced: the account's cart is read back at sign-in (signing out emptied
+  the device and the first article added then replaced the server cart; the
+  merge also runs once when the boot and the OAuth return both ask);
+  `ADMIN_ALLOWED_IPS` now applies to the optional-auth routes too (the generic
+  CRUD skipped it), accepts commas and stops the start on a typo; the ARQ
+  worker and the outbox poller get the raw `REDIS_PASSWORD` (a password with
+  `+`, `/` or `=` locked them out); `GET /payments/status/{id}` answers 404
+  to a non-ASCII token (it was a 500) and the token expires after 7 days; a
+  malformed webhook URL is refused instead of crashing the departure
+  reminders; the address form applies an autofilled country (it stayed on
+  PF); the PayPal return no longer starts polling after the page is left.
 
 - Security (audit 2026-11, S1): outside `ENVIRONMENT=local` the API refuses
   to start when `SECRET_KEY`, `POSTGRES_PASSWORD` or

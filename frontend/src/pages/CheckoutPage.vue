@@ -18,6 +18,16 @@
       <div class="checkout__main">
         <AppNotice v-if="errorMessage" tone="error" class="checkout__notice">
           {{ errorMessage }}
+          <!-- A line can no longer be served: the fix is in the cart. -->
+          <template v-if="cartNeedsFixing" #action>
+            <q-btn
+              flat
+              no-caps
+              :label="$t('checkout.edit_cart')"
+              :to="{ name: 'cart' }"
+              data-testid="checkout-edit-cart"
+            />
+          </template>
         </AppNotice>
         <AppNotice
           v-if="quoteRequestId && !orderPlaced"
@@ -515,7 +525,7 @@ import ChoiceList, { type ChoiceOption } from '@/components/ChoiceList.vue';
 import GuestAccountOffer from '@/components/GuestAccountOffer.vue';
 import GuestCheckoutForm from '@/components/GuestCheckoutForm.vue';
 import { useCurrencyStore } from '@/stores/currency';
-import { apiErrorMessage } from '@/utils/errors';
+import { apiErrorCode, apiErrorMessage } from '@/utils/errors';
 import { orderMoney } from '@/utils/money';
 import { useCartStore } from '@/stores/cart';
 import { useAuthStore } from '@/stores/auth';
@@ -595,6 +605,14 @@ const placedDeparture = computed(() =>
 );
 const placedDepartureId = ref<string | null>(null);
 const errorMessage = ref<string | null>(null);
+/** The refusal names a cart line (stock, article withdrawn): link to the cart. */
+const cartNeedsFixing = ref(false);
+const CART_LINE_ERRORS = new Set([
+  'cart.stock.insufficient',
+  'cart.stock.unavailable',
+  'cart.product.not_found',
+  'cart.product.not_purchasable',
+]);
 // Payment is tied to a user account (POST /payments/initiate requires auth).
 const isAuthenticated = computed(() => authStore.isAuthenticated);
 
@@ -1100,6 +1118,7 @@ async function startPayment() {
 
   initiating.value = true;
   errorMessage.value = null;
+  cartNeedsFixing.value = false;
 
   try {
     const returnUrl = `${window.location.origin}/paiement/retour`;
@@ -1197,6 +1216,7 @@ async function startPayment() {
       void loadQuote();
     }
     errorMessage.value = apiErrorMessage(err) ?? t('checkout.failed');
+    cartNeedsFixing.value = CART_LINE_ERRORS.has(apiErrorCode(err) ?? '');
   } finally {
     initiating.value = false;
   }
@@ -1234,6 +1254,7 @@ async function syncCartToBackend() {
     items: cartStore.detailedItems.map(({ item }) => ({
       product_id: item.product_id,
       quantity: item.quantity,
+      import_service_level: item.import_service_level ?? null,
     })),
   });
 }

@@ -34,6 +34,15 @@ ACTION_APPROVE = "approve"
 ACTION_REJECT = "reject"
 
 
+_DECIDED_PAYMENT_STATUS_NAMES: frozenset[str] = frozenset(
+    {"Completed", "Failed", "Cancelled", "Refunded", "PartiallyRefunded", "Voided"}
+)
+
+
+class PaymentNotAwaitingError(RuntimeError):
+    """The manual payment was already decided (validated, rejected…)."""
+
+
 class PaymentNotManualError(RuntimeError):
     """Raised when a payment does not belong to a manual provider."""
 
@@ -198,6 +207,14 @@ async def reject_manual_payment(
     if not payment.provider_code or not payment.provider_code.startswith("manual_"):
         raise PaymentNotManualError(
             f"Payment {payment.id} provider '{payment.provider_code}' is not manual"
+        )
+
+    current = await session.get(PaymentStatus, payment.payment_status_id)
+    if current is not None and current.name in _DECIDED_PAYMENT_STATUS_NAMES:
+        # Only a payment still open can be rejected: rejecting one already
+        # validated sent a paid order back to « payment failed ».
+        raise PaymentNotAwaitingError(
+            f"Payment {payment.id} is '{current.name}', not awaiting validation"
         )
 
     failed_status = await _get_or_create_status(

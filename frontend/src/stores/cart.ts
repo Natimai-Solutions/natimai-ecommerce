@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import type { components } from '@app/api-types';
 import {
+  getMyCart,
   attachGuestCartEmail,
   clearGuestCart,
   clearMyCart,
@@ -26,6 +27,8 @@ type LocalCartItem = {
   quantity: number;
   unit_price: string;
   line_total: string;
+  /** Import mode the unit price is computed on (null: the default one). */
+  import_service_level?: string | null;
 };
 
 type LocalCart = {
@@ -84,6 +87,7 @@ export const useCartStore = defineStore('cart', () => {
       items: cart.value.items.map((item) => ({
         product_id: item.product_id,
         quantity: item.quantity,
+        import_service_level: item.import_service_level ?? null,
       })),
     };
     try {
@@ -108,9 +112,65 @@ export const useCartStore = defineStore('cart', () => {
    * ones added here. Silent on failure: the local cart then simply mirrors
    * itself as before.
    */
-  async function mergeAfterLogin(): Promise<void> {
+  let mergeInFlight: Promise<void> | null = null;
+  function mergeAfterLogin(): Promise<void> {
+    // One at a time: the boot and the OAuth return both call it, and two
+    // merges of the same visitor cart raced each other.
+    mergeInFlight ??= mergeOnce().finally(() => {
+      mergeInFlight = null;
+    });
+    return mergeInFlight;
+  }
+  /**
+   * Price the whole cart on another import mode (rapide, économique…): the
+   * server reprices each line freight included and its answer becomes the
+   * cart. False when it could not be done (the cart is left as it was).
+   */
+  async function setImportMode(serviceLevel: string): Promise<boolean> {
+    if (cart.value.items.length === 0) return true;
+    mutating.value = true;
+    error.value = null;
+    const payload = {
+      items: cart.value.items.map((item) => ({
+        product_id: item.product_id,
+        quantity: item.quantity,
+        import_service_level: serviceLevel,
+      })),
+    };
+    try {
+      const auth = useAuthStore();
+      const token = auth.isAuthenticated ? null : guestToken(true);
+      if (!auth.isAuthenticated && !token) return false;
+      const repriced = auth.isAuthenticated
+        ? await replaceMyCartItems(payload)
+        : await replaceGuestCartItems(token as string, payload);
+      adoptServerCart(repriced);
+      return true;
+    } catch (err) {
+      handleError(err, gt('cart.import_mode_failed'));
+      return false;
+    } finally {
+      mutating.value = false;
+    }
+  }
+
+  async function mergeOnce(): Promise<void> {
     const token = guestToken(false);
-    if (!token) return;
+    if (!token) {
+      // Nothing to fold in. An empty local cart (first visit on this device,
+      // or after a sign-out, which empties it) takes the account's: it was
+      // never read back, and the first article added then replaced it.
+      if (cart.value.items.length > 0) return;
+      try {
+        const mine = await getMyCart();
+        if (cart.value.items.length === 0 && (mine.items ?? []).length > 0) {
+          adoptServerCart(mine);
+        }
+      } catch {
+        // no server cart, or offline: the local one stays the truth
+      }
+      return;
+    }
     try {
       const merged = await mergeGuestCart(token);
       adoptServerCart(merged);
@@ -160,6 +220,7 @@ export const useCartStore = defineStore('cart', () => {
         quantity: item.quantity,
         unit_price: toMoneyString(parseMoney(item.unit_price)),
         line_total: toMoneyString(parseMoney(item.unit_price) * item.quantity),
+        import_service_level: item.import_service_level ?? null,
       })),
     };
     recomputeTotals();
@@ -201,7 +262,17 @@ export const useCartStore = defineStore('cart', () => {
     }
   }
 
-  async function addItem(productId: string, quantity = 1, seed?: ProductPublic) {
+  /**
+   * `mode`: the import mode shown on the product page and its price. The
+   * line is billed on it; a card of the catalogue gives none — the default
+   * mode, whose price the card shows.
+   */
+  async function addItem(
+    productId: string,
+    quantity = 1,
+    seed?: ProductPublic,
+    mode?: { serviceLevel: string | null; unitPrice: number } | null,
+  ) {
     mutating.value = true;
     error.value = null;
     quoteMessage.value = null;
@@ -215,12 +286,16 @@ export const useCartStore = defineStore('cart', () => {
       }
       seedProduct(product);
 
-      const unitPrice = toMoneyString(parseMoney(product.base_price));
+      const unitPrice = toMoneyString(
+        mode && mode.unitPrice > 0 ? mode.unitPrice : parseMoney(product.base_price),
+      );
+      const serviceLevel = mode?.serviceLevel ?? null;
       const existing = cart.value.items.find((item) => item.product_id === productId);
 
       if (existing) {
         existing.quantity += normalizedQuantity;
         existing.unit_price = unitPrice;
+        existing.import_service_level = serviceLevel;
       } else {
         cart.value.items.push({
           id: productId,
@@ -228,6 +303,7 @@ export const useCartStore = defineStore('cart', () => {
           quantity: normalizedQuantity,
           unit_price: unitPrice,
           line_total: toMoneyString(parseMoney(unitPrice) * normalizedQuantity),
+          import_service_level: serviceLevel,
         });
       }
 
@@ -463,6 +539,7 @@ export const useCartStore = defineStore('cart', () => {
     loading,
     mutating,
     mergeAfterLogin,
+    setImportMode,
     reorder,
     attachGuestEmail,
     quoteSubmitting,
@@ -594,12 +671,14 @@ function toLocalCartItem(value: unknown): LocalCartItem | null {
       ? toMoneyString(parseMoney(item.line_total))
       : toMoneyString(parseMoney(unitPrice) * quantity);
 
+  const stored = (value as { import_service_level?: unknown }).import_service_level;
   return {
     id: typeof item.id === 'string' && item.id.trim().length > 0 ? item.id : item.product_id,
     product_id: item.product_id,
     quantity,
     unit_price: unitPrice,
     line_total: lineTotal,
+    import_service_level: typeof stored === 'string' && stored ? stored : null,
   };
 }
 

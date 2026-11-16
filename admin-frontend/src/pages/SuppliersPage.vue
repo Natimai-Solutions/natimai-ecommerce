@@ -1367,8 +1367,12 @@ async function saveAllowlist() {
     allowlistText.value = view.entries.map((e) => e.supplier_sku).join('\n');
     allowlistSnapshot.take();
     notice.value = view.entries.length
-      ? `${supplier.name} : ${view.entries.length} référence(s) suivie(s), ${view.deactivated} article(s) retiré(s) de la vitrine.`
-      : `${supplier.name} : liste vidée, tout le catalogue synchronisé est suivi.`;
+      ? t('suppliers.allowlist_saved', {
+          name: supplier.name,
+          n: view.entries.length,
+          removed: view.deactivated,
+        })
+      : t('suppliers.allowlist_cleared', { name: supplier.name });
     await load();
   } catch (err) {
     allowlistError.value = extractApiError(err) ?? t('common.save_failed');
@@ -1421,8 +1425,8 @@ async function onReactivate(supplier: Supplier) {
     await updateSupplier(supplier.code, { is_active: true, sync_enabled: true });
     notice.value =
       supplier.kind === 'api' && !supplier.configured
-        ? `${supplier.name} réactivé — ses identifiants manquent encore dans l'environnement.`
-        : `${supplier.name} réactivé : les synchronisations reprennent sans redémarrage.`;
+        ? t('suppliers.reactivated_unconfigured', { name: supplier.name })
+        : t('suppliers.reactivated', { name: supplier.name });
     await load();
   } catch (err) {
     error.value = extractApiError(err) ?? t('suppliers.enable_failed');
@@ -1518,7 +1522,7 @@ async function saveSupplierRules(rules: CategoryMappingWrite[]) {
   categoriesError.value = null;
   try {
     await saveCategoryMappings(categoriesOf.value.code, rules);
-    categoriesNotice.value = `${rules.length} règle(s) enregistrée(s).`;
+    categoriesNotice.value = t('suppliers.rules_saved', { n: rules.length });
     await refreshObserved();
   } catch (err) {
     categoriesError.value = extractApiError(err) ?? t('common.save_failed');
@@ -1533,7 +1537,10 @@ async function onReapply() {
   categoriesError.value = null;
   try {
     const res = await reapplyCategoryMappings(categoriesOf.value.code);
-    categoriesNotice.value = `${res.moved} article(s) rangé(s), ${res.deactivated} retiré(s) de la vitrine.`;
+    categoriesNotice.value = t('suppliers.rules_applied', {
+      moved: res.moved,
+      removed: res.deactivated,
+    });
     await refreshObserved();
   } catch (err) {
     categoriesError.value = extractApiError(err) ?? t('suppliers.reapply_failed');
@@ -1598,9 +1605,9 @@ function choiceOptions(field: SchemaField): { label: string; value: string }[] {
 
 function fieldHint(field: SchemaField): string | undefined {
   if (field.kind === 'list') {
-    return `${field.hint} Valeurs séparées par des virgules ; « [] » = toutes.`.trim();
+    return `${field.hint} ${t('suppliers.hint_list')}`.trim();
   }
-  if (field.kind === 'json') return `${field.hint} Format JSON.`.trim();
+  if (field.kind === 'json') return `${field.hint} ${t('suppliers.hint_json')}`.trim();
   return field.hint || undefined;
 }
 

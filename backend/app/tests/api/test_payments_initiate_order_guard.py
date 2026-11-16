@@ -488,3 +488,26 @@ async def test_initiate_accepts_the_checkout_method_whatever_its_fee_now(
         session=session, request=request, current_user=cast(Any, user)
     )
     service_mock.assert_awaited_once()
+
+
+@pytest.mark.anyio
+async def test_a_balance_cannot_be_paid_with_a_dearer_method() -> None:
+    """Review of S9: the balance was exempt — deposit with a free method,
+    balance (70 % and more) with a charged one, its fee never billed. A
+    cheaper method than the billed one stays allowed."""
+    from app.api.routes.payments import _check_method_fee_amount
+
+    order = SimpleNamespace(id=uuid4(), payment_fee_amount=Decimal("0.00"))
+    session = AsyncMock()
+    session.get = AsyncMock(return_value=SimpleNamespace(fee=Decimal("500")))
+    with pytest.raises(AppError) as refused:
+        await _check_method_fee_amount(
+            cast(Any, session), cast(Any, order), [], uuid4(), "XPF", "balance"
+        )
+    assert refused.value.code == "payment.method.fee_mismatch"
+
+    billed = SimpleNamespace(id=uuid4(), payment_fee_amount=Decimal("500.00"))
+    session.get = AsyncMock(return_value=SimpleNamespace(fee=Decimal("0")))
+    await _check_method_fee_amount(
+        cast(Any, session), cast(Any, billed), [], uuid4(), "XPF", "balance"
+    )

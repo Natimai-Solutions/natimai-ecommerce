@@ -92,7 +92,17 @@ export const useAuthStore = defineStore('auth', () => {
    * startup and right after the OAuth redirect (the cookie is already set).
    * Returns true if a session was restored. Safe to call when logged out.
    */
-  async function tryRestore(): Promise<boolean> {
+  // One at a time: the boot and the OAuth return page both ask, and two
+  // exchanges of the same refresh cookie raced (the second reused a token
+  // the first had just rotated).
+  let restoring: Promise<boolean> | null = null;
+  function tryRestore(): Promise<boolean> {
+    restoring ??= restoreOnce().finally(() => {
+      restoring = null;
+    });
+    return restoring;
+  }
+  async function restoreOnce(): Promise<boolean> {
     try {
       const { data } = await api.post<AccessTokenResponse>('/login/refresh-token');
       accessToken.value = data.access_token;

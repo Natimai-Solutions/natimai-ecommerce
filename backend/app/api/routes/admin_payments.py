@@ -44,6 +44,7 @@ from app.features.payment.services.document_payment import (
 )
 from app.features.payment.services.manual_payment import (
     ManualValidationOutcome,
+    PaymentNotAwaitingError,
     PaymentNotManualError,
     reject_manual_payment,
 )
@@ -58,7 +59,10 @@ from app.features.payment.services.receipts import (
     record_receipt,
     settle_remaining,
 )
-from app.features.payment.services.refund_service import refund_payment
+from app.features.payment.services.refund_service import (
+    confirm_pending_refunds,
+    refund_payment,
+)
 from app.features.user.models.user import User
 
 logger = logging.getLogger(__name__)
@@ -520,6 +524,14 @@ async def reject_payment(
                 admin=admin,
                 reason=body.reason,
             )
+        except PaymentNotAwaitingError as e:
+            await session.rollback()
+            raise AppError(
+                code="payment.already_decided",
+                status_code=409,
+                message="Ce paiement a déjà été validé, rejeté ou annulé.",
+                details={"payment_id": str(payment_id)},
+            ) from e
         except PaymentNotManualError as e:
             await session.rollback()
             raise AppError(
@@ -570,6 +582,33 @@ async def refund_payment_route(
         refund=RefundPublic.model_validate(outcome.refund, from_attributes=True),
         fully_refunded=outcome.fully_refunded,
         message=outcome.message,
+    )
+
+
+class PaymentRefundsConfirmedResponse(BaseModel):
+    """The refunds confirmed as done at the provider."""
+
+    payment_id: uuid.UUID
+    refunds: list[RefundPublic]
+
+
+@router.post(
+    "/{payment_id}/refunds/confirm", response_model=PaymentRefundsConfirmedResponse
+)
+async def confirm_payment_refunds_route(
+    payment_id: uuid.UUID,
+    session: SessionDep,
+    admin: CurrentSuperUser,
+) -> PaymentRefundsConfirmedResponse:
+    """Confirm the refunds recorded « pending » on a payment, once done in the
+    provider's back office: credit note, order status, gift cards and points."""
+    payment = await _get_payment_or_404(session, payment_id)
+    refunds = await confirm_pending_refunds(
+        session=session, payment=payment, admin=admin
+    )
+    return PaymentRefundsConfirmedResponse(
+        payment_id=payment_id,
+        refunds=[RefundPublic.model_validate(r, from_attributes=True) for r in refunds],
     )
 
 

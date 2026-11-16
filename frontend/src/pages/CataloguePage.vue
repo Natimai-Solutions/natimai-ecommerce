@@ -301,9 +301,7 @@
           {{ $t('catalogue.approximate', { q: store.filters.q }) }}
         </AppNotice>
 
-        <AppNotice v-if="cartError" tone="warning" class="catalogue__notice">
-          {{ cartError }}
-        </AppNotice>
+        <CartErrorToast v-model="cartError" />
 
         <!-- Chargement : squelettes à la forme des cartes -->
         <div v-if="store.loading" class="product-grid" aria-busy="true">
@@ -337,9 +335,10 @@
 
         <div v-else class="product-grid">
           <ProductCard
-            v-for="product in store.items"
+            v-for="(product, index) in store.items"
             :key="product.id"
             :product="product"
+            :eager="index < 2"
             @add-to-cart="onAddToCart"
             @compare-full="cartError = t('compare.full', { max: COMPARE_MAX })"
           />
@@ -374,6 +373,7 @@
 </template>
 
 <script setup lang="ts">
+import CartErrorToast from '@/components/CartErrorToast.vue';
 import { computed, onMounted, onServerPrefetch, ref, watch } from 'vue';
 import { useMeta } from 'quasar';
 import { absoluteUrl, breadcrumbList, jsonLd } from '@/utils/seo';
@@ -462,7 +462,7 @@ const filtersOpen = ref(false);
 const filtersPanel = ref<HTMLElement | null>(null);
 const filtersOpener = ref<{ $el?: HTMLElement } | null>(null);
 // Mobile sheet = modal dialog: focus trapped, Escape, no scroll behind (U6).
-useModalSheet(filtersOpen, filtersPanel, filtersOpener);
+useModalSheet(filtersOpen, filtersPanel, filtersOpener, '(min-width: 1024px)');
 const showAllManufacturers = ref(false);
 
 // The chips of the current level: the selected category's sub-categories,
@@ -838,20 +838,22 @@ async function loadCatalogueData() {
   initFromQuery();
   await store.loadCategories();
   await store.loadSpecFacets(selectedCategory.value);
-  await store.applyFilters({
-    q: searchQuery.value || null,
-    manufacturer: selectedManufacturer.value,
-    category_id: selectedCategory.value,
-    condition: selectedCondition.value,
-    stock: selectedStock.value,
-    sort: selectedSort.value,
-    price_min: priceMin.value === '' ? null : priceMin.value,
-    price_max: priceMax.value === '' ? null : priceMax.value,
-    specs: buildSpecs(),
-  });
-  // applyFilters goes back to page 1: the page of the URL is applied after.
-  const page = Number(route.query['page']);
-  if (Number.isInteger(page) && page > 1) await store.setPage(page);
+  // One search, on the page of the URL (two used to run: page 1 flashed).
+  const urlPage = Number(route.query['page']);
+  await store.applyFilters(
+    {
+      q: searchQuery.value || null,
+      manufacturer: selectedManufacturer.value,
+      category_id: selectedCategory.value,
+      condition: selectedCondition.value,
+      stock: selectedStock.value,
+      sort: selectedSort.value,
+      price_min: priceMin.value === '' ? null : priceMin.value,
+      price_max: priceMax.value === '' ? null : priceMax.value,
+      specs: buildSpecs(),
+    },
+    Number.isInteger(urlPage) && urlPage > 1 ? urlPage : 1,
+  );
 }
 
 // La recherche de l'en-tête (ou un lien) change l'URL : on recharge alors le

@@ -1,6 +1,6 @@
 import logging
 import uuid
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from decimal import Decimal
@@ -20,7 +20,11 @@ from app.core.config import settings
 from app.core.errors import AppError
 from app.core.i18n import request_locale
 from app.core.observability import log_structured_event, observe_checkout_result
-from app.core.rate_limit import hit_rate_limit, rate_limit_reached, rate_limited
+from app.core.rate_limit import (
+    hit_rate_limit,
+    rate_limited,
+    release_rate_limit_hit,
+)
 from app.features.cart.crud.cart import crud_cart, crud_cart_item
 from app.features.cart.crud.quote_request import crud_quote_request
 from app.features.cart.models.cart import (
@@ -148,6 +152,10 @@ from app.features.shipping.services import (
     calculate_shipping_for_routes,
     serialize_shipping_cost_summary,
 )
+from app.features.shipping.services.import_routes import (
+    import_route_for_level,
+    import_routes,
+)
 from app.features.shipping.services.last_leg import resolve_last_leg_options
 from app.features.shipping.services.origin import (
     get_main_warehouse,
@@ -236,14 +244,22 @@ def _plan_checkout_fulfillment_segments(
         raise AppError(
             code="cart.stock.insufficient",
             status_code=409,
+            # Named and counted: the customer read « Insufficient stock for
+            # product <uuid>: requested=… » and could not tell which line.
             message=(
-                f"Insufficient stock for product {product.id}: "
-                f"requested={requested_quantity}, "
-                f"local_available={local_available}, "
-                f"supplier_available={supplier_available}"
+                f"« {getattr(product, 'name', None) or 'Un article'} » : "
+                + (
+                    f"il n'en reste que {int(total_available)} "
+                    f"(vous en demandez {int(requested_quantity)}). "
+                    if total_available > 0
+                    else "cet article n'est plus en stock. "
+                )
+                + "Ajustez votre panier pour continuer."
             ),
             details={
                 "product_id": str(product.id),
+                "product_name": getattr(product, "name", None),
+                "available": str(total_available),
                 "requested": str(requested_quantity),
                 "local_available": str(local_available),
                 "supplier_available": str(supplier_available),
@@ -1213,14 +1229,18 @@ async def _resolve_payment_fee(
 
 
 async def _unit_cost_snapshot(
-    session: SessionDep, product: Product | None
+    session: SessionDep, product: Product | None, service_level: str | None = None
 ) -> Decimal | None:
-    """Cost price excl. tax of one unit at order time (margin of the line)."""
+    """Cost price excl. tax of one unit at order time (margin of the line),
+    freight of the line's import mode included."""
     if product is None:
         return None
     try:
         context = await PricingContext.for_session(session)
-        return context.unit_cost(product)
+        return context.unit_cost(
+            product,
+            import_route=await import_route_for_level(session, service_level),
+        )
     except Exception as exc:  # noqa: BLE001 - a missing figure never blocks an order
         logger.warning("Unit cost not snapshotted for product %s: %s", product.id, exc)
         return None
@@ -1298,8 +1318,15 @@ async def _reserve_stock_for_checkout(
         raise AppError(
             code="cart.stock.unavailable",
             status_code=409,
-            message=f"Product {product.id} is not available from the supplier",
-            details={"product_id": str(product.id), "availability_mode": mode},
+            message=(
+                f"« {getattr(product, 'name', None) or 'Un article'} » n'est plus "
+                "disponible chez le fournisseur. Retirez-le du panier pour continuer."
+            ),
+            details={
+                "product_id": str(product.id),
+                "product_name": getattr(product, "name", None),
+                "availability_mode": mode,
+            },
         )
 
     supplier_place_id = getattr(product, "supplier_place_id", None)
@@ -1412,6 +1439,7 @@ def _build_cart_detail(cart: Cart, items: list[CartItem]) -> CartDetailPublic:
             quantity=item.quantity,
             unit_price=item.unit_price,
             line_total=quantize_amount(item.unit_price * item.quantity, cart.currency),
+            import_service_level=getattr(item, "import_service_level", None),
         )
         for item in items
     ]
@@ -1431,6 +1459,7 @@ async def _get_active_product_or_404(
     *,
     product_id: uuid.UUID,
     user: Any = None,
+    service_level: str | None = None,
 ) -> Product:
     """Get active product or 404, priced for ``user`` (``product.base_price``).
 
@@ -1473,34 +1502,94 @@ async def _get_active_product_or_404(
             details={"product_id": str(product_id), "blockers": blockers},
         )
 
-    await _price_for_customer(session, product, user)
+    await _price_for_customer(session, product, user, service_level=service_level)
     return product
 
 
 _REFERENCE_PRICES_KEY = "cart_reference_prices"
 
 
+async def _line_level(session: SessionDep, service_level: str | None) -> str | None:
+    """The import mode a line is really priced on: the one asked when it is
+    on offer, else the default route's (None when there is no import route)."""
+    route = await import_route_for_level(session, service_level)
+    return route.service_level if route is not None else None
+
+
+async def _levels_of(
+    session: SessionDep, items: Iterable[Any]
+) -> dict[uuid.UUID, str | None]:
+    """``product_id → import mode`` of cart lines or of a request's entries."""
+    return {
+        item.product_id: await _line_level(
+            session, getattr(item, "import_service_level", None)
+        )
+        for item in items
+    }
+
+
 async def _price_for_customer(
-    session: SessionDep, product: Product, user: Any
+    session: SessionDep,
+    product: Product,
+    user: Any,
+    *,
+    service_level: str | None = None,
 ) -> Decimal:
     """Set ``product.base_price`` to what ``user`` pays, once per request.
+
+    An import-mode product is priced freight included, on the route of the
+    line's ``service_level`` — the default import route when the line has
+    none. The cart used to price with no route at all, hence no freight,
+    while the product page showed the freight-inclusive price: the import
+    freight was billed nowhere.
 
     The reference price is computed on first sight and kept in the session:
     a second lookup of the same product never discounts the discounted price.
     """
     info = getattr(session, "info", None)
-    cache: dict[uuid.UUID, Decimal] = (
+    cache: dict[tuple[uuid.UUID, str | None], Decimal] = (
         info.setdefault(_REFERENCE_PRICES_KEY, {}) if isinstance(info, dict) else {}
     )
-    reference = cache.get(product.id)
+    route = await import_route_for_level(session, service_level)
+    key = (product.id, route.service_level if route is not None else None)
+    reference = cache.get(key)
     if reference is None:
-        reference = await calculate_sale_price(session, product)
-        cache[product.id] = reference
+        reference = await calculate_sale_price(session, product, import_route=route)
+        cache[key] = reference
     price = await customer_price(
         session, product=product, reference=reference, user=user
     )
     set_committed_value(product, "base_price", price)
     return price
+
+
+class ImportModePublic(SQLModel):
+    """An import mode the customer can price the cart on."""
+
+    service_level: str
+    label: str
+    eta_days: int | None = None
+    is_default: bool = False
+
+
+@router.get("/import-modes", response_model=list[ImportModePublic])
+async def list_import_modes(session: SessionDep) -> list[ImportModePublic]:
+    """The import modes on offer (rapide, économique…), the default first.
+
+    Each cart line is priced freight included on one of them; the cart lets
+    the customer switch — the line then takes that mode's price.
+    """
+    routes = await import_routes(session)
+    return [
+        ImportModePublic(
+            service_level=route.service_level,
+            label=route.customer_label or route.service_level,
+            eta_days=route.eta_days,
+            is_default=index == 0,
+        )
+        for index, route in enumerate(routes)
+        if route.service_level
+    ]
 
 
 @router.get("/me", response_model=CartDetailPublic)
@@ -1578,12 +1667,15 @@ async def replace_guest_cart_items(
         )
     cart = await crud_cart.get_or_create_guest_cart(session, guest_token=guest_token)
     cart_id = cart.id
+    levels = await _levels_of(session, payload.items)
     entries: list[tuple[Product, int]] = []
     for product_id, quantity in merged.items():
-        product = await _get_active_product_or_404(session, product_id=product_id)
+        product = await _get_active_product_or_404(
+            session, product_id=product_id, service_level=levels.get(product_id)
+        )
         entries.append((product, quantity))
     await crud_cart_item.replace_cart_items(
-        session=session, cart_id=cart_id, entries=entries
+        session=session, cart_id=cart_id, entries=entries, levels=levels
     )
     await crud_cart.sync_total(session=session, cart_id=cart_id)
     await session.refresh(cart)
@@ -1641,30 +1733,37 @@ async def merge_guest_cart(
         session=session, user_id=user_id
     )
     account_cart_id = account_cart.id
+    account_items = await crud_cart_item.get_by_cart_id(
+        session=session, cart_id=account_cart_id
+    )
     wanted: dict[uuid.UUID, int] = {
-        item.product_id: item.quantity
-        for item in await crud_cart_item.get_by_cart_id(
-            session=session, cart_id=account_cart_id
-        )
+        item.product_id: item.quantity for item in account_items
     }
+    levels = await _levels_of(session, account_items)
     guest_cart = await crud_cart.get_active_guest_cart(session, guest_token=guest_token)
     if guest_cart is not None:
         guest_cart_id = guest_cart.id
-        for item in await crud_cart_item.get_by_cart_id(
+        guest_items = await crud_cart_item.get_by_cart_id(
             session=session, cart_id=guest_cart_id
-        ):
+        )
+        for item in guest_items:
             wanted[item.product_id] = max(wanted.get(item.product_id, 0), item.quantity)
+        # The import mode just chosen on this device wins over an older one.
+        levels.update(await _levels_of(session, guest_items))
         entries: list[tuple[Product, int]] = []
         for product_id, quantity in wanted.items():
             try:
                 product = await _get_active_product_or_404(
-                    session, product_id=product_id, user=current_user
+                    session,
+                    product_id=product_id,
+                    user=current_user,
+                    service_level=levels.get(product_id),
                 )
             except AppError:
                 continue
             entries.append((product, quantity))
         await crud_cart_item.replace_cart_items(
-            session=session, cart_id=account_cart_id, entries=entries
+            session=session, cart_id=account_cart_id, entries=entries, levels=levels
         )
         await crud_cart.sync_total(session=session, cart_id=account_cart_id)
         await crud_cart_item.clear_cart(session=session, cart_id=guest_cart_id)
@@ -1701,8 +1800,9 @@ async def add_cart_item(
     # re-reading cart.id from an expired instance triggers a sync lazy-load
     # (MissingGreenlet) in the async session.
     cart_id = cart.id
+    level = await _line_level(session, payload.import_service_level)
     product = await _get_active_product_or_404(
-        session, product_id=payload.product_id, user=current_user
+        session, product_id=payload.product_id, user=current_user, service_level=level
     )
 
     await crud_cart_item.add_or_increment(
@@ -1710,6 +1810,7 @@ async def add_cart_item(
         cart_id=cart_id,
         product=product,
         quantity=payload.quantity,
+        import_service_level=level,
     )
     await crud_cart.sync_total(session=session, cart_id=cart_id)
     await session.refresh(cart)
@@ -1750,12 +1851,13 @@ async def reorder_into_cart(
     # What the cart holds now plus the order's quantities, written in one
     # transaction (same path as the sign-in merge: each add would commit and
     # expire the products priced for this customer).
+    current_items = await crud_cart_item.get_by_cart_id(
+        session=session, cart_id=cart_id
+    )
     quantities: dict[uuid.UUID, int] = {
-        item.product_id: item.quantity
-        for item in await crud_cart_item.get_by_cart_id(
-            session=session, cart_id=cart_id
-        )
+        item.product_id: item.quantity for item in current_items
     }
+    levels = await _levels_of(session, current_items)
     added = skipped = 0
     for product_id, quantity in wanted:
         quantities[product_id] = min(
@@ -1766,7 +1868,10 @@ async def reorder_into_cart(
     for product_id, quantity in quantities.items():
         try:
             product = await _get_active_product_or_404(
-                session, product_id=product_id, user=current_user
+                session,
+                product_id=product_id,
+                user=current_user,
+                service_level=levels.get(product_id),
             )
         except AppError:
             if product_id in reordered:
@@ -1776,7 +1881,7 @@ async def reorder_into_cart(
             added += 1
         entries.append((product, quantity))
     await crud_cart_item.replace_cart_items(
-        session=session, cart_id=cart_id, entries=entries
+        session=session, cart_id=cart_id, entries=entries, levels=levels
     )
     await crud_cart.sync_total(session=session, cart_id=cart_id)
     cart = await crud_cart.get_or_create_active_cart(session=session, user_id=user_id)
@@ -1901,10 +2006,14 @@ async def replace_my_cart_items(
     # cart.id from an expired instance triggers a sync lazy-load (MissingGreenlet).
     cart_id = cart.id
 
+    levels = await _levels_of(session, payload.items)
     entries: list[tuple[Product, int]] = []
     for product_id, quantity in merged.items():
         product = await _get_active_product_or_404(
-            session, product_id=product_id, user=current_user
+            session,
+            product_id=product_id,
+            user=current_user,
+            service_level=levels.get(product_id),
         )
         entries.append((product, quantity))
 
@@ -1912,6 +2021,7 @@ async def replace_my_cart_items(
         session=session,
         cart_id=cart_id,
         entries=entries,
+        levels=levels,
     )
     await crud_cart.sync_total(session=session, cart_id=cart_id)
     await session.refresh(cart)
@@ -2130,7 +2240,10 @@ async def create_quote_request(
     subtotal_amount = Decimal("0.00")
     for item in items:
         product = await _get_active_product_or_404(
-            session, product_id=item.product_id, user=current_user
+            session,
+            product_id=item.product_id,
+            user=current_user,
+            service_level=getattr(item, "import_service_level", None),
         )
         line_total = quantize_amount(item.unit_price * item.quantity, cart.currency)
         subtotal_amount += line_total
@@ -2848,6 +2961,10 @@ async def _resolve_checkout_discount(
 #: throttled, while guessing codes (each answer says unknown / expired /
 #: exhausted) stops after a few attempts.
 QUOTE_COUPON_FAILURES_LIMIT = 10
+#: Refusals that tell an existing code from a made-up one.
+QUOTE_COUPON_GUESS_REASONS: frozenset[str] = frozenset(
+    {"unknown", "expired", "exhausted", "not_started"}
+)
 QUOTE_COUPON_FAILURES_WINDOW_SECONDS = 600
 QUOTE_COUPON_THROTTLED_MESSAGE = (
     "Trop de codes promo refusés : réessayez dans quelques minutes."
@@ -2872,23 +2989,33 @@ async def _quote_discount_throttled(
     if not code or not code.strip():
         return None, None
     key = f"coupon_quote:{user_id}"
-    if await rate_limit_reached(key, limit=QUOTE_COUPON_FAILURES_LIMIT):
+    # Counted before the lookup, given back unless the code was a guess: read
+    # first and counted after, a burst of parallel quotes all passed the
+    # check and tried hundreds of codes in one window.
+    if await hit_rate_limit(
+        key,
+        limit=QUOTE_COUPON_FAILURES_LIMIT,
+        window_seconds=QUOTE_COUPON_FAILURES_WINDOW_SECONDS,
+    ):
         return None, QUOTE_COUPON_THROTTLED_MESSAGE
-    applied, error = await _resolve_checkout_discount(
-        session,
-        code=code,
-        user_id=user_id,
-        items=items,
-        products_by_id=products_by_id,
-        currency=currency,
-        strict=False,
-    )
-    if error is not None:
-        await hit_rate_limit(
-            key,
-            limit=QUOTE_COUPON_FAILURES_LIMIT,
-            window_seconds=QUOTE_COUPON_FAILURES_WINDOW_SECONDS,
+    reason: str | None = None
+    try:
+        applied = await resolve_coupon(
+            session,
+            code=code,
+            user_id=user_id,
+            items=items,
+            products_by_id=products_by_id,
+            currency=currency,
         )
+        error = None
+    except DiscountRefused as exc:
+        applied, error, reason = None, exc.message, exc.reason
+    if reason not in QUOTE_COUPON_GUESS_REASONS:
+        # A valid code, or one refused for this cart (minimum not reached,
+        # already used…): the customer re-quotes at every change of the cart
+        # and must not be locked out of their own code.
+        await release_rate_limit_hit(key)
     return applied, error
 
 
@@ -2959,7 +3086,10 @@ async def get_checkout_quote(
     products_by_id: dict[uuid.UUID, Product] = {}
     for item in items:
         products_by_id[item.product_id] = await _get_active_product_or_404(
-            session, product_id=item.product_id, user=current_user
+            session,
+            product_id=item.product_id,
+            user=current_user,
+            service_level=getattr(item, "import_service_level", None),
         )
     fixed_shipping_fee: Decimal | None = None
     # isinstance: called directly (tests) the FastAPI defaults are Query objects.
@@ -3048,7 +3178,10 @@ async def _priced_last_leg_options(
     try:
         for item in items:
             products_by_id[item.product_id] = await _get_active_product_or_404(
-                session, product_id=item.product_id, user=user
+                session,
+                product_id=item.product_id,
+                user=user,
+                service_level=getattr(item, "import_service_level", None),
             )
     except AppError:
         # A cart line is no longer purchasable; no quote to show (checkout will
@@ -3286,6 +3419,28 @@ async def checkout_my_cart(
             session=session, user_id=user_id
         )
 
+    # One checkout per cart. Two submissions at once (double click, two tabs,
+    # a retry after a timeout) both read the same open cart and each created
+    # an order, its reservations and a payment. The cart row is locked until
+    # the order commits; the second request then finds the cart ordered.
+    locked_cart = (
+        await session.exec(
+            select(Cart)
+            .where(col(Cart.id) == cart.id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    ).first()
+    if isinstance(locked_cart, Cart) and (
+        locked_cart.is_checked_out or not locked_cart.is_active
+    ):
+        raise AppError(
+            code="cart.already_checked_out",
+            status_code=409,
+            message="Cette commande vient d'être enregistrée.",
+            details={"cart_id": str(cart.id)},
+        )
+
     items = await crud_cart_item.get_by_cart_id(session=session, cart_id=cart.id)
     if not items:
         raise AppError(
@@ -3301,6 +3456,7 @@ async def checkout_my_cart(
             session,
             product_id=item.product_id,
             user=current_user,
+            service_level=getattr(item, "import_service_level", None),
         )
         products_by_id[item.product_id] = product
 
@@ -3516,7 +3672,10 @@ async def checkout_my_cart(
                         session, product, group=reference_group
                     ),
                     price_group_id_snapshot=getattr(price_group, "id", None),
-                    unit_cost_snapshot=await _unit_cost_snapshot(session, product),
+                    unit_cost_snapshot=await _unit_cost_snapshot(
+                        session, product, getattr(item, "import_service_level", None)
+                    ),
+                    import_service_level=getattr(item, "import_service_level", None),
                 ),
                 user=current_user,
             )

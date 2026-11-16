@@ -35,6 +35,10 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.errors import AppError
+from app.features.inventory.services.stock_release import (
+    reserve_released_order_stock,
+)
+from app.features.order.models.order_status import OrderStatus
 from app.features.payment.crud.payment import crud_payment
 from app.features.payment.crud.payment_validation import crud_payment_validation
 from app.features.payment.models.payment import Payment
@@ -48,6 +52,7 @@ from app.features.payment.models.payment_validation import PaymentValidationCrea
 from app.features.payment.models.refund import Refund
 from app.features.payment.providers.manual import MANUAL_STATUS_AWAITING_VALIDATION
 from app.features.payment.services.deposit import (
+    KIND_BALANCE,
     next_payment_kind,
     remaining_amount,
 )
@@ -456,6 +461,20 @@ async def record_counter_payment(
             message="Cette commande est déjà réglée",
             details={"order_id": str(order.id)},
         )
+
+    if kind != KIND_BALANCE:
+        # Cash for an order whose reservation was given back (refused
+        # payment, unpaid for too long) or which was cancelled: it became
+        # « paid » with no stock behind it (audit 2026-11, B2).
+        current = await session.get(OrderStatus, order.order_status_id)
+        if current is not None and current.name == "Cancelled":
+            raise AppError(
+                code="payment.order.cancelled",
+                status_code=409,
+                message="Cette commande est annulée : elle ne peut plus être encaissée",
+                details={"order_id": str(order.id)},
+            )
+        await reserve_released_order_stock(session, order_id=order.id)
 
     # A manual payment already waiting on this part takes the receipt, even if
     # the customer announced another method (a transfer paid in cash).

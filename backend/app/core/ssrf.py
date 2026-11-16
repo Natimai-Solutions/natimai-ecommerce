@@ -35,6 +35,9 @@ def is_public_address(address: str) -> bool:
         or ip.is_multicast
         or ip.is_reserved
         or ip.is_unspecified
+        # Shared address space (100.64.0.0/10: cloud metadata of some
+        # providers, mesh VPNs) and the other non-routable ranges.
+        or not ip.is_global
     )
 
 

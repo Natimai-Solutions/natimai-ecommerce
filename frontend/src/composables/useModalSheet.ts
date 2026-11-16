@@ -15,7 +15,19 @@ export function useModalSheet(
   open: Ref<boolean>,
   panel: Ref<HTMLElement | null>,
   opener: Ref<{ $el?: HTMLElement } | HTMLElement | null>,
+  /** Media query from which the panel is part of the page again (no sheet). */
+  inlineFrom?: string,
 ): void {
+  // Rotating a tablet with the sheet open left the page locked: the panel
+  // was back in the layout, its close buttons hidden, the scroll still off.
+  const inline =
+    inlineFrom && typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      ? window.matchMedia(inlineFrom)
+      : null;
+  function onInline(event: MediaQueryListEvent): void {
+    if (event.matches) open.value = false;
+  }
+
   function focusables(): HTMLElement[] {
     const root = panel.value;
     if (!root) return [];
@@ -51,6 +63,7 @@ export function useModalSheet(
   }
 
   function release(): void {
+    inline?.removeEventListener('change', onInline);
     document.removeEventListener('keydown', onKeydown);
     document.body.style.removeProperty('overflow');
   }
@@ -58,6 +71,7 @@ export function useModalSheet(
   watch(open, async (isOpen) => {
     if (typeof document === 'undefined') return;
     if (isOpen) {
+      inline?.addEventListener('change', onInline);
       document.addEventListener('keydown', onKeydown);
       document.body.style.overflow = 'hidden';
       await nextTick();

@@ -226,6 +226,8 @@ const en: MessageSchema = {
     title: 'Branding',
   },
   carriers: {
+    removed_from_picker: '{name} removed from the picker.',
+    reactivated: '{name} reactivated.',
     code: 'Code *',
     code_hint: 'Stable identifier (e.g. dhl, chronopost). Lowercase, no spaces.',
     code_rule: 'Code required',
@@ -319,6 +321,7 @@ const en: MessageSchema = {
       "Blank = top level. A sub-category inherits the VAT, customs and margin its branch leaves unset; the storefront lists the parent with its sub-categories' products.",
   },
   common: {
+    network_error: 'Server unreachable: check the connection and try again.',
     page_previous: 'Previous page',
     page_next: 'Next page',
     action_failed: 'Action failed.',
@@ -556,6 +559,9 @@ const en: MessageSchema = {
     zones: '{n} zone | {n} zones',
   },
   departures: {
+    webhook_hint: 'https only. Global setting, shared by every departure.',
+    orders_moved: '{n} order(s) moved.',
+    orders_out_of_stock: '{n} order(s) marked out of stock, customers notified.',
     add_po: 'Record a PO',
     add_reminder: 'Add a reminder',
     advanced: '“{name}” → {status}. {n} order(s) updated and customer(s) notified.',
@@ -1528,6 +1534,10 @@ const en: MessageSchema = {
     reference: 'Reference',
     refund: 'Refund',
     refund_amount: 'Amount to refund (optional)',
+    refund_confirm: 'Confirm the refund of {amount}',
+    refund_confirm_hint:
+      'Once the refund is done at the provider (PayZen back office): issues the credit note, updates the order and takes gift cards and points back.',
+    refund_confirmed: 'Refund confirmed.',
     refund_failed: 'Refund failed.',
     refund_hint: '. Leave the amount empty for a full refund.',
     refund_title: 'Refund the payment',
@@ -1893,6 +1903,8 @@ const en: MessageSchema = {
     width: 'Width (cm)',
   },
   products: {
+    published_as_is_n: '{n} item(s) published as is.',
+    back_to_enrichment: '{n} item(s) sent back to enrichment.',
     already_n: ', {n} already published',
     back_pending: 'Put back on hold',
     col_active: 'Admin active',
@@ -2270,6 +2282,16 @@ const en: MessageSchema = {
     title: 'Supplier orders',
   },
   suppliers: {
+    allowlist_saved:
+      '{name}: {n} reference(s) followed, {removed} item(s) removed from the storefront.',
+    allowlist_cleared: '{name}: list cleared, the whole synchronised catalogue is followed.',
+    reactivated_unconfigured:
+      '{name} reactivated — its credentials are still missing from the environment.',
+    reactivated: '{name} reactivated: synchronisations resume without a restart.',
+    rules_saved: '{n} rule(s) saved.',
+    rules_applied: '{moved} item(s) filed, {removed} removed from the storefront.',
+    hint_list: 'Comma-separated values; "[]" = all.',
+    hint_json: 'JSON format.',
     import_rows: 'Rows',
     a_basic: 'HTTP authentication (basic)',
     a_form: 'Login form + cookies',
@@ -2509,6 +2531,8 @@ const en: MessageSchema = {
     validity: 'Validity',
   },
   users: {
+    two_factor_reset_done:
+      '{email} will set up two-factor authentication again at the next sign-in.',
     admin: 'Administrator',
     all_groups: 'All groups',
     col_account: 'Account',

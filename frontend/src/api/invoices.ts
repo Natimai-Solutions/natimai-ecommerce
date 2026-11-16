@@ -20,10 +20,22 @@ interface InvoicesResponse {
   count: number;
 }
 
+const PAGE_SIZE = 50;
+const MAX_INVOICES = 1000;
+
 /** Invoices issued for the authenticated customer, most recent first. */
 export async function listMyInvoices(): Promise<Invoice[]> {
-  const response = await api.get<InvoicesResponse>('/invoices/me');
-  return response.data.data;
+  // Page by page: the first 50 only left older orders without their invoice
+  // in « Mes commandes » (audit 2026-11).
+  const all: Invoice[] = [];
+  for (let skip = 0; skip < MAX_INVOICES; skip += PAGE_SIZE) {
+    const response = await api.get<InvoicesResponse>('/invoices/me', {
+      params: { skip, limit: PAGE_SIZE },
+    });
+    all.push(...response.data.data);
+    if (response.data.data.length < PAGE_SIZE) break;
+  }
+  return all;
 }
 
 /**

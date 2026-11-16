@@ -17,11 +17,19 @@ from app.core.http_retry import (
     AsyncRateLimiter,
     RetryableHTTPError,
     parse_retry_after,
+    redact_secrets,
     request_with_retry,
 )
 from app.features.integrations.models.icecat_sync import IcecatProductData
 
 logger = logging.getLogger(__name__)
+
+
+def _one_line(value: object) -> str:
+    """``value`` for a log line: a reference typed by someone (EAN, brand,
+    part number) must not start a forged line of its own."""
+    return str(value).replace("\r\n", " ").replace("\n", " ").replace("\r", " ")
+
 
 # Explicit HTTP timeout: aiohttp's default (300 s total) would let a slow
 # Icecat response pin an ARQ enrichment job until its 600 s job_timeout.
@@ -382,7 +390,11 @@ class IcecatService:
             return product
 
         except Exception as e:
-            logger.error(f"Failed to fetch Icecat product data for EAN {ean}: {e}")
+            logger.error(
+                "Failed to fetch Icecat product data for EAN %s: %s",
+                _one_line(ean),
+                _one_line(redact_secrets(e)),
+            )
             return None
 
     async def get_product_by_upc(self, upc: str) -> IcecatProductData | None:
@@ -440,10 +452,18 @@ class IcecatService:
 
         except Exception as e:
             if "403" in str(e):
-                logger.debug(f"Product not in Icecat scope for {brand} - {mpn}: {e}")
+                logger.debug(
+                    "Product not in Icecat scope for %s - %s: %s",
+                    _one_line(brand),
+                    _one_line(mpn),
+                    _one_line(redact_secrets(e)),
+                )
             else:
                 logger.error(
-                    f"Failed to fetch Icecat product data for {brand} - {mpn}: {e}"
+                    "Failed to fetch Icecat product data for %s - %s: %s",
+                    _one_line(brand),
+                    _one_line(mpn),
+                    _one_line(redact_secrets(e)),
                 )
             return None
 

@@ -178,11 +178,11 @@ async def test_slack_provider_posts_the_message_and_reports_delivery(
     monkeypatch.setattr(
         settings,
         "PAYMENT_NOTIFICATIONS_SLACK_WEBHOOK_URL",
-        "https://hooks.slack.test/services/x",
+        "https://hooks.slack.com/services/x",
     )
     _SlackClient.calls = []
     _SlackClient.response = httpx.Response(
-        200, request=httpx.Request("POST", "https://hooks.slack.test/services/x")
+        200, request=httpx.Request("POST", "https://hooks.slack.com/services/x")
     )
     monkeypatch.setattr(
         "app.features.notification.providers.slack_webhook.httpx.AsyncClient",
@@ -214,7 +214,7 @@ async def test_slack_provider_never_raises_on_transport_or_http_errors(
     monkeypatch.setattr(
         settings,
         "PAYMENT_NOTIFICATIONS_SLACK_WEBHOOK_URL",
-        "https://hooks.slack.test/services/x",
+        "https://hooks.slack.com/services/x",
     )
     monkeypatch.setattr(
         "app.features.notification.providers.slack_webhook.httpx.AsyncClient",
@@ -226,7 +226,7 @@ async def test_slack_provider_never_raises_on_transport_or_http_errors(
     )
 
     _SlackClient.response = httpx.Response(
-        500, request=httpx.Request("POST", "https://hooks.slack.test/services/x")
+        500, request=httpx.Request("POST", "https://hooks.slack.com/services/x")
     )
     failed = await provider.send(message)
     assert failed.delivered is False and failed.error
@@ -234,3 +234,34 @@ async def test_slack_provider_never_raises_on_transport_or_http_errors(
     _SlackClient.response = httpx.ConnectError("refused")
     down = await provider.send(message)
     assert down.delivered is False and "refused" in (down.error or "")
+
+
+@pytest.mark.anyio
+async def test_slack_provider_refuses_a_host_off_the_allow_list(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Audit 2026-11 (review): this webhook, typed by an administrator like
+    the other one, had no guard — a blind POST to the internal network."""
+    monkeypatch.setattr(
+        settings,
+        "PAYMENT_NOTIFICATIONS_SLACK_WEBHOOK_URL",
+        "http://redis:6379/",
+    )
+    _SlackClient.calls = []
+    monkeypatch.setattr(
+        "app.features.notification.providers.slack_webhook.httpx.AsyncClient",
+        _SlackClient,
+    )
+
+    result = await SlackWebhookNotificationProvider().send(
+        NotificationMessage(
+            channel="slack",
+            recipient="payment-alerts",
+            subject="Paiement",
+            text="Paiement refusé",
+            metadata={},
+        )
+    )
+
+    assert result.delivered is False and "refusée" in (result.error or "")
+    assert _SlackClient.calls == []

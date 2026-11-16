@@ -49,6 +49,14 @@ class OrderLineBase(Base):
         index=True,
         description="Snapshot du taux de taxe applique a la ligne",
     )
+    import_service_level: str | None = Field(
+        default=None,
+        max_length=50,
+        description=(
+            "Service level of the import route the unit price is computed on "
+            "(rapide / economique…). Null = the default import route."
+        ),
+    )
     cost_amount_snapshot: Decimal | None = Field(
         default=None,
         ge=0,

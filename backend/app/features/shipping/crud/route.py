@@ -18,10 +18,37 @@ from app.features.shipping.models.route import (
 )
 
 
+async def _prices_follow_the_routes(session: AsyncSession, reason: str) -> None:
+    from app.features.shipping.services.import_routes import forget_import_routes
+    from app.tasks.pricing_tasks import schedule_price_refresh
+
+    forget_import_routes(session)
+    await schedule_price_refresh(reason=reason)
+
+
 class ShippingRouteCrud(
     CrudBase[ShippingRoute, ShippingRouteCreate, ShippingRouteUpdate]
 ):
     """Represents shipping route crud."""
+
+    # The catalogue's cached prices include the freight of the default import
+    # route: a route written (its price per kg, the default flag, a service
+    # level) moves them. Refreshed in the background, best effort — the
+    # nightly run catches up.
+    async def create(self, session: AsyncSession, **kwargs: Any) -> ShippingRoute:
+        record = await super().create(session, **kwargs)
+        await _prices_follow_the_routes(session, "shipping_route:create")
+        return record
+
+    async def update(self, session: AsyncSession, **kwargs: Any) -> ShippingRoute:
+        record = await super().update(session, **kwargs)
+        await _prices_follow_the_routes(session, "shipping_route:update")
+        return record
+
+    async def delete(self, session: AsyncSession, **kwargs: Any) -> bool:
+        done = await super().delete(session, **kwargs)
+        await _prices_follow_the_routes(session, "shipping_route:delete")
+        return done
 
     async def get_routes_between_places(
         self,

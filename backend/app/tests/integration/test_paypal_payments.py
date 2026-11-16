@@ -116,7 +116,7 @@ def paypal(monkeypatch: pytest.MonkeyPatch) -> FakePaypal:
     monkeypatch.setattr(settings, "PAYPAL_CURRENCY", "EUR")
     monkeypatch.setattr(settings, "PAYPAL_INTENT", "CAPTURE")
     monkeypatch.setattr(
-        payment_handlers, "confirm_order_stock", AsyncMock(return_value=0)
+        payment_handlers, "secure_order_stock", AsyncMock(return_value=(0, []))
     )
     monkeypatch.setattr(payment_handlers, "issue_invoice_for_order", AsyncMock())
     return fake

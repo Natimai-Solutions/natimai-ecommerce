@@ -165,7 +165,7 @@ const fr = {
     incl_tax: 'TTC',
     promo_until: "jusqu'au {date}",
     promo: 'Promo',
-    mode_price: 'Prix en livraison {mode}. Le mode se choisit à la commande.',
+    mode_price: 'Prix en livraison {mode}. Le mode se change dans le panier.',
     all_variants: 'Voir toutes les déclinaisons',
     departure: 'Départ groupé « {name} ». {cutoff}.',
     condition: 'État',
@@ -226,6 +226,7 @@ const fr = {
     offer_failed: "Le lien n'a pas pu être envoyé : réessayez.",
   },
   checkout: {
+    edit_cart: 'Modifier le panier',
     back_to_cart: 'Panier',
     title_done: 'Commande enregistrée',
     title: 'Finaliser la commande',
@@ -341,6 +342,11 @@ const fr = {
     title: 'Livraison',
   },
   cart: {
+    import_mode: 'Mode d’import',
+    import_mode_hint: 'Le prix des articles importés comprend ce transport.',
+    import_mode_mixed: 'Vos articles sont sur des modes différents : choisissez-en un.',
+    import_mode_option: '{label} · environ {days} j',
+    import_mode_failed: 'Le mode d’import n’a pas pu être changé.',
     title: 'Panier',
     count: '{n} article | {n} articles',
     empty_title: 'Votre panier est vide',
@@ -484,6 +490,8 @@ const fr = {
     zone_unknown: 'Code postal non reconnu. Indiquez votre île ou zone de livraison.',
   },
   auth: {
+    show_password: 'Afficher le mot de passe',
+    hide_password: 'Masquer le mot de passe',
     activate_my_account: 'Activer mon compte',
     activate_title: 'Activez votre compte',
     back_to_login: 'Retour à la connexion',
@@ -540,6 +548,10 @@ const fr = {
     with_microsoft: 'Continuer avec Microsoft',
   },
   balance: {
+    title_order: 'Payer la commande',
+    amount_due: 'À régler',
+    deposit_due: 'Acompte à régler',
+    failed_order: 'Le paiement a échoué. Veuillez réessayer.',
     back_to_order: 'Retour à la commande',
     balance_due: 'Solde à régler',
     deposit_paid: 'Acompte déjà versé',
@@ -727,6 +739,7 @@ const fr = {
     todo: 'À faire',
   },
   payment_return: {
+    retry: 'Réessayer le paiement',
     accepted: 'Paiement accepté',
     authorized: 'Paiement autorisé',
     authorized_text:
@@ -831,6 +844,20 @@ const fr = {
     title: 'Profil',
     verified: 'Adresse vérifiée',
   },
+  quote_request: {
+    open: 'Demander un devis',
+    title: 'Demander un devis',
+    intro: 'Votre panier est transmis à notre équipe, qui vous répond avec un devis à prix fermes.',
+    email: 'Votre e-mail',
+    email_invalid: 'Adresse e-mail invalide',
+    name: 'Nom ou société (optionnel)',
+    phone: 'Téléphone (optionnel)',
+    address: 'Adresse ou île de livraison (optionnel)',
+    notes: 'Précisions (optionnel)',
+    notes_hint: 'Quantités, délai souhaité, équivalents acceptés…',
+    send: 'Envoyer la demande',
+    failed: 'La demande de devis n’a pas pu être envoyée.',
+  },
   quote_sent: {
     back: 'Retour au catalogue',
     my_quotes: 'Mes devis',
@@ -862,6 +889,8 @@ const fr = {
     valid_until: "· valable jusqu'au {date}",
   },
   tracking: {
+    unpaid_text: 'Cette commande n’est pas encore payée.',
+    pay_now: 'Payer {amount}',
     balance: 'Solde',
     balance_due_tag: 'À régler',
     balance_due_text: 'Vos articles sont arrivés : réglez le solde pour les récupérer.',
