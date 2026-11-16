@@ -57,6 +57,7 @@ from app.tasks.supplier_tasks import (
     sync_supplier_inventory_task,
     sync_supplier_products_task,
 )
+from app.tasks.watch_tasks import get_watch_cron_jobs, watch_outbox_backlog_task
 
 
 # Custom logging filter to suppress "already running elsewhere" messages
@@ -164,6 +165,7 @@ class WorkerSettings:
         # Rétention du journal d'audit des administrateurs
         purge_audit_log_task,
         purge_journals_task,
+        watch_outbox_backlog_task,
         # ... tes autres handlers
     ]
 
@@ -184,6 +186,7 @@ class WorkerSettings:
         + get_audit_cron_jobs()
         + get_payment_cron_jobs()
         + get_retention_cron_jobs()
+        + get_watch_cron_jobs()
     )
 
     # NOTE: Le polling de l'outbox est géré par un service dédié (outbox-poller)

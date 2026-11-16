@@ -180,6 +180,13 @@ takes a tag as its `ref`.
 
 ### Fixed
 
+- The worker watches the outbox every ten minutes: an event waiting for more
+  than 15 minutes (a stopped poller) alerts the shop, once an hour.
+- Deployment: the database is dumped before the migrations
+  (`backups/pre_deploy_*.dump`), and a version whose health check fails is
+  replaced by the previous one (`.deployed_tag`, `AUTO_ROLLBACK=false` to
+  keep it) — it stayed in service.
+
 - A grouped departure past its cut-off closes on its own when its threshold
   is reached (the next one of a recurring departure opens); one below its
   threshold stays open and the shop is alerted once. Only the admin closed

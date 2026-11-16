@@ -64,3 +64,29 @@ async def test_old_journals_are_purged(db_session: AsyncSession) -> None:
     assert stats["email_logs"] == 1 and stats["email_bodies"] == 1
     remaining = (await db_session.exec(select(EmailLog))).all()
     assert [(e.body_text, e.resendable) for e in remaining] == [(None, False)]
+
+
+@pytest.mark.asyncio
+async def test_a_stuck_outbox_is_seen(db_session: AsyncSession) -> None:
+    """A stopped poller left events waiting with nothing to say so."""
+    from app.tasks.watch_tasks import STUCK_AFTER, oldest_pending_age
+
+    now = datetime.now(UTC)
+    assert await oldest_pending_age(db_session, now) is None
+    db_session.add(
+        OutboxEvent(
+            type="payment.captured",
+            payload={},
+            status="PENDING",
+            next_run_at=now - timedelta(minutes=40),
+        )
+    )
+    # A retry scheduled later is not « stuck ».
+    db_session.add(
+        OutboxEvent(
+            type="x", payload={}, status="PENDING", next_run_at=now + timedelta(hours=1)
+        )
+    )
+    await db_session.commit()
+    age = await oldest_pending_age(db_session, now)
+    assert age is not None and age >= STUCK_AFTER

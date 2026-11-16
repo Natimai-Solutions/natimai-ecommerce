@@ -18,16 +18,11 @@ Détail, fichiers et scénarios : [`AUDIT_2026-11.md`](AUDIT_2026-11.md) (identi
 
 ### Audit fonctionnel du 15/11/2026 (code)
 
-Détail : [`AUDIT_FONCTIONNEL_2026-11.md`](AUDIT_FONCTIONNEL_2026-11.md) (identifiants D·, Z·, M·). Les sept défauts D1 à D7 sont corrigés (voir CHANGELOG). Reste, à traiter avant l'ouverture :
+Détail : [`AUDIT_FONCTIONNEL_2026-11.md`](AUDIT_FONCTIONNEL_2026-11.md) (identifiants D·, Z·, M·). Les sept défauts D1 à D7 et les zones fragiles Z1 à Z6, Z11, Z12 et Z16 sont corrigés (voir CHANGELOG). Reste :
 
-- **Z1 / M1 — pannes silencieuses** : alerte sur l'échec de la synchro prix et stock, du recalcul des prix et au-delà d'un seuil d'e-mails en échec ; page « État du système » (dernière exécution de chaque tâche, outbox, sauvegarde) — M.
-- **Z2 — outbox** : enregistrer en base l'abandon d'un handler (aujourd'hui un log), ne plus publier les événements CRUD sans handler, planifier la purge — M. Prérequis de l'écran des événements en échec (§4).
-- **Z6 — statuts de commande** : table de transitions, confirmation et motif sur le changement de statut et sur « Étape suivante » d'un départ — S.
-- **Z11 — départs groupés** : clôture automatique à la date limite ; délai annoncé incluant le transit d'import — M.
-- **Z12** : exercice fiscal d'une facture dans le fuseau de la boutique (UTC aujourd'hui) — S.
-- **D5 (suite)** : sortir l'appel au prestataire de paiement de la section sous verrou de stock — M.
-- **D1 (suite)** : le délai de livraison affiché ignore encore le mode d'import choisi ; un départ groupé ne porte pas de mode.
-- **Z16** : refuser une commande sans mode de livraison quand leur chargement a échoué — S.
+- **D5 (suite)** : sortir l'appel au prestataire de paiement de la section sous verrou de stock (un appel PayZen lent bloque les autres commandes des mêmes produits ; un commit raté laisse un formToken orphelin) — M.
+- **Z3 (reste)** : un worker « unhealthy » n'est pas redémarré automatiquement (pas d'autoheal dans les compose) — S, à décider avec l'hébergement.
+- **D1 (suite)** : le délai de livraison affiché ignore encore le mode d'import choisi et le délai fournisseur ; un départ groupé ne porte pas de mode — M.
 
 ### Exploitation (sur le serveur, hors code)
 
