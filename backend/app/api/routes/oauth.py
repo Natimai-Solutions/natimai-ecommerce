@@ -423,6 +423,7 @@ async def _find_or_create_user(
             is_active=True,
             is_verified=True,
             hashed_password=unusable_password_hash(),
+            has_password=False,
         )
         session.add(user)
         await session.flush()

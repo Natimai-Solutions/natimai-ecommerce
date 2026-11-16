@@ -301,6 +301,7 @@ async def erase_account(session: AsyncSession, user: User) -> None:
     user.full_name = None
     user.phone = None
     user.hashed_password = get_password_hash(secrets.token_urlsafe(32))
+    user.has_password = False
     user.security_stamp = new_security_stamp()
     user.is_active = False
     user.is_verified = False

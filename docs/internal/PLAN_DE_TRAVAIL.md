@@ -67,7 +67,6 @@ Détail : [`AUDIT_FONCTIONNEL_2026-11.md`](AUDIT_FONCTIONNEL_2026-11.md) (identi
 - Audit, durcissement restant : *required reviewers* sur l'environnement GitHub `production` (réglage du dépôt, hors code).
 - **Relecture des correctifs de l'audit (15/11/2026)** — corrigé : voir CHANGELOG. Laissé en l'état, par choix ou faute de donnée :
   - *Verrouillage à la demande* : 50 échecs depuis une dizaine d'adresses verrouillent encore un compte 15 min (`LOGIN_ACCOUNT_LOCKOUT_MAX_FAILURES`) — c'est la protection contre la force brute distribuée ; un reset de mot de passe le lève. **À décider** si un déverrouillage par e-mail est voulu.
-  - *Suppression de compte avec lien OAuth* : un compte qui a aussi un vrai mot de passe se supprime sur la foi d'une connexion récente ; exiger le mot de passe demande de savoir si le compte en a un (colonne à ajouter) — S.
   - *Anciens codes de secours 2FA* (SHA-256) acceptés jusqu'à leur régénération par l'admin.
   - *Stock d'une commande payée puis annulée ou remboursée* : rendu à la main (la marchandise peut être déjà commandée ou partie) ; sous-vente possible quand le fournisseur a déjà décompté nos réservations (B4, côté sûr).
   - *Statuts posés par les gestionnaires de paiement* (`Paid`, `PaymentFailed`, `Refunded`) : pas d'événement `order.status_changed` (les e-mails de paiement existent déjà ; l'ajouter doublerait les notifications) — à reprendre avec l'historique de commande (§4).

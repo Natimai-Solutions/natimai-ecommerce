@@ -294,6 +294,7 @@ async def create_user(
         # Prouvée seulement quand le lien est suivi (reset_password le pose).
         is_verified=False,
         hashed_password=unusable_password_hash(),
+        has_password=False,
         created_at=_utcnow(),
         created_by_id=admin_id,
     )

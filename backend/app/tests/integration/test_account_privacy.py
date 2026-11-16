@@ -272,6 +272,50 @@ async def test_an_account_without_password_needs_a_recent_sign_in_to_be_erased(
 
 
 @pytest.mark.asyncio
+async def test_a_linked_account_with_a_password_needs_that_password(
+    db_session: AsyncSession,
+) -> None:
+    """Plan de travail §2: an account linked to Google that also has a chosen
+    password was erased on a recent sign-in alone; the password is asked."""
+    user = await _user(db_session)
+    user_id, email = user.id, user.email
+    db_session.add(
+        UserOAuthLink(
+            user_id=user_id,
+            provider="google",
+            provider_user_id=uuid.uuid4().hex,
+            email_at_link=email,
+        )
+    )
+    user.has_password = True
+    user.last_login = datetime.datetime.now(datetime.UTC)
+    await db_session.commit()
+    await db_session.refresh(user)
+
+    with pytest.raises(AppError) as missing:
+        await delete_my_account(
+            MyAccountDeletion(confirmation=email, password=None),
+            _request(),
+            Response(),
+            db_session,
+            user,
+        )
+    assert missing.value.code == "user.password.invalid_current"
+
+    await delete_my_account(
+        MyAccountDeletion(confirmation=email, password="mon-mot-de-passe"),
+        _request(),
+        Response(),
+        db_session,
+        user,
+    )
+    db_session.expire_all()
+    shell = await db_session.get(User, user_id)
+    assert shell is not None and shell.is_active is False
+    assert shell.has_password is False
+
+
+@pytest.mark.asyncio
 async def test_a_password_change_voids_a_pending_reset_link(
     db_session: AsyncSession,
 ) -> None:

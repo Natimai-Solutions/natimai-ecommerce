@@ -52,6 +52,7 @@ def new_guest_user(*, email: str, full_name: str, phone: str | None) -> User:
         is_verified=False,
         is_guest=True,
         hashed_password=unusable_password_hash(),
+        has_password=False,
     )
 
 

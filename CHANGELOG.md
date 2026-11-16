@@ -7,6 +7,13 @@ takes a tag as its `ref`.
 
 ## [Unreleased]
 
+### Security
+
+- An account linked to Google / Microsoft that also has a chosen password
+  needs that password to be erased, a recent sign-in no longer stands for it
+  (`users.has_password`, migration `e1f2a3b4c5d6`; unknown for the accounts
+  older than the column, which keep the previous rule).
+
 ### Added
 
 - The order confirmation e-mail lists the lines, the delivery mode, the
