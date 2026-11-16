@@ -38,7 +38,8 @@ from app.features.product.models.product import Product
 logger = logging.getLogger(__name__)
 
 SOCIAL_WEBHOOK_SETTING_KEY = "social_webhook_url"
-LOCAL_TZ = ZoneInfo("Pacific/Tahiti")
+#: The shop's clock: cut-off days, reminder hour (``SHOP_TIMEZONE``).
+LOCAL_TZ = ZoneInfo(settings.SHOP_TIMEZONE or "Pacific/Tahiti")
 REMINDER_HOUR = time(9, 0)
 
 
@@ -210,6 +211,38 @@ async def close_departure(
         unpaid_order_ids=unpaid,
         next_departure_id=next_id,
     )
+
+
+async def close_due_departures(
+    session: AsyncSession, *, now: datetime | None = None
+) -> dict[str, list[str]]:
+    """The open departures whose cut-off has passed (functional audit,
+    November 2026: nothing closed them but the admin, and until then no
+    departure was open — the new orders were attached to none, and the next
+    departure of a recurring one did not exist).
+
+    Each is closed like the admin would, without forcing: a departure whose
+    threshold is reached closes (the next one opens), the others stay open
+    for the admin to decide — they are returned, to be told. Commits.
+    """
+    current = now or datetime.now(UTC)
+    due = (
+        await session.exec(
+            select(GroupedDeparture).where(
+                col(GroupedDeparture.is_active).is_(True),
+                col(GroupedDeparture.status) == "open",
+                col(GroupedDeparture.order_cutoff_at) <= current,
+            )
+        )
+    ).all()
+    closed: list[str] = []
+    waiting: list[str] = []
+    for departure in due:
+        name = departure.name
+        result = await close_departure(session, departure=departure, force=False)
+        (closed if result.closed else waiting).append(name)
+    await session.commit()
+    return {"closed": closed, "below_threshold": waiting}
 
 
 async def spawn_next_departure(

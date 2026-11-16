@@ -282,3 +282,45 @@ async def test_cash_for_an_order_without_stock_is_refused(
             method="cash",
         )
     assert closed.value.code == "payment.order.cancelled"
+
+
+@pytest.mark.asyncio
+async def test_a_closed_or_paid_order_does_not_go_back(
+    db_session: AsyncSession,
+) -> None:
+    """Functional audit, November 2026: any status followed any other —
+    « Cancelled → Paid » revived an order without its stock, « Delivered →
+    Pending » made it payable again."""
+    from types import SimpleNamespace
+    from typing import cast
+
+    from app.api.routes.admin_orders import (
+        OrderStatusChangeRequest,
+        change_order_status,
+    )
+    from app.core.errors import AppError
+
+    admin = cast(Any, SimpleNamespace(id=uuid.uuid4()))
+    buyer = await _user(db_session)
+    cancelled_id, _ = await _order(
+        db_session, buyer, order_status="Cancelled", payment_status="Cancelled"
+    )
+    delivered_id, _ = await _order(
+        db_session, buyer, order_status="Delivered", payment_status="Completed"
+    )
+
+    for order_id, target in ((cancelled_id, "Paid"), (delivered_id, "Pending")):
+        with pytest.raises(AppError) as refused:
+            await change_order_status(
+                order_id, OrderStatusChangeRequest(status=target), db_session, admin
+            )
+        assert refused.value.code == "order.status.transition_refused"
+
+    # A fulfilment step back (a wrong click corrected) stays possible.
+    moved = await change_order_status(
+        delivered_id,
+        OrderStatusChangeRequest(status="ReadyForPickup"),
+        db_session,
+        admin,
+    )
+    assert moved.changed is True

@@ -89,3 +89,7 @@ e2e/blob-report/
 
 # Instantané Redis écrit par un redis-server lancé depuis le dépôt
 dump.rdb
+
+# Déploiement : version en service et dumps d’avant migration (serveur)
+/.deployed_tag
+/backups/

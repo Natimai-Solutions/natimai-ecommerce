@@ -23,9 +23,4 @@ crud_brand = BrandCrud(
     schema_create=BrandCreate,
     schema_update=BrandUpdate,
     order_by=col(Brand.name),
-    outbox_events={
-        "create": "create.brand",
-        "update": "update.brand",
-        "delete": "delete.brand",
-    },
 )

@@ -176,9 +176,4 @@ crud_group_security = GroupSecurityCrud(
     schema_create=GroupSecurityCreate,
     schema_update=GroupSecurityUpdate,
     order_by=col(GroupSecurity.table_name),
-    outbox_events={
-        "create": "create.group_security",
-        "update": "update.group_security",
-        "delete": "delete.group_security",
-    },
 )

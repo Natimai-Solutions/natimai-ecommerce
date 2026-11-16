@@ -1,13 +1,15 @@
+import dataclasses
 import logging
 import socket
 from typing import Any
 
 from arq.connections import create_pool
-from arq.worker import func
+from arq.worker import Function, func
 
 from app.core.arq_pool import arq_redis_settings
 from app.core.logging_config import configure_logging
 from app.core.sentry import init_sentry
+from app.core.task_runs import journaled
 from app.features.system.audit import get_audit_cron_jobs, purge_audit_log_task
 from app.outbox.consumer import OUTBOX_HANDLER_MAX_TRIES, execute_outbox_handler
 from app.tasks.cart_tasks import (
@@ -15,6 +17,7 @@ from app.tasks.cart_tasks import (
     remind_abandoned_carts_task,
 )
 from app.tasks.departure_tasks import (
+    close_due_departures_task,
     get_departure_cron_jobs,
     publish_departure_reminders_task,
 )
@@ -39,6 +42,7 @@ from app.tasks.pricing_tasks import (
     refresh_sale_prices_task,
     scheduled_sale_price_refresh_task,
 )
+from app.tasks.retention_tasks import get_retention_cron_jobs, purge_journals_task
 from app.tasks.stock_alert_tasks import (
     get_stock_alert_cron_jobs,
     notify_stock_alerts_task,
@@ -53,6 +57,7 @@ from app.tasks.supplier_tasks import (
     sync_supplier_inventory_task,
     sync_supplier_products_task,
 )
+from app.tasks.watch_tasks import get_watch_cron_jobs, watch_outbox_backlog_task
 
 
 # Custom logging filter to suppress "already running elsewhere" messages
@@ -75,6 +80,26 @@ arq_logger = logging.getLogger("arq.worker")
 arq_logger.addFilter(SuppressAlreadyRunningFilter())
 
 logger = logging.getLogger(__name__)
+
+
+_NOT_JOURNALED = frozenset(
+    {"execute_outbox_handler", "send_queued_email_task", "example_handler"}
+)
+
+
+def _journal_function(entry: Any) -> Any:
+    """A worker function, journaled unless it keeps its own journal."""
+    if isinstance(entry, Function):
+        if entry.name in _NOT_JOURNALED:
+            return entry
+        return dataclasses.replace(
+            entry,
+            coroutine=journaled(entry.coroutine, entry.name),  # type: ignore[arg-type]
+        )
+    name = getattr(entry, "__name__", "")
+    if name in _NOT_JOURNALED or not callable(entry):
+        return entry
+    return journaled(entry, name)
 
 
 # Redis pool pour ARQ
@@ -134,10 +159,13 @@ class WorkerSettings:
         scheduled_sale_price_refresh_task,
         # Rappels réseaux sociaux des départs groupés
         publish_departure_reminders_task,
+        close_due_departures_task,
         # Alertes « me prévenir »
         notify_stock_alerts_task,
         # Rétention du journal d'audit des administrateurs
         purge_audit_log_task,
+        purge_journals_task,
+        watch_outbox_backlog_task,
         # ... tes autres handlers
     ]
 
@@ -157,10 +185,22 @@ class WorkerSettings:
         + get_stock_alert_cron_jobs()
         + get_audit_cron_jobs()
         + get_payment_cron_jobs()
+        + get_retention_cron_jobs()
+        + get_watch_cron_jobs()
     )
 
     # NOTE: Le polling de l'outbox est géré par un service dédié (outbox-poller)
     # pas besoin de cron job ici
+
+    # Every run of the background tasks is journaled (task_runs) and a failure
+    # alerts — they used to fail with nothing but a log line (audit
+    # fonctionnel 2026-11). The outbox handlers and the e-mails have their own
+    # journal and retry policy; they are left as they are.
+    functions = [_journal_function(entry) for entry in functions]
+    cron_jobs = [
+        dataclasses.replace(job, coroutine=journaled(job.coroutine, job.name))
+        for job in cron_jobs
+    ]
 
     redis_settings = arq_redis_settings()
     job_timeout = 600  # Augmenté pour les tâches de sync qui peuvent prendre du temps

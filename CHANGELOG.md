@@ -9,6 +9,18 @@ takes a tag as its `ref`.
 
 ### Added
 
+- Back office → « État du système » (`GET /admin/system-status`): the last
+  run of every background task (succeeded, with errors, failed, and the
+  error), the outbox backlog and its oldest pending event, the e-mails given
+  up in the last 24 h or stuck in the queue, the age of each currency rate,
+  and whether the e-mail provider and the alert webhook are configured.
+- Every background task run is journaled (`task_runs`, migration
+  `b8c9d0e1f2a3`) and a failure — an exception, or a result reporting errors
+  (the price and stock sync returned « success » with errors) — posts to
+  `ALERT_WEBHOOK_URL`, on the first failure then at most every 6 hours.
+- An e-mail given up after its retries alerts the shop (at most once an
+  hour): an expired provider key stopped every e-mail without a sound.
+
 - `docs/internal/AUDIT_FONCTIONNEL_2026-11.md`: functional audit (are the
   features solid, which ones are missing), three parallel reviews of the
   customer journey, the back office and operations, and the business engine.
@@ -167,6 +179,48 @@ takes a tag as its `ref`.
   (superuser-only), as the base of the future fine-grained roles.
 
 ### Fixed
+
+- Back office, order page: an order without a shipping leg yet (unpaid, or
+  placed before the logistics phase) showed « Commande introuvable » since
+  the API messages were translated — the page recognised the empty journey
+  by its French message. It now reads the 404 (code `order.journey.empty`).
+  A refused status change says why in words instead of quoting status codes.
+
+- The worker watches the outbox every ten minutes: an event waiting for more
+  than 15 minutes (a stopped poller) alerts the shop, once an hour.
+- Deployment: the database is dumped before the migrations
+  (`backups/pre_deploy_*.dump`), and a version whose health check fails is
+  replaced by the previous one (`.deployed_tag`, `AUTO_ROLLBACK=false` to
+  keep it) — it stayed in service.
+
+- A grouped departure past its cut-off closes on its own when its threshold
+  is reached (the next one of a recurring departure opens); one below its
+  threshold stays open and the shop is alerted once. Only the admin closed
+  them: meanwhile new orders were attached to no departure.
+- The checkout refuses an order without a delivery mode when one is offered
+  for the address (`checkout.delivery_type.required`): when the storefront
+  failed to load the modes, the order left with none and no last leg billed.
+
+- Outbox: a handler given up after its retries is now kept in the database
+  (`outbox_handler_failures`, migration `c9d0e1f2a3b4`) — its event was
+  `DONE` and only a log line said the delivery never happened. « État du
+  système » lists them, with « Rejouer ». The CRUD writes no longer publish
+  events no handler reads (all of them did: a supplier sync queued one event
+  per product ahead of the payment ones), and a nightly purge clears the
+  delivered outbox events (30 days), the replayed failures (90 days), the
+  e-mail bodies (90 days) and rows (1 year), and the supplier sync logs
+  (90 days).
+
+- Order statuses follow a lifecycle: a cancelled or refunded order is closed,
+  and an order paid or on its way no longer goes back to « awaiting
+  payment » (`order.status.transition_refused`, 409); a fulfilment step back
+  stays possible. The back office asks for confirmation (and an optional
+  reason) before changing an order's status, and before moving a departure to
+  its next step, which moves all its orders and e-mails each customer.
+- Invoice and credit-note numbers take the fiscal year on the shop's clock
+  (`SHOP_TIMEZONE`): issued in UTC, a document of 31 December after 14:00 at
+  Tahiti took the next year's number. The departure reminders and cut-off
+  days follow `SHOP_TIMEZONE` too.
 
 - One checkout per cart: the cart row is locked until the order commits, so
   two submissions at once (double click, two tabs, a retry) no longer create

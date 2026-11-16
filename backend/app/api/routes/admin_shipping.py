@@ -981,7 +981,7 @@ async def order_journey(
     )
     if not trackings:
         raise AppError(
-            code="order.not_found",
+            code="order.journey.empty",
             status_code=404,
             message=f"Aucun tronçon pour la commande '{order_id}'",
             details={"order_id": str(order_id)},

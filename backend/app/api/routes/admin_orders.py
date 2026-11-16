@@ -29,7 +29,11 @@ from app.features.order.crud.order_line_crud import crud_order_line
 from app.features.order.models.order import Order
 from app.features.order.models.order_line import OrderLine
 from app.features.order.models.order_status import OrderStatus
-from app.features.order.services.status import ALL_ORDER_STATUSES, set_order_status
+from app.features.order.services.status import (
+    ALL_ORDER_STATUSES,
+    OrderStatusTransitionError,
+    set_order_status,
+)
 from app.features.payment.models.payment import Payment
 from app.features.payment.models.payment_receipt import PaymentReceiptPublic
 from app.features.payment.models.payment_status import PaymentStatus
@@ -604,13 +608,30 @@ async def change_order_status(
             message="Commande introuvable",
             details={"order_id": str(order_id)},
         )
-    changed = await set_order_status(
-        session,
-        order=order,
-        status_name=body.status,
-        changed_by_id=admin.id,
-        reason=body.reason,
-    )
+    try:
+        changed = await set_order_status(
+            session,
+            order=order,
+            status_name=body.status,
+            changed_by_id=admin.id,
+            reason=body.reason,
+        )
+    except OrderStatusTransitionError as exc:
+        await session.rollback()
+        raise AppError(
+            code="order.status.transition_refused",
+            status_code=409,
+            # Without the status codes (« Cancelled », « Paid »): the admin
+            # reads French labels everywhere else.
+            message=(
+                "Cette commande est annulée ou remboursée : elle ne peut plus "
+                "changer de statut."
+                if exc.old in ("Cancelled", "Refunded")
+                else "Cette commande a déjà été payée ou expédiée : elle ne peut "
+                "pas revenir en attente de paiement."
+            ),
+            details={"from": exc.old, "to": exc.new},
+        ) from exc
     await session.commit()
     return OrderStatusChangeResponse(
         order_id=order_id, status=body.status, changed=changed

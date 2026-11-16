@@ -112,9 +112,4 @@ crud_discount = DiscountCrud(
     schema_create=DiscountCreate,
     schema_update=DiscountUpdate,
     order_by=col(Discount.created_at).desc(),
-    outbox_events={
-        "create": "create.discount",
-        "update": "update.discount",
-        "delete": "delete.discount",
-    },
 )

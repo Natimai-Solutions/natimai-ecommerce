@@ -54,9 +54,4 @@ crud_inventory = InventoryCrud(
     schema_create=InventoryCreate,
     schema_update=InventoryUpdate,
     order_by=col(Inventory.created_at),
-    outbox_events={
-        "create": "create.inventory",
-        "update": "update.inventory",
-        "delete": "delete.inventory",
-    },
 )

@@ -16,6 +16,9 @@ intended behaviour: invoice numbers must also be chronological.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
 from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -28,6 +31,21 @@ _COUNTER_WIDTH = 5
 _INVOICE_COUNTER_TABLE = "invoice_counters"
 _CREDIT_NOTE_COUNTER_TABLE = "credit_note_counters"
 _QUOTE_COUNTER_TABLE = "quote_counters"
+
+
+def fiscal_year_of(moment: datetime) -> int:
+    """The fiscal year of a document issued at ``moment``: the calendar year
+    on the shop's clock (``SHOP_TIMEZONE``), not in UTC. At Tahiti (UTC−10) a
+    document issued on 31 December after 14:00 local time took the next
+    year's number (functional audit, November 2026)."""
+    from app.core.config import settings
+
+    try:
+        zone = ZoneInfo(settings.SHOP_TIMEZONE)
+    except (ZoneInfoNotFoundError, ValueError):
+        zone = ZoneInfo("UTC")
+    aware = moment if moment.tzinfo is not None else moment.replace(tzinfo=UTC)
+    return aware.astimezone(zone).year
 
 
 def _format_number(counter: int, *, prefix: str, fiscal_year: int) -> str:

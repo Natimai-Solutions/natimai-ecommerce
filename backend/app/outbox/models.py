@@ -27,3 +27,26 @@ class OutboxEvent(SQLModel, table=True):
     def touch(self) -> None:
         """Execute touch."""
         self.updated_at = datetime.now(UTC)
+
+
+class OutboxHandlerFailure(SQLModel, table=True):
+    """A handler given up on an event after all its retries.
+
+    The event itself is ``DONE`` (it was handed to the workers): without this
+    row, an abandoned delivery — an invoice not issued, a payment status not
+    synced — left only a log line and an alert (functional audit, November
+    2026). The back office lists them and replays them.
+    """
+
+    __tablename__ = "outbox_handler_failures"
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    event_id: UUID = Field(index=True)
+    event_type: str = Field(index=True)
+    handler_path: str
+    payload: dict[str, Any] = Field(sa_column=Column(JSON, nullable=False))
+    error: str | None = None
+    tries: int = 0
+    failed_at: datetime = Field(default_factory=lambda: datetime.now(UTC), index=True)
+    #: Set when replayed (or dismissed) from the back office.
+    resolved_at: datetime | None = None
+    resolution: str | None = None

@@ -26,7 +26,10 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.features.invoice.models.credit_note import CreditNote, CreditNotePublic
 from app.features.invoice.models.invoice import Invoice
 from app.features.invoice.services.integrity import seal_document
-from app.features.invoice.services.numbering import allocate_credit_note_number
+from app.features.invoice.services.numbering import (
+    allocate_credit_note_number,
+    fiscal_year_of,
+)
 from app.features.payment.models.refund import Refund
 from app.utils.money import quantize_amount, split_incl_tax
 
@@ -223,12 +226,12 @@ async def issue_credit_note_for_refund(
 
     issuance_date = issued_at or datetime.now(UTC)
     number, sequence_number = await allocate_credit_note_number(
-        session, fiscal_year=issuance_date.year
+        session, fiscal_year=fiscal_year_of(issuance_date)
     )
 
     credit_note = CreditNote(
         credit_note_number=number,
-        fiscal_year=issuance_date.year,
+        fiscal_year=fiscal_year_of(issuance_date),
         sequence_number=sequence_number,
         invoice_id=invoice.id,
         refund_id=refund.id,

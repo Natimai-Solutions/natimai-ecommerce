@@ -723,11 +723,16 @@ there; both run the same migrations and the same compose files.
    built with the environment's `VITE_API_URL`, hence the environment in the
    tag: a staging image never lands in production;
 3. connects over SSH, checks the repository out at that commit and runs
-   [`scripts/release/deploy.sh`](../scripts/release/deploy.sh): `pull` → `run
-   --rm migrate` → `up -d --no-build` with
+   [`scripts/release/deploy.sh`](../scripts/release/deploy.sh): `pull` →
+   database dump (`backups/pre_deploy_<sha>_<stamp>.dump`, the 5 latest are
+   kept) → `run --rm migrate` → `up -d --no-build` with
    [`docker-compose.images.yml`](../docker-compose.images.yml) on top of the
-   production files, then waits for `/api/v1/healthz/ready` (fails after
-   5 minutes, printing the API logs).
+   production files, then waits for `/api/v1/healthz/ready`. After 5 minutes
+   without it the script prints the API logs, **puts the previous version
+   back in service** (`.deployed_tag`; `AUTO_ROLLBACK=false` to keep the new
+   one) and fails. The migrations are additive, so the previous code runs on
+   the migrated schema; if it must go back too, restore the pre-deploy dump
+   (`./scripts/backup/restore.sh --production <dump>`).
 
 One deployment at a time per environment. After a successful run the workflow
 tags the commit `deployed-<environment>-<UTC stamp>` and moves the floating

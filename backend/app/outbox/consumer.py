@@ -32,6 +32,36 @@ OUTBOX_HANDLER_RETRY_BASE_SECONDS = 10
 OUTBOX_HANDLER_RETRY_MAX_DEFER_SECONDS = 300
 
 
+async def _record_abandoned(
+    event_id: str,
+    event_type: str,
+    handler_path: str,
+    payload: dict[str, Any],
+    error: str,
+    tries: int,
+) -> None:
+    """Write the abandoned delivery; never raises (the alert still goes)."""
+    from uuid import UUID
+
+    from app.outbox.models import OutboxHandlerFailure
+
+    try:
+        async with AsyncSession(engine) as session:
+            session.add(
+                OutboxHandlerFailure(
+                    event_id=UUID(str(event_id)),
+                    event_type=event_type,
+                    handler_path=handler_path,
+                    payload=payload,
+                    error=error[:2000],
+                    tries=tries,
+                )
+            )
+            await session.commit()
+    except Exception:  # noqa: BLE001
+        logger.warning("Abandoned delivery %s not recorded", event_id, exc_info=True)
+
+
 def build_outbox_consumer_key(event_id: str, handler_path: str) -> str:
     """Build outbox consumer key."""
     return f"outbox:consumer:processed:{event_id}:{handler_path}"
@@ -101,6 +131,11 @@ async def execute_outbox_handler(
                 event_type,
                 job_try,
                 str(e),
+            )
+            # Kept in the database: the event is DONE, nothing else said this
+            # delivery never happened. The back office lists and replays it.
+            await _record_abandoned(
+                event_id, event_type, handler_path, payload, str(e), job_try
             )
             # Abandon définitif = perte d'effet (scan AV, email, PO…) : alerte
             # webhook pour déclencher le rejeu manuel (runbook --mode retry).

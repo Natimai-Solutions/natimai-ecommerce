@@ -25,6 +25,14 @@ from app.features.user.models.user import User
 
 
 @pytest.fixture(autouse=True)
+def _no_delivery_mode_offered(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These mock sessions serve no shipping route: no mode to require."""
+    monkeypatch.setattr(
+        "app.api.routes.cart._delivery_modes_offered", AsyncMock(return_value=False)
+    )
+
+
+@pytest.fixture(autouse=True)
 def _stub_order_number(monkeypatch: pytest.MonkeyPatch) -> None:
     """Checkout draws its order number from a PostgreSQL sequence (M5).
 

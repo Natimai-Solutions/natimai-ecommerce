@@ -32,7 +32,10 @@ from app.core.alerting import send_alert
 from app.core.config import settings
 from app.features.invoice.models.invoice import Invoice
 from app.features.invoice.services.integrity import seal_document
-from app.features.invoice.services.numbering import allocate_invoice_number
+from app.features.invoice.services.numbering import (
+    allocate_invoice_number,
+    fiscal_year_of,
+)
 from app.features.order.models.order import Order
 from app.features.order.models.order_line import OrderLine
 from app.features.payment.models.payment import Payment
@@ -398,13 +401,13 @@ async def issue_invoice_for_order(
     snapshot = await build_invoice_snapshot(session, order=order, user=user)
 
     invoice_number, sequence_number = await allocate_invoice_number(
-        session, fiscal_year=issuance_date.year
+        session, fiscal_year=fiscal_year_of(issuance_date)
     )
 
     totals = snapshot["totals"]
     invoice = Invoice(
         invoice_number=invoice_number,
-        fiscal_year=issuance_date.year,
+        fiscal_year=fiscal_year_of(issuance_date),
         sequence_number=sequence_number,
         order_id=order.id,
         user_id=order.user_id,

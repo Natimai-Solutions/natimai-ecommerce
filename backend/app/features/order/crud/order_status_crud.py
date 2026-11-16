@@ -27,9 +27,4 @@ crud_order_status = OrderStatusCrud(
     schema_create=OrderStatusCreate,
     schema_update=OrderStatusUpdate,
     order_by=col(OrderStatus.created_at).desc(),
-    outbox_events={
-        "create": "create.order_status",
-        "update": "update.order_status",
-        "delete": "delete.order_status",
-    },
 )

@@ -240,6 +240,7 @@ const allNav: NavSection[] = [
       { label: 'layout.nav.branding', icon: 'ph:paint-brush', to: '/branding' },
       { label: 'layout.nav.languages', icon: 'ph:translate', to: '/languages' },
       { label: 'layout.nav.modules', icon: 'ph:toggle-right', to: '/modules' },
+      { label: 'layout.nav.system_status', icon: 'ph:heartbeat', to: '/system-status' },
       { label: 'layout.nav.audit', icon: 'ph:clipboard-text', to: '/audit-log' },
       { label: 'layout.nav.settings', icon: 'ph:gear', to: '/system-settings' },
     ],

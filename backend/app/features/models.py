@@ -63,6 +63,7 @@ from app.features.shipping.models.route_tracking import (
 from app.features.shipping.models.status import StatusDefinition, StatusTransition
 from app.features.system.models.audit_log import AdminAuditEntry
 from app.features.system.models.system_setting import SystemSetting
+from app.features.system.models.task_run import TaskRun
 from app.features.user.models.address import Address
 from app.features.user.models.group import Group
 from app.features.user.models.group_security import GroupSecurity
@@ -80,6 +81,7 @@ __all__ = [
     "CategoryLink",
     "ProductLink",
     "AdminAuditEntry",
+    "TaskRun",
     "Address",
     "AnalyticsProduct",
     "AnalyticsSale",

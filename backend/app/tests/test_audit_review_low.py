@@ -72,3 +72,19 @@ def test_customer_errors_follow_the_callers_language() -> None:
     raised = "« Écran » : il n'en reste que 1 (vous en demandez 3)."
     assert localized_message("cart.stock.insufficient", raised, "fr") == raised
     assert "adjust" in localized_message("cart.stock.insufficient", raised, "en")
+
+
+def test_the_fiscal_year_is_the_shops_calendar_year(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Functional audit, November 2026: issued in UTC, a document of
+    31 December after 14:00 at Tahiti took the next year's number."""
+    from datetime import UTC, datetime
+
+    from app.core.config import settings
+    from app.features.invoice.services.numbering import fiscal_year_of
+
+    monkeypatch.setattr(settings, "SHOP_TIMEZONE", "Pacific/Tahiti")
+    # 31/12/2026 at 20:00 in Tahiti is 01/01/2027 06:00 UTC.
+    assert fiscal_year_of(datetime(2027, 1, 1, 6, 0, tzinfo=UTC)) == 2026
+    assert fiscal_year_of(datetime(2027, 1, 1, 11, 0, tzinfo=UTC)) == 2027

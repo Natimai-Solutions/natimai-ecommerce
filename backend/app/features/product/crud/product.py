@@ -1051,9 +1051,4 @@ crud_product = ProductCrud(
         col(Product.is_active).is_(True),
         col(Product.is_admin_active).is_(True),
     ),
-    outbox_events={
-        "create": "create.product",
-        "update": "update.product",
-        "delete": "delete.product",
-    },
 )
