@@ -58,9 +58,4 @@ crud_order = OrderCrud(
     schema_create=OrderCreate,
     schema_update=OrderUpdate,
     order_by=col(Order.created_at).desc(),
-    outbox_events={
-        "create": "create.order",
-        "update": "update.order",
-        "delete": "delete.order",
-    },
 )

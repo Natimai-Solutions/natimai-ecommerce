@@ -61,12 +61,18 @@
             <dt>{{ $t('system_status.email_provider') }}</dt>
             <dd>
               {{
-                status.email_provider_configured ? $t('system_status.configured') : $t('system_status.missing')
+                status.email_provider_configured
+                  ? $t('system_status.configured')
+                  : $t('system_status.missing')
               }}
             </dd>
             <dt>{{ $t('system_status.alert_webhook') }}</dt>
             <dd>
-              {{ status.alert_webhook_configured ? $t('system_status.configured') : $t('system_status.missing') }}
+              {{
+                status.alert_webhook_configured
+                  ? $t('system_status.configured')
+                  : $t('system_status.missing')
+              }}
             </dd>
           </dl>
         </section>
@@ -87,6 +93,41 @@
           </ul>
         </section>
       </div>
+
+      <template v-if="status.outbox_abandoned.length">
+        <h2 class="admin-subtitle q-mt-lg">{{ $t('system_status.abandoned') }}</h2>
+        <p class="text-subtle">{{ $t('system_status.abandoned_hint') }}</p>
+        <q-markup-table flat bordered dense data-testid="system-status-abandoned">
+          <thead>
+            <tr>
+              <th class="text-left">{{ $t('system_status.col_event') }}</th>
+              <th class="text-left">{{ $t('system_status.col_handler') }}</th>
+              <th class="text-left">{{ $t('system_status.col_failure') }}</th>
+              <th class="text-left">{{ $t('system_status.col_error') }}</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="row in status.outbox_abandoned" :key="row.id">
+              <td class="font-mono">{{ row.event_type }}</td>
+              <td class="font-mono">{{ row.handler }}</td>
+              <td>{{ formatDateTime(row.failed_at) }}</td>
+              <td class="status-error">{{ row.error ?? '' }}</td>
+              <td class="text-right">
+                <q-btn
+                  flat
+                  dense
+                  no-caps
+                  icon="ph:arrow-counter-clockwise"
+                  :label="$t('system_status.replay')"
+                  :loading="replaying === row.id"
+                  @click="replay(row.id)"
+                />
+              </td>
+            </tr>
+          </tbody>
+        </q-markup-table>
+      </template>
 
       <h2 class="admin-subtitle q-mt-lg">{{ $t('system_status.tasks') }}</h2>
       <q-table
@@ -126,7 +167,12 @@ import type { StatusTone } from '@app/ui/statusTone';
 import { formatDateTime } from '@app/utils';
 import PageHeader from '@/components/PageHeader.vue';
 import { extractApiError } from '@/api/errors';
-import { getSystemStatus, type SystemStatus, type TaskRun } from '@/api/systemStatus';
+import {
+  getSystemStatus,
+  replayAbandonedDelivery,
+  type SystemStatus,
+  type TaskRun,
+} from '@/api/systemStatus';
 
 /**
  * « État du système » (functional audit, November 2026): a stopped task, an
@@ -168,6 +214,20 @@ async function load() {
     error.value = extractApiError(err) ?? t('system_status.load_failed');
   } finally {
     loading.value = false;
+  }
+}
+
+const replaying = ref<string | null>(null);
+async function replay(id: string) {
+  replaying.value = id;
+  error.value = null;
+  try {
+    await replayAbandonedDelivery(id);
+    await load();
+  } catch (err) {
+    error.value = extractApiError(err) ?? t('system_status.replay_failed');
+  } finally {
+    replaying.value = null;
   }
 }
 

@@ -865,6 +865,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/system-status/abandoned/{failure_id}/replay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replay Abandoned Delivery
+         * @description Hand the abandoned delivery to the workers again (its handlers tolerate
+         *     a replay: they are at-least-once by design).
+         */
+        post: operations["admin-dashboard-replay_abandoned_delivery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/payments": {
         parameters: {
             query?: never;
@@ -8167,6 +8188,27 @@ export interface components {
             reminder_delay_hours: number;
             /** Reminder Max Age Days */
             reminder_max_age_days: number;
+        };
+        /** AbandonedDelivery */
+        AbandonedDelivery: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Event Type */
+            event_type: string;
+            /** Handler */
+            handler: string;
+            /** Error */
+            error: string | null;
+            /** Tries */
+            tries: number;
+            /**
+             * Failed At
+             * Format: date-time
+             */
+            failed_at: string;
         };
         /**
          * AccessTokenResponse
@@ -18667,6 +18709,11 @@ export interface components {
              */
             skipped: number;
         };
+        /** ReplayResponse */
+        ReplayResponse: {
+            /** Replayed */
+            replayed: boolean;
+        };
         /**
          * RequestBalanceResponse
          * @description Represents request balance response.
@@ -21806,6 +21853,8 @@ export interface components {
             outbox_oldest_pending_minutes: number | null;
             /** Outbox Failed */
             outbox_failed: number;
+            /** Outbox Abandoned */
+            outbox_abandoned: components["schemas"]["AbandonedDelivery"][];
             /**
              * Outbox Level
              * @enum {string}
@@ -24203,6 +24252,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SystemStatus"];
+                };
+            };
+        };
+    };
+    "admin-dashboard-replay_abandoned_delivery": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                failure_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReplayResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

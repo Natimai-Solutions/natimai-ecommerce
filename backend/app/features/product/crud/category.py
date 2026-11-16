@@ -92,9 +92,4 @@ crud_category = CategoryCrud(
     schema_create=CategoryCreate,
     schema_update=CategoryUpdate,
     order_by=col(Category.name),
-    outbox_events={
-        "create": "create.category",
-        "update": "update.category",
-        "delete": "delete.category",
-    },
 )

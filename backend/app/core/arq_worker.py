@@ -41,6 +41,7 @@ from app.tasks.pricing_tasks import (
     refresh_sale_prices_task,
     scheduled_sale_price_refresh_task,
 )
+from app.tasks.retention_tasks import get_retention_cron_jobs, purge_journals_task
 from app.tasks.stock_alert_tasks import (
     get_stock_alert_cron_jobs,
     notify_stock_alerts_task,
@@ -160,6 +161,7 @@ class WorkerSettings:
         notify_stock_alerts_task,
         # Rétention du journal d'audit des administrateurs
         purge_audit_log_task,
+        purge_journals_task,
         # ... tes autres handlers
     ]
 
@@ -179,6 +181,7 @@ class WorkerSettings:
         + get_stock_alert_cron_jobs()
         + get_audit_cron_jobs()
         + get_payment_cron_jobs()
+        + get_retention_cron_jobs()
     )
 
     # NOTE: Le polling de l'outbox est géré par un service dédié (outbox-poller)

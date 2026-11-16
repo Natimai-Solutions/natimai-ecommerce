@@ -183,6 +183,13 @@ const en: MessageSchema = {
     },
   },
   system_status: {
+    abandoned: 'Abandoned deliveries',
+    abandoned_hint:
+      'An event handler failed after all its retries (invoice not issued, payment status not updated…). Fix the cause, then replay it.',
+    col_event: 'Event',
+    col_handler: 'Handler',
+    replay: 'Replay',
+    replay_failed: 'The delivery could not be replayed.',
     configured: 'Yes',
     title: 'System status',
     hint: 'Background tasks, event queue, e-mails and currency rates: what runs, what failed.',

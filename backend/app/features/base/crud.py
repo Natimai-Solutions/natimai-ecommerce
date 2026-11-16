@@ -139,7 +139,12 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             schema_update: Pydantic schema for validating update operations
             default_filter: Default filter to apply to queries (e.g., is_active=True)
             order_by: Default ordering for queries
-            outbox_events: Mapping of event names to their corresponding payloads
+            outbox_events: Mapping of the actions (create / update / delete) to
+                the outbox event each publishes. Opt in only for an event a
+                handler consumes: every write publishes one, and the CRUD
+                events nobody read (all of them in November 2026) filled the
+                outbox — a supplier sync of 10^5 products queued 10^5 events
+                ahead of the payment ones.
         """
         self.model = model
         self.schema_create = schema_create

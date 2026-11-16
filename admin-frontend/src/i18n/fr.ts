@@ -181,6 +181,13 @@ const fr = {
     },
   },
   system_status: {
+    abandoned: 'Traitements abandonnés',
+    abandoned_hint:
+      'Un traitement d’événement a échoué après toutes ses tentatives (facture non émise, statut de paiement non mis à jour…). Corrigez la cause, puis rejouez-le.',
+    col_event: 'Événement',
+    col_handler: 'Traitement',
+    replay: 'Rejouer',
+    replay_failed: 'Le traitement n’a pas pu être rejoué.',
     configured: 'Oui',
     title: 'État du système',
     hint: 'Les tâches de fond, la file d’événements, les e-mails et les taux de change : ce qui tourne, ce qui a échoué.',

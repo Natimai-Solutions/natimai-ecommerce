@@ -33,9 +33,4 @@ crud_analytics_user = AnalyticsUserCrud(
     schema_create=AnalyticsUserCreate,
     schema_update=AnalyticsUserUpdate,
     order_by=AnalyticsUser.created_at,
-    outbox_events={
-        "create": "create.analytics_user",
-        "update": "update.analytics_user",
-        "delete": "delete.analytics_user",
-    },
 )

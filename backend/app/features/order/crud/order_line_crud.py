@@ -71,9 +71,4 @@ crud_order_line = OrderLineCrud(
     schema_create=OrderLineCreate,
     schema_update=OrderLineUpdate,
     order_by=col(OrderLine.created_at).desc(),
-    outbox_events={
-        "create": "create.order_line",
-        "update": "update.order_line",
-        "delete": "delete.order_line",
-    },
 )

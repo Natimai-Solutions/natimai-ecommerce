@@ -147,9 +147,4 @@ crud_stock_movement = InventoryStockMovementCrud(
     schema_create=InventoryStockMovementCreate,
     schema_update=InventoryStockMovementUpdate,
     order_by=col(InventoryStockMovement.created_at).desc(),
-    outbox_events={
-        "create": "create.stock_movement",
-        "update": "update.stock_movement",
-        "delete": "delete.stock_movement",
-    },
 )

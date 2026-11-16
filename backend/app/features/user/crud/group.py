@@ -129,9 +129,4 @@ crud_group = GroupCrud(
     schema_create=GroupCreate,
     schema_update=GroupUpdate,
     order_by=col(Group.priority).desc(),
-    outbox_events={
-        "create": "create.group",
-        "update": "update.group",
-        "delete": "delete.group",
-    },
 )

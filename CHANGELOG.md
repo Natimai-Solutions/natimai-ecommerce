@@ -180,6 +180,16 @@ takes a tag as its `ref`.
 
 ### Fixed
 
+- Outbox: a handler given up after its retries is now kept in the database
+  (`outbox_handler_failures`, migration `c9d0e1f2a3b4`) — its event was
+  `DONE` and only a log line said the delivery never happened. « État du
+  système » lists them, with « Rejouer ». The CRUD writes no longer publish
+  events no handler reads (all of them did: a supplier sync queued one event
+  per product ahead of the payment ones), and a nightly purge clears the
+  delivered outbox events (30 days), the replayed failures (90 days), the
+  e-mail bodies (90 days) and rows (1 year), and the supplier sync logs
+  (90 days).
+
 - Order statuses follow a lifecycle: a cancelled or refunded order is closed,
   and an order paid or on its way no longer goes back to « awaiting
   payment » (`order.status.transition_refused`, 409); a fulfilment step back

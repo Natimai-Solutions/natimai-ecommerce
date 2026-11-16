@@ -9,12 +9,11 @@ from app.features.product.crud.product import crud_product
 from app.features.product.models.product import Product, ProductCreate, ProductUpdate
 
 
-def test_product_crud_has_outbox_events_configured() -> None:
-    assert crud_product.outbox_events == {
-        "create": "create.product",
-        "update": "update.product",
-        "delete": "delete.product",
-    }
+def test_product_writes_publish_no_unconsumed_event() -> None:
+    """No handler reads the product CRUD events: published on every write,
+    a supplier sync queued one per product ahead of the payment events
+    (functional audit, November 2026)."""
+    assert crud_product.outbox_events == {}
 
 
 def test_product_create_payload_is_json_serializable() -> None:

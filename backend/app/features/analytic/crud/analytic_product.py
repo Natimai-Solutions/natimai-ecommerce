@@ -33,9 +33,4 @@ crud_analytics_product = AnalyticsProductCrud(
     schema_create=AnalyticsProductCreate,
     schema_update=AnalyticsProductUpdate,
     order_by=AnalyticsProduct.created_at,
-    outbox_events={
-        "create": "create.analytics_product",
-        "update": "update.analytics_product",
-        "delete": "delete.analytics_product",
-    },
 )

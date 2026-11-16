@@ -9,6 +9,7 @@ currency rates, whether alerts and e-mails can go out at all.
 
 from __future__ import annotations
 
+import uuid
 from datetime import UTC, date, datetime, timedelta
 from typing import Literal
 
@@ -22,7 +23,7 @@ from app.core.config import settings
 from app.features.notification.models.email_log import STATUS_FAILED, EmailLog
 from app.features.product.models.currency_rate import CurrencyRate
 from app.features.system.models.task_run import TaskRun
-from app.outbox.models import OutboxEvent
+from app.outbox.models import OutboxEvent, OutboxHandlerFailure
 
 router = APIRouter(prefix="/admin/system-status", tags=["admin-dashboard"])
 
@@ -53,12 +54,23 @@ class CurrencyRateAge(BaseModel):
     level: Level
 
 
+class AbandonedDelivery(BaseModel):
+    id: uuid.UUID
+    event_type: str
+    handler: str
+    error: str | None
+    tries: int
+    failed_at: datetime
+
+
 class SystemStatus(BaseModel):
     level: Level
     tasks: list[TaskRunPublic]
     outbox_pending: int
     outbox_oldest_pending_minutes: int | None
     outbox_failed: int
+    #: Deliveries a handler gave up on (not replayed yet).
+    outbox_abandoned: list[AbandonedDelivery]
     outbox_level: Level
     emails_failed_24h: int
     emails_queued_stuck: int
@@ -121,6 +133,24 @@ async def get_system_status(
             select(func.count()).where(col(OutboxEvent.status) == "FAILED")
         )
     ).one()
+    abandoned = [
+        AbandonedDelivery(
+            id=row.id,
+            event_type=row.event_type,
+            handler=row.handler_path.rsplit(":", 1)[-1],
+            error=row.error,
+            tries=row.tries,
+            failed_at=_aware(row.failed_at) or now,
+        )
+        for row in (
+            await session.exec(
+                select(OutboxHandlerFailure)
+                .where(col(OutboxHandlerFailure.resolved_at).is_(None))
+                .order_by(col(OutboxHandlerFailure.failed_at).desc())
+                .limit(100)
+            )
+        ).all()
+    ]
     oldest_minutes = (
         int((now - _aware(oldest)).total_seconds() // 60)  # type: ignore[operator]
         if oldest is not None
@@ -128,6 +158,8 @@ async def get_system_status(
     )
     outbox_level: Level = "ok"
     if oldest_minutes is not None and oldest_minutes >= OUTBOX_STUCK_MINUTES:
+        outbox_level = "error"
+    elif abandoned:
         outbox_level = "error"
     elif failed_events:
         outbox_level = "warn"
@@ -192,6 +224,7 @@ async def get_system_status(
         outbox_pending=int(pending or 0),
         outbox_oldest_pending_minutes=oldest_minutes,
         outbox_failed=int(failed_events or 0),
+        outbox_abandoned=abandoned,
         outbox_level=outbox_level,
         emails_failed_24h=int(emails_failed or 0),
         emails_queued_stuck=int(emails_stuck or 0),
@@ -200,3 +233,43 @@ async def get_system_status(
         alert_webhook_configured=alert_configured,
         email_provider_configured=email_configured,
     )
+
+
+class ReplayResponse(BaseModel):
+    replayed: bool
+
+
+@router.post("/abandoned/{failure_id}/replay", response_model=ReplayResponse)
+async def replay_abandoned_delivery(
+    failure_id: uuid.UUID, session: SessionDep, admin: CurrentSuperUser
+) -> ReplayResponse:
+    """Hand the abandoned delivery to the workers again (its handlers tolerate
+    a replay: they are at-least-once by design)."""
+    from app.core.arq_pool import get_arq_pool
+    from app.core.errors import AppError
+
+    row = await session.get(OutboxHandlerFailure, failure_id)
+    if row is None or row.resolved_at is not None:
+        raise AppError(
+            code="outbox.failure.not_found",
+            status_code=404,
+            message="Traitement introuvable ou déjà rejoué.",
+            details={"id": str(failure_id)},
+        )
+    pool = await get_arq_pool()  # type: ignore[no-untyped-call]
+    try:
+        await pool.enqueue_job(
+            "execute_outbox_handler",
+            handler_path=row.handler_path,
+            event_id=str(row.event_id),
+            event_type=row.event_type,
+            payload=row.payload,
+            _job_id=f"replay:{row.id}:{datetime.now(UTC).timestamp():.0f}",
+        )
+    finally:
+        await pool.aclose()
+    row.resolved_at = datetime.now(UTC)
+    row.resolution = f"replayed by {admin.id}"
+    session.add(row)
+    await session.commit()
+    return ReplayResponse(replayed=True)
