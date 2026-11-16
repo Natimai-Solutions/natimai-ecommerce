@@ -8292,6 +8292,12 @@ export interface components {
             modify_at?: string | null;
             /** Modify By Id */
             modify_by_id?: string | null;
+            /** Recipient Name */
+            recipient_name?: string | null;
+            /** Company */
+            company?: string | null;
+            /** Phone */
+            phone?: string | null;
             /**
              * Street
              * @description Street address
@@ -8339,6 +8345,12 @@ export interface components {
          * @description Self-service create payload (user_id is derived from current user).
          */
         AddressMeCreate: {
+            /** Recipient Name */
+            recipient_name?: string | null;
+            /** Company */
+            company?: string | null;
+            /** Phone */
+            phone?: string | null;
             /** Street */
             street: string;
             /** City */
@@ -8359,6 +8371,12 @@ export interface components {
          * @description Self-service update payload (ownership and validation are server-managed).
          */
         AddressMeUpdate: {
+            /** Recipient Name */
+            recipient_name?: string | null;
+            /** Company */
+            company?: string | null;
+            /** Phone */
+            phone?: string | null;
             /** Street */
             street?: string | null;
             /** City */
@@ -8397,6 +8415,12 @@ export interface components {
              * @default true
              */
             is_admin_active: boolean;
+            /** Recipient Name */
+            recipient_name?: string | null;
+            /** Company */
+            company?: string | null;
+            /** Phone */
+            phone?: string | null;
             /**
              * Street
              * @description Street address
@@ -8472,6 +8496,12 @@ export interface components {
             modify_at?: string | null;
             /** Modify By Id */
             modify_by_id?: string | null;
+            /** Recipient Name */
+            recipient_name?: string | null;
+            /** Company */
+            company?: string | null;
+            /** Phone */
+            phone?: string | null;
             /** Street */
             street?: string | null;
             /** City */
@@ -8529,6 +8559,12 @@ export interface components {
              * @default true
              */
             is_admin_active: boolean;
+            /** Recipient Name */
+            recipient_name?: string | null;
+            /** Company */
+            company?: string | null;
+            /** Phone */
+            phone?: string | null;
             /**
              * Street
              * @description Street address

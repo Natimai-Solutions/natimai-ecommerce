@@ -2,7 +2,7 @@ import uuid
 
 from fastapi import Query, status
 from pydantic import field_validator
-from sqlmodel import SQLModel, col, select
+from sqlmodel import Field, SQLModel, col, select
 
 from app.api.base_router import BaseRouter
 from app.api.deps import CurrentSuperUser, CurrentUser, SessionDep
@@ -26,6 +26,9 @@ from app.features.user.models.user import User
 class AddressMeCreate(SQLModel):
     """Self-service create payload (user_id is derived from current user)."""
 
+    recipient_name: str | None = Field(default=None, max_length=150)
+    company: str | None = Field(default=None, max_length=150)
+    phone: str | None = Field(default=None, max_length=40)
     street: str
     city: str
     state: str | None = None
@@ -43,6 +46,9 @@ class AddressMeCreate(SQLModel):
 class AddressMeUpdate(SQLModel):
     """Self-service update payload (ownership and validation are server-managed)."""
 
+    recipient_name: str | None = Field(default=None, max_length=150)
+    company: str | None = Field(default=None, max_length=150)
+    phone: str | None = Field(default=None, max_length=40)
     street: str | None = None
     city: str | None = None
     state: str | None = None

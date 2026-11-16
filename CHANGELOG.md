@@ -9,6 +9,12 @@ takes a tag as its `ref`.
 
 ### Added
 
+- The order confirmation e-mail lists the lines, the delivery mode, the
+  delivery address, the group departure and the estimated delivery, in the
+  customer's language (functional audit M4).
+- A delivery address carries the recipient's name, an optional company and a
+  phone for the carrier (migration `d0e1f2a3b4c5`), prefilled from the
+  profile; the order keeps them in its address text (functional audit M8).
 - Back office → « État du système » (`GET /admin/system-status`): the last
   run of every background task (succeeded, with errors, failed, and the
   error), the outbox backlog and its oldest pending event, the e-mails given

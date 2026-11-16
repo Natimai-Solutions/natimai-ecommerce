@@ -823,7 +823,16 @@ function deliveryPriceLabel(amount: string): string {
 }
 
 function formatAddress(a: Address): string {
-  return [a.street, `${a.postal_code} ${a.city}`.trim(), a.state, a.country]
+  // The order keeps this text: the recipient and the phone travel with it.
+  return [
+    a.recipient_name,
+    a.company,
+    a.street,
+    `${a.postal_code} ${a.city}`.trim(),
+    a.state,
+    a.country,
+    a.phone ? `${t('addresses.phone_short')} ${a.phone}` : null,
+  ]
     .filter((part) => !!part && String(part).trim().length > 0)
     .join(', ');
 }

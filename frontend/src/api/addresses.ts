@@ -12,6 +12,9 @@ export type AddressType = 'billing' | 'shipping' | 'other';
 export interface Address {
   id: string;
   user_id: string;
+  recipient_name?: string | null;
+  company?: string | null;
+  phone?: string | null;
   street: string;
   city: string;
   state: string | null;
@@ -24,6 +27,10 @@ export interface Address {
 
 /** Create payload for `POST /address/users/me/addresses` (`AddressMeCreate`). */
 export interface AddressInput {
+  /** Who receives the parcel, a company, a phone for the carrier. */
+  recipient_name?: string | null;
+  company?: string | null;
+  phone?: string | null;
   street: string;
   city: string;
   state?: string | null;

@@ -79,7 +79,7 @@ Détail : [`AUDIT_FONCTIONNEL_2026-11.md`](AUDIT_FONCTIONNEL_2026-11.md) (identi
 
 ## 3. Fonctionnel — client
 
-- **Audit fonctionnel du 15/11/2026, manques côté client** (détail dans l'audit, §4) : identité de facturation B2B (M3, M) ; e-mail de confirmation complet et notification de retard d'un départ (M4, S + M) ; destinataire et téléphone sur l'adresse, page contact (M8, S) ; pages catégorie et marque indexables (M9, M) ; demande d'avis après livraison, e-mail de décision de groupe tarifaire, carte cadeau saisissable au checkout (M14, S chacun) ; rupture partielle après commande (M6, M à L).
+- **Audit fonctionnel du 15/11/2026, manques côté client** (détail dans l'audit, §4) : identité de facturation B2B (M3, M) ; notification de retard d'un départ (M4, M — l'e-mail de confirmation complet est fait) ; page contact (M8, S — destinataire, société et téléphone sur l'adresse faits) ; pages catégorie et marque indexables (M9, M) ; demande d'avis après livraison, e-mail de décision de groupe tarifaire, carte cadeau saisissable au checkout (M14, S chacun) ; rupture partielle après commande (M6, M à L).
 
 - **Retours, RMA et formulaire de rétractation** (obligation légale, c'est du code) : demande depuis « Mes commandes », validation admin, enchaînement sur le remboursement et l'avoir existants — L.
 - **SMS** (expédition, solde dû) — M.

@@ -447,6 +447,10 @@ const en: MessageSchema = {
     title: 'My account',
   },
   addresses: {
+    recipient: 'Recipient',
+    company: 'Company (optional)',
+    phone: 'Phone',
+    phone_short: 'Tel.',
     add: 'Add an address',
     cancel: 'Cancel',
     city: 'City',
