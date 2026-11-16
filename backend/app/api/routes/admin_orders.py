@@ -621,13 +621,14 @@ async def change_order_status(
         raise AppError(
             code="order.status.transition_refused",
             status_code=409,
+            # Without the status codes (« Cancelled », « Paid »): the admin
+            # reads French labels everywhere else.
             message=(
-                f"Une commande « {exc.old} » ne peut pas passer à « {exc.new} »"
-                + (
-                    " : une commande annulée ou remboursée est close."
-                    if exc.old in ("Cancelled", "Refunded")
-                    else " : elle a déjà été payée ou expédiée."
-                )
+                "Cette commande est annulée ou remboursée : elle ne peut plus "
+                "changer de statut."
+                if exc.old in ("Cancelled", "Refunded")
+                else "Cette commande a déjà été payée ou expédiée : elle ne peut "
+                "pas revenir en attente de paiement."
             ),
             details={"from": exc.old, "to": exc.new},
         ) from exc

@@ -163,8 +163,8 @@ class OrderRouter(
                         code="order.status.transition_refused",
                         status_code=409,
                         message=(
-                            f"Une commande « {exc.old} » ne peut pas passer à "
-                            f"« {exc.new} »."
+                            "Ce changement de statut n'est pas permis pour "
+                            "cette commande."
                         ),
                         details={"from": exc.old, "to": exc.new},
                     ) from exc

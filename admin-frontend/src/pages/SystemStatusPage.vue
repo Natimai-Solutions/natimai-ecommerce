@@ -29,6 +29,7 @@
           <h2 class="admin-subtitle">{{ $t('system_status.outbox') }}</h2>
           <StatusTag
             :tone="tone(status.outbox_level)"
+            :icon="toneIcon(tone(status.outbox_level))"
             :label="$t(`system_status.${status.outbox_level}`)"
           />
           <dl class="admin-dl">
@@ -51,6 +52,7 @@
           <h2 class="admin-subtitle">{{ $t('system_status.emails') }}</h2>
           <StatusTag
             :tone="tone(status.email_level)"
+            :icon="toneIcon(tone(status.email_level))"
             :label="$t(`system_status.${status.email_level}`)"
           />
           <dl class="admin-dl">
@@ -87,6 +89,7 @@
               <span class="font-mono">{{ rate.currency }}</span>
               <StatusTag
                 :tone="tone(rate.level)"
+                :icon="toneIcon(tone(rate.level))"
                 :label="$t('system_status.rate_age', { n: rate.age_days })"
               />
             </li>
@@ -95,7 +98,7 @@
       </div>
 
       <template v-if="status.outbox_abandoned.length">
-        <h2 class="admin-subtitle q-mt-lg">{{ $t('system_status.abandoned') }}</h2>
+        <h2 class="admin-subtitle status-section">{{ $t('system_status.abandoned') }}</h2>
         <p class="text-subtle">{{ $t('system_status.abandoned_hint') }}</p>
         <q-markup-table flat bordered dense data-testid="system-status-abandoned">
           <thead>
@@ -129,7 +132,7 @@
         </q-markup-table>
       </template>
 
-      <h2 class="admin-subtitle q-mt-lg">{{ $t('system_status.tasks') }}</h2>
+      <h2 class="admin-subtitle status-section">{{ $t('system_status.tasks') }}</h2>
       <q-table
         :rows="status.tasks"
         :columns="columns"
@@ -144,6 +147,7 @@
           <q-td :props="props">
             <StatusTag
               :tone="tone(props.row.level)"
+              :icon="toneIcon(tone(props.row.level))"
               :label="$t(`system_status.task_${props.row.last_status ?? 'running'}`)"
             />
           </q-td>
@@ -163,7 +167,7 @@ import type { QTableColumn } from 'quasar';
 
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
-import type { StatusTone } from '@app/ui/statusTone';
+import { toneIcon, type StatusTone } from '@app/ui/statusTone';
 import { formatDateTime } from '@app/utils';
 import PageHeader from '@/components/PageHeader.vue';
 import { extractApiError } from '@/api/errors';
@@ -253,6 +257,10 @@ onMounted(load);
     justify-content: space-between;
     align-items: center;
   }
+}
+
+.status-section {
+  margin-top: 32px;
 }
 
 .status-error {

@@ -1220,11 +1220,13 @@ async function loadJourney() {
   try {
     journey.value = await getOrderJourney(orderId.value);
   } catch (err) {
-    // 404 = no tracked leg yet (e.g. an order placed before the logistics
-    // phase): an empty table, not an error banner.
+    // 404 = no tracked leg yet (an unpaid order, one placed before the
+    // logistics phase): an empty table, not an error banner. Read from the
+    // status, not the message: translated, « Aucun tronçon » became
+    // « Commande introuvable » and the banner showed on every such order.
     journey.value = [];
-    const msg = extractApiError(err);
-    if (msg && !/aucun tronçon/i.test(msg)) journeyError.value = msg;
+    const status = (err as { response?: { status?: number } }).response?.status;
+    if (status !== 404) journeyError.value = extractApiError(err) ?? t('order.journey_failed');
   } finally {
     journeyLoading.value = false;
   }

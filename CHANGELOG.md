@@ -180,6 +180,12 @@ takes a tag as its `ref`.
 
 ### Fixed
 
+- Back office, order page: an order without a shipping leg yet (unpaid, or
+  placed before the logistics phase) showed « Commande introuvable » since
+  the API messages were translated — the page recognised the empty journey
+  by its French message. It now reads the 404 (code `order.journey.empty`).
+  A refused status change says why in words instead of quoting status codes.
+
 - The worker watches the outbox every ten minutes: an event waiting for more
   than 15 minutes (a stopped poller) alerts the shop, once an hour.
 - Deployment: the database is dumped before the migrations

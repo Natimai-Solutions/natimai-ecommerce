@@ -1478,6 +1478,7 @@ const en: MessageSchema = {
     title: 'Page not found',
   },
   order: {
+    journey_failed: 'The parcel journey could not be loaded.',
     status_confirm_title: 'Move the order to “{status}”?',
     status_confirm: 'The customer is told by e-mail.',
     status_confirm_cancel:

@@ -1487,6 +1487,7 @@ const fr = {
     title: 'Page introuvable',
   },
   order: {
+    journey_failed: 'Le parcours du colis n’a pas pu être chargé.',
     status_confirm_title: 'Passer la commande en « {status} » ?',
     status_confirm: 'Le client est prévenu par e-mail.',
     status_confirm_cancel:
