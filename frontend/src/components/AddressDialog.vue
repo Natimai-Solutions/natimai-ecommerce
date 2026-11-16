@@ -53,7 +53,6 @@
             autocomplete="tel"
             maxlength="40"
             data-testid="address-phone"
-            :rules="[(v) => !!(v && v.trim()) || $t('addresses.field_required')]"
           />
           <!-- U5 (audit 2026-11): every field takes the browser's address
                autofill (it fills all of them at once, so none may wait for

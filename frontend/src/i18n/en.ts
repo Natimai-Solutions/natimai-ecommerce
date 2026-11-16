@@ -449,7 +449,7 @@ const en: MessageSchema = {
   addresses: {
     recipient: 'Recipient',
     company: 'Company (optional)',
-    phone: 'Phone',
+    phone: 'Phone (optional)',
     phone_short: 'Tel.',
     add: 'Add an address',
     cancel: 'Cancel',

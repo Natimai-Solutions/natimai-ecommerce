@@ -20,7 +20,7 @@ takes a tag as its `ref`.
   delivery address, the group departure and the estimated delivery, in the
   customer's language (functional audit M4).
 - A delivery address carries the recipient's name, an optional company and a
-  phone for the carrier (migration `d0e1f2a3b4c5`), prefilled from the
+  phone for the carrier, optional (migration `d0e1f2a3b4c5`), prefilled from the
   profile; the order keeps them in its address text (functional audit M8).
 - Back office → « État du système » (`GET /admin/system-status`): the last
   run of every background task (succeeded, with errors, failed, and the

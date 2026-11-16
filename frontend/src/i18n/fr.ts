@@ -453,7 +453,7 @@ const fr = {
   addresses: {
     recipient: 'Destinataire',
     company: 'Société (facultatif)',
-    phone: 'Téléphone',
+    phone: 'Téléphone (facultatif)',
     phone_short: 'Tél.',
     add: 'Ajouter une adresse',
     cancel: 'Annuler',
