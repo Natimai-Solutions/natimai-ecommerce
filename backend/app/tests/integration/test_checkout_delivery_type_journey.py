@@ -298,3 +298,18 @@ async def test_without_delivery_type_legacy_heuristic_is_unchanged(
 
     # Legacy: the first customer route by priority.
     assert await _journey(db_session, shop.order_id) == [(1, shop.express.id, None)]
+
+
+@pytest.mark.asyncio
+async def test_a_delivery_mode_is_required_when_one_is_offered(
+    db_session: AsyncSession,
+) -> None:
+    """Functional audit, November 2026: when the storefront failed to load
+    the delivery modes, the order left with none (no last leg billed). The
+    checkout now refuses it whenever a mode is offered."""
+    from app.api.routes.cart import _delivery_modes_offered
+
+    shop = await _seed_shop(db_session)
+    assert await _delivery_modes_offered(
+        db_session, user_id=shop.user.id, address_id=None
+    )

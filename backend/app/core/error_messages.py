@@ -11,6 +11,7 @@ from __future__ import annotations
 
 EN: dict[str, str] = {
     "cart.already_checked_out": "This order has just been placed.",
+    "checkout.delivery_type.required": "Choose a delivery mode.",
     "cart.quantity.too_large": "Too many units of one item: request a quote for a larger quantity.",
     "cart.stock.insufficient": "Not enough stock for an item of your cart: adjust its quantity.",
     "cart.stock.unavailable": "An item of your cart is no longer available from the supplier.",

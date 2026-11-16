@@ -180,6 +180,14 @@ takes a tag as its `ref`.
 
 ### Fixed
 
+- A grouped departure past its cut-off closes on its own when its threshold
+  is reached (the next one of a recurring departure opens); one below its
+  threshold stays open and the shop is alerted once. Only the admin closed
+  them: meanwhile new orders were attached to no departure.
+- The checkout refuses an order without a delivery mode when one is offered
+  for the address (`checkout.delivery_type.required`): when the storefront
+  failed to load the modes, the order left with none and no last leg billed.
+
 - Outbox: a handler given up after its retries is now kept in the database
   (`outbox_handler_failures`, migration `c9d0e1f2a3b4`) — its event was
   `DONE` and only a log line said the delivery never happened. « État du

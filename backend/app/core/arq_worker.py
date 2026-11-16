@@ -17,6 +17,7 @@ from app.tasks.cart_tasks import (
     remind_abandoned_carts_task,
 )
 from app.tasks.departure_tasks import (
+    close_due_departures_task,
     get_departure_cron_jobs,
     publish_departure_reminders_task,
 )
@@ -157,6 +158,7 @@ class WorkerSettings:
         scheduled_sale_price_refresh_task,
         # Rappels réseaux sociaux des départs groupés
         publish_departure_reminders_task,
+        close_due_departures_task,
         # Alertes « me prévenir »
         notify_stock_alerts_task,
         # Rétention du journal d'audit des administrateurs

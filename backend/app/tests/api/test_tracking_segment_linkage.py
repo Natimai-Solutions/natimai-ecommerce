@@ -22,6 +22,14 @@ from app.features.payment.crud.payment import crud_payment
 from app.features.user.models.user import User
 
 
+@pytest.fixture(autouse=True)
+def _no_delivery_mode_offered(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These mock sessions serve no shipping route: no mode to require."""
+    monkeypatch.setattr(
+        "app.api.routes.cart._delivery_modes_offered", AsyncMock(return_value=False)
+    )
+
+
 @contextlib.asynccontextmanager
 async def _savepoint() -> AsyncIterator[None]:
     """The checkout links tracking inside a savepoint (begin_nested)."""

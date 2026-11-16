@@ -455,6 +455,15 @@ async def _last_legs_serving(
     return {option.route.id for option in options}
 
 
+async def _delivery_modes_offered(
+    session: SessionDep, *, user_id: uuid.UUID, address_id: uuid.UUID | None
+) -> bool:
+    """Whether the storefront offers a delivery mode for this address."""
+    address = await _load_user_address(session, user_id=user_id, address_id=address_id)
+    chain = await _destination_chain_for_address(session, address=address)
+    return bool(await _last_legs_serving(session, chain))
+
+
 async def _resolve_selected_checkout_routes(
     session: SessionDep,
     *,
@@ -3487,6 +3496,24 @@ async def checkout_my_cart(
         currency=cart.currency,
         strict=True,
     )
+    # A delivery is chosen whenever one is offered: when the storefront failed
+    # to load the modes, the order left with no delivery_type — no last leg
+    # billed, no mode to deliver by (functional audit, November 2026). A
+    # quote carries its own shipping fee; an API client names its routes.
+    if (
+        not payload.delivery_type
+        and not payload.shipping_route_ids
+        and fixed_shipping_fee is None
+        and await _delivery_modes_offered(
+            session, user_id=user_id, address_id=payload.shipping_address_id
+        )
+    ):
+        raise AppError(
+            code="checkout.delivery_type.required",
+            status_code=400,
+            message="Choisissez un mode de livraison.",
+            details={},
+        )
     price_group = await resolve_customer_group(session, current_user)
     # The reference price's margin comes from the default group.
     reference_group = await resolve_default_price_group(session)
