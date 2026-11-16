@@ -19,6 +19,11 @@ def validate_address_type(v: str, field_name: str = "Address type") -> str:
 class AddressBase(Base):
     """Represents address base."""
 
+    #: Who receives the parcel, a company, a phone the carrier calls — the
+    #: islands and the pickups need them (functional audit, November 2026, M8).
+    recipient_name: str | None = Field(default=None, max_length=150)
+    company: str | None = Field(default=None, max_length=150)
+    phone: str | None = Field(default=None, max_length=40)
     street: str = Field(description="Street address")
     city: str = Field(description="City of the address")
     state: str | None = Field(default=None, description="State of the address")
@@ -55,6 +60,9 @@ class AddressCreate(AddressBase, BaseCreate):
 class AddressUpdate(AddressBase, BaseUpdate):
     """Represents address update."""
 
+    recipient_name: str | None = None
+    company: str | None = None
+    phone: str | None = None
     street: str | None = None
     city: str | None = None
     state: str | None = None

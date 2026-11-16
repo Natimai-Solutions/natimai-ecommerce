@@ -342,6 +342,83 @@ async def on_order_received_request_balance(
     await session.commit()
 
 
+_DELIVERY_LABELS: dict[str, dict[str, str]] = {
+    "fr": {
+        "pickup": "Retrait en magasin",
+        "home_delivery": "Livraison à domicile",
+        "air_freight": "Fret aérien",
+        "sea_freight": "Fret maritime",
+    },
+    "en": {
+        "pickup": "In-store pickup",
+        "home_delivery": "Home delivery",
+        "air_freight": "Air freight",
+        "sea_freight": "Sea freight",
+    },
+}
+
+
+async def _order_summary(
+    session: AsyncSession, raw_order_id: Any, lang: str
+) -> dict[str, Any]:
+    """What the « commande reçue » e-mail lists: the lines, the address, the
+    delivery mode, the departure and its expected date. It gave only the
+    number, the total and a count of items — the customer's reference for
+    weeks of waiting (functional audit, November 2026, M4)."""
+    from sqlmodel import col, select
+
+    from app.features.order.models.order_line import OrderLine
+    from app.features.product.models.product import Product
+
+    empty: dict[str, Any] = {
+        "lines": [],
+        "shipping_address": "",
+        "delivery_label": "",
+        "departure_name": "",
+        "estimated_delivery": "",
+    }
+    try:
+        order = await session.get(Order, uuid.UUID(str(raw_order_id)))
+    except (TypeError, ValueError):
+        return empty
+    if order is None:
+        return empty
+    rows = (
+        await session.exec(
+            select(OrderLine, Product.name)
+            .join(Product, col(Product.id) == col(OrderLine.product_id), isouter=True)
+            .where(
+                col(OrderLine.order_id) == order.id, col(OrderLine.is_active).is_(True)
+            )
+        )
+    ).all()
+    lines = [
+        {
+            "name": name or "",
+            "quantity": int(line.quantity),
+            "line_total": str(
+                line.unit_price * line.quantity - (line.discount_amount or 0)
+            ),
+        }
+        for line, name in rows
+    ]
+    labels = _DELIVERY_LABELS.get(lang, _DELIVERY_LABELS["fr"])
+    delivery = order.delivery_type or ""
+    departure = (
+        await session.get(GroupedDeparture, order.grouped_departure_id)
+        if order.grouped_departure_id
+        else None
+    )
+    estimated = getattr(departure, "estimated_delivery_at", None) if departure else None
+    return {
+        "lines": lines,
+        "shipping_address": order.shipping_address or "",
+        "delivery_label": labels.get(delivery, delivery.replace("_", " ")),
+        "departure_name": departure.name if departure else "",
+        "estimated_delivery": format_date(estimated, lang) if estimated else "",
+    }
+
+
 @outbox_handler(EVENT_ORDER_CREATED)
 async def on_order_created(session: AsyncSession, payload: dict[str, Any]) -> None:
     """Send 'Commande reçue' email to the customer after checkout."""
@@ -355,10 +432,13 @@ async def on_order_created(session: AsyncSession, payload: dict[str, Any]) -> No
     full_name = (user.full_name or user.email or "") if user else ""
 
     order_ref = await _resolve_order_ref(session, payload)
+    lang = await _email_lang(session, payload)
+    summary = await _order_summary(session, payload.get("order_id"), lang)
 
     email = render_email(
         "order_created",
-        lang=await _email_lang(session, payload),
+        lang=lang,
+        **summary,
         full_name=full_name or "client",
         order_id=payload.get("order_id", ""),
         order_ref=order_ref,

@@ -156,6 +156,7 @@ async def change_my_password(
             details={"field": "new_password"},
         )
     current_user.hashed_password = await aget_password_hash(payload.new_password)
+    current_user.has_password = True
     current_user.security_stamp = new_security_stamp()
     # A reset link still on its way would undo this change (audit 2026-11).
     current_user.password_reset_token = None
@@ -239,7 +240,9 @@ async def delete_my_account(
             )
         )
     ).first() is not None
-    if payload.password or not has_provider:
+    # A Google / Microsoft link no longer spares a password the holder chose:
+    # whoever holds the session would erase the account on a recent sign-in.
+    if payload.password or not has_provider or current_user.has_password:
         if not payload.password or not await averify_password(
             payload.password, current_user.hashed_password or ""
         ):

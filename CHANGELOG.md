@@ -7,8 +7,21 @@ takes a tag as its `ref`.
 
 ## [Unreleased]
 
+### Security
+
+- An account linked to Google / Microsoft that also has a chosen password
+  needs that password to be erased, a recent sign-in no longer stands for it
+  (`users.has_password`, migration `e1f2a3b4c5d6`; unknown for the accounts
+  older than the column, which keep the previous rule).
+
 ### Added
 
+- The order confirmation e-mail lists the lines, the delivery mode, the
+  delivery address, the group departure and the estimated delivery, in the
+  customer's language (functional audit M4).
+- A delivery address carries the recipient's name, an optional company and a
+  phone for the carrier, optional (migration `d0e1f2a3b4c5`), prefilled from the
+  profile; the order keeps them in its address text (functional audit M8).
 - Back office → « État du système » (`GET /admin/system-status`): the last
   run of every background task (succeeded, with errors, failed, and the
   error), the outbox backlog and its oldest pending event, the e-mails given
@@ -179,6 +192,13 @@ takes a tag as its `ref`.
   (superuser-only), as the base of the future fine-grained roles.
 
 ### Fixed
+
+- Checkout: the card / PayPal provider is called once the order is committed,
+  no longer inside the transaction that holds the stock rows locked (a slow
+  provider, up to 30 s, made every other checkout of the same products wait;
+  a failed commit left a payment form open at the provider). If the provider
+  fails at that point the order stays placed (`payment_start_failed`) and the
+  storefront opens its payment page to try again.
 
 - Back office, order page: an order without a shipping leg yet (unpaid, or
   placed before the logistics phase) showed « Commande introuvable » since

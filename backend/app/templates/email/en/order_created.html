@@ -9,8 +9,20 @@
           <tr><td>Order number</td><td>{{ order_ref or (order_id | short_ref) }}</td></tr>
           <tr><td>Total amount</td><td>{{ total_amount }} {{ currency }}</td></tr>
           <tr><td>Number of items</td><td>{{ item_count }}</td></tr>
+          {% if delivery_label %}<tr><td>Delivery</td><td>{{ delivery_label }}</td></tr>{% endif %}
+          {% if shipping_address %}<tr><td>Address</td><td>{{ shipping_address }}</td></tr>{% endif %}
+          {% if departure_name %}<tr><td>Grouped departure</td><td>{{ departure_name }}</td></tr>{% endif %}
+          {% if estimated_delivery %}<tr><td>Estimated delivery</td><td>{{ estimated_delivery }}</td></tr>{% endif %}
         </table>
       </div>
+      {% if lines %}
+      <div class="summary">
+        <table>
+          {% for line in lines %}<tr><td>{{ line.quantity }} × {{ line.name }}</td><td>{{ line.line_total }} {{ currency }}</td></tr>
+          {% endfor %}
+        </table>
+      </div>
+      {% endif %}
       {% if payment_instructions %}
       <p><strong>To pay for your order</strong>{% if amount_due_now and amount_due_now != total_amount %} ({{ amount_due_now }} {{ currency }} now){% endif %}:</p>
       <p style="white-space: pre-line">{{ payment_instructions }}</p>

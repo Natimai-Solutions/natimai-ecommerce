@@ -21,6 +21,39 @@
             dense
             class="q-mb-sm"
           />
+          <!-- Recipient and phone: the carrier, the pickup counter and the
+               island deliveries need them (functional audit, M8). -->
+          <q-input
+            v-model="addressForm.recipient_name"
+            :label="$t('addresses.recipient')"
+            outlined
+            dense
+            class="q-mb-sm"
+            autocomplete="name"
+            maxlength="150"
+            data-testid="address-recipient"
+            :rules="[(v) => !!(v && v.trim()) || $t('addresses.field_required')]"
+          />
+          <q-input
+            v-model="addressForm.company"
+            :label="$t('addresses.company')"
+            outlined
+            dense
+            class="q-mb-sm"
+            autocomplete="organization"
+            maxlength="150"
+          />
+          <q-input
+            v-model="addressForm.phone"
+            type="tel"
+            :label="$t('addresses.phone')"
+            outlined
+            dense
+            class="q-mb-sm"
+            autocomplete="tel"
+            maxlength="40"
+            data-testid="address-phone"
+          />
           <!-- U5 (audit 2026-11): every field takes the browser's address
                autofill (it fills all of them at once, so none may wait for
                another to be typed first); the save button waits instead. -->
@@ -159,6 +192,7 @@ import {
   type PlaceTreeNode,
 } from '@/api/addresses';
 import { apiErrorMessage } from '@/utils/errors';
+import { useAuthStore } from '@/stores/auth';
 
 /**
  * Create or edit one of the customer's addresses: country, then postal code
@@ -172,6 +206,7 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+const authStore = useAuthStore();
 
 const addressTypeOptions = computed(() => [
   { label: t('addresses.type.shipping'), value: 'shipping' },
@@ -187,6 +222,9 @@ const editingId = ref<string | null>(null);
 const savingAddress = ref(false);
 const dialogError = ref<string | null>(null);
 const addressForm = reactive<AddressInput>({
+  recipient_name: '',
+  company: '',
+  phone: '',
   street: '',
   city: '',
   state: '',
@@ -415,6 +453,9 @@ function reset(address: Address | null | undefined) {
   lastAutoState = null;
   if (address) {
     editingId.value = address.id;
+    addressForm.recipient_name = address.recipient_name ?? authStore.profile?.full_name ?? '';
+    addressForm.company = address.company ?? '';
+    addressForm.phone = address.phone ?? authStore.profile?.phone ?? '';
     addressForm.street = address.street;
     addressForm.city = address.city;
     addressForm.state = address.state ?? '';
@@ -428,6 +469,9 @@ function reset(address: Address | null | undefined) {
     void lookupZone(false);
   } else {
     editingId.value = null;
+    addressForm.recipient_name = authStore.profile?.full_name ?? '';
+    addressForm.company = '';
+    addressForm.phone = authStore.profile?.phone ?? '';
     addressForm.street = '';
     addressForm.city = '';
     addressForm.state = '';
@@ -452,6 +496,9 @@ async function saveAddress() {
   dialogError.value = null;
   try {
     const payload: AddressInput = {
+      recipient_name: addressForm.recipient_name?.trim() || null,
+      company: addressForm.company?.trim() || null,
+      phone: addressForm.phone?.trim() || null,
       street: addressForm.street,
       city: addressForm.city,
       state: addressForm.state?.trim() ? addressForm.state : null,

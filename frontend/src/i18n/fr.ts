@@ -451,6 +451,10 @@ const fr = {
     title: 'Mon compte',
   },
   addresses: {
+    recipient: 'Destinataire',
+    company: 'Société (facultatif)',
+    phone: 'Téléphone (facultatif)',
+    phone_short: 'Tél.',
     add: 'Ajouter une adresse',
     cancel: 'Annuler',
     city: 'Ville',
@@ -548,6 +552,8 @@ const fr = {
     with_microsoft: 'Continuer avec Microsoft',
   },
   balance: {
+    start_failed:
+      'Votre commande est enregistrée, mais le formulaire de paiement n’a pas pu s’ouvrir. Réessayez ci-dessous.',
     title_order: 'Payer la commande',
     amount_due: 'À régler',
     deposit_due: 'Acompte à régler',

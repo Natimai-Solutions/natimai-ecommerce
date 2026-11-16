@@ -20,7 +20,6 @@ Détail, fichiers et scénarios : [`AUDIT_2026-11.md`](AUDIT_2026-11.md) (identi
 
 Détail : [`AUDIT_FONCTIONNEL_2026-11.md`](AUDIT_FONCTIONNEL_2026-11.md) (identifiants D·, Z·, M·). Les sept défauts D1 à D7 et les zones fragiles Z1 à Z6, Z11, Z12 et Z16 sont corrigés (voir CHANGELOG). Reste :
 
-- **D5 (suite)** : sortir l'appel au prestataire de paiement de la section sous verrou de stock (un appel PayZen lent bloque les autres commandes des mêmes produits ; un commit raté laisse un formToken orphelin) — M.
 - **Z3 (reste)** : un worker « unhealthy » n'est pas redémarré automatiquement (pas d'autoheal dans les compose) — S, à décider avec l'hébergement.
 - **D1 (suite)** : le délai de livraison affiché ignore encore le mode d'import choisi et le délai fournisseur ; un départ groupé ne porte pas de mode — M.
 
@@ -68,7 +67,6 @@ Détail : [`AUDIT_FONCTIONNEL_2026-11.md`](AUDIT_FONCTIONNEL_2026-11.md) (identi
 - Audit, durcissement restant : *required reviewers* sur l'environnement GitHub `production` (réglage du dépôt, hors code).
 - **Relecture des correctifs de l'audit (15/11/2026)** — corrigé : voir CHANGELOG. Laissé en l'état, par choix ou faute de donnée :
   - *Verrouillage à la demande* : 50 échecs depuis une dizaine d'adresses verrouillent encore un compte 15 min (`LOGIN_ACCOUNT_LOCKOUT_MAX_FAILURES`) — c'est la protection contre la force brute distribuée ; un reset de mot de passe le lève. **À décider** si un déverrouillage par e-mail est voulu.
-  - *Suppression de compte avec lien OAuth* : un compte qui a aussi un vrai mot de passe se supprime sur la foi d'une connexion récente ; exiger le mot de passe demande de savoir si le compte en a un (colonne à ajouter) — S.
   - *Anciens codes de secours 2FA* (SHA-256) acceptés jusqu'à leur régénération par l'admin.
   - *Stock d'une commande payée puis annulée ou remboursée* : rendu à la main (la marchandise peut être déjà commandée ou partie) ; sous-vente possible quand le fournisseur a déjà décompté nos réservations (B4, côté sûr).
   - *Statuts posés par les gestionnaires de paiement* (`Paid`, `PaymentFailed`, `Refunded`) : pas d'événement `order.status_changed` (les e-mails de paiement existent déjà ; l'ajouter doublerait les notifications) — à reprendre avec l'historique de commande (§4).
@@ -80,7 +78,7 @@ Détail : [`AUDIT_FONCTIONNEL_2026-11.md`](AUDIT_FONCTIONNEL_2026-11.md) (identi
 
 ## 3. Fonctionnel — client
 
-- **Audit fonctionnel du 15/11/2026, manques côté client** (détail dans l'audit, §4) : identité de facturation B2B (M3, M) ; e-mail de confirmation complet et notification de retard d'un départ (M4, S + M) ; destinataire et téléphone sur l'adresse, page contact (M8, S) ; pages catégorie et marque indexables (M9, M) ; demande d'avis après livraison, e-mail de décision de groupe tarifaire, carte cadeau saisissable au checkout (M14, S chacun) ; rupture partielle après commande (M6, M à L).
+- **Audit fonctionnel du 15/11/2026, manques côté client** (détail dans l'audit, §4) : identité de facturation B2B (M3, M) ; notification de retard d'un départ (M4, M — l'e-mail de confirmation complet est fait) ; page contact (M8, S — destinataire, société et téléphone sur l'adresse faits) ; pages catégorie et marque indexables (M9, M) ; demande d'avis après livraison, e-mail de décision de groupe tarifaire, carte cadeau saisissable au checkout (M14, S chacun) ; rupture partielle après commande (M6, M à L).
 
 - **Retours, RMA et formulaire de rétractation** (obligation légale, c'est du code) : demande depuis « Mes commandes », validation admin, enchaînement sur le remboursement et l'avoir existants — L.
 - **SMS** (expédition, solde dû) — M.

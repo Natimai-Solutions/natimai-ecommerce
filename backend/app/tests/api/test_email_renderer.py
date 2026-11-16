@@ -187,3 +187,24 @@ def test_rendered_emails_show_short_order_reference() -> None:
     for part in (email.subject, email.text, email.html):
         assert "#e090fee1" in part
         assert order_uuid not in part
+
+
+def test_the_order_confirmation_lists_lines_address_and_departure() -> None:
+    """Functional audit, November 2026 (M4): the confirmation gave only the
+    number, the total and a count of items."""
+    for lang in ("fr", "en"):
+        email = render_email(
+            "order_created",
+            lang=lang,
+            **_SAMPLE_CONTEXT["order_created"],
+            lines=[{"name": "Écran 27″", "quantity": 2, "line_total": "64000"}],
+            shipping_address="12 rue des Remparts, Papeete",
+            delivery_label="Livraison à domicile",
+            departure_name="Avion du 20/11",
+            estimated_delivery="02/12/2026",
+            payment_rejected_url="",
+        )
+        for body in (email.text, email.html):
+            assert "Écran 27″" in body and "64000" in body
+            assert "Papeete" in body and "Avion du 20/11" in body
+            assert "02/12/2026" in body

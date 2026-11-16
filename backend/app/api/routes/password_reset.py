@@ -182,6 +182,7 @@ async def reset_password(
         )
 
     user.hashed_password = await aget_password_hash(body.password)
+    user.has_password = True
     user.security_stamp = new_security_stamp()
     # Jeton à usage unique.
     user.password_reset_token = None

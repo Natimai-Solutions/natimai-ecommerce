@@ -141,6 +141,11 @@ class User(UserBase, table=True):
     #: the person becomes a full customer by choosing a password from the
     #: e-mailed link, or by signing up with the same address.
     is_guest: bool = Field(default=False, sa_column_kwargs={"server_default": "false"})
+    #: Whether the holder chose a password (signup, reset, change). False for
+    #: an account opened through Google / Microsoft, a guest or an invitation;
+    #: None for the accounts older than the column, where it is unknown.
+    #: Erasing an account with a password requires that password.
+    has_password: bool | None = Field(default=None)
     # Two-factor authentication (administrators, R6). The secret is encrypted
     # (SECRETS_ENCRYPTION_KEY); recovery codes are stored as SHA-256 hashes.
     totp_secret_encrypted: str | None = Field(

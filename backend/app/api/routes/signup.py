@@ -204,6 +204,7 @@ async def complete_signup(
         user = existing
         await claim_guest_account(session, user)
         user.hashed_password = password_hash
+        user.has_password = True
         if body.full_name:
             user.full_name = body.full_name
     else:
@@ -215,6 +216,7 @@ async def complete_signup(
             full_name=body.full_name,
             is_verified=True,
             hashed_password=password_hash,
+            has_password=True,
         )
     # l'inscription connecte : c'est une première ouverture
     return await _open_session(session, response, user)

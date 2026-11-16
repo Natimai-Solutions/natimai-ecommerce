@@ -110,6 +110,7 @@ from app.features.payment.services.deposit import (
 )
 from app.features.payment.services.payment_initiation import (
     PaymentInitiationResult,
+    complete_api_initiation,
     initiate_payment_for_method,
 )
 from app.features.payment.services.status_token import payment_status_token
@@ -3788,6 +3789,10 @@ async def checkout_my_cart(
                 metadata=None,
                 current_user=current_user,
                 kind=payment_kind,
+                # The card / PayPal call runs after the commit, out of the
+                # stock locks (functional audit, D5): a slow provider held
+                # every other checkout of the same products.
+                defer_api_call=True,
             )
             payment = payment_init.payment
         else:
@@ -3866,6 +3871,27 @@ async def checkout_my_cart(
         await session.refresh(payment)
         await session.refresh(cart)
 
+        payment_start_failed = False
+        if (
+            payment_init is not None
+            and getattr(payment_init, "pending_api_request", None) is not None
+        ):
+            # The order and its reservations are committed: a provider that
+            # fails now leaves an unpaid order the customer pays from its page
+            # (« Payer »), never a rolled-back checkout with an orphan form.
+            try:
+                payment_init = await complete_api_initiation(session, payment_init)
+                await session.commit()
+                await session.refresh(payment)
+            except Exception as exc:  # noqa: BLE001 - the order stands
+                await session.rollback()
+                payment_start_failed = True
+                logger.warning(
+                    "Payment start failed for order %s after checkout: %s",
+                    order.id,
+                    exc,
+                )
+
         checkout_duration_ms = int((perf_counter() - checkout_started) * 1000)
         await observe_checkout_result(
             success=True,
@@ -3915,6 +3941,7 @@ async def checkout_my_cart(
             public_key=payment_init.public_key if payment_init else None,
             redirect_url=payment_init.redirect_url if payment_init else None,
             instructions=payment_init.instructions if payment_init else None,
+            payment_start_failed=payment_start_failed,
             message="Checkout completed",
         )
 
