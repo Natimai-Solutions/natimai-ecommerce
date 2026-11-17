@@ -3871,6 +3871,18 @@ async def checkout_my_cart(
         await session.refresh(payment)
         await session.refresh(cart)
 
+        # Read once, while the instances are fresh: the commit and the rollback
+        # below expire them, and reading an expired attribute under asyncio is
+        # a lazy load that raises (MissingGreenlet) — a 500 on an order that
+        # is already committed.
+        order_id = order.id
+        order_number_out = order.order_number
+        # getattr: the mocked checkouts of the unit suite build a bare order.
+        grouped_departure_id = getattr(order, "grouped_departure_id", None)
+        payment_id = payment.id
+        cart_id = cart.id
+        cart_currency = cart.currency
+
         payment_start_failed = False
         if (
             payment_init is not None
@@ -3882,13 +3894,12 @@ async def checkout_my_cart(
             try:
                 payment_init = await complete_api_initiation(session, payment_init)
                 await session.commit()
-                await session.refresh(payment)
             except Exception as exc:  # noqa: BLE001 - the order stands
                 await session.rollback()
                 payment_start_failed = True
                 logger.warning(
                     "Payment start failed for order %s after checkout: %s",
-                    order.id,
+                    order_id,
                     exc,
                 )
 
@@ -3901,24 +3912,23 @@ async def checkout_my_cart(
             logger,
             level="info",
             event="checkout_completed",
-            order_id=order.id,
-            payment_id=payment.id,
-            payment_status_token=payment_status_token(payment.id),
+            order_id=order_id,
+            payment_id=payment_id,
+            payment_status_token=payment_status_token(payment_id),
             user_id=user_id,
             amount=total_amount,
-            currency=cart.currency,
+            currency=cart_currency,
             item_count=len(items),
             duration_ms=checkout_duration_ms,
         )
 
         return CheckoutResponse(
             **quote.deposit_terms(),
-            order_id=order.id,
-            order_number=order.order_number,
-            # getattr: the mocked checkouts of the unit suite build a bare order.
-            grouped_departure_id=getattr(order, "grouped_departure_id", None),
-            payment_id=payment.id,
-            cart_id=cart.id,
+            order_id=order_id,
+            order_number=order_number_out,
+            grouped_departure_id=grouped_departure_id,
+            payment_id=payment_id,
+            cart_id=cart_id,
             subtotal_amount=subtotal_amount,
             discount_code=applied_discount.code if applied_discount else None,
             discount_amount=quote.discount_amount,
@@ -3926,7 +3936,7 @@ async def checkout_my_cart(
             payment_fee_amount=payment_fee_amount,
             total_fees_amount=total_fees_amount,
             total_amount=total_amount,
-            currency=cart.currency,
+            currency=cart_currency,
             item_count=len(items),
             applied_shipping_route_ids=applied_shipping_route_ids,
             shipping_eta_days=shipping_eta_days,

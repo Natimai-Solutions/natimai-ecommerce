@@ -193,6 +193,11 @@ takes a tag as its `ref`.
 
 ### Fixed
 
+- Checkout by card or PayPal answered 500 on an order already committed: the
+  response and the log read rows expired by the second commit (or by the
+  rollback when the provider failed). The values are read once before the
+  provider call (relecture du 17/11/2026 ; introduced with the deferred
+  provider call, never released).
 - Checkout: the card / PayPal provider is called once the order is committed,
   no longer inside the transaction that holds the stock rows locked (a slow
   provider, up to 30 s, made every other checkout of the same products wait;

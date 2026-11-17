@@ -396,6 +396,18 @@ async def test_checkout_with_payment_method_runs_single_payment_initiation(
     session.commit.assert_awaited_once()
 
 
+class _ExpiringRow(SimpleNamespace):
+    """A row that behaves like an ORM instance under asyncio: once the session
+    commits or rolls back it is expired, and reading it raises (a lazy load is
+    a MissingGreenlet) until it is refreshed."""
+
+    def __getattribute__(self, name: str) -> object:
+        state = object.__getattribute__(self, "__dict__")
+        if state.get("expired") and not name.startswith("__"):
+            raise RuntimeError(f"lazy load of {name!r} on an expired row")
+        return object.__getattribute__(self, name)
+
+
 @pytest.mark.anyio
 @pytest.mark.parametrize("provider_fails", [False, True])
 async def test_the_card_provider_is_called_after_the_order_commits(
@@ -404,7 +416,11 @@ async def test_the_card_provider_is_called_after_the_order_commits(
     """Functional audit, D5: the card provider (up to 30 s) was called inside
     the transaction that holds the stock rows locked. It is now called after
     the order commits; a provider that fails leaves the order placed, to be
-    paid from its page."""
+    paid from its page.
+
+    The rows expire at each commit and rollback, as they do on a real session:
+    the response of a committed order was built from expired rows, a 500
+    (relecture du 17/11/2026)."""
     user_id = uuid4()
     cart_id = uuid4()
     order_id = uuid4()
@@ -416,7 +432,7 @@ async def test_the_card_provider_is_called_after_the_order_commits(
     session = AsyncMock()
     session.add = Mock()
 
-    cart = SimpleNamespace(
+    cart = _ExpiringRow(
         id=cart_id,
         user_id=user_id,
         currency="XPF",
@@ -439,8 +455,25 @@ async def test_the_card_provider_is_called_after_the_order_commits(
         is_supplier_managed=False,
         supplier_quantity=Decimal("0.00"),
     )
-    order = SimpleNamespace(id=order_id, total_amount=Decimal("0.00"))
-    payment = SimpleNamespace(id=payment_id, payment_status_id=uuid4())
+    order = _ExpiringRow(
+        id=order_id,
+        order_number="CMD-2026-00001",
+        grouped_departure_id=None,
+        total_amount=Decimal("0.00"),
+    )
+    payment = _ExpiringRow(id=payment_id, payment_status_id=uuid4())
+    rows = (cart, order, payment)
+
+    async def expire_all(*_args: object, **_kwargs: object) -> None:
+        for row in rows:
+            object.__getattribute__(row, "__dict__")["expired"] = True
+
+    async def refresh(row: object, *_args: object, **_kwargs: object) -> None:
+        object.__getattribute__(row, "__dict__")["expired"] = False
+
+    session.commit.side_effect = expire_all
+    session.rollback.side_effect = expire_all
+    session.refresh.side_effect = refresh
 
     monkeypatch.setattr(
         crud_cart, "get_active_cart_by_user", AsyncMock(return_value=cart)
@@ -543,6 +576,8 @@ async def test_the_card_provider_is_called_after_the_order_commits(
     )
 
     assert response.order_id == order_id
+    assert response.payment_id == payment_id
+    assert response.cart_id == cart_id
     assert init_mock.await_args is not None
     assert init_mock.await_args.kwargs["defer_api_call"] is True
     assert calls == [1]  # called once, after the order's commit
