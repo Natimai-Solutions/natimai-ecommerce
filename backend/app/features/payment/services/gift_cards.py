@@ -402,7 +402,9 @@ class RefundRevocation:
 
     @property
     def changed(self) -> bool:
-        return bool(self.cancelled) or self.reclaimed > 0
+        # A card whose credit was entirely spent is deactivated too: without
+        # the commit it stayed active and every replay alerted again.
+        return bool(self.cancelled) or self.reclaimed > 0 or bool(self.shortfalls)
 
     def alert(self, order_label: str) -> str | None:
         """The message for the admin, when there is something to do by hand."""

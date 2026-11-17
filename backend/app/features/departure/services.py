@@ -241,8 +241,20 @@ async def close_due_departures(
         name = departure.name
         result = await close_departure(session, departure=departure, force=False)
         (closed if result.closed else waiting).append(name)
+        if result.closed and (result.shortages or result.unpaid_order_ids):
+            # The admin route returns these « to arbitrate »; nobody reads
+            # the answer of a cron.
+            logger.warning(
+                "Departure « %s » closed with %d shortage(s) and %d unpaid order(s)",
+                name,
+                len(result.shortages),
+                len(result.unpaid_order_ids),
+            )
     await session.commit()
     return {"closed": closed, "below_threshold": waiting}
+
+
+_NEXT_SUFFIX = " (suivant)"
 
 
 async def spawn_next_departure(
@@ -250,9 +262,21 @@ async def spawn_next_departure(
 ) -> GroupedDeparture:
     """The following departure of a recurring one: same settings, dates
     shifted by ``recurrence_days``, reminders copied, open and published."""
-    shift = timedelta(days=int(departure.recurrence_days or 0))
+    period = timedelta(days=int(departure.recurrence_days or 0))
+    shift = period
+    # The next cut-off is in the future: a departure closed several periods
+    # late (the automatic close catching up) opened a successor already past
+    # its date, whose overdue reminders were posted, then closed in turn.
+    now = datetime.now(UTC)
+    cutoff = departure.order_cutoff_at
+    if cutoff.tzinfo is None:
+        cutoff = cutoff.replace(tzinfo=UTC)
+    while period > timedelta(0) and cutoff + shift <= now:
+        shift += period
+    # One suffix, not one per generation (the name is 200 characters).
+    base_name = departure.name.removesuffix(_NEXT_SUFFIX)
     nxt = GroupedDeparture(
-        name=f"{departure.name} (suivant)",
+        name=f"{base_name}{_NEXT_SUFFIX}"[:200],
         order_cutoff_at=departure.order_cutoff_at + shift,
         estimated_delivery_at=(
             departure.estimated_delivery_at + shift

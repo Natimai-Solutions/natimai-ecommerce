@@ -24,7 +24,11 @@ from app.features.order.crud.order_crud import crud_order
 from app.features.order.crud.order_status_crud import crud_order_status
 from app.features.order.models.order import Order
 from app.features.order.models.order_status import OrderStatus, OrderStatusCreate
-from app.features.order.services.status import EVENT_ORDER_STATUS_CHANGED
+from app.features.order.services.status import (
+    EVENT_ORDER_STATUS_CHANGED,
+    OrderStatusTransitionError,
+    check_status_transition,
+)
 from app.features.payment.crud.payment import crud_payment
 from app.features.payment.models.payment import Payment
 from app.features.payment.services.authorizations import (
@@ -183,6 +187,28 @@ async def _sync_order_status(
             target_status_name,
         )
         return
+
+    # The lifecycle holds for payment events too (relecture du 17/11/2026):
+    # an infected document on a delivered order made it payable again, a
+    # replayed partial refund reopened a refunded one. A cancelled order that
+    # gets its money back does become « Refunded ».
+    current = (
+        await session.get(OrderStatus, order.order_status_id)
+        if order.order_status_id
+        else None
+    )
+    old_name = current.name if current is not None else None
+    if not (old_name == "Cancelled" and target_status_name == "Refunded"):
+        try:
+            check_status_transition(old_name, target_status_name)
+        except OrderStatusTransitionError:
+            logger.warning(
+                "Order %s stays « %s »: payment event asked for « %s »",
+                order_uuid,
+                old_name,
+                target_status_name,
+            )
+            return
 
     status_id = await _get_or_create_order_status_id(session, name=target_status_name)
     order.order_status_id = status_id

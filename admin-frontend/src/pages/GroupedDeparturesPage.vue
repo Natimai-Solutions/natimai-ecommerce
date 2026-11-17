@@ -1726,13 +1726,11 @@ function blankForm(): DepartureForm {
   };
 }
 
-/** ISO → value of an `<input type="datetime-local">` / `type="date"` (local time). */
-function toInput(iso: string | null, withTime: boolean): string | null {
-  if (!iso) return null;
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  return withTime ? `${date}T${pad(d.getHours())}:${pad(d.getMinutes())}` : date;
+/** ISO → value of an `<input type="date">`, on the shop's clock like
+ * `toIso` writes it. Read on the browser's clock, the day moved forward at
+ * each save for an admin east of the shop (relecture du 17/11/2026). */
+function toShopDateInput(iso: string | null): string | null {
+  return toShopDateTimeInput(iso)?.slice(0, 10) ?? null;
 }
 
 /** Input value → ISO for the API, read on the shop's clock. A bare date is
@@ -1762,8 +1760,8 @@ function openEdit(d: Departure) {
     name: d.name,
     // On the shop's clock, wherever the admin's browser is (audit 2026-11).
     order_cutoff_at: toShopDateTimeInput(d.order_cutoff_at) ?? '',
-    estimated_delivery_at: toInput(d.estimated_delivery_at, false),
-    departure_at: toInput(d.departure_at, false),
+    estimated_delivery_at: toShopDateInput(d.estimated_delivery_at),
+    departure_at: toShopDateInput(d.departure_at),
     status: d.status,
     is_published: d.is_published,
     min_amount: d.min_amount === null ? null : Number(d.min_amount),

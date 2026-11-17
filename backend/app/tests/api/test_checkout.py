@@ -23,6 +23,8 @@ def _no_delivery_mode_offered(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "app.api.routes.cart._delivery_modes_offered", AsyncMock(return_value=False)
     )
+    # …nor any import route: the mode recorded on the order line is none.
+    monkeypatch.setattr("app.api.routes.cart._line_level", AsyncMock(return_value=None))
 
 
 @pytest.fixture(autouse=True)

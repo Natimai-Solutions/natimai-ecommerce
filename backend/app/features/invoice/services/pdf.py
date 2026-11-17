@@ -12,6 +12,7 @@ only, never invoice issuance, the API startup or the test suite.
 
 from __future__ import annotations
 
+from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -20,6 +21,7 @@ from jinja2 import Environment, FileSystemLoader, Template, select_autoescape
 
 from app.features.invoice.models.credit_note import CreditNote
 from app.features.invoice.models.invoice import Invoice
+from app.features.invoice.services.numbering import shop_local
 from app.utils.money import ZERO_DECIMAL_CURRENCIES
 
 # app/features/invoice/services/pdf.py → app/templates/invoice
@@ -36,6 +38,16 @@ class PdfRenderingUnavailableError(RuntimeError):
 # narrow no-break space between thousands, no-break space before the currency.
 _THOUSANDS_SEPARATOR = "\u202f"
 _CURRENCY_SEPARATOR = "\u00a0"
+
+
+def _invoice_date_of(snapshot: dict[str, Any]) -> str:
+    """The original invoice's date on the shop's clock, « JJ/MM/AAAA » (the
+    snapshot keeps its UTC instant)."""
+    raw = str((snapshot.get("invoice") or {}).get("issued_at") or "")
+    try:
+        return shop_local(datetime.fromisoformat(raw)).strftime("%d/%m/%Y")
+    except ValueError:
+        return raw[:10]
 
 
 def _format_amount(value: Any, currency: str = "") -> str:
@@ -97,7 +109,7 @@ def render_invoice_html(invoice: Invoice, *, lang: str = DEFAULT_LANG) -> str:
     context.setdefault("shop_logo_url", _logo_url())
     context.update(
         invoice_number=invoice.invoice_number,
-        issued_at=invoice.issued_at,
+        issued_at=shop_local(invoice.issued_at),
         currency=invoice.currency,
         totals={
             "excl_tax": invoice.total_excl_tax,
@@ -141,7 +153,8 @@ def render_credit_note_html(
     context.setdefault("shop_logo_url", _logo_url())
     context.update(
         credit_note_number=credit_note.credit_note_number,
-        issued_at=credit_note.issued_at,
+        issued_at=shop_local(credit_note.issued_at),
+        invoice_issued_on=_invoice_date_of(credit_note.snapshot),
         currency=credit_note.currency,
         totals={
             "excl_tax": credit_note.total_excl_tax,

@@ -14,8 +14,12 @@
     <AppNotice v-else-if="errorMessage && !order" tone="error">{{ errorMessage }}</AppNotice>
 
     <template v-else-if="order">
-      <AppNotice v-if="nothingDue" tone="success" data-testid="balance-settled">
-        {{ $t('balance.settled') }}
+      <AppNotice
+        v-if="nothingDue"
+        :tone="fullyPaid ? 'success' : 'info'"
+        data-testid="balance-settled"
+      >
+        {{ fullyPaid ? $t('balance.settled') : $t('balance.not_payable') }}
         <template #action>
           <q-btn
             flat
@@ -161,6 +165,10 @@ const payingBalance = computed(() => order.value?.pay_now_kind === 'balance');
 const nothingDue = computed(
   () => !order.value?.pay_now_kind || !(Number.parseFloat(dueAmount.value) > 0),
 );
+
+/** Nothing to pay online is not « paid »: a cancelled order, one under review
+ * or one settled at the counter by instalments said « intégralement réglée ». */
+const fullyPaid = computed(() => !(Number.parseFloat(order.value?.amount_due ?? '0') > 0));
 
 function money(raw: string): string {
   return orderMoney(raw, order.value?.currency, currencyStore.reference);

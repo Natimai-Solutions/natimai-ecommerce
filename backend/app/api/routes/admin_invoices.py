@@ -28,6 +28,7 @@ from app.features.invoice.services.accounting_export import (
     export_invoices_to_fec,
 )
 from app.features.invoice.services.integrity import verify_chains
+from app.features.invoice.services.numbering import shop_local
 from app.features.invoice.services.pdf import (
     PdfRenderingUnavailableError,
     invoice_pdf_filename,
@@ -142,7 +143,7 @@ async def export_invoices_csv(
         writer.writerow(
             [
                 invoice.invoice_number,
-                invoice.issued_at.date().isoformat(),
+                shop_local(invoice.issued_at).date().isoformat(),
                 invoice.fiscal_year,
                 order_snapshot.get("number", ""),
                 buyer.get("name", ""),

@@ -23,6 +23,26 @@ Détail : [`AUDIT_FONCTIONNEL_2026-11.md`](AUDIT_FONCTIONNEL_2026-11.md) (identi
 - **Z3 (reste)** : un worker « unhealthy » n'est pas redémarré automatiquement (pas d'autoheal dans les compose) — S, à décider avec l'hébergement.
 - **D1 (suite)** : le délai de livraison affiché ignore encore le mode d'import choisi et le délai fournisseur ; un départ groupé ne porte pas de mode — M.
 
+### Relecture du 17/11/2026 — constats confirmés, non corrigés
+
+Cinq relectures indépendantes des changements de novembre ; ce qui a été corrigé est au CHANGELOG. Reste, par ordre d'importance :
+
+- **Le mode d'import payé n'apparaît nulle part** : `order_lines.import_service_level` est écrit mais lu par aucun écran (fiche commande admin, commande client, e-mail) — la boutique ne sait pas par quel mode expédier. Il se perd aussi à travers un devis (`items_snapshot`, `_install_quote_in_cart`) et un « commander à nouveau » — M.
+- **D5, clé d'idempotence** : le verrou du panier ne couvre que les requêtes simultanées ; un nouvel essai après un délai dépassé crée une seconde commande (la vitrine reconstruit un panier). `cart.already_checked_out` n'est traité par aucun frontend. Accepter une clé d'idempotence au checkout et renvoyer la commande existante — M.
+- **Moyens de paiement de « Payer ma commande »** : la page propose tous les moyens éligibles, l'API refuse ceux dont les frais diffèrent de ceux facturés (`payment.method.fee_mismatch`) alors que le texte dit « choisissez un autre moyen ». Filtrer sur les frais, ou refacturer les frais — S à M, **à décider**.
+- **Adresse figée sur la commande** : le texte (destinataire, société, téléphone compris) sert d'adresse de l'acheteur sur la facture ; il est construit côté vitrine et plafonné à 500 caractères. Le construire côté serveur depuis `shipping_address_id`, destinataire et téléphone dans des colonnes à part — M. Les cartes d'adresse (checkout, compte, admin) n'affichent pas les trois champs ; une adresse d'avant la migration n'a pas de destinataire.
+- **Deux définitions de « route d'import »** : le prix lit les routes avec `service_level`, le checkout exclut des frais de port celles dont la destination dédouane. Sans route portant un `service_level`, le fret n'est facturé nulle part, sans alerte ; le `base_price` fixe du tronçon d'import n'est facturé nulle part. Un seul prédicat et un bloquant dans la liste de mise en route — M, **à confirmer** (« le fret d'import n'est pas offert »).
+- **Fermeture automatique des départs** : sous le seuil, un départ reste ouvert et les nouvelles commandes ne s'attachent à aucun (une alerte par semaine, rien sur l'écran d'état) ; l'appel au fournisseur précède le test du seuil, toutes les 15 min — S.
+- **Écran d'état** : un worker arrêté ou un cron qui ne se déclenche plus laisse tout « ok » (aucun contrôle de fraîcheur) ; les événements FAILED n'ont ni purge ni rejeu ; un travail abandonné par arq sans appel de la fonction ne laisse pas de ligne ; double rejeu possible sur deux clics — M.
+- **Alertes** : `check_supplier_health_task` « unhealthy » n'alerte pas ; une tâche par article (Icecat) marque toute la tâche en échec ; `last_alert_at` est posé avant l'envoi — S.
+- **Avoir d'une commande sans facture** (écart de montant, puis remboursement) : le handler réessaie jusqu'à l'abandon et alerte à tort ; même chose pour la demande de solde d'un compte effacé — S.
+- **Remboursement partiel** : passe la commande à `PartiallyRefunded` quel que soit son avancement (elle ne suit plus son départ) — porter l'état du remboursement sur le paiement — M.
+- **Codes promo** : dix refus du même code périmé (le devis se recalcule à chaque changement) bloquent tout code pendant 10 min dans le devis, pas au checkout — compter les codes distincts — S.
+- **E-mail de confirmation** : noms de produits non traduits, date estimée en UTC, adresse du client affichée pour un retrait — S.
+- **Vitrine** : commande en attente de virement payable en plus par carte (pas de garde côté API) ; restauration de session qui peut écraser le panier local ; messages de repli en français dans `cart.ts` ; le formulaire d'édition d'un départ change le statut sans la confirmation ajoutée à « Étape suivante » — S chacun.
+- **PUT générique de commande** : les autres champs peuvent être enregistrés avant le refus du changement de statut — S, à vérifier.
+- **Tests manquants** : checkout par carte sur une vraie base (le bug du 17/11 n'était vu par aucun test), parité fiche / panier / ligne de commande / facture du fret, verrou du panier, `GET /admin/system-status` et rejeu, `deploy.sh`.
+
 ### Exploitation (sur le serveur, hors code)
 
 - **Sauvegardes réelles** : planifier le cron de `scripts/backup/backup.sh`, configurer la copie hors site (rclone / scp), **exécuter une restauration réelle** avant la première commande (DEPLOYMENT.md §12).

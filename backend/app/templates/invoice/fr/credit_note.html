@@ -238,7 +238,7 @@
     <div class="footer">
       <div>
         Avoir émis en correction de la facture {{ invoice.number }} du
-        {{ invoice.issued_at[:10] }}. Les montants ci-dessus ont été remboursés au client.
+        {{ invoice_issued_on }}. Les montants ci-dessus ont été remboursés au client.
       </div>
       {% if seller.legal_footer %}<div>{{ seller.legal_footer }}</div>{% endif %}
     </div>

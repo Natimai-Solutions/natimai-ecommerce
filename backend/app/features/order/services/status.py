@@ -78,7 +78,11 @@ def check_status_transition(old: str | None, new: str) -> None:
         return
     if old in TERMINAL_STATUSES:
         raise OrderStatusTransitionError(old, new)
-    if new in BEFORE_PAYMENT_STATUSES and old not in BEFORE_PAYMENT_STATUSES:
+    # « PaymentReview » is an order whose payment is in doubt (amount
+    # mismatch): once the wrong payment is refunded, it is to be paid again.
+    if new in BEFORE_PAYMENT_STATUSES and old not in (
+        BEFORE_PAYMENT_STATUSES | {"PaymentReview"}
+    ):
         raise OrderStatusTransitionError(old, new)
 
 
