@@ -225,7 +225,7 @@ async def close_due_departures(
     threshold is reached closes (the next one opens), the others stay open
     for the admin to decide — they are returned, to be told. Commits.
     """
-    current = now or datetime.now(UTC)
+    current = now or utcnow()
     due = (
         await session.exec(
             select(GroupedDeparture).where(
@@ -267,7 +267,7 @@ async def spawn_next_departure(
     # The next cut-off is in the future: a departure closed several periods
     # late (the automatic close catching up) opened a successor already past
     # its date, whose overdue reminders were posted, then closed in turn.
-    now = datetime.now(UTC)
+    now = utcnow()
     cutoff = departure.order_cutoff_at
     if cutoff.tzinfo is None:
         cutoff = cutoff.replace(tzinfo=UTC)
