@@ -3703,7 +3703,12 @@ async def checkout_my_cart(
                     unit_cost_snapshot=await _unit_cost_snapshot(
                         session, product, getattr(item, "import_service_level", None)
                     ),
-                    import_service_level=getattr(item, "import_service_level", None),
+                    # The mode the line is really priced on: the one asked may
+                    # no longer be on offer (the price then falls back on the
+                    # default route, and the customer re-confirmed it).
+                    import_service_level=await _line_level(
+                        session, getattr(item, "import_service_level", None)
+                    ),
                 ),
                 user=current_user,
             )

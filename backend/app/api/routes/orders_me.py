@@ -39,7 +39,7 @@ from app.features.payment.services.deposit import (
     balance_due,
 )
 from app.features.payment.services.receipts import (
-    next_part_due,
+    online_part_due,
     order_payment_summary,
 )
 from app.features.shipping.crud import (
@@ -201,7 +201,7 @@ async def _pay_now(
 ) -> tuple[str | None, Decimal]:
     """What the customer can pay online right now, as the initiation route
     will accept it."""
-    kind, amount = await next_part_due(session, order=order)
+    kind, amount = await online_part_due(session, order=order)
     if kind is None or amount <= 0:
         return None, Decimal("0")
     if kind == KIND_BALANCE:

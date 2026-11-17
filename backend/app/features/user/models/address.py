@@ -60,9 +60,10 @@ class AddressCreate(AddressBase, BaseCreate):
 class AddressUpdate(AddressBase, BaseUpdate):
     """Represents address update."""
 
-    recipient_name: str | None = None
-    company: str | None = None
-    phone: str | None = None
+    # The limits are repeated: redeclaring a field drops the base's.
+    recipient_name: str | None = Field(default=None, max_length=150)
+    company: str | None = Field(default=None, max_length=150)
+    phone: str | None = Field(default=None, max_length=40)
     street: str | None = None
     city: str | None = None
     state: str | None = None

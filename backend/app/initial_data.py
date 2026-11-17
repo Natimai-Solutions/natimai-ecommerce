@@ -37,7 +37,7 @@ async def init_db(session: AsyncSession) -> None:
             is_superuser=True,
             is_verified=True,
         )
-        session.add(User.model_validate(user_in))
+        session.add(User.model_validate(user_in, update={"has_password": True}))
         logger.debug("User initial data: Superuser created")
     else:
         logger.debug("User initial data: Nothing to do")

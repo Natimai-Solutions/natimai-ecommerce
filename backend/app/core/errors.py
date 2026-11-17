@@ -106,7 +106,7 @@ class PriceUnavailableError(Exception):
 
 
 async def currency_rate_missing_handler(
-    _request: Request, exc: Exception
+    request: Request, exc: Exception
 ) -> JSONResponse:
     """A price that cannot be computed is a product not on sale, not a crash."""
     logger.warning("Price not computable: %s", exc)
@@ -116,9 +116,8 @@ async def currency_rate_missing_handler(
         message="Le prix de cet article n'est pas disponible pour le moment.",
         details={"currency": getattr(exc, "currency_code", None)},
     )
-    return JSONResponse(
-        status_code=error.status_code, content=_app_error_payload(error)
-    )
+    # Through the common handler: the message follows the caller's language.
+    return await app_error_handler(request, error)
 
 
 def register_error_handlers(app: FastAPI) -> None:
