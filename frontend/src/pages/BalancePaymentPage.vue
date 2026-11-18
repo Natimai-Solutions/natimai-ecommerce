@@ -288,7 +288,13 @@ onMounted(async () => {
     order.value = await getMyOrder(orderId.value);
     if (!nothingDue.value) {
       const eligible = await listMyPaymentMethods(Number.parseFloat(baseDueAmount.value));
-      methods.value = eligible.filter((m) => !methodRefused(m));
+      // A deposit order is paid with one method, deposit and balance alike
+      // (its fee is spread over both parts). The others come back only when
+      // that method can no longer be used.
+      const own = rebillable.value
+        ? undefined
+        : eligible.find((m) => m.id === order.value?.payment_method_id);
+      methods.value = own ? [own] : eligible.filter((m) => !methodRefused(m));
       // The order's own method first: its fee is the one the order carries.
       const chosen = methods.value.find((m) => m.id === order.value?.payment_method_id);
       selectedMethodId.value = chosen?.id ?? methods.value[0]?.id ?? null;

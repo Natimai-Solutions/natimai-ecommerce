@@ -46,6 +46,7 @@ from app.features.payment.services.document_payment import (
     mark_document_uploaded,
 )
 from app.features.payment.services.eligibility import (
+    check_payment_method_eligible,
     get_eligible_payment_methods,
 )
 from app.features.payment.services.payment_initiation import (
@@ -874,6 +875,16 @@ async def _validate_order_for_initiation(
             },
         )
     if payment_method_id is not None:
+        if kind != KIND_FULL:
+            await _check_deposit_order_method(
+                session,
+                order=order,
+                order_payments=order_payments,
+                payment_method_id=payment_method_id,
+                amount=amount,
+                current_user=current_user,
+                kind=kind,
+            )
         await _check_method_fee_amount(
             session, order, order_payments, payment_method_id, currency, kind
         )
@@ -951,6 +962,65 @@ async def _rebill_method_fee(
         billed,
         fee,
         new_total,
+    )
+
+
+async def _check_deposit_order_method(
+    session: SessionDep,
+    *,
+    order: Order,
+    order_payments: list[tuple[Any, str | None]],
+    payment_method_id: uuid.UUID,
+    amount: Decimal,
+    current_user: Any,
+    kind: str,
+) -> None:
+    """A deposit order is paid with one method, deposit and balance alike.
+
+    Its fee is spread over both parts: another method would need the split
+    recomputed, sometimes with the deposit already cashed. The balance
+    follows the method that settled the deposit; a deposit retried follows
+    the order's method. When that method can no longer be used (switched
+    off, not offered to the customer any more, amount above its ceiling) the
+    fee rule of ``_check_method_fee_amount`` decides alone, so the customer
+    is not left without a way to pay.
+    """
+    with_method = [
+        (payment, status)
+        for payment, status in order_payments
+        if getattr(payment, "payment_method_id", None) is not None
+    ]
+    if kind == KIND_BALANCE:
+        settled = [
+            row for row in with_method if row[1] in _SETTLED_PAYMENT_STATUS_NAMES
+        ]
+        with_method = settled or with_method
+    if not with_method:
+        return
+    reference_id = with_method[-1][0].payment_method_id
+    if reference_id == payment_method_id:
+        return
+    if not await check_payment_method_eligible(
+        session,
+        payment_method_id=reference_id,
+        price_group_id=getattr(current_user, "price_group_id", None),
+        amount=amount,
+    ):
+        return
+    reference = await session.get(PaymentMethod, reference_id)
+    raise AppError(
+        code="payment.method.must_match",
+        status_code=409,
+        message=(
+            "Une commande avec acompte se règle avec un seul moyen de paiement : "
+            "utilisez celui de la commande."
+        ),
+        details={
+            "order_id": str(order.id),
+            "payment_method_id": str(reference_id),
+            "payment_method_name": getattr(reference, "name", None),
+            "kind": kind,
+        },
     )
 
 

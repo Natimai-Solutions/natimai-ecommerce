@@ -316,3 +316,81 @@ async def test_a_failed_balance_email_is_not_marked_requested(
     await db_session.rollback()
     order = await db_session.get(Order, seed.order_id)
     assert order is not None and order.balance_requested_at is None
+
+
+@pytest.mark.asyncio
+async def test_a_deposit_order_is_paid_with_one_method_and_closes_the_others(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Relecture du 17/11/2026. The balance follows the method that settled
+    the deposit (its fee is spread over both parts) — another one comes back
+    only when that method can no longer be used. And the payment that
+    settles a part closes the others still waiting on it: a transfer
+    announced, then the part paid otherwise, stayed « en attente »."""
+    from app.features.payment.models.payment_method import PaymentMethod
+
+    seed = await _seed(db_session)
+    monkeypatch.setattr(
+        payment_handlers, "secure_order_stock", AsyncMock(return_value=(0, []))
+    )
+    monkeypatch.setattr(
+        "app.features.payment.services.eligibility.unavailable_providers",
+        AsyncMock(return_value=set()),
+    )
+    transfer = PaymentMethod(name="Virement", provider_code="manual_transfer")
+    cheque = PaymentMethod(name="Chèque", provider_code="manual_check")
+    waiting_status = PaymentStatus(name="AwaitingValidation")
+    db_session.add_all([transfer, cheque, waiting_status])
+    await db_session.flush()
+    transfer_id, cheque_id = transfer.id, cheque.id
+    deposit = await db_session.get(Payment, seed.deposit_payment_id)
+    assert deposit is not None
+    deposit.payment_method_id = transfer_id
+    deposit.payment_status_id = seed.completed_id
+    # A second deposit announced by cheque, never honoured.
+    announced = Payment(
+        order_id=seed.order_id,
+        user_id=seed.buyer.id,
+        amount=Decimal("306"),
+        kind="deposit",
+        payment_method_id=cheque_id,
+        payment_status_id=waiting_status.id,
+    )
+    db_session.add_all([deposit, announced])
+    await db_session.flush()
+    announced_id = announced.id
+    await db_session.commit()
+
+    await payment_handlers.on_payment_captured(
+        db_session, _payload(seed, seed.deposit_payment_id, "306")
+    )
+    db_session.expire_all()
+    closed = await db_session.get(Payment, announced_id)
+    assert closed is not None
+    closed_status = await db_session.get(PaymentStatus, closed.payment_status_id)
+    assert closed_status is not None and closed_status.name == "Cancelled"
+    assert await _status_name(db_session, seed.order_id) == "DepositPaid"
+
+    async def guard(method_id: uuid.UUID) -> str:
+        return await _validate_order_for_initiation(
+            db_session,
+            order_id=seed.order_id,
+            amount=Decimal("714"),
+            currency="XPF",
+            current_user=seed.buyer,
+            payment_method_id=method_id,
+        )
+
+    assert await guard(transfer_id) == "balance"
+    with pytest.raises(AppError) as other:
+        await guard(cheque_id)
+    assert other.value.code == "payment.method.must_match"
+    assert other.value.details["payment_method_name"] == "Virement"
+
+    # The deposit's method is switched off: the customer is not left stuck.
+    method = await db_session.get(PaymentMethod, transfer_id)
+    assert method is not None
+    method.is_admin_active = False
+    db_session.add(method)
+    await db_session.commit()
+    assert await guard(cheque_id) == "balance"

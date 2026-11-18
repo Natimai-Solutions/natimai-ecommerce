@@ -132,6 +132,13 @@ takes a tag as its `ref`.
 
 ### Changed
 
+- An order with a deposit is paid with a single payment method, deposit and
+  balance alike (`payment.method.must_match`): its fee is spread over both
+  parts. Another method is accepted only when that one can no longer be used
+  (switched off, no longer offered, amount above its ceiling).
+- The payment that settles a part closes the other payments still waiting on
+  it (a transfer announced at checkout, then the order paid by card): they
+  stayed « en attente de validation » on a settled order.
 - « Payer ma commande »: an order still entirely unpaid can be paid with
   another payment method — it is re-billed that method's fee (total and fees
   follow, up or down) instead of « ce moyen n'a pas les frais de la
