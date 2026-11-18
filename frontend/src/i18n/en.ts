@@ -23,6 +23,7 @@ const en: MessageSchema = {
     currency: 'Display currency',
   },
   layout: {
+    contact: 'Contact',
     messages: 'Write to us',
     messages_with_count: 'Write to us ({count} new answer(s))',
     home: 'Home',
@@ -618,6 +619,40 @@ const en: MessageSchema = {
     },
     wanted: 'Requested group',
     yours: 'Your price group',
+  },
+  contact: {
+    attach: 'Find the conversation in my account',
+    body: 'Your message *',
+    body_rule: 'Write your message',
+    company: 'Company',
+    continue_account:
+      'An account already exists for {email}: sign in to find the conversation there.',
+    continue_lead:
+      'Your request {number} is waiting: create your account to continue the conversation on the site.',
+    continue_title: 'Continue the conversation',
+    create_account: 'Create my account and continue',
+    email: 'E-mail *',
+    email_rule: 'A valid e-mail address',
+    failed: 'The request could not be sent. Try again in a moment.',
+    lead: 'A question about an order, a product, a quote? Write to us: the team answers by e-mail.',
+    link_invalid:
+      'This link is no longer valid (already used or too old). Write to us again from the contact page.',
+    name: 'Name *',
+    name_rule: 'Give your name',
+    password: 'Password *',
+    password_hint: 'At least 8 characters',
+    phone: 'Phone',
+    privacy:
+      'Your details are only used to answer you; a request without an account is deleted 6 months after its last message.',
+    send: 'Send',
+    sent: 'Thank you, your message has been sent. The team will answer by e-mail.',
+    sign_in: 'Sign in',
+    signed_in: 'You are signed in: write to us from your messages, the answer will arrive there.',
+    subject: 'Subject',
+    title: 'Write to us',
+    to_messages: 'Open my messages',
+    topic: 'Topic *',
+    topic_rule: 'Choose a topic',
   },
   home: {
     unavailable: 'The shop is temporarily unavailable.',

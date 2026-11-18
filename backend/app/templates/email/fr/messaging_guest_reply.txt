@@ -1,0 +1,16 @@
+Bonjour{% if full_name %} {{ full_name }}{% endif %},
+
+Voici la réponse de l'équipe {{ shop_name }} à votre demande {{ number }} :
+
+{{ reply }}
+{% if with_file %}
+Un fichier accompagne cette réponse : il se consulte sur le site.
+{% endif %}
+Pour continuer la conversation sur le site et retrouver vos échanges, créez
+votre compte avec ce lien (valable {{ valid_days }} jours, une seule fois) :
+
+{{ continue_url }}
+
+Vous pouvez aussi nous réécrire depuis la page de contact.
+
+L'équipe {{ shop_name }}

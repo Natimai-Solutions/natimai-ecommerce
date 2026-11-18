@@ -94,6 +94,10 @@ class Conversation(Base, table=True):
     guest_phone: str | None = Field(default=None, max_length=50)
     guest_company: str | None = Field(default=None, max_length=255)
     guest_locale: str | None = Field(default=None, max_length=10)
+    #: Link « continue on the site » of the last team reply (SHA-256 of the
+    #: token, never the token itself), lot MSG2.
+    guest_token_hash: str | None = Field(default=None, max_length=64, index=True)
+    guest_token_expires_at: datetime.datetime | None = None
     context_type: str | None = Field(default=None, max_length=30)
     context_id: uuid.UUID | None = Field(default=None, index=True)
     assigned_to_id: uuid.UUID | None = Field(

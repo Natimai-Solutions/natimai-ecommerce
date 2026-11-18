@@ -94,6 +94,16 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/pages/ResetPasswordPage.vue'),
       },
       {
+        path: 'contact',
+        name: 'contact',
+        component: () => import('@/pages/ContactPage.vue'),
+      },
+      {
+        path: 'contact/suite/:token',
+        name: 'contact-continue',
+        component: () => import('@/pages/ContactContinuePage.vue'),
+      },
+      {
         path: 'comment-ca-marche',
         name: 'how-it-works',
         component: () => import('@/pages/HowItWorksPage.vue'),

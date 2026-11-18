@@ -1,0 +1,15 @@
+{% extends "_layout.html" %}
+{% block title %}Réponse à votre demande {{ number }} — {{ shop_name }}{% endblock %}
+{% block heading %}Réponse à votre demande{% endblock %}
+{% block content %}
+      <p>Bonjour{% if full_name %} {{ full_name }}{% endif %},</p>
+      <p>Voici la réponse de l'équipe {{ shop_name }} à votre demande <strong>{{ number }}</strong> :</p>
+      <div style="white-space:pre-wrap;border-left:3px solid #1976d2;padding:8px 12px;margin:16px 0;background:#f5f7fa;">{{ reply }}</div>
+      {% if with_file %}<p>Un fichier accompagne cette réponse : il se consulte sur le site.</p>{% endif %}
+      <p>Pour continuer la conversation sur le site et retrouver vos échanges, créez votre compte :</p>
+      <p style="text-align:center;margin:28px 0;">
+        <a href="{{ continue_url }}" style="display:inline-block;background:#1976d2;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 24px;border-radius:6px;">Continuer sur le site</a>
+      </p>
+      <p style="font-size:13px;color:#555;">Ce lien est valable {{ valid_days }} jours et ne sert qu'une fois. Vous pouvez aussi nous réécrire depuis la page de contact.</p>
+      <p>L'équipe {{ shop_name }}</p>
+{% endblock %}

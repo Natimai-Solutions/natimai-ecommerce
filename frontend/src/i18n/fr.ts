@@ -21,6 +21,7 @@ const fr = {
     currency: "Devise d'affichage",
   },
   layout: {
+    contact: 'Contact',
     messages: 'Nous écrire',
     messages_with_count: 'Nous écrire ({count} nouvelle(s) réponse(s))',
     home: 'Accueil',
@@ -627,6 +628,41 @@ const fr = {
     },
     wanted: 'Groupe souhaité',
     yours: 'Votre groupe tarifaire',
+  },
+  contact: {
+    attach: 'Retrouver la conversation dans mon compte',
+    body: 'Votre message *',
+    body_rule: 'Écrivez votre message',
+    company: 'Société',
+    continue_account:
+      'Un compte existe déjà pour {email} : connectez-vous pour y retrouver la conversation.',
+    continue_lead:
+      'Votre demande {number} vous attend : créez votre compte pour continuer la conversation sur le site.',
+    continue_title: 'Continuer la conversation',
+    create_account: 'Créer mon compte et continuer',
+    email: 'E-mail *',
+    email_rule: 'Une adresse e-mail valide',
+    failed: "La demande n'a pas pu être envoyée. Réessayez dans un instant.",
+    lead: "Une question sur une commande, un produit, un devis ? Écrivez-nous : l'équipe vous répond par e-mail.",
+    link_invalid:
+      "Ce lien n'est plus valable (déjà utilisé ou trop ancien). Réécrivez-nous depuis la page de contact.",
+    name: 'Nom *',
+    name_rule: 'Indiquez votre nom',
+    password: 'Mot de passe *',
+    password_hint: '8 caractères au moins',
+    phone: 'Téléphone',
+    privacy:
+      'Vos coordonnées servent uniquement à vous répondre ; une demande sans compte est supprimée 6 mois après le dernier message.',
+    send: 'Envoyer',
+    sent: "Merci, votre message est bien parti. L'équipe vous répondra par e-mail.",
+    sign_in: 'Me connecter',
+    signed_in:
+      'Vous êtes connecté : écrivez-nous depuis vos messages, vous y retrouverez la réponse.',
+    subject: 'Objet',
+    title: 'Nous écrire',
+    to_messages: 'Ouvrir mes messages',
+    topic: 'Motif *',
+    topic_rule: 'Choisissez un motif',
   },
   home: {
     unavailable: 'La boutique est momentanément indisponible.',

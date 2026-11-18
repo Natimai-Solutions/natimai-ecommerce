@@ -28,7 +28,7 @@ from app.api.routes.messaging import (
 from app.core.datetimes import utcnow
 from app.core.errors import AppError
 from app.features.messaging import attachments as files
-from app.features.messaging import service
+from app.features.messaging import guests, service
 from app.features.messaging.models import (
     BODY_MAX,
     CHANNELS,
@@ -291,6 +291,16 @@ async def get_conversation(
     return detail
 
 
+async def _email_guest(
+    session: SessionDep, conversation_id: uuid.UUID, *, body: str, with_file: bool
+) -> None:
+    """A visitor without an account gets the reply by e-mail, with the link
+    to continue on the site (lot MSG2)."""
+    conversation = await session.get(Conversation, conversation_id)
+    if conversation is not None and conversation.customer_id is None:
+        await guests.email_reply(session, conversation, body=body, with_file=with_file)
+
+
 async def _detail(
     session: SessionDep, conversation_id: uuid.UUID, admin: User
 ) -> StaffConversationDetail:
@@ -324,6 +334,8 @@ async def post_staff_message(
         now=now,
     )
     await session.commit()
+    if body.kind == "message":
+        await _email_guest(session, conversation_id, body=body.body, with_file=False)
     return await _detail(session, conversation_id, admin)
 
 
@@ -366,6 +378,8 @@ async def post_staff_file(
         now=now,
     )
     await session.commit()
+    if kind == "message":
+        await _email_guest(session, conversation_id, body=body, with_file=True)
     return await _detail(session, conversation_id, admin)
 
 

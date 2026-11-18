@@ -5241,6 +5241,89 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/contact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Contact
+         * @description A visitor writes to the shop. Always 202: the team answers by e-mail.
+         */
+        post: operations["contact-contact"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/contact/continue/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Continue Info
+         * @description What the link of a team reply opens: the address it was sent to, and
+         *     whether it already has an account (only the holder of the link sees it).
+         */
+        get: operations["contact-continue_info"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/contact/continue/{token}/signup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Continue With Signup
+         * @description Create the account of the link's address (proven: the link was only
+         *     sent there), attach the visitor's conversations and sign in.
+         */
+        post: operations["contact-continue_with_signup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/contact/continue/{token}/claim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Continue Signed In
+         * @description Signed in with the account of the link's address: attach the visitor's
+         *     conversations. Another account reads the link as invalid.
+         */
+        post: operations["contact-continue_signed_in"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/group/pricing": {
         parameters: {
             query?: never;
@@ -10148,6 +10231,14 @@ export interface components {
              */
             price_group_id: string;
         };
+        /** Attached */
+        Attached: {
+            /**
+             * Conversation Id
+             * Format: uuid
+             */
+            conversation_id: string;
+        };
         /**
          * AttachmentDownloadResponse
          * @description Represents attachment download response.
@@ -11455,6 +11546,34 @@ export interface components {
             /** Notes */
             notes?: string | null;
         };
+        /** ContactRequest */
+        ContactRequest: {
+            /** Topic */
+            topic: string;
+            /** Name */
+            name: string;
+            /**
+             * Email
+             * Format: email
+             */
+            email: string;
+            /** Phone */
+            phone?: string | null;
+            /** Company */
+            company?: string | null;
+            /**
+             * Subject
+             * @default
+             */
+            subject: string;
+            /** Body */
+            body: string;
+            /**
+             * Website
+             * @default
+             */
+            website: string;
+        };
         /**
          * ContentPagePublic
          * @description Admin view.
@@ -11585,6 +11704,24 @@ export interface components {
                     [key: string]: unknown;
                 };
             };
+        };
+        /** ContinueInfo */
+        ContinueInfo: {
+            /** Number */
+            number: string;
+            /** Email */
+            email: string;
+            /** Name */
+            name?: string | null;
+            /** Account */
+            account: string;
+        };
+        /** ContinueSignup */
+        ContinueSignup: {
+            /** Password */
+            password: string;
+            /** Full Name */
+            full_name?: string | null;
         };
         /** ConversationCreate */
         ConversationCreate: {
@@ -19634,6 +19771,14 @@ export interface components {
             remaining_amount: string;
             /** Payment Settled */
             payment_settled: boolean;
+        };
+        /** Received */
+        Received: {
+            /**
+             * Status
+             * @default received
+             */
+            status: string;
         };
         /** RecoveryCodes */
         RecoveryCodes: {
@@ -33392,6 +33537,136 @@ export interface operations {
                 };
                 content: {
                     "text/plain": string;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "contact-contact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContactRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Received"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "contact-continue_info": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContinueInfo"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "contact-continue_with_signup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContinueSignup"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccessTokenResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "contact-continue_signed_in": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Attached"];
                 };
             };
             /** @description Validation Error */

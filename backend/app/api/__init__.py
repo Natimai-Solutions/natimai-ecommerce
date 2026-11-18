@@ -44,6 +44,7 @@ from app.api.routes.brand import router as brand_router
 from app.api.routes.branding import router as branding_router
 from app.api.routes.cart import router as cart_router
 from app.api.routes.category import router as category_router
+from app.api.routes.contact import router as contact_router
 from app.api.routes.content_pages import router as content_pages_router
 from app.api.routes.currency import router as currency_router
 from app.api.routes.discount import router as discount_router
@@ -143,6 +144,7 @@ api_router.include_router(category_router)
 api_router.include_router(brand_router)
 api_router.include_router(admin_messaging_router)
 api_router.include_router(messaging_router)
+api_router.include_router(contact_router)
 # User groups and security management
 api_router.include_router(group_router)
 api_router.include_router(group_security_router)

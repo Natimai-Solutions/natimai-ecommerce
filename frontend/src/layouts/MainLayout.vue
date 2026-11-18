@@ -305,6 +305,9 @@
         <span>{{ $t('layout.rights', { year: currentYear, name: ownerName }) }}</span>
         <nav class="app-footer__links" :aria-label="$t('layout.legal_nav')">
           <router-link :to="{ name: 'how-it-works' }">{{ $t('layout.how_it_works') }}</router-link>
+          <router-link v-if="messagingOn" :to="{ name: 'contact' }">{{
+            $t('layout.contact')
+          }}</router-link>
           <router-link :to="{ name: 'cgv' }">{{ $t('layout.cgv') }}</router-link>
           <router-link :to="{ name: 'mentions-legales' }">{{
             $t('layout.legal_notice')
@@ -347,12 +350,9 @@ const currentYear = new Date().getFullYear();
 const shop = useShopModulesStore();
 const messaging = useMessagingStore();
 const messagingOn = computed(() => shop.isOn('messaging'));
-/** « Write to us »: the customer's messages; a visitor signs in first (the
- *  public contact page comes with lot MSG2). */
+/** « Write to us »: the customer's messages; a visitor the contact page. */
 const messagesLink = computed(() =>
-  authStore.isAuthenticated
-    ? { name: 'account', query: { tab: 'messages' } }
-    : { name: 'login', query: { redirect: '/mon-compte?tab=messages' } },
+  authStore.isAuthenticated ? { name: 'account', query: { tab: 'messages' } } : { name: 'contact' },
 );
 // The unread badge polls for a signed-in customer only.
 watch(

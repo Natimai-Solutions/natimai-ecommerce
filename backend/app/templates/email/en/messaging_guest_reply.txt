@@ -1,0 +1,16 @@
+Hello{% if full_name %} {{ full_name }}{% endif %},
+
+Here is the {{ shop_name }} team's answer to your request {{ number }}:
+
+{{ reply }}
+{% if with_file %}
+A file comes with this answer: it can be seen on the site.
+{% endif %}
+To continue the conversation on the site and keep your messages, create your
+account with this link (valid {{ valid_days }} days, once):
+
+{{ continue_url }}
+
+You can also write to us again from the contact page.
+
+The {{ shop_name }} team

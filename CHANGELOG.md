@@ -94,6 +94,16 @@ takes a tag as its `ref`.
   customer can download a conversation as text or keep it one more year.
   The account export holds the conversations' messages (never a note), the
   account erasure deletes the conversations and their files.
+- Public contact page `/contact` (« Write to us » in the header and the
+  footer for a visitor): topic, name, e-mail, phone, company, message;
+  Turnstile when configured, a honeypot, limits per address and overall,
+  and the same answer whatever happens — nothing is e-mailed to the address
+  typed, nothing tells whether it has an account. The team's reply reaches
+  the visitor by e-mail with the answer and a single-use link (30 days, not
+  re-sendable from the e-mail journal) to continue on the site: signing up
+  through it creates a verified account, or signing in with the account of
+  that very address, and the visitor's conversations of that address are
+  attached to the account (`/contact/suite/<token>`).
 
 - Homepage sections: the homepage is an ordered list of sections set in the
   admin (*Site homepage*) — hero, banners, category tiles, « favourites »

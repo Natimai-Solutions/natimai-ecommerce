@@ -98,3 +98,39 @@ export async function downloadMyFile(
   link.click();
   URL.revokeObjectURL(url);
 }
+
+export type ContactRequest = components['schemas']['ContactRequest'];
+export type ContinueInfo = components['schemas']['ContinueInfo'];
+
+/** Formulaire de contact public : réponse identique quoi qu'il arrive. */
+export async function sendContact(
+  payload: ContactRequest,
+  headers: Record<string, string>,
+): Promise<void> {
+  await api.post('/contact', payload, { headers });
+}
+
+/** Ce qu'ouvre le lien d'une réponse de l'équipe. */
+export async function getContinueInfo(token: string): Promise<ContinueInfo> {
+  const { data } = await api.get<ContinueInfo>(`/contact/continue/${token}`);
+  return data;
+}
+
+/** Crée le compte de l'adresse du lien et ouvre la session (jeton d'accès). */
+export async function continueWithSignup(
+  token: string,
+  password: string,
+  fullName: string | null,
+): Promise<string> {
+  const { data } = await api.post<{ access_token: string }>(`/contact/continue/${token}/signup`, {
+    password,
+    full_name: fullName,
+  });
+  return data.access_token;
+}
+
+/** Connecté avec le compte de cette adresse : rattache les conversations. */
+export async function continueSignedIn(token: string): Promise<string> {
+  const { data } = await api.post<{ conversation_id: string }>(`/contact/continue/${token}/claim`);
+  return data.conversation_id;
+}

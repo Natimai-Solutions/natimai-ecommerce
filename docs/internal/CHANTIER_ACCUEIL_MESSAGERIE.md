@@ -935,7 +935,6 @@ les identifiants M· de l'audit fonctionnel.
 | **A3** | Annonce au-dessus de l'en-tête sur toutes les pages, réassurance, marques (après BR), bloc libre (R4 à R7) | M |
 | **A4** | Aperçu et programmation (R10), SEO de l'accueil (R11) | S à M |
 | **A5** | Sections personnelles (R9) et héros par audience | M |
-| **MSG2** | Page `/contact` publique (M8 de l'audit), anti-spam, réponse au visiteur avec lien d'inscription, rattachement à un compte par adresse prouvée, purge à 6 mois | M |
 | **MSG3** | Raccourcis contextuels (produit, commande, panier, groupe), panneau client et objet rattaché dans le fil | M |
 | **MSG4** | Notes internes, réponses types, transfert, libération automatique, digest, priorité par groupe tarifaire | M |
 | **MSG5** | Demandes de devis rattachées à une conversation (Z18 volet devis), demandes de groupe tarifaire avec justificatifs (M14 volet groupe) ; « Émettre le devis » / « Ouvrir un retour » | M |
@@ -954,7 +953,10 @@ heure et par processus (pas chaque nuit) ; les pièces jointes sont envoyées
 au serveur et scannées à l'envoi (pas d'URL présignée ni de colonnes de scan :
 seul un fichier sain est stocké) ; l'effacement d'un compte supprime ses
 conversations (la commande et sa facture font foi) ; la table d'agents
-(canaux par membre) passe au lot ROLE. Ordre conseillé pour la suite : **MSG2 → A2 →
+(canaux par membre) passe au lot ROLE. **MSG2** (page `/contact`, réponse au
+visiteur par e-mail avec lien d'inscription, rattachement par adresse
+prouvée) : un visiteur qui réécrit rejoint sa conversation encore ouverte
+sur la même adresse. Ordre conseillé pour la suite : **A2 →
 MSG5 → ROLE → MSG3 → MSG4**, BR quand on veut la bande de marques (R6) et
 les pages marque, en parallèle.
 ROLE peut attendre : sans lui, les superusers répondent.
