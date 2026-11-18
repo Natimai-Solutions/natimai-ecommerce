@@ -110,10 +110,35 @@ class ProductShippingModesResponse(SQLModel):
     product_id: uuid.UUID
     shipping_modes: list[ShippingModePricePublic]
     default_mode: str | None
+    #: Days the supplier takes before the departure, already counted in each
+    #: mode's ``eta_days`` (0 when the article is in local stock).
+    supplier_lead_days: int = 0
+
+
+async def _supplier_lead_days(session: SessionDep, product: Product) -> int:
+    """The supplier's lead time when the article must be ordered from it: an
+    article in local stock leaves with the departure, the others wait for the
+    supplier first — the displayed delay counted the route only (audit D1)."""
+    from app.features.integrations.models.supplier import Supplier
+    from app.features.inventory.services.availability import local_quantities
+
+    if not product.supplier_name:
+        return 0
+    if (await local_quantities(session, [product.id])).get(product.id, 0) > 0:
+        return 0
+    supplier = (
+        await session.exec(
+            select(Supplier).where(col(Supplier.code) == product.supplier_name)
+        )
+    ).first()
+    return int(getattr(supplier, "lead_time_days", None) or 0)
 
 
 def _mode_price(
-    mode: ShippingModePrice, product: Product, group_pricing: GroupPricing
+    mode: ShippingModePrice,
+    product: Product,
+    group_pricing: GroupPricing,
+    lead_days: int = 0,
 ) -> ShippingModePricePublic:
     """One mode's price for the customer: group price or promotion."""
     quote = group_pricing.quote(
@@ -128,7 +153,7 @@ def _mode_price(
         customer_label=mode.customer_label,
         freight=mode.freight,
         sale_price=quote.price,
-        eta_days=mode.eta_days,
+        eta_days=mode.eta_days + lead_days if mode.eta_days is not None else None,
         carbon_footprint_kg_co2e=mode.carbon_footprint_kg_co2e,
         regular_price=quote.regular if quote.promotion is not None else None,
     )
@@ -230,10 +255,14 @@ async def get_product_shipping_modes(
         fallback = await default_import_route(session)
         default_mode = fallback.service_level if fallback is not None else None
 
+    lead_days = await _supplier_lead_days(session, product)
     return ProductShippingModesResponse(
         product_id=product_id,
-        shipping_modes=[_mode_price(m, product, group_pricing) for m in mode_prices],
+        shipping_modes=[
+            _mode_price(m, product, group_pricing, lead_days) for m in mode_prices
+        ],
         default_mode=default_mode,
+        supplier_lead_days=lead_days,
     )
 
 

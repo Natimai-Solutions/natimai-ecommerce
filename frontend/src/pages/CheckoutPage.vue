@@ -1075,6 +1075,21 @@ const paysByCard = computed(
     ['payzen', 'paypal'].includes(selectedMethod.value?.provider_code ?? ''),
 );
 
+// The departure shown is the one the order will join: the cart's import mode
+// when every line is on the same one (functional audit, D1).
+watch(
+  () => {
+    const modes = new Set(
+      cartStore.items.map((item) => item.import_service_level).filter((m): m is string => !!m),
+    );
+    return modes.size === 1 ? [...modes][0]! : null;
+  },
+  (mode) => {
+    if (!orderPlaced.value) void departureStore.setMode(mode);
+  },
+  { immediate: true },
+);
+
 onMounted(async () => {
   await cartStore.loadCart();
   if (!isAuthenticated.value) {

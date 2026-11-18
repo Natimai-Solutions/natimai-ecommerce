@@ -22,6 +22,8 @@ export interface Supplier {
   is_domestic: boolean;
   sync_enabled: boolean;
   sync_interval_hours: number;
+  /** Délai d'approvisionnement (jours), ajouté au délai affiché hors stock local. */
+  lead_time_days?: number | null;
   default_categories: string[] | null;
   price_currency: string | null;
   column_mapping: Record<string, string> | null;
@@ -61,6 +63,7 @@ export interface SupplierCreate {
   is_domestic?: boolean;
   sync_enabled?: boolean;
   sync_interval_hours?: number;
+  lead_time_days?: number | null;
   default_categories?: string[] | null;
   price_currency?: string | null;
   column_mapping?: Record<string, string> | null;

@@ -3839,9 +3839,18 @@ async def checkout_my_cart(
 
     try:
         # Départ groupé ouvert le plus proche (None = boutique classique, ou
-        # module « Départs groupés » éteint).
+        # module « Départs groupés » éteint), du mode d'import de la commande
+        # quand toutes ses lignes en portent un seul (audit fonctionnel, D1).
+        order_modes = {
+            level
+            for level in (getattr(item, "import_service_level", None) for item in items)
+            if level
+        }
         departure = (
-            await crud_grouped_departure.get_next_open(session)
+            await crud_grouped_departure.get_next_open(
+                session,
+                service_level=order_modes.pop() if len(order_modes) == 1 else None,
+            )
             if await module_enabled(session, "grouped_departures")
             else None
         )

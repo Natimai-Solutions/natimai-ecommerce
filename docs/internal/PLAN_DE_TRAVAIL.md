@@ -20,7 +20,6 @@ Détail, fichiers et scénarios : [`AUDIT_2026-11.md`](AUDIT_2026-11.md) (identi
 
 Détail : [`AUDIT_FONCTIONNEL_2026-11.md`](AUDIT_FONCTIONNEL_2026-11.md) (identifiants D·, Z·, M·). Les sept défauts D1 à D7 et les zones fragiles Z1 à Z6, Z11, Z12 et Z16 sont corrigés (voir CHANGELOG). Reste :
 
-- **D1 (suite)** : le délai de livraison affiché ignore encore le mode d'import choisi et le délai fournisseur ; un départ groupé ne porte pas de mode — M.
 
 ### Relecture du 17/11/2026 — ce qui reste
 
@@ -32,6 +31,7 @@ Cinq relectures indépendantes des changements de novembre ; ce qui a été corr
 ### Exploitation (sur le serveur, hors code)
 
 - **Sauvegardes réelles** : planifier le cron de `scripts/backup/backup.sh`, configurer la copie hors site (rclone / scp), **exécuter une restauration réelle** avant la première commande (DEPLOYMENT.md §12).
+- **Mode des départs et délai fournisseur** : donner son mode d'import à chaque départ (avion, bateau) et saisir le délai d'approvisionnement de chaque fournisseur (Fournisseurs → fiche).
 - **Forfait des routes d'import** : saisir sur chaque route d'import le poids facturé d'un départ au seuil (Logistique → route) ; à revoir chaque trimestre avec les départs réels.
 - **Redémarrage des conteneurs « unhealthy »** : installer `scripts/ops/ecommerce-autoheal.cron` (DEPLOYMENT.md §12.1).
 - **`ALERT_WEBHOOK_URL`** à renseigner (`.env` et cron) : sans lui, un événement outbox perdu après 8 tentatives, un health-check en erreur, un échec de sauvegarde ou une identité légale incomplète ne préviennent personne.

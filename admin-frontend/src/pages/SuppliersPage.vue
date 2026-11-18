@@ -363,6 +363,18 @@
                 class="col"
               />
             </div>
+            <q-input
+              v-model.number="form.lead_time_days"
+              :label="$t('suppliers.lead_time')"
+              :hint="$t('suppliers.lead_time_hint')"
+              type="number"
+              min="0"
+              max="365"
+              outlined
+              dense
+              clearable
+              data-testid="supplier-lead-time"
+            />
 
             <template v-if="form.kind !== 'manual'">
               <q-toggle
@@ -1157,6 +1169,7 @@ interface FormState {
   min_quantity: string;
   min_price: string;
   sync_interval_hours: number;
+  lead_time_days: number | null;
   default_categories: string[];
   unmapped_category_action: UnmappedCategoryAction;
   auto_purchase_order: boolean;
@@ -1180,6 +1193,7 @@ function emptyForm(): FormState {
     min_quantity: '',
     min_price: '',
     sync_interval_hours: 0,
+    lead_time_days: null,
     default_categories: [],
     unmapped_category_action: 'auto',
     auto_purchase_order: false,
@@ -1243,6 +1257,7 @@ function openEdit(supplier: Supplier) {
     min_quantity: supplier.min_quantity != null ? String(Number(supplier.min_quantity)) : '',
     min_price: supplier.min_price != null ? String(Number(supplier.min_price)) : '',
     sync_interval_hours: supplier.sync_interval_hours,
+    lead_time_days: supplier.lead_time_days ?? null,
     default_categories: [...(supplier.default_categories ?? [])],
     unmapped_category_action: supplier.unmapped_category_action ?? 'auto',
     auto_purchase_order: !!supplier.auto_purchase_order,
@@ -1290,6 +1305,10 @@ function buildPayload(): SupplierCreate {
     min_quantity: optionalNumber(form.min_quantity),
     min_price: optionalNumber(form.min_price),
     sync_interval_hours: form.kind === 'api' ? Number(form.sync_interval_hours) || 0 : 0,
+    lead_time_days:
+      form.lead_time_days === null || String(form.lead_time_days) === ''
+        ? null
+        : Number(form.lead_time_days),
     default_categories: categories.length ? categories : null,
     price_currency: form.price_currency,
     settings: form.kind === 'api' ? settings : null,

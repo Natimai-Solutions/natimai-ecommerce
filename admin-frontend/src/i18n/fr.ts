@@ -627,6 +627,11 @@ const fr = {
     zones: '{n} zone | {n} zones',
   },
   departures: {
+    mode: 'Mode d’import',
+    mode_hint: 'Une commande payée sur ce mode rejoint ce départ ; vide = tous modes.',
+    mode_fast: 'Rapide (avion)',
+    mode_economy: 'Économique (bateau)',
+    mode_eco: 'Écologique',
     advance_confirm_title: 'Passer « {name} » à « {status} » ?',
     advance_confirm:
       '{n} commande(s) suivent ce départ : elles changent de statut et chaque client reçoit un e-mail.',
@@ -2382,6 +2387,8 @@ const fr = {
     title: 'Commandes fournisseurs',
   },
   suppliers: {
+    lead_time: 'Délai d’approvisionnement (jours)',
+    lead_time_hint: 'Ajouté au délai affiché d’un article qui n’est pas en stock local.',
     allowlist_saved:
       '{name} : {n} référence(s) suivie(s), {removed} article(s) retiré(s) de la vitrine.',
     allowlist_cleared: '{name} : liste vidée, tout le catalogue synchronisé est suivi.',

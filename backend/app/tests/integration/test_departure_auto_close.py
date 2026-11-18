@@ -197,3 +197,52 @@ async def test_a_recurring_departure_below_its_threshold_opens_the_next_one(
         )
     ).all()
     assert len(successors) == 1
+
+
+@pytest.mark.asyncio
+async def test_an_order_goes_to_the_next_departure_of_its_mode(
+    db_session: AsyncSession,
+) -> None:
+    """Functional audit D1: a departure carried no mode, so an order paid by
+    sea went with the next air departure and showed its date."""
+    from app.features.departure.crud import crud_grouped_departure
+
+    now = datetime.now(UTC)
+    db_session.add_all(
+        [
+            GroupedDeparture(
+                name="Avion",
+                order_cutoff_at=now + timedelta(days=2),
+                status="open",
+                is_published=True,
+                service_level="rapide",
+            ),
+            GroupedDeparture(
+                name="Bateau",
+                order_cutoff_at=now + timedelta(days=10),
+                status="open",
+                is_published=True,
+                service_level="economique",
+            ),
+            GroupedDeparture(
+                name="Tous modes",
+                order_cutoff_at=now + timedelta(days=5),
+                status="open",
+                is_published=True,
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    async def name_for(level: str | None) -> str | None:
+        found = await crud_grouped_departure.get_next_open(
+            db_session, now=now, service_level=level
+        )
+        return found.name if found else None
+
+    assert await name_for("economique") == "Bateau"
+    assert await name_for("rapide") == "Avion"
+    # A mode with no departure of its own: one carrying no mode.
+    assert await name_for("ecologique") == "Tous modes"
+    # No mode asked: the nearest, as before.
+    assert await name_for(None) == "Avion"

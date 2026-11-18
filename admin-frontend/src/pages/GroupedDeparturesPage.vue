@@ -893,6 +893,20 @@
                 clearable
               />
             </div>
+            <!-- An order paid on a mode joins the next departure of that mode
+                 (functional audit D1); none = every mode. -->
+            <q-select
+              v-model="form.service_level"
+              :options="departureModeOptions"
+              :label="$t('departures.mode')"
+              :hint="$t('departures.mode_hint')"
+              outlined
+              dense
+              emit-value
+              map-options
+              clearable
+              data-testid="departure-mode"
+            />
             <q-input
               v-model="form.notes"
               type="textarea"
@@ -1680,6 +1694,11 @@ const saving = ref(false);
 const dialogError = ref<string | null>(null);
 // A draft or open departure is closed with « Clôturer le départ », not from
 // the edit form: « Clôturé » is not offered for it.
+const departureModeOptions = computed(() => [
+  { label: t('departures.mode_fast'), value: 'rapide' },
+  { label: t('departures.mode_economy'), value: 'economique' },
+  { label: t('departures.mode_eco'), value: 'ecologique' },
+]);
 const statusOptions = computed(() => {
   const current = editId.value ? departures.value.find((d) => d.id === editId.value) : null;
   const closable = !current || current.status === 'draft' || current.status === 'open';
@@ -1699,6 +1718,7 @@ interface DepartureForm {
   min_amount: number | null;
   min_units: number | null;
   recurrence_days: number | null;
+  service_level: string | null;
   notes: string;
 }
 
@@ -1722,6 +1742,7 @@ function blankForm(): DepartureForm {
     min_amount: null,
     min_units: null,
     recurrence_days: null,
+    service_level: null,
     notes: '',
   };
 }
@@ -1767,6 +1788,7 @@ function openEdit(d: Departure) {
     min_amount: d.min_amount === null ? null : Number(d.min_amount),
     min_units: d.min_units,
     recurrence_days: d.recurrence_days,
+    service_level: d.service_level ?? null,
     notes: d.notes ?? '',
   });
   snapshot.take();
@@ -1808,6 +1830,7 @@ async function submit() {
     min_amount: numOrNull(form.min_amount) === null ? null : String(numOrNull(form.min_amount)),
     min_units: numOrNull(form.min_units),
     recurrence_days: numOrNull(form.recurrence_days),
+    service_level: form.service_level || null,
     notes: form.notes.trim() || null,
   };
   try {

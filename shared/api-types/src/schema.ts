@@ -6800,7 +6800,8 @@ export interface paths {
         /**
          * Next Departure
          * @description The departure new orders are attached to right now, or ``null``
-         *     (always ``null`` while the grouped-departures module is off).
+         *     (always ``null`` while the grouped-departures module is off). With
+         *     ``service_level``, the one an order paid on that import mode joins.
          */
         get: operations["grouped-departures-next_departure"];
         put?: never;
@@ -12875,6 +12876,11 @@ export interface components {
              * @description À la clôture, crée le départ suivant N jours plus tard
              */
             recurrence_days?: number | null;
+            /**
+             * Service Level
+             * @description Mode d'import du départ (null = tous modes)
+             */
+            service_level?: string | null;
             /** Notes */
             notes?: string | null;
             /**
@@ -12976,6 +12982,11 @@ export interface components {
              * @description À la clôture, crée le départ suivant N jours plus tard
              */
             recurrence_days?: number | null;
+            /**
+             * Service Level
+             * @description Mode d'import du départ (null = tous modes)
+             */
+            service_level?: string | null;
             /** Notes */
             notes?: string | null;
             /**
@@ -13049,6 +13060,8 @@ export interface components {
             departure_at?: string | null;
             /** Status */
             status: string;
+            /** Service Level */
+            service_level?: string | null;
         };
         /**
          * GroupedDepartureUpdate
@@ -13075,6 +13088,8 @@ export interface components {
             min_units?: number | null;
             /** Recurrence Days */
             recurrence_days?: number | null;
+            /** Service Level */
+            service_level?: string | null;
             /** Notes */
             notes?: string | null;
             /** Consolidation Id */
@@ -18181,6 +18196,11 @@ export interface components {
             shipping_modes: components["schemas"]["ShippingModePricePublic"][];
             /** Default Mode */
             default_mode: string | null;
+            /**
+             * Supplier Lead Days
+             * @default 0
+             */
+            supplier_lead_days: number;
         };
         /**
          * ProductSuggestResponse
@@ -21666,6 +21686,11 @@ export interface components {
              */
             sync_enabled: boolean;
             /**
+             * Lead Time Days
+             * @description Délai d'approvisionnement (jours) avant le départ, ajouté au délai affiché d'un article qui n'est pas en stock local
+             */
+            lead_time_days?: number | null;
+            /**
              * Sync Interval Hours
              * @description Cadence de la synchronisation catalogue planifiée, en heures (kind=api uniquement ; 0 = jamais planifiée, manuelle seulement)
              * @default 0
@@ -21872,6 +21897,11 @@ export interface components {
              */
             sync_enabled: boolean;
             /**
+             * Lead Time Days
+             * @description Délai d'approvisionnement (jours) avant le départ, ajouté au délai affiché d'un article qui n'est pas en stock local
+             */
+            lead_time_days?: number | null;
+            /**
              * Sync Interval Hours
              * @description Cadence de la synchronisation catalogue planifiée, en heures (kind=api uniquement ; 0 = jamais planifiée, manuelle seulement)
              * @default 0
@@ -22014,6 +22044,8 @@ export interface components {
             sync_enabled?: boolean | null;
             /** Sync Interval Hours */
             sync_interval_hours?: number | null;
+            /** Lead Time Days */
+            lead_time_days?: number | null;
             /** Default Categories */
             default_categories?: string[] | null;
             /** Price Currency */
@@ -35968,7 +36000,9 @@ export interface operations {
     };
     "grouped-departures-next_departure": {
         parameters: {
-            query?: never;
+            query?: {
+                service_level?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -35982,6 +36016,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GroupedDepartureSummary"] | null;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

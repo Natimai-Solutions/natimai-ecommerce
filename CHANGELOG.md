@@ -19,6 +19,15 @@ takes a tag as its `ref`.
 
 ### Added
 
+- A departure carries an import mode (`grouped_departures.service_level`,
+  optional): an order whose lines share one mode joins the next departure of
+  that mode, else one carrying no mode — an order paid by sea went with the
+  next air departure and showed its date. The storefront shows the departure
+  of the mode chosen on the product page and of the cart's mode at checkout
+  (`GET /grouped-departures/next?service_level=`). A supplier has a lead time
+  (`suppliers.lead_time_days`), added to each mode's delay on the product
+  page when the article is not in local stock (`supplier_lead_days`).
+  Migration `b9c0d1e2f3a4`. Functional audit D1.
 - A deposit order partially refunded keeps its status too and follows its
   departure: its balance (total − deposit) stays right, the refund lowering
   what is owed and what was paid alike. A refund made before the invoice

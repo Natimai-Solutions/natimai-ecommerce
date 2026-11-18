@@ -23,12 +23,17 @@ router = APIRouter(prefix="/grouped-departures", tags=["grouped-departures"])
 
 
 @router.get("/next", response_model=GroupedDepartureSummary | None)
-async def next_departure(session: SessionDep) -> GroupedDepartureSummary | None:
+async def next_departure(
+    session: SessionDep, service_level: str | None = None
+) -> GroupedDepartureSummary | None:
     """The departure new orders are attached to right now, or ``null``
-    (always ``null`` while the grouped-departures module is off)."""
+    (always ``null`` while the grouped-departures module is off). With
+    ``service_level``, the one an order paid on that import mode joins."""
     if not await module_enabled(session, "grouped_departures"):
         return None
-    departure = await crud_grouped_departure.get_next_open(session)
+    departure = await crud_grouped_departure.get_next_open(
+        session, service_level=service_level or None
+    )
     return GroupedDepartureSummary.model_validate(departure) if departure else None
 
 

@@ -320,6 +320,7 @@ async def spawn_next_departure(
         min_amount=departure.min_amount,
         min_units=departure.min_units,
         recurrence_days=departure.recurrence_days,
+        service_level=departure.service_level,
         notes=departure.notes,
     )
     session.add(nxt)

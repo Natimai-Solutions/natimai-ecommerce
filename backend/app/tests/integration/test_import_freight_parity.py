@@ -197,3 +197,48 @@ async def test_the_fixed_cost_of_an_import_route_is_spread_per_kg(
         payload=CartItemAddRequest(product_id=product_id, quantity=1),
     )
     assert cart.items[0].unit_price == page["rapide"]
+
+
+@pytest.mark.asyncio
+async def test_the_delay_shown_adds_the_supplier_lead_time(
+    db_session: AsyncSession,
+) -> None:
+    """Functional audit D1: the delay on the product page counted the route
+    only — an article ordered from the supplier waits for it first."""
+    from sqlmodel import col, select
+
+    from app.features.integrations.models.supplier import Supplier
+    from app.features.inventory.models.inventory import Inventory
+
+    _user_id, product_id = await _seed(db_session)
+    product = await db_session.get(Product, product_id)
+    assert product is not None
+    product.supplier_name = "grossiste"
+    db_session.add(product)
+    db_session.add(Supplier(code="grossiste", name="Grossiste", lead_time_days=4))
+    rapide = (
+        await db_session.exec(
+            select(ShippingRoute).where(col(ShippingRoute.service_level) == "rapide")
+        )
+    ).one()
+    rapide.eta_days = 3
+    db_session.add(rapide)
+    await db_session.commit()
+
+    modes = await get_product_shipping_modes(product_id, db_session, None)
+    by_level = {m.service_level: m.eta_days for m in modes.shipping_modes}
+    assert modes.supplier_lead_days == 4
+    assert by_level["rapide"] == 7  # 4 days at the supplier + 3 in the air
+
+    # In local stock it leaves with the departure: the route only.
+    db_session.add(
+        Inventory(
+            product_id=product_id,
+            quantity=Decimal("5"),
+            compute_from_movements=False,
+        )
+    )
+    await db_session.commit()
+    modes = await get_product_shipping_modes(product_id, db_session, None)
+    assert modes.supplier_lead_days == 0
+    assert {m.service_level: m.eta_days for m in modes.shipping_modes}["rapide"] == 3

@@ -624,6 +624,11 @@ const en: MessageSchema = {
     zones: '{n} zone | {n} zones',
   },
   departures: {
+    mode: 'Import mode',
+    mode_hint: 'An order paid on this mode joins this departure; empty = every mode.',
+    mode_fast: 'Fast (air)',
+    mode_economy: 'Economy (sea)',
+    mode_eco: 'Eco-friendly',
     advance_confirm_title: 'Move “{name}” to “{status}”?',
     advance_confirm:
       '{n} order(s) follow this departure: they change status and each customer gets an e-mail.',
@@ -2367,6 +2372,8 @@ const en: MessageSchema = {
     title: 'Supplier orders',
   },
   suppliers: {
+    lead_time: 'Lead time (days)',
+    lead_time_hint: 'Added to the delay shown for an article not in local stock.',
     allowlist_saved:
       '{name}: {n} reference(s) followed, {removed} item(s) removed from the storefront.',
     allowlist_cleared: '{name}: list cleared, the whole synchronised catalogue is followed.',

@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 
 from sqlalchemy import func
-from sqlmodel import col, select
+from sqlmodel import col, or_, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.base.crud import CrudBase
@@ -31,25 +31,40 @@ class GroupedDepartureCrud(
     """Represents grouped departure crud."""
 
     async def get_next_open(
-        self, session: AsyncSession, *, now: datetime | None = None
+        self,
+        session: AsyncSession,
+        *,
+        now: datetime | None = None,
+        service_level: str | None = None,
     ) -> GroupedDeparture | None:
         """The open, published departure whose cutoff is the nearest in the future.
 
-        Orders are attached to it at checkout. ``None`` when no departure is
-        open: the shop then behaves exactly as before departures existed.
+        Orders are attached to it at checkout. With ``service_level`` (the
+        import mode the order is paid on) a departure of that mode comes
+        first, then one carrying no mode: an order paid by sea went with the
+        next air departure and showed its date (functional audit, D1).
+        Without, the nearest one. ``None`` when no departure is open: the
+        shop then behaves exactly as before departures existed.
         """
-        statement = (
-            select(GroupedDeparture)
-            .where(
-                col(GroupedDeparture.is_active).is_(True),
-                col(GroupedDeparture.is_published).is_(True),
-                GroupedDeparture.status == "open",
-                GroupedDeparture.order_cutoff_at > (now or utcnow()),
-            )
-            .order_by(col(GroupedDeparture.order_cutoff_at).asc())
-            .limit(1)
+        statement = select(GroupedDeparture).where(
+            col(GroupedDeparture.is_active).is_(True),
+            col(GroupedDeparture.is_published).is_(True),
+            col(GroupedDeparture.status) == "open",
+            col(GroupedDeparture.order_cutoff_at) > (now or utcnow()),
         )
-        return (await session.exec(statement)).first()
+        if service_level:
+            statement = statement.where(
+                or_(
+                    col(GroupedDeparture.service_level) == service_level,
+                    col(GroupedDeparture.service_level).is_(None),
+                )
+            ).order_by(
+                col(GroupedDeparture.service_level).is_(None).asc(),
+                col(GroupedDeparture.order_cutoff_at).asc(),
+            )
+        else:
+            statement = statement.order_by(col(GroupedDeparture.order_cutoff_at).asc())
+        return (await session.exec(statement.limit(1))).first()
 
     async def order_totals(
         self, session: AsyncSession, departure_ids: Iterable[uuid.UUID]
