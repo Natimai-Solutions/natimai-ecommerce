@@ -155,7 +155,7 @@ async def test_poll_outbox_once_gives_up_after_max_attempts(
     event = OutboxEvent(type="create.product", payload={"id": "p-1"})
     event.attempts = MAX_ATTEMPTS - 1
     alert = AsyncMock(return_value=True)
-    monkeypatch.setattr("app.outbox.poller.send_alert", alert)
+    monkeypatch.setattr("app.core.alerting.send_alert", alert)
     result = SimpleNamespace(first=Mock(return_value=event))
     session.exec = AsyncMock(return_value=result)
 

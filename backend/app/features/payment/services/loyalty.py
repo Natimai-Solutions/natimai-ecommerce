@@ -226,13 +226,13 @@ async def revoke_for_refund(
     if to_revoke < wanted:
         # Already spent or converted into store credit: the shop is told,
         # the points cannot go below zero.
-        from app.core.alerting import send_alert
+        from app.core.operator_messages import alert
 
-        await send_alert(
-            f"Remboursement de la commande {order.order_number or order.id} : "
-            f"{wanted - to_revoke} point(s) de fidélité déjà dépensés ou convertis "
-            "n'ont pas pu être repris.",
+        await alert(
+            "loyalty.points_not_reclaimed",
             source="loyalty",
+            order=order.order_number or order.id,
+            points=wanted - to_revoke,
         )
     if to_revoke <= 0:
         return 0

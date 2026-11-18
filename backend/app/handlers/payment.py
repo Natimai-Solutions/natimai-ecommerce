@@ -10,6 +10,7 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.alerting import send_alert
+from app.core.operator_messages import alert
 from app.features.base.crud import RecordNotFoundError
 from app.features.inventory.services.stock_release import (
     release_order_stock,
@@ -597,12 +598,13 @@ async def _alert_kept_receipts(
     )
     currency = getattr(order, "currency", None) or ""
     amounts = ", ".join(f"{amount} {currency}".strip() for _, amount in kept)
-    await send_alert(
-        f"Commande {reference} : réglée par le paiement {paid_id}, mais "
-        f"{len(kept)} paiement(s) en attente portent déjà des versements reçus "
-        f"({amounts}). À régler à la main (remboursement ou report sur le solde) "
-        "depuis la fiche de la commande.",
+    await alert(
+        "payments.receipts_kept",
         source="payments",
+        order=reference,
+        payment=paid_id,
+        count=len(kept),
+        amounts=amounts,
     )
 
 
@@ -624,13 +626,19 @@ async def _secure_stock_on_payment(
             confirm,
         )
     if short:
-        message = (
-            f"Commande {order_id} payée sans stock : sa réservation avait été "
-            f"libérée et {len(short)} article(s) ne sont plus disponibles "
-            f"({', '.join(short)}). À réapprovisionner ou à rembourser."
+        logger.error(
+            "Order %s paid without stock: %d item(s) no longer available (%s)",
+            order_id,
+            len(short),
+            ", ".join(short),
         )
-        logger.error(message)
-        await send_alert(message, source="stock")
+        await alert(
+            "stock.paid_without_stock",
+            source="stock",
+            order=order_id,
+            count=len(short),
+            items=", ".join(short),
+        )
 
 
 async def _receipt_status_sync(
@@ -841,7 +849,7 @@ async def on_payment_refunded(session: AsyncSession, payload: dict[str, Any]) ->
             await session.commit()
         if message:
             logger.error("%s", message)
-            await send_alert(message, source="gift_cards")
+            await send_alert(message, source="gift_cards")  # operator language
     # Only a *fully* refunded order gives its stock back, and only the
     # reservations still PENDING. A captured payment has already confirmed its
     # movements (COMPLETED), so this is a no-op on the normal flow — it exists

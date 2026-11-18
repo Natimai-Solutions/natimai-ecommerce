@@ -161,7 +161,7 @@ async def test_expiring_authorisations_are_alerted_once(
     db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     alert = AsyncMock(return_value=True)
-    monkeypatch.setattr(authorizations, "send_alert", alert)
+    monkeypatch.setattr("app.core.alerting.send_alert", alert)
     now = datetime(2026, 10, 3, 7, 0, tzinfo=UTC)
     old = await _seed(db_session, created_at=now - timedelta(days=6, hours=2))
     fresh = await _seed(db_session, created_at=now - timedelta(days=2))

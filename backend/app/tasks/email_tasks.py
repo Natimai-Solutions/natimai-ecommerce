@@ -53,11 +53,12 @@ async def _alert_failed_email(event_type: str, error: str | None) -> None:
         first = True
     if not first:
         return
-    from app.core.alerting import send_alert
+    from app.core.operator_messages import alert
 
-    await send_alert(
-        f"E-mail abandonné après {EMAIL_MAX_TRIES} tentatives ({event_type}) : "
-        f"{(error or '')[:200]}. Vérifiez le fournisseur d'e-mails ; d'autres "
-        "envois échouent peut-être (journal des e-mails).",
+    await alert(
+        "email.abandoned",
         source="email",
+        tries=EMAIL_MAX_TRIES,
+        event_type=event_type,
+        error=(error or "")[:200],
     )

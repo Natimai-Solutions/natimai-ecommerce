@@ -47,7 +47,7 @@ async def close_due_departures_task(_ctx: dict[str, Any]) -> dict[str, Any]:
 
 
 async def _alert_below_threshold(names: list[str]) -> None:
-    from app.core.alerting import send_alert
+    from app.core.operator_messages import alert
     from app.core.rate_limit import shared_redis
 
     fresh: list[str] = []
@@ -61,13 +61,10 @@ async def _alert_below_threshold(names: list[str]) -> None:
         if first:
             fresh.append(name)
     if fresh:
-        await send_alert(
-            "Date limite passée, seuil non atteint : "
-            + ", ".join(f"« {n} »" for n in fresh)
-            + ". Clôturez (en forçant) ou repoussez la date depuis « Départs groupés ». "
-            "D'ici là, les nouvelles commandes vont au départ suivant (ouvert d'avance "
-            "pour un départ récurrent) ; sans départ suivant, à aucun.",
+        await alert(
+            "departures.below_threshold",
             source="departures",
+            names=", ".join(f"“{n}”" for n in fresh),
         )
 
 

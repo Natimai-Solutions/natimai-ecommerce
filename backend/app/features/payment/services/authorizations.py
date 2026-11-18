@@ -28,8 +28,8 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import runtime_settings
-from app.core.alerting import send_alert
 from app.core.errors import AppError
+from app.core.operator_messages import alert
 from app.features.payment.crud.payment import crud_payment
 from app.features.payment.crud.payment_status import crud_payment_status
 from app.features.payment.models.payment import Payment
@@ -95,10 +95,12 @@ async def capture_on_status(
             logger.error(
                 "Automatic capture of payment %s failed: %s", payment_id, exc.message
             )
-            await send_alert(
-                f"Capture automatique refusée pour le paiement {payment_id} "
-                f"(commande {order_id}) : {exc.message}. À capturer à la main.",
+            await alert(
+                "payments.auto_capture_refused",
                 source="payments",
+                payment=payment_id,
+                order=order_id,
+                error=exc.message,
             )
     return captured
 
@@ -145,11 +147,12 @@ async def void_on_cancel(session: AsyncSession, *, order_id: uuid.UUID) -> int:
         except (PaymentProviderError, AppError) as exc:
             message = getattr(exc, "message", None) or str(exc)
             logger.error("Void of payment %s failed: %s", payment_id, message)
-            await send_alert(
-                f"Annulation d'autorisation refusée pour le paiement {payment_id} "
-                f"(commande {order_id} annulée) : {message}. À libérer chez le "
-                "prestataire.",
+            await alert(
+                "payments.void_refused",
                 source="payments",
+                payment=payment_id,
+                order=order_id,
+                error=message,
             )
             continue
         status = await _voided_status(session)
@@ -208,12 +211,15 @@ async def alert_expiring_authorizations(
             if created
             else 0
         )
-        await send_alert(
-            f"Autorisation carte de {payment.amount} {payment.currency} "
-            f"(paiement {payment.id}, commande {payment.order_id}) autorisée il y a "
-            f"{age_days} j : elle expire sous {validity} j sans capture. "
-            "Capturer depuis Paiements, ou annuler la commande pour la libérer.",
+        await alert(
+            "payments.authorization_expiring",
             source="payments",
+            amount=payment.amount,
+            currency=payment.currency,
+            payment=payment.id,
+            order=payment.order_id,
+            age=age_days,
+            validity=validity,
         )
         data[EXPIRY_ALERTED_KEY] = current.isoformat()
         payment.provider_data = data

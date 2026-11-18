@@ -20,8 +20,8 @@ import signal
 from datetime import UTC, datetime
 from typing import Any, TypedDict
 
-from app.core.alerting import send_alert
 from app.core.logging_config import configure_logging
+from app.core.operator_messages import alert, operator_text
 from app.core.sentry import init_sentry
 from app.outbox.health import health_checker
 
@@ -162,24 +162,25 @@ class HealthCheckScheduler:
 
             if status != stats["last_alerted_status"]:
                 if status == "error":
-                    await send_alert(
-                        "health check en erreur : "
-                        f"{health_status.get('error', 'Unknown error')}",
+                    await alert(
+                        "outbox.health_error",
                         source="outbox-health-checker",
+                        error=health_status.get("error", "Unknown error"),
                     )
                 elif status == "degraded":
-                    await send_alert(
-                        f"outbox dégradé : {stats_data.get('orphaned_jobs', 0)} "
-                        f"job(s) orphelin(s), {stats_data.get('missing_jobs', 0)} "
-                        "job(s) manquant(s) (recovery "
-                        f"{'active' if RECOVERY_ENABLED else 'DÉSACTIVÉE'})",
+                    await alert(
+                        "outbox.degraded",
                         source="outbox-health-checker",
+                        orphaned=stats_data.get("orphaned_jobs", 0),
+                        missing=stats_data.get("missing_jobs", 0),
+                        recovery=operator_text(
+                            "outbox.recovery_on"
+                            if RECOVERY_ENABLED
+                            else "outbox.recovery_off"
+                        ),
                     )
                 elif stats["last_alerted_status"] in {"degraded", "error"}:
-                    await send_alert(
-                        "outbox rétabli (healthy)",
-                        source="outbox-health-checker",
-                    )
+                    await alert("outbox.recovered", source="outbox-health-checker")
                 stats["last_alerted_status"] = status
 
         except Exception as e:

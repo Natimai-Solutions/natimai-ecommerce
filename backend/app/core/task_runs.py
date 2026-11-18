@@ -161,13 +161,13 @@ async def record_run(
     if not alert:
         return
     try:
-        from app.core.alerting import send_alert
+        from app.core.operator_messages import alert as post_alert
 
-        label = (
-            "a échoué" if status == STATUS_FAILED else "s'est terminée avec des erreurs"
-        )
-        sent = await send_alert(
-            f"Tâche « {name} » {label} : {(error or '')[:300]}", source="tasks"
+        sent = await post_alert(
+            "tasks.failed" if status == STATUS_FAILED else "tasks.partial",
+            source="tasks",
+            name=name,
+            error=(error or "")[:300],
         )
         if sent:
             await _mark_alerted(name)

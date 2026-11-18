@@ -10,6 +10,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core import runtime_settings
 from app.core.config import settings
 from app.core.logging_config import mask_email
+from app.core.operator_messages import MESSAGES as OPERATOR_MESSAGES
+from app.core.operator_messages import operator_locale, operator_text
 from app.features.notification.email_renderer import render_email
 from app.features.notification.mailer import send_email
 from app.features.notification.providers import (
@@ -26,20 +28,13 @@ logger = logging.getLogger(__name__)
 _EMAIL_CHANNEL = "email"
 _SLACK_CHANNEL = "slack"
 
-# Human-readable French labels for the admin notification (falls back to the
-# raw technical event_type when an event is not listed here).
-_EVENT_LABELS = {
-    "payment.authorized": "Paiement autorisé",
-    "payment.captured": "Paiement validé",
-    "payment.completed": "Paiement validé",
-    "payment.rejected": "Paiement refusé",
-    "payment.failed": "Paiement échoué",
-    "payment.refunded": "Remboursement effectué",
-    "payment.cancelled": "Paiement annulé",
-    "payment.amount_mismatch": "⚠ Montant encaissé incohérent — action requise",
-    "payment.awaiting_validation": "Nouvelle commande à traiter — paiement à valider",
-    "payment.document_required": "Nouvelle commande à traiter — bon de commande attendu",
-}
+
+def _event_label(event_type: str) -> str:
+    """The event in the operator's language (``notify.<event>`` in
+    ``app/core/operator_messages.py``); the raw event type when not listed."""
+    key = f"notify.{event_type}"
+    return operator_text(key) if key in OPERATOR_MESSAGES else event_type
+
 
 # Events that announce an order the shop must act on: a manual payment
 # (transfer, cash, cheque) to match, or a purchase order to receive. Card
@@ -87,7 +82,7 @@ def _build_notification_message(event_type: str, payload: dict[str, Any]) -> str
         fragments.append(f"reason={reason}")
 
     if event_type in _NEW_ORDER_EVENTS:
-        return f"{_EVENT_LABELS[event_type]}: " + " ".join(fragments)
+        return f"{_event_label(event_type)}: " + " ".join(fragments)
     return "Payment event: " + " ".join(fragments)
 
 
@@ -103,7 +98,7 @@ def _build_admin_email_context(
     """Context for the admin_payment_event email template (shared visual style)."""
     return {
         "event_type": event_type,
-        "event_label": _EVENT_LABELS.get(event_type, event_type),
+        "event_label": _event_label(event_type),
         "new_order": event_type in _NEW_ORDER_EVENTS,
         "order_number": order_number or "",
         "payment_id": _as_non_empty_str(payload.get("payment_id")) or "—",
@@ -245,6 +240,7 @@ async def _send_email_notifications(
     # Same styled HTML shell as the customer-facing emails.
     email = render_email(
         "admin_payment_event",
+        lang=operator_locale(),
         **_build_admin_email_context(
             event_type,
             payload,

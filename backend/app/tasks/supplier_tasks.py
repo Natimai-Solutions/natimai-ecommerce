@@ -19,8 +19,8 @@ from sqlmodel import and_, col, or_
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import runtime_settings
-from app.core.alerting import send_alert
 from app.core.db import engine
+from app.core.operator_messages import alert
 from app.features.integrations.crud.supplier_sync import supplier_sync_log_crud
 from app.features.integrations.models.supplier_sync import SyncStatus, SyncType
 from app.features.integrations.services.sku_allowlist import restrict_skus
@@ -126,9 +126,11 @@ async def sync_supplier_products_task(
                     status=SyncStatus.FAILED,
                     error_message=str(e),
                 )
-                await send_alert(
-                    f"Synchronisation catalogue {supplier_name} en échec : {e}",
+                await alert(
+                    "supplier.sync_failed",
                     source="supplier_sync",
+                    supplier=supplier_name,
+                    error=e,
                 )
                 raise
 

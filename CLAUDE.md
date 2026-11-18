@@ -21,6 +21,12 @@ operations: `docs/DEPLOYMENT.md`; what is left to do: `docs/internal/PLAN_DE_TRA
   from their own i18n files (`src/i18n/{fr,en}.ts`), in both languages.
 - E-mails, PDFs and catalogue content are rendered and translated server-side
   (`app/templates/*/{fr,en}`, `translations` columns): they stay there.
+- **Messages to the operator** (alerts to `ALERT_WEBHOOK_URL`, staff
+  notifications, the support's quote e-mail) are rendered server-side in the
+  operator's language (setting `operator_locale`, default the shop's): add a
+  key to `app/core/operator_messages.py` in English and French, send it with
+  `alert(key, source=…, **values)` / `operator_text(key, **values)`. Never a
+  French or English literal in `send_alert`.
 
 ## Habits of this repository
 

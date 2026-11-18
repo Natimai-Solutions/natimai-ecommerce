@@ -22,6 +22,7 @@ from app.core.config import settings
 from app.core.errors import AppError
 from app.core.i18n import request_locale
 from app.core.observability import log_structured_event, observe_checkout_result
+from app.core.operator_messages import operator_locale, operator_text
 from app.core.rate_limit import (
     hit_rate_limit,
     rate_limited,
@@ -2188,6 +2189,8 @@ def _render_quote_email(
     """Render a quote-request support email via the shared email layout."""
     email = render_email(
         "quote_request",
+        # Read by the shop's team: the operator's language.
+        lang=operator_locale(),
         subtitle=subtitle,
         contact=contact,
         item_count=len(item_snapshots),
@@ -2211,15 +2214,15 @@ def _format_quote_support_email(
 ) -> tuple[str, str, str]:
     """Build subject and body for support quote request emails."""
     return _render_quote_email(
-        subtitle="Demande transmise depuis le panier client.",
+        subtitle=operator_text("quote.subtitle_account"),
         contact=str(current_user.email),
         summary=[
-            ("Utilisateur", str(current_user.id)),
-            ("Email", str(current_user.email)),
-            ("Nom", current_user.full_name or "n/a"),
-            ("Téléphone", current_user.phone or "n/a"),
-            ("Adresse de livraison", shipping_address or "n/a"),
-            ("Notes", notes or "n/a"),
+            (operator_text("quote.user"), str(current_user.id)),
+            (operator_text("quote.email"), str(current_user.email)),
+            (operator_text("quote.name"), current_user.full_name or "n/a"),
+            (operator_text("quote.phone"), current_user.phone or "n/a"),
+            (operator_text("quote.address"), shipping_address or "n/a"),
+            (operator_text("quote.notes"), notes or "n/a"),
         ],
         currency=currency,
         item_snapshots=item_snapshots,
@@ -2240,14 +2243,14 @@ def _format_guest_quote_support_email(
 ) -> tuple[str, str, str]:
     """Build subject and body for guest quote request emails."""
     return _render_quote_email(
-        subtitle="Demande transmise depuis le panier public.",
+        subtitle=operator_text("quote.subtitle_public"),
         contact=customer_email,
         summary=[
-            ("Email", customer_email),
-            ("Nom", customer_name or "n/a"),
-            ("Téléphone", customer_phone or "n/a"),
-            ("Adresse de livraison", shipping_address or "n/a"),
-            ("Notes", notes or "n/a"),
+            (operator_text("quote.email"), customer_email),
+            (operator_text("quote.name"), customer_name or "n/a"),
+            (operator_text("quote.phone"), customer_phone or "n/a"),
+            (operator_text("quote.address"), shipping_address or "n/a"),
+            (operator_text("quote.notes"), notes or "n/a"),
         ],
         currency=currency,
         item_snapshots=item_snapshots,

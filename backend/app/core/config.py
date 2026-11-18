@@ -584,6 +584,9 @@ class Settings(BaseSettings):
     # adding Spanish…) without touching the code. SHOP_LOCALES lists the
     # languages offered to the visitor; the interface ships fr and en.
     SHOP_DEFAULT_LOCALE: str = "fr"
+    # Language of the alerts and staff notifications (operator_locale); empty:
+    # the shop's default language.
+    OPERATOR_LOCALE: str = ""
     SHOP_LOCALES: Annotated[list[str] | str, BeforeValidator(parse_cors)] = [
         "fr",
         "en",

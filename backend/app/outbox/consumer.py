@@ -7,8 +7,8 @@ from typing import Any
 from arq.worker import Retry
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.alerting import send_alert
 from app.core.db import engine
+from app.core.operator_messages import alert
 
 logger = logging.getLogger(__name__)
 
@@ -139,10 +139,14 @@ async def execute_outbox_handler(
             )
             # Abandon définitif = perte d'effet (scan AV, email, PO…) : alerte
             # webhook pour déclencher le rejeu manuel (runbook --mode retry).
-            await send_alert(
-                f"handler outbox {handler_path} abandonné après {job_try} "
-                f"tentatives (event {event_id}, type {event_type}) : {e}",
+            await alert(
+                "outbox.handler_abandoned",
                 source="arq-worker",
+                handler=handler_path,
+                tries=job_try,
+                event_id=event_id,
+                event_type=event_type,
+                error=e,
             )
             raise
         defer_seconds = min(

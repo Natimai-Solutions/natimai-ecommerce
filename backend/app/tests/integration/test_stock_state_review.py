@@ -134,7 +134,7 @@ async def test_money_after_a_release_takes_the_stock_again_or_alerts(
         alerts.append(message)
         return True
 
-    monkeypatch.setattr(handlers, "send_alert", _alert)
+    monkeypatch.setattr("app.core.alerting.send_alert", _alert)
     buyer = await _user(db_session)
 
     # 1. The unit is still there: taken again, then confirmed.

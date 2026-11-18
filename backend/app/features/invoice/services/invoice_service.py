@@ -28,8 +28,8 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import runtime_settings
-from app.core.alerting import send_alert
 from app.core.config import settings
+from app.core.operator_messages import alert
 from app.features.invoice.models.invoice import Invoice
 from app.features.invoice.services.integrity import seal_document
 from app.features.invoice.services.numbering import (
@@ -163,7 +163,9 @@ async def _seller_identity(session: AsyncSession) -> dict[str, str]:
     # whereas a bad invoice has already burned a number in a legally gap-free
     # sequence and cannot be edited or deleted.
     logger.error(message)
-    await send_alert(message, source="invoice")
+    await alert(
+        "invoice.identity_incomplete", source="invoice", missing=", ".join(missing)
+    )
     raise InvoiceIssuanceError(message)
 
 

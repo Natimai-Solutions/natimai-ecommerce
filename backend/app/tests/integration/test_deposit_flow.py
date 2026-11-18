@@ -411,7 +411,7 @@ async def test_a_waiting_payment_with_money_received_is_kept_and_alerted(
         payment_handlers, "secure_order_stock", AsyncMock(return_value=(0, []))
     )
     alerts = AsyncMock(return_value=True)
-    monkeypatch.setattr(payment_handlers, "send_alert", alerts)
+    monkeypatch.setattr("app.core.alerting.send_alert", alerts)
     cheque = PaymentMethod(name="Chèque", provider_code="manual_check")
     waiting_status = PaymentStatus(name="AwaitingValidation")
     db_session.add_all([cheque, waiting_status])

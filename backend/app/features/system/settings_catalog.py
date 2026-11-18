@@ -703,6 +703,17 @@ register(
         order=2,
     ),
     SettingSpec(
+        "operator_locale",
+        "str",
+        "display",
+        "Langue de l'exploitant",
+        "Langue des alertes (webhook) et des notifications envoyées à l'équipe "
+        "de la boutique. Vide : la langue par défaut de la boutique.",
+        env="OPERATOR_LOCALE",
+        choices=SUPPORTED_LOCALES,
+        order=3,
+    ),
+    SettingSpec(
         "default_display_currency",
         "str",
         "display",
