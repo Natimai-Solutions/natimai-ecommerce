@@ -40,7 +40,7 @@
       <span v-html="$t('homepage.intro')"></span>
     </p>
 
-    <div v-if="error || notice" class="admin-notices">
+    <div v-if="error || notice || liveHeroes.length > 1" class="admin-notices">
       <AppNotice v-if="error" tone="error" dense>{{ error }}</AppNotice>
       <AppNotice v-if="notice" tone="success" dense>{{ notice }}</AppNotice>
       <AppNotice

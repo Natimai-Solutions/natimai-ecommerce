@@ -149,6 +149,28 @@
           />
 
           <q-btn
+            v-if="messagingOn"
+            flat
+            round
+            class="app-header__icon"
+            :to="messagesLink"
+            :aria-label="
+              messaging.unread > 0
+                ? $t('layout.messages_with_count', { count: messaging.unread })
+                : $t('layout.messages')
+            "
+            data-testid="header-messages"
+          >
+            <q-icon name="ph:chat-circle-text" size="22px" />
+            <span
+              v-if="messaging.unread > 0"
+              class="app-header__badge font-mono"
+              aria-hidden="true"
+            >
+              {{ messaging.unread }}
+            </span>
+          </q-btn>
+          <q-btn
             flat
             round
             class="app-header__icon"
@@ -218,6 +240,17 @@
           @click="drawerOpen = false"
         >
           {{ $t('layout.account') }}
+        </router-link>
+        <router-link
+          v-if="messagingOn"
+          :to="messagesLink"
+          class="app-menu__link"
+          @click="drawerOpen = false"
+        >
+          {{ $t('layout.messages') }}
+          <span v-if="messaging.unread > 0" class="font-mono text-subtle">{{
+            messaging.unread
+          }}</span>
         </router-link>
         <button
           v-if="authStore.isAuthenticated"
@@ -297,6 +330,7 @@ import { useDepartureStore } from '@/stores/departure';
 import NextDepartureBanner from '@/components/NextDepartureBanner.vue';
 import { useLocale } from '@/composables/useLocale';
 import { useShopModulesStore } from '@/stores/shopModules';
+import { useMessagingStore } from '@/stores/messaging';
 
 const drawerOpen = ref(false);
 const cartStore = useCartStore();
@@ -311,6 +345,24 @@ const router = useRouter();
 const cartCount = computed(() => cartStore.totalItems);
 const currentYear = new Date().getFullYear();
 const shop = useShopModulesStore();
+const messaging = useMessagingStore();
+const messagingOn = computed(() => shop.isOn('messaging'));
+/** « Write to us »: the customer's messages; a visitor signs in first (the
+ *  public contact page comes with lot MSG2). */
+const messagesLink = computed(() =>
+  authStore.isAuthenticated
+    ? { name: 'account', query: { tab: 'messages' } }
+    : { name: 'login', query: { redirect: '/mon-compte?tab=messages' } },
+);
+// The unread badge polls for a signed-in customer only.
+watch(
+  () => authStore.isAuthenticated && messagingOn.value,
+  (active) => {
+    if (typeof window === 'undefined') return;
+    if (active) messaging.startPolling();
+    else messaging.stopPolling();
+  },
+);
 const ownerName = computed(() => shop.config.shop_name || 'Natimai');
 // The logo chosen in the back-office (R9 / T9); the shop name in text otherwise.
 const logo = computed(() => shop.config.branding?.logo ?? null);
@@ -378,11 +430,13 @@ onMounted(() => {
   void currencyStore.loadRates();
   void departureStore.load();
   void shop.load();
+  if (authStore.isAuthenticated && messagingOn.value) messaging.startPolling();
   window.addEventListener('keydown', onKeydown);
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeydown);
+  messaging.stopPolling();
 });
 </script>
 

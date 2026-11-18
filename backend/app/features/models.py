@@ -20,6 +20,7 @@ from app.features.inventory.models.stock_movement import InventoryStockMovement
 from app.features.invoice.models.credit_note import CreditNote, CreditNoteCounter
 from app.features.invoice.models.invoice import Invoice, InvoiceCounter
 from app.features.media.models import MediaAsset
+from app.features.messaging.models import Conversation, ConversationMessage
 from app.features.notification.models.email_log import EmailLog
 from app.features.order.models.order import Order
 from app.features.order.models.order_line import OrderLine
@@ -78,6 +79,8 @@ from app.features.user.models.user_preference import UserPreference
 from app.features.user.models.wishlist import Wishlist, WishlistItem
 
 __all__ = [
+    "Conversation",
+    "ConversationMessage",
     "CategoryLink",
     "ProductLink",
     "AdminAuditEntry",

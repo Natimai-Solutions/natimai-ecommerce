@@ -258,7 +258,7 @@ class Settings(BaseSettings):
     FIRST_SUPERUSER: str = "admin@example.com"
     FIRST_SUPERUSER_PASSWORD: str = "changethis"
     EMAIL_SUPPORT: str | None = None
-    EMAIL_CONTACT: str | None = None
+    EMAIL_CONTACT: str | None = "contact@natimai.solutions"
 
     # AI
     OPENAI_ORG_ID: str | None = None

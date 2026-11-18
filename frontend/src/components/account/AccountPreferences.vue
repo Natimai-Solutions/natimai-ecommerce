@@ -32,6 +32,17 @@
           </li>
           <li class="app-row">
             <div class="app-row__main">
+              <span class="app-row__title">{{ $t('prefs.messages') }}</span>
+              <span class="app-row__meta">{{ $t('prefs.messages_meta') }}</span>
+            </div>
+            <q-toggle
+              v-model="prefs.notification_messages"
+              :aria-label="$t('prefs.messages_aria')"
+              data-testid="prefs-messages"
+            />
+          </li>
+          <li class="app-row">
+            <div class="app-row__main">
               <span class="app-row__title">{{ $t('prefs.marketing') }}</span>
               <span class="app-row__meta">{{ $t('prefs.marketing_meta') }}</span>
             </div>
@@ -137,6 +148,7 @@ const saved = ref(false);
 const error = ref<string | null>(null);
 const prefs = reactive<Omit<UserPreferences, 'user_id'>>({
   notification_shipping_steps: true,
+  notification_messages: true,
   marketing_email_enabled: true,
   default_shipping_preference: null,
   locale: null,
@@ -168,6 +180,7 @@ async function load() {
   try {
     const data = await getMyPreferences();
     prefs.notification_shipping_steps = data.notification_shipping_steps;
+    prefs.notification_messages = data.notification_messages ?? true;
     prefs.marketing_email_enabled = data.marketing_email_enabled ?? true;
     prefs.default_shipping_preference = data.default_shipping_preference;
     prefs.locale = data.locale;

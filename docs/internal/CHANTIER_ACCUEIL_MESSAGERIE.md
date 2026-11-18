@@ -944,8 +944,17 @@ les identifiants M· de l'audit fonctionnel.
 | **BR** | Marques : `Product.brand_id`, alias, reprise depuis `manufacturer`, écran admin, filtre et facette, page marque (M9 de l'audit) | M à L |
 
 Livré le 18/11/2026 : correctifs du §12, **A1** (sections ordonnables,
-masquables, titrées, public par section, page du client). Ordre conseillé
-pour la suite : **MSG1 → MSG2 → A2 →
+masquables, titrées, public par section, page du client) ; **MSG1, première
+partie** : module, modèle, trois canaux et motifs, API client et équipe,
+onglet « Messages » et bouton d'en-tête, écran *Messagerie*, notes internes,
+prise en charge / libération / règlement / transfert / déplacement, avis de
+non-lus et préférence, libération automatique, horaires et délai affiché
+(le délai mesuré est calculé au plus une fois par heure et par processus,
+pas chaque nuit). Reste de MSG1 : **pièces jointes** (service générique,
+images réencodées, HEIC), **conservation et RGPD** (préavis, purge, export,
+« garder un an de plus », téléchargement du fil), **retrait des notifications
+en application dormantes**. La table d'agents (canaux par membre) passe au
+lot ROLE. Ordre conseillé pour la suite : fin de **MSG1 → MSG2 → A2 →
 MSG5 → ROLE → MSG3 → MSG4**, BR quand on veut la bande de marques (R6) et
 les pages marque. MSG1 et BR sont indépendants et peuvent avancer en
 parallèle. ROLE peut attendre : sans lui, les superusers répondent.

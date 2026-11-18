@@ -13,6 +13,10 @@ class UserPreferenceBase(SQLModel):
     notification_shipping_steps: bool = Field(
         default=True, description="Receive shipping status notifications"
     )
+    notification_messages: bool = Field(
+        default=True,
+        description="E-mail when the shop answers in the messaging (no content)",
+    )
     marketing_email_enabled: bool = Field(
         default=True,
         description="Receive commercial reminders (forgotten cart, offers)",
@@ -37,6 +41,7 @@ class UserPreferenceUpdate(SQLModel):
     """Update schema — all fields optional."""
 
     notification_shipping_steps: bool | None = None
+    notification_messages: bool | None = None
     marketing_email_enabled: bool | None = None
     default_shipping_preference: str | None = None
     locale: str | None = None

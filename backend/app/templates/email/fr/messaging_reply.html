@@ -1,0 +1,12 @@
+{% extends "_layout.html" %}
+{% block title %}Une réponse vous attend — {{ shop_name }}{% endblock %}
+{% block heading %}Une réponse vous attend{% endblock %}
+{% block content %}
+      <p>Bonjour{% if full_name %} {{ full_name }}{% endif %},</p>
+      <p>L'équipe {{ shop_name }} a répondu à votre demande <strong>{{ number }}</strong>. Pour la lire et lui répondre, ouvrez vos messages :</p>
+      <p style="text-align:center;margin:28px 0;">
+        <a href="{{ messages_url }}" style="display:inline-block;background:#1976d2;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 24px;border-radius:6px;">Lire la réponse</a>
+      </p>
+      <p style="font-size:13px;color:#555;">Par discrétion, le contenu de la réponse n'est pas recopié dans cet e-mail. Vous pouvez ne plus recevoir ces avis depuis Mon compte → Préférences.</p>
+      <p>L'équipe {{ shop_name }}</p>
+{% endblock %}

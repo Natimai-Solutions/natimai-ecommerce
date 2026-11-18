@@ -12,6 +12,7 @@ from app.api.routes.admin_grouped_departures import (
 )
 from app.api.routes.admin_inventory import router as admin_inventory_router
 from app.api.routes.admin_invoices import router as admin_invoices_router
+from app.api.routes.admin_messaging import router as admin_messaging_router
 from app.api.routes.admin_modules import router as admin_modules_router
 from app.api.routes.admin_orders import router as admin_orders_router
 from app.api.routes.admin_payment_eligibility import (
@@ -60,6 +61,7 @@ from app.api.routes.invoices_me import router as invoices_me_router
 from app.api.routes.login import router as login_router
 from app.api.routes.loyalty import router as loyalty_router
 from app.api.routes.media import router as media_router
+from app.api.routes.messaging import router as messaging_router
 from app.api.routes.oauth import router as oauth_router
 from app.api.routes.order import router as order_router
 from app.api.routes.order_line import router as order_line_router
@@ -139,6 +141,8 @@ api_router.include_router(cart_router)
 # Product related routes
 api_router.include_router(category_router)
 api_router.include_router(brand_router)
+api_router.include_router(admin_messaging_router)
+api_router.include_router(messaging_router)
 # User groups and security management
 api_router.include_router(group_router)
 api_router.include_router(group_security_router)

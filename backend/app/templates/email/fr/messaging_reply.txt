@@ -1,0 +1,11 @@
+Bonjour{% if full_name %} {{ full_name }}{% endif %},
+
+L'équipe {{ shop_name }} a répondu à votre demande {{ number }}. Pour la lire
+et lui répondre, ouvrez vos messages :
+
+{{ messages_url }}
+
+Par discrétion, le contenu de la réponse n'est pas recopié dans cet e-mail.
+Vous pouvez ne plus recevoir ces avis depuis Mon compte → Préférences.
+
+L'équipe {{ shop_name }}

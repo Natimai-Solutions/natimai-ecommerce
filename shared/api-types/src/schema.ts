@@ -4770,6 +4770,359 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/conversations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Conversations
+         * @description The queue: « to do » (open and free), « mine », « waiting for the
+         *     customer », « resolved », « all »; oldest waiting first in « to do ».
+         */
+        get: operations["admin-messaging-list_conversations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/conversations/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Conversations Summary
+         * @description Counters of the menu and the tabs.
+         */
+        get: operations["admin-messaging-conversations_summary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/conversations/team": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Conversation Team
+         * @description Who a conversation can be transferred to.
+         */
+        get: operations["admin-messaging-conversation_team"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/conversations/{conversation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Conversation
+         * @description A conversation with its messages, notes and events.
+         */
+        get: operations["admin-messaging-get_conversation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/conversations/{conversation_id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Staff Message
+         * @description Answer the customer, or write an internal note. The first answer takes
+         *     a free conversation (never one someone else holds).
+         */
+        post: operations["admin-messaging-post_staff_message"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/conversations/{conversation_id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Read Conversation */
+        post: operations["admin-messaging-read_conversation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/conversations/{conversation_id}/claim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Claim Conversation
+         * @description Take the conversation (409 if someone else holds it, unless ``force``).
+         */
+        post: operations["admin-messaging-claim_conversation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/conversations/{conversation_id}/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Release Conversation */
+        post: operations["admin-messaging-release_conversation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/conversations/{conversation_id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Resolve Conversation */
+        post: operations["admin-messaging-resolve_conversation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/conversations/{conversation_id}/transfer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Transfer Conversation */
+        post: operations["admin-messaging-transfer_conversation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/conversations/{conversation_id}/topic": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Move Conversation
+         * @description Move the conversation to another channel / topic (traced).
+         */
+        put: operations["admin-messaging-move_conversation"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/messaging/info": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Messaging Info
+         * @description Channels and topics, opening hours, response time, contact address.
+         */
+        get: operations["messaging-messaging_info"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/conversations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List My Conversations
+         * @description The customer's conversations, most recent activity first.
+         */
+        get: operations["messaging-list_my_conversations"];
+        put?: never;
+        /**
+         * Open My Conversation
+         * @description Open a conversation on a topic (the channel follows), optionally about
+         *     the customer's order, quote request, group request or a product.
+         */
+        post: operations["messaging-open_my_conversation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/conversations/unread": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My Unread Count
+         * @description How many conversations hold an answer the customer has not read.
+         */
+        get: operations["messaging-my_unread_count"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/conversations/{conversation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get My Conversation
+         * @description A conversation and its messages (only those after ``after`` when
+         *     given: the open thread polls with it).
+         */
+        get: operations["messaging-get_my_conversation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/conversations/{conversation_id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post My Message
+         * @description Write in a conversation (a resolved one reopens).
+         */
+        post: operations["messaging-post_my_message"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/conversations/{conversation_id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Read My Conversation */
+        post: operations["messaging-read_my_conversation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/conversations/{conversation_id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resolve My Conversation
+         * @description « My question is settled » (writing again reopens it).
+         */
+        post: operations["messaging-resolve_my_conversation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/group/pricing": {
         parameters: {
             query?: never;
@@ -10430,6 +10783,13 @@ export interface components {
             /** Default Margin Rate Pct */
             default_margin_rate_pct?: number | string | null;
         };
+        /** ChannelTopics */
+        ChannelTopics: {
+            /** Channel */
+            channel: string;
+            /** Topics */
+            topics: string[];
+        };
         /**
          * CheckoutObservabilityMetrics
          * @description Represents checkout observability metrics.
@@ -11067,6 +11427,96 @@ export interface components {
                     [key: string]: unknown;
                 };
             };
+        };
+        /** ConversationCreate */
+        ConversationCreate: {
+            /** Topic */
+            topic: string;
+            /**
+             * Subject
+             * @default
+             */
+            subject: string;
+            /** Body */
+            body: string;
+            /** Context Type */
+            context_type?: string | null;
+            /** Context Id */
+            context_id?: string | null;
+        };
+        /** ConversationDetail */
+        ConversationDetail: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Number */
+            number: string;
+            /** Channel */
+            channel: string;
+            /** Topic */
+            topic: string;
+            /** Status */
+            status: string;
+            /** Subject */
+            subject: string;
+            /** Context Type */
+            context_type?: string | null;
+            /** Context Id */
+            context_id?: string | null;
+            /** Created At */
+            created_at?: string | null;
+            /** Last Message At */
+            last_message_at?: string | null;
+            /**
+             * Unread
+             * @default false
+             */
+            unread: boolean;
+            /**
+             * Messages
+             * @default []
+             */
+            messages: components["schemas"]["MessagePublic"][];
+        };
+        /** ConversationPage */
+        ConversationPage: {
+            /** Data */
+            data: components["schemas"]["StaffConversation"][];
+            /** Count */
+            count: number;
+        };
+        /** ConversationSummary */
+        ConversationSummary: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Number */
+            number: string;
+            /** Channel */
+            channel: string;
+            /** Topic */
+            topic: string;
+            /** Status */
+            status: string;
+            /** Subject */
+            subject: string;
+            /** Context Type */
+            context_type?: string | null;
+            /** Context Id */
+            context_id?: string | null;
+            /** Created At */
+            created_at?: string | null;
+            /** Last Message At */
+            last_message_at?: string | null;
+            /**
+             * Unread
+             * @default false
+             */
+            unread: boolean;
         };
         /**
          * CounterPaymentCreate
@@ -14029,6 +14479,52 @@ export interface components {
             message: string;
             /** Task Id */
             task_id?: string | null;
+        };
+        /** MessageCreate */
+        MessageCreate: {
+            /** Body */
+            body: string;
+        };
+        /**
+         * MessagePublic
+         * @description A message as the customer sees it.
+         */
+        MessagePublic: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Side */
+            side: string;
+            /** Body */
+            body: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Author Name
+             * @default
+             */
+            author_name: string;
+        };
+        /** MessagingInfo */
+        MessagingInfo: {
+            /** Channels */
+            channels: components["schemas"]["ChannelTopics"][];
+            /** Hours Start */
+            hours_start: string;
+            /** Hours End */
+            hours_end: string;
+            /** Days */
+            days: number[];
+            /** Timezone */
+            timezone: string;
+            response_time: components["schemas"]["ResponseTime"];
+            /** Contact Email */
+            contact_email?: string | null;
         };
         /** ModerationDecision */
         ModerationDecision: {
@@ -19108,6 +19604,15 @@ export interface components {
             /** Password */
             password: string;
         };
+        /** ResponseTime */
+        ResponseTime: {
+            /** Unit */
+            unit: string;
+            /** Value */
+            value: number;
+            /** Measured */
+            measured: boolean;
+        };
         /**
          * ReviewAnonymousPublic
          * @description A review as anyone may read it: no user id (audit 2026-11 — the
@@ -21168,6 +21673,166 @@ export interface components {
             value?: string | null;
         };
         /**
+         * StaffConversation
+         * @description A conversation as the team sees it.
+         */
+        StaffConversation: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Number */
+            number: string;
+            /** Channel */
+            channel: string;
+            /** Topic */
+            topic: string;
+            /** Status */
+            status: string;
+            /** Subject */
+            subject: string;
+            /** Context Type */
+            context_type?: string | null;
+            /** Context Id */
+            context_id?: string | null;
+            /** Created At */
+            created_at?: string | null;
+            /** Last Message At */
+            last_message_at?: string | null;
+            /**
+             * Unread
+             * @default false
+             */
+            unread: boolean;
+            /** Customer Id */
+            customer_id?: string | null;
+            /**
+             * Customer Name
+             * @default
+             */
+            customer_name: string;
+            /** Customer Email */
+            customer_email?: string | null;
+            /** Assigned To Id */
+            assigned_to_id?: string | null;
+            /**
+             * Assigned To Name
+             * @default
+             */
+            assigned_to_name: string;
+            /**
+             * Staff Unread
+             * @default false
+             */
+            staff_unread: boolean;
+            /** Resolved At */
+            resolved_at?: string | null;
+        };
+        /** StaffConversationDetail */
+        StaffConversationDetail: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Number */
+            number: string;
+            /** Channel */
+            channel: string;
+            /** Topic */
+            topic: string;
+            /** Status */
+            status: string;
+            /** Subject */
+            subject: string;
+            /** Context Type */
+            context_type?: string | null;
+            /** Context Id */
+            context_id?: string | null;
+            /** Created At */
+            created_at?: string | null;
+            /** Last Message At */
+            last_message_at?: string | null;
+            /**
+             * Unread
+             * @default false
+             */
+            unread: boolean;
+            /** Customer Id */
+            customer_id?: string | null;
+            /**
+             * Customer Name
+             * @default
+             */
+            customer_name: string;
+            /** Customer Email */
+            customer_email?: string | null;
+            /** Assigned To Id */
+            assigned_to_id?: string | null;
+            /**
+             * Assigned To Name
+             * @default
+             */
+            assigned_to_name: string;
+            /**
+             * Staff Unread
+             * @default false
+             */
+            staff_unread: boolean;
+            /** Resolved At */
+            resolved_at?: string | null;
+            /**
+             * Messages
+             * @default []
+             */
+            messages: components["schemas"]["StaffMessage"][];
+            /** Context Label */
+            context_label?: string | null;
+        };
+        /** StaffMessage */
+        StaffMessage: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Side */
+            side: string;
+            /** Kind */
+            kind: string;
+            /** Body */
+            body: string;
+            /**
+             * Data
+             * @default {}
+             */
+            data: {
+                [key: string]: unknown;
+            };
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Author Name
+             * @default
+             */
+            author_name: string;
+        };
+        /** StaffMessageCreate */
+        StaffMessageCreate: {
+            /** Body */
+            body: string;
+            /**
+             * Kind
+             * @default message
+             * @enum {string}
+             */
+            kind: "message" | "note";
+        };
+        /**
          * StatusDefinitionCreate
          * @description Represents status definition create.
          */
@@ -21717,6 +22382,17 @@ export interface components {
             reason: string;
             /** Order Id */
             order_id?: string | null;
+        };
+        /** Summary */
+        Summary: {
+            /** Todo */
+            todo: number;
+            /** Mine */
+            mine: number;
+            /** Pending */
+            pending: number;
+            /** Unread */
+            unread: number;
         };
         /**
          * SupplierAttachRequest
@@ -22495,6 +23171,16 @@ export interface components {
             /** Fees Code */
             fees_code: string;
         };
+        /** TeamMember */
+        TeamMember: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+        };
         /**
          * TestEnrichmentRequest
          * @description Request model for testing enrichment
@@ -22520,6 +23206,13 @@ export interface components {
              * @description Optional UPC code
              */
             upc?: string | null;
+        };
+        /** TopicBody */
+        TopicBody: {
+            /** Channel */
+            channel: string;
+            /** Topic */
+            topic: string;
         };
         /**
          * TrackedOrderResponse
@@ -22596,6 +23289,19 @@ export interface components {
              */
             tracking_ref?: string | null;
         };
+        /** TransferBody */
+        TransferBody: {
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+            /**
+             * Force
+             * @default false
+             */
+            force: boolean;
+        };
         /** TwoFactorCode */
         TwoFactorCode: {
             /** Code */
@@ -22658,6 +23364,11 @@ export interface components {
          * @enum {string}
          */
         UnmappedCategoryAction: "auto" | "draft" | "deactivate" | "skip";
+        /** UnreadCount */
+        UnreadCount: {
+            /** Count */
+            count: number;
+        };
         /**
          * UpdateStatusRequest
          * @description Request payload for updating tracking status.
@@ -22802,6 +23513,12 @@ export interface components {
              */
             notification_shipping_steps: boolean;
             /**
+             * Notification Messages
+             * @description E-mail when the shop answers in the messaging (no content)
+             * @default true
+             */
+            notification_messages: boolean;
+            /**
              * Marketing Email Enabled
              * @description Receive commercial reminders (forgotten cart, offers)
              * @default true
@@ -22840,6 +23557,8 @@ export interface components {
         UserPreferenceUpdate: {
             /** Notification Shipping Steps */
             notification_shipping_steps?: boolean | null;
+            /** Notification Messages */
+            notification_messages?: boolean | null;
             /** Marketing Email Enabled */
             marketing_email_enabled?: boolean | null;
             /** Default Shipping Preference */
@@ -31739,6 +32458,568 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Message"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-messaging-list_conversations": {
+        parameters: {
+            query?: {
+                tab?: "todo" | "mine" | "pending" | "resolved" | "all";
+                channel?: string | null;
+                q?: string | null;
+                skip?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-messaging-conversations_summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Summary"];
+                };
+            };
+        };
+    };
+    "admin-messaging-conversation_team": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeamMember"][];
+                };
+            };
+        };
+    };
+    "admin-messaging-get_conversation": {
+        parameters: {
+            query?: {
+                after?: string | null;
+            };
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffConversationDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-messaging-post_staff_message": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaffMessageCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffConversationDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-messaging-read_conversation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-messaging-claim_conversation": {
+        parameters: {
+            query?: {
+                force?: boolean;
+            };
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffConversationDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-messaging-release_conversation": {
+        parameters: {
+            query?: {
+                force?: boolean;
+            };
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffConversationDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-messaging-resolve_conversation": {
+        parameters: {
+            query?: {
+                force?: boolean;
+            };
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffConversationDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-messaging-transfer_conversation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TransferBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffConversationDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-messaging-move_conversation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TopicBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffConversationDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "messaging-messaging_info": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessagingInfo"];
+                };
+            };
+        };
+    };
+    "messaging-list_my_conversations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationSummary"][];
+                };
+            };
+        };
+    };
+    "messaging-open_my_conversation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConversationCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "messaging-my_unread_count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnreadCount"];
+                };
+            };
+        };
+    };
+    "messaging-get_my_conversation": {
+        parameters: {
+            query?: {
+                after?: string | null;
+            };
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "messaging-post_my_message": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MessageCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "messaging-read_my_conversation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "messaging-resolve_my_conversation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationSummary"];
                 };
             };
             /** @description Validation Error */

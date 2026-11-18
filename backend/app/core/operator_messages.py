@@ -177,6 +177,21 @@ MESSAGES: dict[str, tuple[str, str]] = {
         "New order to handle — purchase order expected",
         "Nouvelle commande à traiter — bon de commande attendu",
     ),
+    # --- Messaging: a customer message waits for the team -------------------
+    "messaging.staff_subject": (
+        "New customer message — {number} ({channel})",
+        "Nouveau message client — {number} ({channel})",
+    ),
+    "messaging.staff_body": (
+        "A customer wrote in conversation {number} ({channel}) and nobody has "
+        "read it for ten minutes. Open it in the back-office: {url}",
+        "Un client a écrit dans la conversation {number} ({channel}) et "
+        "personne ne l'a lu depuis dix minutes. Ouvrez-la dans "
+        "l'administration : {url}",
+    ),
+    "messaging.channel.customer_service": ("customer service", "service client"),
+    "messaging.channel.technical": ("technical support", "support technique"),
+    "messaging.channel.sales": ("sales", "service commercial"),
     # --- Quote requests sent to the support address -----------------------
     "quote.subtitle_account": (
         "Request sent from a customer's cart.",

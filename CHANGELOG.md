@@ -62,6 +62,27 @@ takes a tag as its `ref`.
 
 ### Added
 
+- Messaging between customers and the shop (module *Messagerie*, Admin →
+  Modules): a customer writes to customer service, technical support or
+  sales from *My account → Messages* (topic → channel, optional order /
+  product / quote request / group request of their own), follows the
+  answers there, settles or reopens a request. The header carries a
+  « Write to us » button with the number of unread answers. The team works
+  in the back-office *Messaging* screen: queue by tab (to do, mine, waiting
+  for the customer, resolved, all), channel filter, search (number,
+  customer, e-mail, order), take / release / resolve / transfer with a
+  confirmation before taking over a colleague's conversation, internal
+  notes the customer never sees, move to another topic; traced events. A
+  message unread for ten minutes is e-mailed once per wave — to the
+  customer without its content (new preference `notification_messages`,
+  migration `e3f4a5b6c7d8`), to the holder or the channel's address
+  (`email_support`, `email_contact`) else the superusers, in the
+  operator's language. A conversation held three days without an answer
+  goes back to the queue. Opening hours (08:00–17:00, Monday to Friday)
+  and the response time shown (24 h, or measured: 80th percentile in
+  business hours over 90 days) are settings (*Messaging* category).
+  `EMAIL_CONTACT` defaults to `contact@natimai.solutions`.
+
 - Homepage sections: the homepage is an ordered list of sections set in the
   admin (*Site homepage*) — hero, banners, category tiles, « favourites »
   and « most viewed » products — each with an optional title and subtitle
@@ -401,6 +422,9 @@ takes a tag as its `ref`.
   (superuser-only), as the base of the future fine-grained roles.
 
 ### Fixed
+
+- *Site homepage*: the warning « several heroes are live at once » was never
+  shown (its container only appeared with another message).
 
 - Homepage product cards follow the signed-in customer's price group: the
   server render is anonymous, so the products are fetched again once a

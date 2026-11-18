@@ -34,6 +34,11 @@ from app.tasks.inventory_tasks import (
     get_stock_reservation_cron_jobs,
     release_expired_stock_reservations_task,
 )
+from app.tasks.messaging_tasks import (
+    get_messaging_cron_jobs,
+    notify_unread_messages_task,
+    release_stale_conversations_task,
+)
 from app.tasks.payment_tasks import (
     alert_expiring_authorizations_task,
     get_payment_cron_jobs,
@@ -179,6 +184,9 @@ class WorkerSettings:
         purge_audit_log_task,
         purge_journals_task,
         watch_outbox_backlog_task,
+        # Messagerie : avis de messages non lus, libération des conversations
+        notify_unread_messages_task,
+        release_stale_conversations_task,
         # ... tes autres handlers
     ]
 
@@ -200,6 +208,7 @@ class WorkerSettings:
         + get_payment_cron_jobs()
         + get_retention_cron_jobs()
         + get_watch_cron_jobs()
+        + get_messaging_cron_jobs()
     )
 
     # NOTE: Le polling de l'outbox est géré par un service dédié (outbox-poller)

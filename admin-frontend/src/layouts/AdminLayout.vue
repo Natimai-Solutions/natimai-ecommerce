@@ -118,6 +118,15 @@
             >
               <q-icon :name="link.icon" size="18px" />
               <span>{{ $t(link.label) }}</span>
+              <q-badge
+                v-if="link.to === '/messages' && messagingCount > 0"
+                rounded
+                color="primary"
+                class="q-ml-auto"
+                data-testid="nav-messages-count"
+              >
+                {{ messagingCount }}
+              </q-badge>
             </router-link>
           </section>
         </nav>
@@ -143,12 +152,13 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import { useAdminLocale } from '@/composables/useAdminLocale';
-import { computed, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import { useRouter } from 'vue-router';
 
 import { getMe, type Me } from '@/api/me';
 import { useAuthStore } from '@/stores/auth';
+import { useMessagingStore } from '@/stores/messaging';
 import { useShopConfigStore } from '@/stores/shopConfig';
 import { moduleOfPath } from '@/utils/modules';
 import { readThemePreference, setThemePreference, type ThemePreference } from '@/utils/theme';
@@ -176,6 +186,7 @@ const allNav: NavSection[] = [
   {
     label: 'layout.nav.sales',
     links: [
+      { label: 'layout.nav.messages', icon: 'ph:chat-circle-text', to: '/messages' },
       { label: 'layout.nav.orders', icon: 'ph:receipt', to: '/orders' },
       {
         label: 'layout.nav.payment_validations',
@@ -259,6 +270,16 @@ const nav = computed<NavSection[]>(() =>
     }))
     .filter((section) => section.links.length > 0),
 );
+
+// Messages waiting for the team: to do (free) and mine, polled every 30 s.
+const messaging = useMessagingStore();
+const messagingCount = computed(() => messaging.summary.todo + messaging.summary.mine);
+watch(
+  () => shopConfig.moduleOn('messaging'),
+  (on) => (on ? messaging.start() : messaging.stop()),
+  { immediate: true },
+);
+onBeforeUnmount(() => messaging.stop());
 
 const shopName = computed(() => shopConfig.config?.shop_name || 'Natimai');
 
