@@ -11,7 +11,10 @@ const CATEGORY_TILES = 8;
  * publique les renvoie toutes ; celles qui portent une image passent devant,
  * puis l'ordre alphabétique du titre vitrine.
  */
-export function pickCategoryTiles(all: CategoryPublic[]): CategoryPublic[] {
+export function pickCategoryTiles(
+  all: CategoryPublic[],
+  limit: number = CATEGORY_TILES,
+): CategoryPublic[] {
   const visible = all.filter((c) => c.is_active && c.is_admin_active && !c.merged_into_id);
   const ids = new Set(visible.map((c) => c.id));
   return visible
@@ -21,7 +24,7 @@ export function pickCategoryTiles(all: CategoryPublic[]): CategoryPublic[] {
       if (byImage !== 0) return byImage;
       return categoryTitle(a).localeCompare(categoryTitle(b), 'fr');
     })
-    .slice(0, CATEGORY_TILES);
+    .slice(0, limit);
 }
 
 export function categoryTitle(category: CategoryPublic): string {

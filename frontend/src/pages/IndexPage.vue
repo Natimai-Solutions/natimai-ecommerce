@@ -8,16 +8,16 @@
     >
       <div class="home-hero__copy">
         <h1 id="home-hero-title" class="home-hero__title">
-          {{ home.hero?.title ?? $t('home.hero_title') }}
+          {{ hero?.title || $t('home.hero_title') }}
         </h1>
         <p v-if="heroLead" class="home-hero__lead">{{ heroLead }}</p>
         <div class="home-hero__actions">
           <q-btn
             unelevated
             color="primary"
-            :label="home.hero?.cta_label || $t('home.see_catalogue')"
+            :label="hero?.cta_label || $t('home.see_catalogue')"
             icon-right="ph:arrow-right"
-            v-bind="linkProps(home.hero?.cta_link || '/catalogue')"
+            v-bind="linkProps(hero?.cta_link || '/catalogue')"
             class="home-hero__cta"
           />
         </div>
@@ -37,122 +37,113 @@
       </div>
     </section>
 
-    <section
-      v-if="home.banners.length"
-      class="home-section page-container"
-      :aria-label="$t('home.featured_aria')"
-      data-testid="home-banners"
-    >
-      <ul class="banners" :class="`banners--${Math.min(home.banners.length, 3)}`">
-        <li v-for="banner in home.banners" :key="banner.id">
-          <component
-            :is="banner.cta_link ? (isInternal(banner.cta_link) ? 'router-link' : 'a') : 'div'"
-            v-bind="banner.cta_link ? linkAttrs(banner.cta_link) : {}"
-            class="banner"
-          >
-            <span v-if="banner.image" class="banner__media">
-              <img
-                :src="banner.image.src"
-                :srcset="banner.image.srcset ?? undefined"
-                sizes="(max-width: 599px) 100vw, 50vw"
-                :width="banner.image.width ?? undefined"
-                :height="banner.image.height ?? undefined"
-                :alt="banner.image.alt"
-                loading="lazy"
-                decoding="async"
-              />
-            </span>
-            <span class="banner__text">
-              <span class="banner__title">{{ banner.title }}</span>
-              <span v-if="banner.subtitle" class="banner__subtitle">{{ banner.subtitle }}</span>
-              <span v-if="banner.cta_link" class="banner__cta">
-                {{ banner.cta_label || $t('home.discover') }}
-                <q-icon name="ph:arrow-right" size="16px" />
-              </span>
-            </span>
-          </component>
-        </li>
-      </ul>
-    </section>
-
     <CartErrorToast v-model="cartError" />
 
-    <section
-      v-if="home.categories.length"
-      class="home-section page-container"
-      aria-labelledby="home-categories-title"
-    >
-      <div class="home-section__head">
-        <h2 id="home-categories-title" class="home-section__title">{{ $t('home.categories') }}</h2>
-        <router-link :to="{ name: 'catalogue' }" class="home-section__link">
-          {{ $t('home.all') }}
-          <q-icon name="ph:arrow-right" size="16px" />
-        </router-link>
-      </div>
-      <ul class="category-tiles">
-        <li v-for="category in home.categories" :key="category.id">
-          <router-link
-            :to="{ name: 'catalogue', query: { cat: category.id } }"
-            class="category-tile"
-            data-testid="home-category"
-          >
-            <span class="category-tile__media">
-              <img
-                v-if="category.image_url"
-                :src="category.image_url"
-                :srcset="mediaSrcset(category.image_url)"
-                sizes="(max-width: 599px) 50vw, 240px"
-                :alt="category.image_alt ?? ''"
-                loading="lazy"
-                decoding="async"
-                class="category-tile__img"
-              />
-              <q-icon v-else name="ph:squares-four" size="32px" class="category-tile__glyph" />
-            </span>
-            <span class="category-tile__name">{{ categoryTitle(category) }}</span>
+    <template v-for="part in parts" :key="part.key">
+      <section
+        v-if="part.type === 'banners'"
+        class="home-section page-container"
+        :aria-label="$t('home.featured_aria')"
+        data-testid="home-banners"
+      >
+        <ul class="banners" :class="`banners--${Math.min(part.items.length, 3)}`">
+          <li v-for="banner in part.items" :key="banner.id">
+            <component
+              :is="banner.cta_link ? (isInternal(banner.cta_link) ? 'router-link' : 'a') : 'div'"
+              v-bind="banner.cta_link ? linkAttrs(banner.cta_link) : {}"
+              class="banner"
+            >
+              <span v-if="banner.image" class="banner__media">
+                <img
+                  :src="banner.image.src"
+                  :srcset="banner.image.srcset ?? undefined"
+                  sizes="(max-width: 599px) 100vw, 50vw"
+                  :width="banner.image.width ?? undefined"
+                  :height="banner.image.height ?? undefined"
+                  :alt="banner.image.alt"
+                  loading="lazy"
+                  decoding="async"
+                />
+              </span>
+              <span class="banner__text">
+                <span class="banner__title">{{ banner.title }}</span>
+                <span v-if="banner.subtitle" class="banner__subtitle">{{ banner.subtitle }}</span>
+                <span v-if="banner.cta_link" class="banner__cta">
+                  {{ banner.cta_label || $t('home.discover') }}
+                  <q-icon name="ph:arrow-right" size="16px" />
+                </span>
+              </span>
+            </component>
+          </li>
+        </ul>
+      </section>
+
+      <section
+        v-else-if="part.type === 'categories' && part.tiles.length"
+        class="home-section page-container"
+        :aria-labelledby="`home-section-${part.key}`"
+      >
+        <div class="home-section__head">
+          <h2 :id="`home-section-${part.key}`" class="home-section__title">
+            {{ part.section.title || $t('home.categories') }}
+          </h2>
+          <router-link :to="{ name: 'catalogue' }" class="home-section__link">
+            {{ $t('home.all') }}
+            <q-icon name="ph:arrow-right" size="16px" />
           </router-link>
-        </li>
-      </ul>
-    </section>
+        </div>
+        <p v-if="part.section.subtitle" class="home-section__lead">{{ part.section.subtitle }}</p>
+        <ul class="category-tiles">
+          <li v-for="category in part.tiles" :key="category.id">
+            <router-link
+              :to="{ name: 'catalogue', query: { cat: category.id } }"
+              class="category-tile"
+              data-testid="home-category"
+            >
+              <span class="category-tile__media">
+                <img
+                  v-if="category.image_url"
+                  :src="category.image_url"
+                  :srcset="mediaSrcset(category.image_url)"
+                  sizes="(max-width: 599px) 50vw, 240px"
+                  :alt="category.image_alt ?? ''"
+                  loading="lazy"
+                  decoding="async"
+                  class="category-tile__img"
+                />
+                <q-icon v-else name="ph:squares-four" size="32px" class="category-tile__glyph" />
+              </span>
+              <span class="category-tile__name">{{ categoryTitle(category) }}</span>
+            </router-link>
+          </li>
+        </ul>
+      </section>
 
-    <section
-      v-if="home.featured.length"
-      class="home-section page-container"
-      aria-labelledby="home-featured-title"
-    >
-      <div class="home-section__head">
-        <h2 id="home-featured-title" class="home-section__title">{{ $t('home.favourites') }}</h2>
-      </div>
-      <div class="product-grid" data-testid="home-featured">
-        <ProductCard
-          v-for="product in home.featured"
-          :key="product.id"
-          :product="product"
-          @add-to-cart="onAddToCart"
-          @compare-full="compareFull"
-        />
-      </div>
-    </section>
-
-    <section
-      v-if="home.popular.length"
-      class="home-section page-container"
-      aria-labelledby="home-popular-title"
-    >
-      <div class="home-section__head">
-        <h2 id="home-popular-title" class="home-section__title">{{ $t('home.popular') }}</h2>
-        <span class="home-section__hint">{{ $t('home.last_30') }}</span>
-      </div>
-      <div class="product-grid" data-testid="home-popular">
-        <ProductCard
-          v-for="product in home.popular"
-          :key="product.id"
-          :product="product"
-          @add-to-cart="onAddToCart"
-          @compare-full="compareFull"
-        />
-      </div>
-    </section>
+      <section
+        v-else-if="part.type === 'products' && part.section.products?.length"
+        class="home-section page-container"
+        :aria-labelledby="`home-section-${part.key}`"
+      >
+        <div class="home-section__head">
+          <h2 :id="`home-section-${part.key}`" class="home-section__title">
+            {{ part.section.title || defaultTitle(part.section.kind) }}
+          </h2>
+          <span v-if="part.section.kind === 'popular'" class="home-section__hint">
+            {{ $t('home.last_days', { days: popularDays(part.section) }) }}
+          </span>
+        </div>
+        <p v-if="part.section.subtitle" class="home-section__lead">{{ part.section.subtitle }}</p>
+        <div class="product-grid" :data-testid="`home-${part.section.kind}`">
+          <ProductCard
+            v-for="product in part.section.products"
+            :key="product.id"
+            :product="product"
+            @add-to-cart="onAddToCart"
+            @compare-full="compareFull"
+          />
+        </div>
+      </section>
+    </template>
 
     <div v-if="home.failed && !home.loading" class="page-container home__notice">
       <AppNotice tone="error" data-testid="home-unavailable">
@@ -189,6 +180,7 @@ import AppNotice from '@app/ui/AppNotice.vue';
 import ProductCard from '@/components/ProductCard.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useCartStore } from '@/stores/cart';
+import type { HomepageSection } from '@/api/homepage';
 import { categoryTitle, useHomeStore } from '@/stores/home';
 import { useUiStore } from '@/stores/ui';
 import { COMPARE_MAX } from '@/stores/compare';
@@ -203,8 +195,53 @@ const authStore = useAuthStore();
 const cartStore = useCartStore();
 const uiStore = useUiStore();
 const cartError = ref<string | null>(null);
-// Déclaré avant `useMeta` : Quasar évalue le callback dès l'appel.
-const heroImage = computed(() => home.hero?.image ?? null);
+// Déclarés avant `useMeta` : Quasar évalue le callback dès l'appel.
+/** The hero of this page: the first section when it is one (the API puts it
+ *  first), else the shop's default title and lead. */
+const hero = computed(() => {
+  const first = home.sections[0];
+  return first?.kind === 'hero' ? first : null;
+});
+const heroImage = computed(() => hero.value?.image ?? null);
+
+type CategoryPublic = components['schemas']['CategoryPublic'];
+type Part =
+  | { type: 'banners'; key: string; items: HomepageSection[] }
+  | { type: 'categories'; key: string; section: HomepageSection; tiles: CategoryPublic[] }
+  | { type: 'products'; key: string; section: HomepageSection };
+
+/** The sections after the hero, in order; banners next to each other share
+ *  one grid, as before. */
+const parts = computed<Part[]>(() => {
+  const result: Part[] = [];
+  for (const section of home.sections) {
+    if (section.kind === 'hero') continue;
+    if (section.kind === 'banner') {
+      const last = result[result.length - 1];
+      if (last?.type === 'banners') last.items.push(section);
+      else result.push({ type: 'banners', key: section.id, items: [section] });
+    } else if (section.kind === 'categories') {
+      const limit = Number(section.config?.['limit'] ?? 8);
+      result.push({
+        type: 'categories',
+        key: section.id,
+        section,
+        tiles: home.categoryTiles(limit),
+      });
+    } else if (section.kind === 'featured' || section.kind === 'popular') {
+      result.push({ type: 'products', key: section.id, section });
+    }
+  }
+  return result;
+});
+
+function defaultTitle(kind: string): string {
+  return kind === 'popular' ? t('home.popular') : t('home.favourites');
+}
+
+function popularDays(section: HomepageSection): number {
+  return Number(section.config?.['days'] ?? 30);
+}
 
 useMeta(() => {
   const shopName = shopModules.config.shop_name || 'Natimai';
@@ -255,7 +292,7 @@ useMeta(() => {
 // Tant que rien n'est arrivé, des squelettes gardent la place des produits.
 const FALLBACK_LEAD = computed(() => t('home.lead'));
 
-const heroLead = computed(() => (home.hero ? home.hero.subtitle : FALLBACK_LEAD.value));
+const heroLead = computed(() => (hero.value ? hero.value.subtitle : FALLBACK_LEAD.value));
 
 /** Lien d'un bloc : chemin du site (routeur) ou adresse https (nouvel onglet). */
 function isInternal(link: string): boolean {
@@ -273,7 +310,7 @@ function linkProps(link: string): Record<string, string> {
   return linkAttrs(link);
 }
 
-const showSkeleton = computed(() => !home.loaded && !home.featured.length && !home.popular.length);
+const showSkeleton = computed(() => !home.loaded && !home.sections.length);
 
 function compareFull() {
   cartError.value = t('compare.full', { max: COMPARE_MAX });
@@ -292,14 +329,14 @@ async function onAddToCart(product: ProductPublic) {
 onServerPrefetch(() => home.load());
 onMounted(async () => {
   await home.load();
-  // Rendered by the server for a visitor: a signed-in customer's price group
-  // changes the prices of the cards (§12.1).
-  await home.syncPrices();
+  // Rendered by the server for a visitor: a signed-in customer gets their own
+  // page (sections of their audience, prices of their price group).
+  await home.syncAudience();
 });
-// Signing in or out on the page changes them too.
+// Signing in or out on the page changes it too.
 watch(
   () => authStore.isAuthenticated,
-  () => void home.syncPrices(),
+  () => void home.syncAudience(),
 );
 // Blocks, category tiles and product names follow the visitor's language (R9 / T3).
 watch(locale, () => void home.reload());
@@ -523,6 +560,13 @@ a.banner:hover {
 .home-section__hint {
   font-size: 13px;
   color: var(--n-ink-3);
+}
+
+.home-section__lead {
+  margin: -8px 0 16px;
+  font-size: 15px;
+  color: var(--n-ink-2);
+  max-width: 64ch;
 }
 
 .home-section__link {

@@ -627,7 +627,7 @@ const en: MessageSchema = {
     favourites: 'Our favourites',
     featured_aria: 'Featured',
     hero_title: 'The right equipment, at the price shown.',
-    last_30: 'over the last 30 days',
+    last_days: 'over the last {days} days',
     lead: 'Price, availability and lead time are on every product page. Order online or request a quote from your cart.',
     meta_description:
       'Computer equipment: price, availability and lead time shown on every page. Order online or on quote.',

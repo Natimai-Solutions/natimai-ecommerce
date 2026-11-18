@@ -207,8 +207,9 @@ async def test_categories_pages_blocks_and_spec_labels_follow_the_language(
     )
     assert block.title == "Bienvenue" and block.translation_status == {"en": "ok"}
     home = await get_homepage(_request(), db_session)
-    assert home.hero is not None
-    assert (home.hero.title, home.hero.subtitle) == ("Welcome", "Matériel importé")
+    hero = home.sections[0]
+    assert hero.kind == "hero"
+    assert (hero.title, hero.subtitle) == ("Welcome", "Matériel importé")
 
     # Spec labels: the storefront facets read the translated label.
     from datetime import datetime

@@ -6731,9 +6731,32 @@ export interface paths {
         };
         /**
          * Get Homepage
-         * @description Published blocks whose dates include now: the first hero, then banners.
+         * @description The visitor's homepage. Reads no identity on purpose: the server render
+         *     of the storefront is anonymous, and this answer must not depend on who
+         *     asks (a signed-in customer asks ``/homepage/personal``).
          */
         get: operations["homepage-get_homepage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/homepage/personal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Personal Homepage
+         * @description The signed-in customer's homepage: the sections of their audience, the
+         *     products at their prices. Never cached.
+         */
+        get: operations["homepage-get_personal_homepage"];
         put?: never;
         post?: never;
         delete?: never;
@@ -6751,15 +6774,38 @@ export interface paths {
         };
         /**
          * List Blocks
-         * @description Every block, published or not, in display order.
+         * @description Every section, published or not, in display order.
          */
         get: operations["homepage-list_blocks"];
         put?: never;
         /**
          * Create Block
-         * @description Add a hero or a banner.
+         * @description Add a section, at the end of the page (``position`` is ignored: the
+         *     order is set by ``PUT /admin/homepage-blocks/order``).
          */
         post: operations["homepage-create_block"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/homepage-blocks/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Reorder Blocks
+         * @description Put every section in the given order, in one transaction. The list must
+         *     name each active section once: a page changed meanwhile (a section added
+         *     or removed in another tab) is refused rather than half applied.
+         */
+        put: operations["homepage-reorder_blocks"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -6776,13 +6822,13 @@ export interface paths {
         get?: never;
         /**
          * Replace Block
-         * @description Replace every field of a block.
+         * @description Replace every field of a section but its place in the page.
          */
         put: operations["homepage-replace_block"];
         post?: never;
         /**
          * Delete Block
-         * @description Remove a block (its image stays in the media library).
+         * @description Remove a section (its image stays in the media library).
          */
         delete: operations["homepage-delete_block"];
         options?: never;
@@ -13238,10 +13284,106 @@ export interface components {
             };
         };
         /**
-         * HomepageBlockPublic
-         * @description A block as the storefront and the admin see it.
+         * HomepageBlockWrite
+         * @description Admin create / replace payload.
          */
-        HomepageBlockPublic: {
+        HomepageBlockWrite: {
+            /**
+             * Kind
+             * @default banner
+             */
+            kind: string;
+            /**
+             * Title
+             * @default
+             */
+            title: string;
+            /** Subtitle */
+            subtitle?: string | null;
+            /** Cta Label */
+            cta_label?: string | null;
+            /** Cta Link */
+            cta_link?: string | null;
+            /** Media Id */
+            media_id?: string | null;
+            /** Image Url */
+            image_url?: string | null;
+            /** Alt */
+            alt?: string | null;
+            /**
+             * Position
+             * @default 0
+             */
+            position: number;
+            /**
+             * Is Published
+             * @default false
+             */
+            is_published: boolean;
+            /** Starts At */
+            starts_at?: string | null;
+            /** Ends At */
+            ends_at?: string | null;
+            /** Translations */
+            translations?: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            };
+            /** Config */
+            config?: {
+                [key: string]: unknown;
+            };
+            /** Audience */
+            audience?: {
+                [key: string]: unknown;
+            };
+        };
+        /**
+         * HomepageImage
+         * @description An image ready for an ``<img>``: source, srcset and intrinsic size.
+         */
+        HomepageImage: {
+            /** Src */
+            src: string;
+            /** Srcset */
+            srcset?: string | null;
+            /** Width */
+            width?: number | null;
+            /** Height */
+            height?: number | null;
+            /**
+             * Alt
+             * @default
+             */
+            alt: string;
+        };
+        /**
+         * HomepageOrder
+         * @description Every active block, in the new display order.
+         */
+        HomepageOrder: {
+            /** Ids */
+            ids: string[];
+        };
+        /**
+         * HomepagePublic
+         * @description The storefront homepage: its sections in display order (the hero, if
+         *     any, first).
+         */
+        HomepagePublic: {
+            /**
+             * Sections
+             * @default []
+             */
+            sections: components["schemas"]["HomepageSectionPublic"][];
+        };
+        /**
+         * HomepageSectionPublic
+         * @description A section of the storefront homepage, with its products when it shows
+         *     some (featured, most viewed).
+         */
+        HomepageSectionPublic: {
             /**
              * Id
              * Format: uuid
@@ -13278,12 +13420,22 @@ export interface components {
             /** Ends At */
             ends_at?: string | null;
             image?: components["schemas"]["HomepageImage"] | null;
+            /** Config */
+            config?: {
+                [key: string]: unknown;
+            };
+            /** Audience */
+            audience?: {
+                [key: string]: unknown;
+            };
             /** Translations */
             translations?: {
                 [key: string]: {
                     [key: string]: unknown;
                 };
             };
+            /** Products */
+            products?: components["schemas"]["ProductPublic"][] | null;
             /**
              * Translation Status
              * @description Per offered language: ``ok`` / ``stale`` / ``missing`` (R9 / T3).
@@ -13291,82 +13443,6 @@ export interface components {
             readonly translation_status: {
                 [key: string]: string;
             };
-        };
-        /**
-         * HomepageBlockWrite
-         * @description Admin create / replace payload.
-         */
-        HomepageBlockWrite: {
-            /**
-             * Kind
-             * @default banner
-             */
-            kind: string;
-            /** Title */
-            title: string;
-            /** Subtitle */
-            subtitle?: string | null;
-            /** Cta Label */
-            cta_label?: string | null;
-            /** Cta Link */
-            cta_link?: string | null;
-            /** Media Id */
-            media_id?: string | null;
-            /** Image Url */
-            image_url?: string | null;
-            /** Alt */
-            alt?: string | null;
-            /**
-             * Position
-             * @default 0
-             */
-            position: number;
-            /**
-             * Is Published
-             * @default false
-             */
-            is_published: boolean;
-            /** Starts At */
-            starts_at?: string | null;
-            /** Ends At */
-            ends_at?: string | null;
-            /** Translations */
-            translations?: {
-                [key: string]: {
-                    [key: string]: unknown;
-                };
-            };
-        };
-        /**
-         * HomepageImage
-         * @description An image ready for an ``<img>``: source, srcset and intrinsic size.
-         */
-        HomepageImage: {
-            /** Src */
-            src: string;
-            /** Srcset */
-            srcset?: string | null;
-            /** Width */
-            width?: number | null;
-            /** Height */
-            height?: number | null;
-            /**
-             * Alt
-             * @default
-             */
-            alt: string;
-        };
-        /**
-         * HomepagePublic
-         * @description Storefront homepage content: at most one hero, then the banners.
-         */
-        HomepagePublic: {
-            hero?: components["schemas"]["HomepageBlockPublic"] | null;
-            /**
-             * Banners
-             * @default []
-             */
-            banners: components["schemas"]["HomepageBlockPublic"][];
         };
         /**
          * ImportModePublic
@@ -35885,6 +35961,26 @@ export interface operations {
             };
         };
     };
+    "homepage-get_personal_homepage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HomepagePublic"];
+                };
+            };
+        };
+    };
     "homepage-list_blocks": {
         parameters: {
             query?: never;
@@ -35900,7 +35996,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HomepageBlockPublic"][];
+                    "application/json": components["schemas"]["HomepageSectionPublic"][];
                 };
             };
         };
@@ -35924,7 +36020,40 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HomepageBlockPublic"];
+                    "application/json": components["schemas"]["HomepageSectionPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "homepage-reorder_blocks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HomepageOrder"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HomepageSectionPublic"][];
                 };
             };
             /** @description Validation Error */
@@ -35959,7 +36088,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HomepageBlockPublic"];
+                    "application/json": components["schemas"]["HomepageSectionPublic"];
                 };
             };
             /** @description Validation Error */

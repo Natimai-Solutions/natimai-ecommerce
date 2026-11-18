@@ -635,7 +635,7 @@ const fr = {
     favourites: 'Nos coups de cœur',
     featured_aria: 'À la une',
     hero_title: 'Le bon matériel, au prix affiché.',
-    last_30: 'ces 30 derniers jours',
+    last_days: 'ces {days} derniers jours',
     lead: 'Prix, disponibilité et délai figurent sur chaque fiche. Commandez en ligne ou demandez un devis depuis votre panier.',
     meta_description:
       'Matériel informatique : prix, disponibilité et délai affichés sur chaque fiche. Commande en ligne ou sur devis.',

@@ -126,16 +126,23 @@ class ContentPageTemplate(SQLModel):
 
 
 # --------------------------------------------------------------------------
-# Homepage blocks (R2): the hero and the banners of the storefront homepage.
+# Homepage blocks (R2): the sections of the storefront homepage, in order —
+# the hero and the banners written in the admin, and the sections the shop
+# fills itself (category tiles, featured and most viewed products).
 # --------------------------------------------------------------------------
-HOMEPAGE_BLOCK_KINDS: tuple[str, ...] = ("hero", "banner")
+#: Sections whose content the shop computes (title and size set in the admin).
+HOMEPAGE_BUILTIN_KINDS: tuple[str, ...] = ("categories", "featured", "popular")
+HOMEPAGE_BLOCK_KINDS: tuple[str, ...] = ("hero", "banner", *HOMEPAGE_BUILTIN_KINDS)
+#: Who a section is shown to (chantier accueil et messagerie, R8).
+HOMEPAGE_AUDIENCE_SCOPES: tuple[str, ...] = ("all", "guest", "customer")
 
 
 class HomepageBlockBase(Base):
     """Fields shared by the table and its schemas."""
 
     kind: str = Field(default="banner", max_length=20, index=True)
-    title: str = Field(max_length=200)
+    #: Empty for a shop section: the storefront shows its default title.
+    title: str = Field(default="", max_length=200)
     subtitle: str | None = Field(default=None, max_length=500)
     cta_label: str | None = Field(default=None, max_length=60)
     cta_link: str | None = Field(
@@ -161,6 +168,18 @@ class HomepageBlockBase(Base):
             "Translated title / subtitle / cta_label / alt per language (R9 / T3)"
         ),
     )
+    config: dict[str, Any] = Field(
+        default_factory=dict,
+        sa_column=Column(JSONB, nullable=False, server_default="{}"),
+        description="Settings of the section type (number of items, period…)",
+    )
+    audience: dict[str, Any] = Field(
+        default_factory=dict,
+        sa_column=Column(JSONB, nullable=False, server_default="{}"),
+        description=(
+            "Who sees it: scope all | guest | customer, price_group_ids, locales"
+        ),
+    )
 
 
 class HomepageBlock(HomepageBlockBase, table=True):
@@ -174,7 +193,7 @@ class HomepageBlockWrite(SQLModel):
     """Admin create / replace payload."""
 
     kind: str = Field(default="banner", max_length=20)
-    title: str = Field(min_length=1, max_length=200)
+    title: str = Field(default="", max_length=200)
     subtitle: str | None = Field(default=None, max_length=500)
     cta_label: str | None = Field(default=None, max_length=60)
     cta_link: str | None = Field(default=None, max_length=500)
@@ -187,6 +206,14 @@ class HomepageBlockWrite(SQLModel):
     ends_at: datetime.datetime | None = None
     #: Raw mapping from the editor; validated and stamped by the API.
     translations: dict[str, dict[str, Any]] = Field(default_factory=dict)
+    config: dict[str, Any] = Field(default_factory=dict)
+    audience: dict[str, Any] = Field(default_factory=dict)
+
+
+class HomepageOrder(SQLModel):
+    """Every active block, in the new display order."""
+
+    ids: list[uuid.UUID] = Field(min_length=1, max_length=500)
 
 
 class HomepageImage(SQLModel):
@@ -216,6 +243,8 @@ class HomepageBlockPublic(SQLModel):
     starts_at: datetime.datetime | None = None
     ends_at: datetime.datetime | None = None
     image: HomepageImage | None = None
+    config: dict[str, Any] = Field(default_factory=dict)
+    audience: dict[str, Any] = Field(default_factory=dict)
     #: Back-office only (the storefront gets the resolved texts).
     translations: dict[str, dict[str, Any]] = Field(default_factory=dict)
 
@@ -228,10 +257,3 @@ class HomepageBlockPublic(SQLModel):
             {f: getattr(self, f, None) for f in HOMEPAGE_BLOCK_FIELDS},
             HOMEPAGE_BLOCK_FIELDS,
         )
-
-
-class HomepagePublic(SQLModel):
-    """Storefront homepage content: at most one hero, then the banners."""
-
-    hero: HomepageBlockPublic | None = None
-    banners: list[HomepageBlockPublic] = []

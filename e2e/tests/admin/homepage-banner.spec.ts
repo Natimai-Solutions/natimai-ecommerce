@@ -18,6 +18,7 @@ test('a banner published from the admin shows on the storefront until deleted', 
 
   await test.step('the admin publishes a banner', async () => {
     await page.getByTestId('homepage-new').click()
+    await page.getByTestId('homepage-new-banner').click()
     await page.getByTestId('homepage-title').fill(title)
     await page.getByTestId('homepage-published').click()
     await page.getByTestId('homepage-save').click()

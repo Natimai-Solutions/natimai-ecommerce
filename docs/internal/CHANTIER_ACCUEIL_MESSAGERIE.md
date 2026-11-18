@@ -299,7 +299,7 @@ homepage_block_items          (lignes ordonnées des sections manuelles)
 - **Migration de reprise** : les sections d'aujourd'hui deviennent des
   lignes `builtin` dans l'ordre actuel ; les produits `is_featured` une
   sélection manuelle. Rien ne change à l'écran au déploiement.
-- **Cache** : l'outil est à écrire (`core/cache.py` n'ouvre qu'une
+- **Cache** (pas encore fait, à reprendre si la charge l'exige) : l'outil est à écrire (`core/cache.py` n'ouvre qu'une
   connexion). Clé `homepage:v{n}:{locale}` sur le client Redis partagé,
   **fail-open** (ce n'est pas une barrière), écrite seulement pour une
   requête sans aperçu. L'invalidation à l'écriture admin ne couvre que la
@@ -931,7 +931,6 @@ les identifiants M· de l'audit fonctionnel.
 
 | Lot | Contenu | Taille |
 |---|---|---|
-| **A1** | Accueil : sections ordonnables / masquables / titrées (R1), route d'ordre en une transaction, migration de reprise, **audience par section** (tous, visiteurs, connectés, groupes tarifaires, langue — R8), `GET /homepage` (version visiteur) + `GET /homepage/personal` (sections ciblées et prix du client) | M à L |
 | **A2** | Sélections de produits nommées (R2) et catégories choisies (R3), sélecteur admin | M |
 | **A3** | Annonce au-dessus de l'en-tête sur toutes les pages, réassurance, marques (après BR), bloc libre (R4 à R7) | M |
 | **A4** | Aperçu et programmation (R10), SEO de l'accueil (R11) | S à M |
@@ -944,9 +943,11 @@ les identifiants M· de l'audit fonctionnel.
 | **ROLE** | Rôles « Service client » et « Service commercial » : premiers rôles fins (groupes de sécurité, gardes par liste d'autorisation, 2FA, menu admin filtré) | M à L |
 | **BR** | Marques : `Product.brand_id`, alias, reprise depuis `manufacturer`, écran admin, filtre et facette, page marque (M9 de l'audit) | M à L |
 
-Ordre conseillé (correctifs du §12 livrés) : **A1 → MSG1 → MSG2 → A2 →
+Livré le 18/11/2026 : correctifs du §12, **A1** (sections ordonnables,
+masquables, titrées, public par section, page du client). Ordre conseillé
+pour la suite : **MSG1 → MSG2 → A2 →
 MSG5 → ROLE → MSG3 → MSG4**, BR quand on veut la bande de marques (R6) et
-les pages marque. A1, MSG1 et BR sont indépendants et peuvent avancer en
+les pages marque. MSG1 et BR sont indépendants et peuvent avancer en
 parallèle. ROLE peut attendre : sans lui, les superusers répondent.
 
 ---

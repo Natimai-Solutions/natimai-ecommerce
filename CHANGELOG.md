@@ -62,6 +62,19 @@ takes a tag as its `ref`.
 
 ### Added
 
+- Homepage sections: the homepage is an ordered list of sections set in the
+  admin (*Site homepage*) — hero, banners, category tiles, « favourites »
+  and « most viewed » products — each with an optional title and subtitle
+  (translated), its size (number of items, period of the most viewed),
+  published or hidden, and an **audience**: everyone, visitors only,
+  signed-in customers, some price groups, some languages. The order is saved
+  in one call (`PUT /admin/homepage-blocks/order`, 409 when the page changed
+  meanwhile). `GET /homepage` is the visitor's page (it reads no identity);
+  `GET /homepage/personal` is the signed-in customer's (their sections,
+  their prices, `no-store`). One live hero per period **and per audience**.
+  Migration `d2e3f4a5b6c7` turns today's fixed sections into rows, in the
+  same order: nothing changes on screen.
+
 - Tests: the freight from the product page to the invoice (one freight,
   billed once), two checkouts truly in parallel on one cart (two sessions:
   one order), and `scripts/release/deploy.sh` run for real with fake

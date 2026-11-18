@@ -172,19 +172,23 @@ async def test_homepage_shows_published_blocks_within_their_dates(
         kind="banner",
         title="Écrans",
         is_published=True,
-        position=2,
         image_url="https://images.exemple.pf/ecrans.webp",
     )
-    await block(kind="banner", title="Portables", is_published=True, position=1)
+    # A new section goes at the end of the page, whatever position it names.
+    await block(kind="banner", title="Portables", is_published=True, position=-5)
 
     homepage = await get_homepage(_request(), db_session)
-    assert homepage.hero is not None and homepage.hero.title == "Rentrée"
-    assert homepage.hero.image is not None
-    assert homepage.hero.image.src.endswith("/1600.webp")
-    assert homepage.hero.image.srcset and homepage.hero.image.alt == "Bureau équipé"
-    assert [b.title for b in homepage.banners] == ["Portables", "Écrans"]
-    assert homepage.banners[1].image is not None
-    assert homepage.banners[1].image.src == "https://images.exemple.pf/ecrans.webp"
+    hero, *banners = homepage.sections
+    assert hero.kind == "hero" and hero.title == "Rentrée"
+    assert hero.image is not None
+    assert hero.image.src.endswith("/1600.webp")
+    assert hero.image.srcset and hero.image.alt == "Bureau équipé"
+    assert [(b.kind, b.title) for b in banners] == [
+        ("banner", "Écrans"),
+        ("banner", "Portables"),
+    ]
+    assert banners[0].image is not None
+    assert banners[0].image.src == "https://images.exemple.pf/ecrans.webp"
 
     # The admin sees every block, published or not.
     assert (
@@ -200,6 +204,19 @@ async def test_homepage_shows_published_blocks_within_their_dates(
         {"kind": "carousel", "title": "x"},
         {"title": "x", "cta_link": "javascript:alert(1)"},
         {"title": "x", "cta_link": "//ailleurs.example"},
+        {"title": "   "},
+        {"kind": "popular", "config": {"limit": 500}},
+        {"kind": "featured", "config": {"unknown": 1}},
+        {
+            "title": "x",
+            "audience": {"scope": "guest", "price_group_ids": [str(uuid.uuid4())]},
+        },
+        {
+            "title": "x",
+            "audience": {"scope": "customer", "price_group_ids": [str(uuid.uuid4())]},
+        },
+        {"title": "x", "audience": {"scope": "everybody"}},
+        {"title": "x", "audience": {"locales": ["xx"]}},
         {"title": "x", "image_url": "ftp://images/x.png"},
     ],
 )

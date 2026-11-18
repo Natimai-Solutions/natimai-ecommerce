@@ -1,16 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 
-const { getFeaturedProducts, getPopularProducts, getCategories, getHomepage } = vi.hoisted(
-  () => ({
-    getFeaturedProducts: vi.fn(),
-    getPopularProducts: vi.fn(),
-    getCategories: vi.fn(),
-    getHomepage: vi.fn(),
-  }),
-);
-vi.mock('@/api/products', () => ({ getFeaturedProducts, getPopularProducts, getCategories }));
-vi.mock('@/api/homepage', () => ({ getHomepage }));
+const { getHomepage, getPersonalHomepage, getCategories } = vi.hoisted(() => ({
+  getHomepage: vi.fn(),
+  getPersonalHomepage: vi.fn(),
+  getCategories: vi.fn(),
+}));
+vi.mock('@/api/homepage', () => ({ getHomepage, getPersonalHomepage }));
+vi.mock('@/api/products', () => ({ getCategories }));
 vi.mock('@/boot/api', async () => {
   const { ref } = await import('vue');
   return { accessToken: ref<string | null>(null) };
@@ -19,42 +16,54 @@ vi.mock('@/boot/api', async () => {
 import { accessToken } from '@/boot/api';
 import { useHomeStore } from './home';
 
-const card = (id: string, price: string) => ({ id, base_price: price });
+const page = (title: string, price: string) => ({
+  sections: [{ id: 's1', kind: 'featured', title, products: [{ id: 'p1', base_price: price }] }],
+});
 
-describe('the prices of the homepage cards follow the signed-in account (§12.1)', () => {
+describe('the homepage of whoever is signed in (R8, §12.1)', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     accessToken.value = null;
     getCategories.mockResolvedValue({ data: [] });
-    getHomepage.mockResolvedValue({ hero: null, banners: [] });
-    getPopularProducts.mockResolvedValue([]);
-    getFeaturedProducts.mockReset();
+    getHomepage.mockReset();
+    getPersonalHomepage.mockReset();
   });
 
-  it('loads the products again once a customer is signed in, then signed out', async () => {
-    getFeaturedProducts.mockResolvedValueOnce([card('p1', '45000')]);
+  it('asks for the customer’s page once signed in, and the visitor’s after signing out', async () => {
+    getHomepage.mockResolvedValue(page('Coups de cœur', '45000'));
     const home = useHomeStore();
     await home.load(); // server render: anonymous
-    expect(home.featured[0]?.base_price).toBe('45000');
+    expect(home.sections[0]?.products?.[0]?.base_price).toBe('45000');
 
     accessToken.value = 'token';
-    getFeaturedProducts.mockResolvedValueOnce([card('p1', '40500')]);
-    await home.syncPrices();
-    expect(home.featured[0]?.base_price).toBe('40500');
-    expect(getHomepage).toHaveBeenCalledTimes(1);
+    getPersonalHomepage.mockResolvedValueOnce(page('Pour les pros', '40500'));
+    await home.syncAudience();
+    expect(home.sections[0]?.title).toBe('Pour les pros');
+    expect(home.sections[0]?.products?.[0]?.base_price).toBe('40500');
 
     accessToken.value = null;
-    getFeaturedProducts.mockResolvedValueOnce([card('p1', '45000')]);
-    await home.syncPrices();
-    expect(home.featured[0]?.base_price).toBe('45000');
+    await home.syncAudience();
+    expect(home.sections[0]?.products?.[0]?.base_price).toBe('45000');
+    expect(getHomepage).toHaveBeenCalledTimes(2);
   });
 
-  it('does not fetch again when the prices are already the account’s', async () => {
+  it('asks nothing again when the page is already the customer’s', async () => {
     accessToken.value = 'token';
-    getFeaturedProducts.mockResolvedValue([card('p1', '40500')]);
+    getPersonalHomepage.mockResolvedValue(page('Pour les pros', '40500'));
     const home = useHomeStore();
     await home.load();
-    await home.syncPrices();
-    expect(getFeaturedProducts).toHaveBeenCalledTimes(1);
+    await home.syncAudience();
+    expect(getPersonalHomepage).toHaveBeenCalledTimes(1);
+    expect(getHomepage).not.toHaveBeenCalled();
+  });
+
+  it('keeps the visitor’s page when the customer’s cannot be had', async () => {
+    getHomepage.mockResolvedValue(page('Coups de cœur', '45000'));
+    const home = useHomeStore();
+    await home.load();
+    accessToken.value = 'token';
+    getPersonalHomepage.mockRejectedValueOnce(new Error('down'));
+    await home.syncAudience();
+    expect(home.sections[0]?.title).toBe('Coups de cœur');
   });
 });
