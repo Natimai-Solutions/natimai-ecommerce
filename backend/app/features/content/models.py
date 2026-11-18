@@ -131,7 +131,12 @@ class ContentPageTemplate(SQLModel):
 # fills itself (category tiles, featured and most viewed products).
 # --------------------------------------------------------------------------
 #: Sections whose content the shop computes (title and size set in the admin).
-HOMEPAGE_BUILTIN_KINDS: tuple[str, ...] = ("categories", "featured", "popular")
+HOMEPAGE_BUILTIN_KINDS: tuple[str, ...] = (
+    "categories",
+    "featured",
+    "popular",
+    "collection",
+)
 HOMEPAGE_BLOCK_KINDS: tuple[str, ...] = ("hero", "banner", *HOMEPAGE_BUILTIN_KINDS)
 #: Who a section is shown to (chantier accueil et messagerie, R8).
 HOMEPAGE_AUDIENCE_SCOPES: tuple[str, ...] = ("all", "guest", "customer")
@@ -189,6 +194,49 @@ class HomepageBlock(HomepageBlockBase, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
 
 
+class HomepageBlockItem(SQLModel, table=True):
+    """A product or a category listed in a section, in order (a manual
+    selection, chosen categories)."""
+
+    __tablename__ = "homepage_block_items"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    block_id: uuid.UUID = Field(
+        foreign_key="homepage_blocks.id", index=True, ondelete="CASCADE"
+    )
+    position: int = Field(default=0)
+    product_id: uuid.UUID | None = Field(
+        default=None, foreign_key="products.id", ondelete="CASCADE"
+    )
+    category_id: uuid.UUID | None = Field(
+        default=None, foreign_key="categories.id", ondelete="CASCADE"
+    )
+    #: Label shown instead of the category's own name (optional).
+    label: str | None = Field(default=None, max_length=100)
+
+
+class HomepageItemWrite(SQLModel):
+    product_id: uuid.UUID | None = None
+    category_id: uuid.UUID | None = None
+    label: str | None = Field(default=None, max_length=100)
+
+
+class HomepageItemPublic(SQLModel):
+    product_id: uuid.UUID | None = None
+    category_id: uuid.UUID | None = None
+    label: str | None = None
+    #: Name of the product or the category (back-office list).
+    name: str = ""
+
+
+class HomepageCategoryTile(SQLModel):
+    """A chosen category, ready for the storefront tile."""
+
+    id: uuid.UUID
+    title: str
+    image_url: str | None = None
+
+
 class HomepageBlockWrite(SQLModel):
     """Admin create / replace payload."""
 
@@ -208,6 +256,9 @@ class HomepageBlockWrite(SQLModel):
     translations: dict[str, dict[str, Any]] = Field(default_factory=dict)
     config: dict[str, Any] = Field(default_factory=dict)
     audience: dict[str, Any] = Field(default_factory=dict)
+    #: Products of a manual selection, categories of a manual « categories »
+    #: section, in order; replaces the stored list.
+    items: list[HomepageItemWrite] = Field(default_factory=list, max_length=48)
 
 
 class HomepageOrder(SQLModel):
@@ -245,6 +296,10 @@ class HomepageBlockPublic(SQLModel):
     image: HomepageImage | None = None
     config: dict[str, Any] = Field(default_factory=dict)
     audience: dict[str, Any] = Field(default_factory=dict)
+    #: Back-office: the listed products / categories.
+    items: list[HomepageItemPublic] = Field(default_factory=list)
+    #: Storefront: the chosen categories of a manual « categories » section.
+    categories: list[HomepageCategoryTile] | None = None
     #: Back-office only (the storefront gets the resolved texts).
     translations: dict[str, dict[str, Any]] = Field(default_factory=dict)
 

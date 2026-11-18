@@ -255,3 +255,123 @@ async def test_one_live_hero_per_audience(db_session: AsyncSession) -> None:
             title="Pros",
             audience={"scope": "customer", "price_group_ids": [str(shop["pro_group"])]},
         )
+
+
+async def test_collections_by_source_and_chosen_categories(
+    db_session: AsyncSession,
+) -> None:
+    from app.features.content.homepage_collections import collection_products
+    from app.features.discount.models import Discount, DiscountTarget, DiscountType
+    from app.features.product.models.category import Category
+
+    await _shop(db_session)
+    admin = await _admin(db_session)
+    screens = Category(name="Écrans")
+    network = Category(name="Réseau")
+    db_session.add_all([screens, network])
+    await db_session.flush()
+    wifi = Category(name="Wi-Fi", parent_id=network.id)
+    db_session.add(wifi)
+    await db_session.flush()
+    products = {}
+    for name, category, price in (
+        ("Borne Wi-Fi", wifi, "9000"),
+        ("Écran 24", screens, "30000"),
+        ("Caché", screens, "1000"),
+    ):
+        product = Product(
+            name=name,
+            pricing_mode=PricingMode.FIXED,
+            base_price=Decimal(price),
+            category_id=category.id,
+            is_enriched=True,
+            weight=1.0,
+            customs_rate_pct=Decimal("0"),
+            is_admin_active=name != "Caché",
+        )
+        db_session.add(product)
+        await db_session.flush()
+        products[name] = product.id
+    db_session.add(
+        Discount(
+            name="Réseau −10 %",
+            discount_type=DiscountType.PROMOTION,
+            target=DiscountTarget.CATEGORY,
+            category_id=network.id,
+            percentage=Decimal("10"),
+        )
+    )
+    network_id, screens_id = network.id, screens.id
+    await db_session.commit()
+
+    await _section(
+        db_session,
+        admin,
+        kind="collection",
+        title="Réseau",
+        config={"source": "category", "category_id": str(network_id)},
+    )
+    await _section(
+        db_session,
+        admin,
+        kind="collection",
+        title="Promos",
+        config={"source": "promotion"},
+    )
+    await _section(
+        db_session,
+        admin,
+        kind="collection",
+        title="Choix",
+        config={"source": "manual"},
+        items=[
+            {"product_id": str(products["Écran 24"])},
+            {"product_id": str(products["Caché"])},
+            {"product_id": str(products["Borne Wi-Fi"])},
+        ],
+    )
+    await _section(
+        db_session,
+        admin,
+        kind="categories",
+        config={"mode": "manual"},
+        items=[
+            {"category_id": str(network_id), "label": "Tout le réseau"},
+            {"category_id": str(screens_id)},
+        ],
+    )
+
+    sections = {s.title: s for s in await _page_of(db_session, None)}
+    names = {t: [p.name for p in s.products or []] for t, s in sections.items()}
+    # A sub-category belongs to its parent; a hidden product never shows; a
+    # product already shown higher on the page is not shown again.
+    assert names["Réseau"] == ["Borne Wi-Fi"]
+    assert names["Promos"] == []
+    assert names["Choix"] == ["Écran 24"]
+    by_source = {
+        s.title: [p.name for p in await collection_products(db_session, s.id, s.config)]
+        for s in sections.values()
+        if s.kind == "collection"
+    }
+    assert by_source["Promos"] == ["Borne Wi-Fi"]  # the promotion on « Réseau »
+    assert by_source["Choix"] == ["Écran 24", "Borne Wi-Fi"]  # listed order
+    tiles = next(s for s in sections.values() if s.kind == "categories").categories
+    assert [t.title for t in tiles or []] == ["Tout le réseau", "Écrans"]
+
+    # A category is required for that source, and only for it.
+    for config in (
+        {"source": "category"},
+        {"source": "newest", "category_id": str(network_id)},
+    ):
+        with pytest.raises(AppError) as refused:
+            await _section(db_session, admin, kind="collection", config=config)
+        assert refused.value.code == "homepage.config"
+    with pytest.raises(AppError) as refused:
+        await _section(
+            db_session,
+            admin,
+            kind="collection",
+            config={"source": "manual"},
+            items=[{"product_id": str(uuid.uuid4())}],
+        )
+    assert refused.value.code == "homepage.items"

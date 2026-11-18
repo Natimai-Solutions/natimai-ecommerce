@@ -128,7 +128,14 @@
           <h2 :id="`home-section-${part.key}`" class="home-section__title">
             {{ part.section.title || defaultTitle(part.section.kind) }}
           </h2>
-          <span v-if="part.section.kind === 'popular'" class="home-section__hint">
+          <span
+            v-if="
+              part.section.kind === 'popular' ||
+              (part.section.kind === 'collection' &&
+                ['popular', 'best_sellers'].includes(String(part.section.config?.['source'])))
+            "
+            class="home-section__hint"
+          >
             {{ $t('home.last_days', { days: popularDays(part.section) }) }}
           </span>
         </div>
@@ -222,13 +229,18 @@ const parts = computed<Part[]>(() => {
       else result.push({ type: 'banners', key: section.id, items: [section] });
     } else if (section.kind === 'categories') {
       const limit = Number(section.config?.['limit'] ?? 8);
-      result.push({
-        type: 'categories',
-        key: section.id,
-        section,
-        tiles: home.categoryTiles(limit),
-      });
-    } else if (section.kind === 'featured' || section.kind === 'popular') {
+      // Manual mode: the categories chosen in the admin, in their order.
+      const tiles: CategoryPublic[] = section.categories
+        ? section.categories.map((c) => ({
+            ...(home.categories.find((full) => full.id === c.id) ?? ({} as CategoryPublic)),
+            id: c.id,
+            name: c.title,
+            display_name: c.title,
+            image_url: c.image_url ?? null,
+          }))
+        : home.categoryTiles(limit);
+      result.push({ type: 'categories', key: section.id, section, tiles });
+    } else if (['featured', 'popular', 'collection'].includes(section.kind)) {
       result.push({ type: 'products', key: section.id, section });
     }
   }
@@ -236,7 +248,9 @@ const parts = computed<Part[]>(() => {
 });
 
 function defaultTitle(kind: string): string {
-  return kind === 'popular' ? t('home.popular') : t('home.favourites');
+  if (kind === 'popular') return t('home.popular');
+  if (kind === 'collection') return t('home.selection');
+  return t('home.favourites');
 }
 
 function popularDays(section: HomepageSection): number {

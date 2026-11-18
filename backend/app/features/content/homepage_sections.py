@@ -35,6 +35,19 @@ class _NoConfig(_Strict):
 
 class _CategoriesConfig(_Strict):
     limit: int = Field(default=8, ge=2, le=24)
+    #: ``auto``: first-level categories, those with an image first;
+    #: ``manual``: the categories listed in the section, in order.
+    mode: Literal["auto", "manual"] = "auto"
+
+
+class _CollectionConfig(_Strict):
+    source: Literal[
+        "manual", "category", "newest", "promotion", "popular", "best_sellers"
+    ] = "manual"
+    category_id: uuid.UUID | None = None
+    limit: int = Field(default=8, ge=2, le=24)
+    days: int = Field(default=30, ge=1, le=365)
+    sort: Literal["newest", "price_asc", "price_desc", "name"] = "newest"
 
 
 class _FeaturedConfig(_Strict):
@@ -52,6 +65,7 @@ _CONFIGS: dict[str, type[_Strict]] = {
     "categories": _CategoriesConfig,
     "featured": _FeaturedConfig,
     "popular": _PopularConfig,
+    "collection": _CollectionConfig,
 }
 
 
@@ -71,9 +85,14 @@ def clean_config(kind: str, raw: dict[str, Any] | None) -> dict[str, Any]:
     if model is None:
         raise InvalidSection(f"unknown kind {kind}")
     try:
-        return model.model_validate(raw or {}).model_dump(mode="json")
+        config = model.model_validate(raw or {})
     except ValidationError as exc:
         raise InvalidSection(str(exc)) from exc
+    if isinstance(config, _CollectionConfig) and (
+        (config.source == "category") != (config.category_id is not None)
+    ):
+        raise InvalidSection("a category is required for, and only for, that source")
+    return config.model_dump(mode="json")
 
 
 def clean_audience(raw: dict[str, Any] | None) -> dict[str, Any]:

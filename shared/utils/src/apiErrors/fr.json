@@ -138,6 +138,7 @@
   "homepage.dates": "La fin doit suivre le début.",
   "homepage.hero.conflict": "Un autre hero publié couvre déjà cette période : « {other_title} ». Un seul hero s'affiche : dépubliez-le ou donnez-leur des dates qui ne se chevauchent pas.",
   "homepage.image": "Image : une adresse http(s) complète.",
+  "homepage.items": "Liste de la section invalide.",
   "homepage.kind": "Type de section inconnu : {kind}.",
   "homepage.link": "Lien : un chemin du site (/catalogue…) ou une adresse https://.",
   "homepage.media": "Image introuvable.",

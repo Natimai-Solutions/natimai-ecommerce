@@ -230,6 +230,133 @@
               dense
               maxlength="500"
             />
+            <div v-if="form.kind === 'collection'" class="row q-col-gutter-sm">
+              <q-select
+                v-model="form.source"
+                class="col-12 col-sm-6"
+                :options="sourceOptions"
+                emit-value
+                map-options
+                outlined
+                dense
+                :label="$t('homepage.source')"
+                data-testid="homepage-source"
+              />
+              <q-select
+                v-if="form.source === 'category'"
+                v-model="form.category_id"
+                class="col-12 col-sm-6"
+                :options="categoryOptions"
+                emit-value
+                map-options
+                outlined
+                dense
+                :label="$t('homepage.category')"
+              />
+              <q-select
+                v-if="['category', 'newest', 'promotion'].includes(form.source)"
+                v-model="form.sort"
+                class="col-12 col-sm-6"
+                :options="sortOptions"
+                emit-value
+                map-options
+                outlined
+                dense
+                :label="$t('homepage.sort')"
+              />
+            </div>
+            <q-option-group
+              v-if="form.kind === 'categories'"
+              v-model="form.mode"
+              :options="[
+                { label: $t('homepage.mode_auto'), value: 'auto' },
+                { label: $t('homepage.mode_manual'), value: 'manual' },
+              ]"
+              inline
+            />
+            <div v-if="listsItems" class="homepage-items">
+              <q-select
+                v-if="form.kind === 'collection'"
+                :model-value="null"
+                :options="productChoices"
+                use-input
+                input-debounce="300"
+                outlined
+                dense
+                :label="$t('homepage.add_product')"
+                data-testid="homepage-add-product"
+                @filter="onProductFilter"
+                @update:model-value="addItem"
+              >
+                <template #no-option>
+                  <q-item
+                    ><q-item-section class="text-subtle">{{
+                      productTerm.length < 2
+                        ? $t('homepage.search_hint')
+                        : $t('homepage.no_product')
+                    }}</q-item-section></q-item
+                  >
+                </template>
+              </q-select>
+              <q-select
+                v-else
+                :model-value="null"
+                :options="categoryOptions.filter((o) => !form.items.some((i) => i.id === o.value))"
+                emit-value
+                map-options
+                outlined
+                dense
+                :label="$t('homepage.add_category')"
+                @update:model-value="
+                  (id: string) => addItem({ value: id, label: categoryName(id) })
+                "
+              />
+              <q-list v-if="form.items.length" bordered separator dense class="q-mt-sm">
+                <q-item v-for="(entry, index) in form.items" :key="entry.id">
+                  <q-item-section>{{ entry.name }}</q-item-section>
+                  <q-item-section v-if="form.kind === 'categories'" side>
+                    <q-input
+                      v-model="entry.label"
+                      dense
+                      outlined
+                      maxlength="100"
+                      :placeholder="$t('homepage.item_label')"
+                    />
+                  </q-item-section>
+                  <q-item-section side>
+                    <div class="row no-wrap">
+                      <q-btn
+                        flat
+                        round
+                        dense
+                        icon="ph:arrow-up"
+                        :aria-label="$t('homepage.up')"
+                        :disable="index === 0"
+                        @click="moveItem(index, -1)"
+                      />
+                      <q-btn
+                        flat
+                        round
+                        dense
+                        icon="ph:arrow-down"
+                        :aria-label="$t('homepage.down')"
+                        :disable="index === form.items.length - 1"
+                        @click="moveItem(index, 1)"
+                      />
+                      <q-btn
+                        flat
+                        round
+                        dense
+                        icon="ph:x"
+                        :aria-label="$t('common.delete')"
+                        @click="form.items.splice(index, 1)"
+                      />
+                    </div>
+                  </q-item-section>
+                </q-item>
+              </q-list>
+              <p v-else class="admin-hint q-mt-sm">{{ $t('homepage.items_empty') }}</p>
+            </div>
             <div v-if="isBuiltin" class="row q-col-gutter-sm">
               <q-input
                 v-model.number="form.limit"
@@ -247,7 +374,10 @@
                 data-testid="homepage-limit"
               />
               <q-input
-                v-if="form.kind === 'popular'"
+                v-if="
+                  form.kind === 'popular' ||
+                  (form.kind === 'collection' && ['popular', 'best_sellers'].includes(form.source))
+                "
                 v-model.number="form.days"
                 class="col-12 col-sm-4"
                 type="number"
@@ -455,15 +585,23 @@ import {
   type HomepageBlockWrite,
 } from '@/api/homepage';
 import { listPriceGroups, type PriceGroup } from '@/api/eligibility';
+import { listCategories, type Category } from '@/api/categories';
+import { searchProducts } from '@/api/discounts';
 import { useShopConfigStore } from '@/stores/shopConfig';
 import type { MediaAsset } from '@/api/media';
 
 const { t } = useI18n();
 const { confirmDelete } = useConfirm();
 
-type Kind = 'hero' | 'banner' | 'categories' | 'featured' | 'popular';
+type Kind = 'hero' | 'banner' | 'categories' | 'featured' | 'popular' | 'collection';
 type Scope = 'all' | 'guest' | 'customer';
-const BUILTIN: Kind[] = ['categories', 'featured', 'popular'];
+type Source = 'manual' | 'category' | 'newest' | 'promotion' | 'popular' | 'best_sellers';
+const BUILTIN: Kind[] = ['categories', 'featured', 'popular', 'collection'];
+interface ListedItem {
+  id: string;
+  name: string;
+  label: string;
+}
 
 const blocks = ref<HomepageBlock[]>([]);
 const priceGroups = ref<PriceGroup[]>([]);
@@ -479,7 +617,56 @@ const kindOptions = computed<{ label: string; value: Kind }[]>(() => [
   { label: t('homepage.kind_categories'), value: 'categories' },
   { label: t('homepage.kind_featured'), value: 'featured' },
   { label: t('homepage.kind_popular'), value: 'popular' },
+  { label: t('homepage.kind_collection'), value: 'collection' },
 ]);
+
+const sourceOptions = computed(() =>
+  (['manual', 'category', 'newest', 'promotion', 'popular', 'best_sellers'] as Source[]).map(
+    (value) => ({ value, label: t(`homepage.source_${value}`) }),
+  ),
+);
+const sortOptions = computed(() =>
+  ['newest', 'price_asc', 'price_desc', 'name'].map((value) => ({
+    value,
+    label: t(`homepage.sort_${value}`),
+  })),
+);
+const categories = ref<Category[]>([]);
+const categoryOptions = computed(() =>
+  categories.value
+    .map((c) => ({ value: c.id, label: c.name }))
+    .sort((a, b) => a.label.localeCompare(b.label, 'fr')),
+);
+function categoryName(id: string): string {
+  return categories.value.find((c) => c.id === id)?.name ?? id;
+}
+const productChoices = ref<{ value: string; label: string }[]>([]);
+const productTerm = ref('');
+function onProductFilter(term: string, update: (fn: () => void) => void) {
+  productTerm.value = term.trim();
+  if (term.trim().length < 2) {
+    update(() => (productChoices.value = []));
+    return;
+  }
+  void searchProducts(term.trim()).then((found) =>
+    update(() => {
+      productChoices.value = found
+        .filter((p) => !form.items.some((i) => i.id === p.id))
+        .map((p) => ({
+          value: p.id,
+          label: p.supplier_sku ? `${p.name} · ${p.supplier_sku}` : p.name,
+        }));
+    }),
+  );
+}
+function addItem(choice: { value: string; label: string } | null) {
+  if (!choice || form.items.some((i) => i.id === choice.value)) return;
+  form.items.push({ id: choice.value, name: choice.label, label: '' });
+}
+function moveItem(index: number, delta: number) {
+  const [entry] = form.items.splice(index, 1);
+  if (entry) form.items.splice(index + delta, 0, entry);
+}
 
 function kindLabel(kind: string): string {
   return kindOptions.value.find((o) => o.value === kind)?.label ?? kind;
@@ -493,6 +680,7 @@ function kindIcon(kind: string): string {
       categories: 'ph:squares-four',
       featured: 'ph:star',
       popular: 'ph:trend-up',
+      collection: 'ph:stack',
     }[kind] ?? 'ph:square'
   );
 }
@@ -504,6 +692,7 @@ function defaultTitle(kind: string): string {
       categories: t('homepage.default_categories'),
       featured: t('homepage.default_featured'),
       popular: t('homepage.default_popular'),
+      collection: t('homepage.default_collection'),
     }[kind] ?? ''
   );
 }
@@ -512,6 +701,10 @@ function configLabel(block: HomepageBlock): string {
   const config = (block.config ?? {}) as Record<string, number>;
   if (block.kind === 'popular') {
     return t('homepage.config_popular', { n: config['limit'] ?? 8, days: config['days'] ?? 30 });
+  }
+  if (block.kind === 'collection') {
+    const source = (block.config as { source?: string } | undefined)?.source ?? 'manual';
+    return `${t(`homepage.source_${source}`)} · ${t('homepage.config_limit', { n: config['limit'] ?? 8 })}`;
   }
   if (BUILTIN.includes(block.kind as Kind)) {
     return t('homepage.config_limit', { n: config['limit'] ?? 8 });
@@ -586,12 +779,14 @@ async function load() {
   loading.value = true;
   error.value = null;
   try {
-    const [list, groups] = await Promise.all([
+    const [list, groups, cats] = await Promise.all([
       listHomepageBlocks(),
       listPriceGroups().catch(() => [] as PriceGroup[]),
+      listCategories().catch(() => [] as Category[]),
     ]);
     blocks.value = list;
     priceGroups.value = groups;
+    categories.value = cats;
   } catch (err) {
     error.value = extractApiError(err) ?? t('common.load_failed');
   } finally {
@@ -625,6 +820,12 @@ interface BlockForm {
   /** Shop sections: how many items, over how many days (most viewed). */
   limit: number;
   days: number;
+  /** Selection (lot A2). */
+  source: Source;
+  category_id: string | null;
+  sort: string;
+  mode: 'auto' | 'manual';
+  items: ListedItem[];
   /** Who sees it (R8). */
   scope: Scope;
   price_group_ids: string[];
@@ -663,6 +864,11 @@ function emptyForm(kind: Kind): BlockForm {
     translations: {},
     limit: 8,
     days: 30,
+    source: 'manual',
+    category_id: null,
+    sort: 'newest',
+    mode: 'auto',
+    items: [],
     scope: 'all',
     price_group_ids: [],
     locales: [],
@@ -670,6 +876,12 @@ function emptyForm(kind: Kind): BlockForm {
 }
 
 const isBuiltin = computed(() => BUILTIN.includes(form.kind));
+/** The section lists products (manual selection) or categories (manual mode). */
+const listsItems = computed(
+  () =>
+    (form.kind === 'collection' && form.source === 'manual') ||
+    (form.kind === 'categories' && form.mode === 'manual'),
+);
 
 const previewSrc = computed(() => {
   if (pickedPreview.value) return pickedPreview.value;
@@ -710,6 +922,15 @@ function openEdit(block: HomepageBlock) {
     translations: cloneTranslations(block.translations),
     limit: Number((block.config as Record<string, number> | undefined)?.['limit'] ?? 8),
     days: Number((block.config as Record<string, number> | undefined)?.['days'] ?? 30),
+    source: (block.config as { source?: Source } | undefined)?.source ?? 'manual',
+    category_id: (block.config as { category_id?: string } | undefined)?.category_id ?? null,
+    sort: (block.config as { sort?: string } | undefined)?.sort ?? 'newest',
+    mode: ((block.config as { mode?: string } | undefined)?.mode ?? 'auto') as 'auto' | 'manual',
+    items: (block.items ?? []).map((item) => ({
+      id: (item.product_id ?? item.category_id) as string,
+      name: item.name,
+      label: item.label ?? '',
+    })),
     scope: (block.audience as { scope?: Scope } | undefined)?.scope ?? 'all',
     price_group_ids: [
       ...((block.audience as { price_group_ids?: string[] } | undefined)?.price_group_ids ?? []),
@@ -736,10 +957,29 @@ function clearImage() {
   pickedPreview.value = null;
 }
 
-function configFromForm(): Record<string, number> {
+function configFromForm(): Record<string, unknown> {
   if (form.kind === 'popular') return { limit: form.limit, days: form.days };
+  if (form.kind === 'categories') return { limit: form.limit, mode: form.mode };
+  if (form.kind === 'collection') {
+    return {
+      source: form.source,
+      limit: form.limit,
+      ...(form.source === 'category' ? { category_id: form.category_id } : {}),
+      ...(['popular', 'best_sellers'].includes(form.source) ? { days: form.days } : {}),
+      ...(['category', 'newest', 'promotion'].includes(form.source) ? { sort: form.sort } : {}),
+    };
+  }
   if (BUILTIN.includes(form.kind)) return { limit: form.limit };
   return {};
+}
+
+function itemsFromForm(): { product_id?: string; category_id?: string; label?: string | null }[] {
+  if (!listsItems.value) return [];
+  return form.items.map((item) =>
+    form.kind === 'collection'
+      ? { product_id: item.id }
+      : { category_id: item.id, label: item.label.trim() || null },
+  );
 }
 
 function payloadFromForm(): HomepageBlockWrite {
@@ -759,6 +999,7 @@ function payloadFromForm(): HomepageBlockWrite {
     ends_at: fromShopDateTimeInput(form.ends_at),
     translations: form.translations,
     config: configFromForm(),
+    items: itemsFromForm(),
     audience: {
       scope: form.scope,
       price_group_ids: form.scope === 'customer' ? form.price_group_ids : [],
@@ -833,6 +1074,10 @@ onMounted(load);
     align-items: center;
     justify-content: center;
   }
+}
+
+.homepage-items {
+  margin-top: 4px;
 }
 
 .homepage-preview {

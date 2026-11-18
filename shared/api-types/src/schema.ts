@@ -14083,6 +14083,23 @@ export interface components {
             audience?: {
                 [key: string]: unknown;
             };
+            /** Items */
+            items?: components["schemas"]["HomepageItemWrite"][];
+        };
+        /**
+         * HomepageCategoryTile
+         * @description A chosen category, ready for the storefront tile.
+         */
+        HomepageCategoryTile: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Title */
+            title: string;
+            /** Image Url */
+            image_url?: string | null;
         };
         /**
          * HomepageImage
@@ -14102,6 +14119,29 @@ export interface components {
              * @default
              */
             alt: string;
+        };
+        /** HomepageItemPublic */
+        HomepageItemPublic: {
+            /** Product Id */
+            product_id?: string | null;
+            /** Category Id */
+            category_id?: string | null;
+            /** Label */
+            label?: string | null;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+        };
+        /** HomepageItemWrite */
+        HomepageItemWrite: {
+            /** Product Id */
+            product_id?: string | null;
+            /** Category Id */
+            category_id?: string | null;
+            /** Label */
+            label?: string | null;
         };
         /**
          * HomepageOrder
@@ -14173,6 +14213,10 @@ export interface components {
             audience?: {
                 [key: string]: unknown;
             };
+            /** Items */
+            items?: components["schemas"]["HomepageItemPublic"][];
+            /** Categories */
+            categories?: components["schemas"]["HomepageCategoryTile"][] | null;
             /** Translations */
             translations?: {
                 [key: string]: {

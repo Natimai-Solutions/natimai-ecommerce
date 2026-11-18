@@ -117,6 +117,15 @@ takes a tag as its `ref`.
   their prices, `no-store`). One live hero per period **and per audience**.
   Migration `d2e3f4a5b6c7` turns today's fixed sections into rows, in the
   same order: nothing changes on screen.
+- Homepage selections (lot A2): a « product selection » section takes its
+  products from a source — hand-picked (searched by name or SKU, ordered),
+  a category with its sub-categories, new arrivals, products on promotion,
+  most viewed or best sellers over a period — with its size and order
+  (newest, price, name). The « categories » section shows either the main
+  categories (as before) or categories chosen in order, each with an
+  optional label (migration `c7e8f9a0b1c2`, table `homepage_block_items`).
+  A selection never shows a product the catalogue hides, nor a product
+  already shown higher on the page.
 
 - Tests: the freight from the product page to the invoice (one freight,
   billed once), two checkouts truly in parallel on one cart (two sessions:

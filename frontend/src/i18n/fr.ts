@@ -665,6 +665,7 @@ const fr = {
     topic_rule: 'Choisissez un motif',
   },
   home: {
+    selection: 'Notre sélection',
     unavailable: 'La boutique est momentanément indisponible.',
     retry: 'Réessayer',
     dismiss: 'Fermer',

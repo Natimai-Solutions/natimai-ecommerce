@@ -655,6 +655,7 @@ const en: MessageSchema = {
     topic_rule: 'Choose a topic',
   },
   home: {
+    selection: 'Our selection',
     unavailable: 'The shop is temporarily unavailable.',
     retry: 'Try again',
     dismiss: 'Close',

@@ -138,6 +138,7 @@
   "homepage.dates": "The end must follow the start.",
   "homepage.hero.conflict": "Another published hero already covers this period: “{other_title}”. Only one hero is shown: unpublish it or give them dates that do not overlap.",
   "homepage.image": "Image: a complete http(s) address.",
+  "homepage.items": "Invalid list of the section.",
   "homepage.kind": "Unknown section type: {kind}.",
   "homepage.link": "Link: a path of the site (/catalogue…) or an https:// address.",
   "homepage.media": "Image not found.",

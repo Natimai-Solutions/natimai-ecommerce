@@ -22,6 +22,7 @@ from sqlmodel import col, select
 from app.api.deps import CurrentSuperUser, CurrentUser, SessionDep
 from app.api.routes.media import request_origin
 from app.core.content_i18n import (
+    CATEGORY_FIELDS,
     HOMEPAGE_BLOCK_FIELDS,
     InvalidTranslations,
     clean_translations,
@@ -30,6 +31,11 @@ from app.core.content_i18n import (
 from app.core.datetimes import as_utc, utcnow
 from app.core.errors import AppError
 from app.core.i18n import request_locale
+from app.features.content.homepage_collections import (
+    chosen_categories,
+    collection_products,
+    section_items,
+)
 from app.features.content.homepage_sections import (
     InvalidSection,
     Viewer,
@@ -42,17 +48,21 @@ from app.features.content.models import (
     HOMEPAGE_BLOCK_KINDS,
     HOMEPAGE_BUILTIN_KINDS,
     HomepageBlock,
+    HomepageBlockItem,
     HomepageBlockPublic,
     HomepageBlockWrite,
+    HomepageCategoryTile,
     HomepageImage,
+    HomepageItemPublic,
     HomepageOrder,
 )
 from app.features.inventory.services.availability import publish_with_availability
 from app.features.media.models import MediaAsset
 from app.features.media.service import public_base_url, to_public
 from app.features.product.crud.product import crud_product
+from app.features.product.models.category import Category
 from app.features.product.models.price_group import PriceGroup
-from app.features.product.models.product import ProductPublic
+from app.features.product.models.product import Product, ProductPublic
 from app.features.product.services.group_pricing import resolve_customer_group
 from app.features.product.services.popularity import popular_products
 
@@ -173,6 +183,37 @@ async def _to_public(
             )
     if item.image is None and block.image_url:
         item.image = HomepageImage(src=block.image_url, alt=alt)
+    if block.kind == "categories" and (block.config or {}).get("mode") == "manual":
+        chosen = await chosen_categories(session, block.id)
+        if localized:
+            localize_all([c for c, _ in chosen], CATEGORY_FIELDS)
+        item.categories = [
+            HomepageCategoryTile(
+                id=category.id,
+                title=listed.label
+                or (category.display_name or "").strip()
+                or category.name,
+                image_url=category.image_url,
+            )
+            for category, listed in chosen
+        ]
+    if not localized:
+        names: list[HomepageItemPublic] = []
+        for listed in await section_items(session, block.id):
+            target: Product | Category | None = (
+                await session.get(Product, listed.product_id)
+                if listed.product_id
+                else await session.get(Category, listed.category_id)
+            )
+            names.append(
+                HomepageItemPublic(
+                    product_id=listed.product_id,
+                    category_id=listed.category_id,
+                    label=listed.label,
+                    name=getattr(target, "name", "") if target else "",
+                )
+            )
+        item.items = names
     return item
 
 
@@ -192,6 +233,8 @@ async def _section_products(
         products = await crud_product.get_featured(
             session=session, limit=config["limit"]
         )
+    elif block.kind == "collection":
+        products = await collection_products(session, block.id, config)
     elif block.kind == "popular":
         products = await popular_products(
             session,
@@ -345,10 +388,56 @@ async def _check_media(session: SessionDep, media_id: uuid.UUID | None) -> None:
 
 
 async def _prepare(session: SessionDep, body: HomepageBlockWrite) -> None:
-    """Every check of a create or a replace; ``config`` and ``audience`` are
-    replaced by their cleaned values."""
+    """Every check of a create or a replace; ``config``, ``audience`` and
+    ``items`` are replaced by their cleaned values."""
     _validate(body)
     body.config, body.audience = await _clean_sections_fields(session, body)
+    manual_products = (
+        body.kind == "collection" and body.config.get("source") == "manual"
+    )
+    manual_categories = (
+        body.kind == "categories" and body.config.get("mode") == "manual"
+    )
+    if not (manual_products or manual_categories):
+        body.items = []
+        return
+    seen: set[uuid.UUID] = set()
+    cleaned = []
+    for item in body.items:
+        target = item.product_id if manual_products else item.category_id
+        if target is None or target in seen:
+            raise _invalid("Invalid list of the section.", "homepage.items", "items")
+        model = Product if manual_products else Category
+        if await session.get(model, target) is None:
+            raise _invalid("Invalid list of the section.", "homepage.items", "items")
+        seen.add(target)
+        cleaned.append(
+            item.model_copy(
+                update={
+                    "product_id": target if manual_products else None,
+                    "category_id": None if manual_products else target,
+                    "label": (item.label or "").strip() or None,
+                }
+            )
+        )
+    body.items = cleaned
+
+
+async def _save_items(
+    session: SessionDep, block_id: uuid.UUID, body: HomepageBlockWrite
+) -> None:
+    for old in await section_items(session, block_id):
+        await session.delete(old)
+    for position, item in enumerate(body.items):
+        session.add(
+            HomepageBlockItem(
+                block_id=block_id,
+                position=position,
+                product_id=item.product_id,
+                category_id=item.category_id,
+                label=item.label,
+            )
+        )
 
 
 @router.post(
@@ -375,8 +464,11 @@ async def create_block(
         )
     ).first()
     data["position"] = (last + 1) if last is not None else 0
+    data.pop("items", None)
     block = HomepageBlock(**data, created_at=utcnow(), created_by_id=admin.id)
     session.add(block)
+    await session.flush()
+    await _save_items(session, block.id, body)
     await session.commit()
     await session.refresh(block)
     return await _to_public(session, block, public_base_url(request_origin(request)))
@@ -448,8 +540,10 @@ async def replace_block(
     await _check_media(session, body.media_id)
     data = _with_translations(body, previous=block.translations)
     data.pop("position", None)
+    data.pop("items", None)
     for field, value in data.items():
         setattr(block, field, value)
+    await _save_items(session, block.id, body)
     block.modify_at = utcnow()
     block.modify_by_id = admin.id
     session.add(block)
