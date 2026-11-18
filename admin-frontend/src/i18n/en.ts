@@ -214,6 +214,13 @@ const en: MessageSchema = {
     no_rates: 'No currency rate entered.',
     rate_age: 'entered {n} d ago',
     departures: 'Group departures waiting',
+    worker_down:
+      'No worker answers: the background tasks (e-mails, syncs, invoices) no longer run. Restart the worker container.',
+    task_overdue: 'Overdue',
+    failed_events: 'Abandoned events',
+    failed_events_hint:
+      'These events were never processed (none of their actions happened). Fix the cause then replay them, or dismiss those handled by hand.',
+    dismiss: 'Dismiss',
     departures_hint:
       'Cut-off passed, threshold not reached: close it (forcing) or push the date back. Until then, new orders are attached to no departure.',
     departure_past: 'cut-off passed {n} h ago',

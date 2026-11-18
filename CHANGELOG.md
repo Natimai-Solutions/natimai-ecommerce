@@ -19,6 +19,13 @@ takes a tag as its `ref`.
 
 ### Added
 
+- « État du système » tells a stopped worker (no health key in Redis) and a
+  scheduled task that missed its next run by more than 20 minutes (« En
+  retard », worked out from its cron), instead of « ok » on the last success.
+  The events the poller gave up on (FAILED) are listed, with « Relancer »
+  (back to pending, attempts reset) and « Écarter » (closed, then purged by
+  the retention). A replay is claimed in one statement: two clicks no longer
+  replay twice. Review of 17/11/2026.
 - The generic order update (`PUT /order/{id}`) checks a status change
   before writing anything: the other fields used to be saved, then the
   status refused. Review of 17/11/2026.

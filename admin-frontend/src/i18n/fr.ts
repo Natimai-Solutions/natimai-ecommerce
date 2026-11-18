@@ -212,6 +212,13 @@ const fr = {
     no_rates: 'Aucun taux de change saisi.',
     rate_age: 'saisi il y a {n} j',
     departures: 'Départs groupés en attente',
+    worker_down:
+      'Aucun worker ne répond : les tâches de fond (e-mails, synchronisations, factures) ne tournent plus. Redémarrez le conteneur worker.',
+    task_overdue: 'En retard',
+    failed_events: 'Événements abandonnés',
+    failed_events_hint:
+      'Ces événements n’ont jamais été traités (aucune de leurs actions n’a eu lieu). Corrigez la cause puis relancez-les, ou écartez ceux qui ont été réglés à la main.',
+    dismiss: 'Écarter',
     departures_hint:
       'Date limite passée, seuil non atteint : clôturez (en forçant) ou repoussez la date. D’ici là, les nouvelles commandes ne sont rattachées à aucun départ.',
     departure_past: 'limite dépassée depuis {n} h',

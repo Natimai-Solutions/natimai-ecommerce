@@ -886,6 +886,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/system-status/failed-events/{event_id}/replay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replay Failed Event
+         * @description Give an event the poller gave up on back to it, attempts reset (its
+         *     cause fixed: a provider back, a setting entered). Once only: a second
+         *     click finds it pending already.
+         */
+        post: operations["admin-dashboard-replay_failed_event"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/system-status/failed-events/{event_id}/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dismiss Failed Event
+         * @description Close an event that is not to be processed any more (handled by hand,
+         *     obsolete): it leaves the page and the journal retention purges it.
+         */
+        post: operations["admin-dashboard-dismiss_failed_event"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/payments": {
         parameters: {
             query?: never;
@@ -12015,6 +12058,28 @@ export interface components {
             timestamp: string;
         };
         /**
+         * FailedEvent
+         * @description An outbox event the poller gave up on: its handlers never ran.
+         */
+        FailedEvent: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Event Type */
+            event_type: string;
+            /** Attempts */
+            attempts: number;
+            /** Error */
+            error: string | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
          * FeedInspection
          * @description First rows of a supplier's feed, to build the column mapping (same
          *     shape as the inspection of an uploaded file).
@@ -21951,6 +22016,19 @@ export interface components {
              * @enum {string}
              */
             departures_level: "ok" | "warn" | "error";
+            /**
+             * Outbox Failed Events
+             * @default []
+             */
+            outbox_failed_events: components["schemas"]["FailedEvent"][];
+            /** Worker Alive */
+            worker_alive?: boolean | null;
+            /**
+             * Worker Level
+             * @default ok
+             * @enum {string}
+             */
+            worker_level: "ok" | "warn" | "error";
         };
         /** TaskRunPublic */
         TaskRunPublic: {
@@ -21975,6 +22053,13 @@ export interface components {
             consecutive_failures: number;
             /** Runs */
             runs: number;
+            /** Expected By */
+            expected_by?: string | null;
+            /**
+             * Overdue
+             * @default false
+             */
+            overdue: boolean;
         };
         /**
          * TaxRateAssignBody
@@ -24360,6 +24445,68 @@ export interface operations {
             header?: never;
             path: {
                 failure_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReplayResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-dashboard-replay_failed_event": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                event_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReplayResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-dashboard-dismiss_failed_event": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                event_id: string;
             };
             cookie?: never;
         };
