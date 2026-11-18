@@ -82,7 +82,7 @@ Tous les constats sont corrigés ou tranchés (décisions du 18/11/2026) : voir 
 
 ## 3. Fonctionnel — client
 
-- **Chantier accueil et messagerie** (document de travail du 18/11/2026 ; livrés : correctifs du §12, A1, A2, MSG1, MSG2, MSG5) : [`CHANTIER_ACCUEIL_MESSAGERIE.md`](CHANTIER_ACCUEIL_MESSAGERIE.md) — accueil personnalisable (sections ordonnables, sélections de produits, ciblage par groupe tarifaire ; lots A1 à A5) et messagerie client ↔ boutique, service client et service commercial (lots MSG3 et MSG4 restants ; la page contact M8 de l'audit est livrée), premiers rôles fins « Service client » / « Service commercial » (lot ROLE, voir §4 ci-dessous) et rattachement des produits à des fiches marque (lot BR, comprend les pages marque de M9).
+- **Chantier accueil et messagerie** (document de travail du 18/11/2026 ; livrés : correctifs du §12, A1, A2, MSG1, MSG2, MSG5, ROLE) : [`CHANTIER_ACCUEIL_MESSAGERIE.md`](CHANTIER_ACCUEIL_MESSAGERIE.md) — accueil personnalisable (sections ordonnables, sélections de produits, ciblage par groupe tarifaire ; lots A1 à A5) et messagerie client ↔ boutique, service client et service commercial (lots MSG3 et MSG4 restants ; la page contact M8 de l'audit est livrée), premiers rôles fins « Service client » / « Service commercial » (lot ROLE, livré ; les autres rôles du §4 restent à faire) et rattachement des produits à des fiches marque (lot BR, comprend les pages marque de M9).
 - **Audit fonctionnel du 15/11/2026, manques côté client** (détail dans l'audit, §4) : identité de facturation B2B (M3, M) ; notification de retard d'un départ (M4, M — l'e-mail de confirmation complet est fait) ; pages catégorie et marque indexables (M9, M) ; demande d'avis après livraison, carte cadeau saisissable au checkout (M14, S chacun ; la décision de groupe tarifaire est postée dans la messagerie depuis le lot MSG5) ; rupture partielle après commande (M6, M à L).
 
 - **Retours, RMA et formulaire de rétractation** (obligation légale, c'est du code) : demande depuis « Mes commandes », validation admin, enchaînement sur le remboursement et l'avoir existants — L.
@@ -100,7 +100,7 @@ Tous les constats sont corrigés ou tranchés (décisions du 18/11/2026) : voir 
 - **Écran du journal des e-mails** (`email_log`, déjà alimenté : statut, erreur, renvoi possible sauf secrets) avec « renvoyer » ; écran des événements outbox en échec — M.
 - **Bons de préparation, étiquettes**, changement de statut en masse — M.
 - **Fiche client** (commandes, avoir, points), recherche globale (n° de commande, client, SKU) — M.
-- **Rôles fins** (préparateur, comptable) à la place du seul superuser — M.
+- **Rôles fins** (préparateur, comptable) : le socle existe depuis le lot ROLE (`users.staff_role`, gardes par liste d'autorisation dans `api/deps.py`, écrans par rôle dans `admin-frontend/src/utils/staffAccess.ts`) — M.
 - Pagination serveur sur les autres tableaux (30 fichiers masquent encore la pagination ; 3 seulement paginent côté serveur) — M.
 
 ---

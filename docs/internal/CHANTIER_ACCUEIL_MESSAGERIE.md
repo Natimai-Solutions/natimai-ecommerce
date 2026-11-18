@@ -936,7 +936,6 @@ les identifiants M· de l'audit fonctionnel.
 | **A5** | Sections personnelles (R9) et héros par audience | M |
 | **MSG3** | Raccourcis contextuels (produit, commande, panier, groupe), panneau client et objet rattaché dans le fil | M |
 | **MSG4** | Notes internes, réponses types, transfert, libération automatique, digest, priorité par groupe tarifaire | M |
-| **ROLE** | Rôles « Service client » et « Service commercial » : premiers rôles fins (groupes de sécurité, gardes par liste d'autorisation, 2FA, menu admin filtré) | M à L |
 | **BR** | Marques : `Product.brand_id`, alias, reprise depuis `manufacturer`, écran admin, filtre et facette, page marque (M9 de l'audit) | M à L |
 
 Livré le 18/11/2026 : correctifs du §12, **A1** (sections ordonnables,
@@ -958,7 +957,12 @@ sur la même adresse. **A2** (sélections de produits par source, catégories ch
 les « coups de cœur » restent une section à part, réglée fiche produit par
 fiche produit (pas de reprise en sélection manuelle) — une sélection
 manuelle les remplace si on le souhaite. **MSG5** (demandes de devis et de groupe en conversations ; « Ouvrir un retour »
-attend le RMA). Ordre conseillé pour la suite : **ROLE → MSG3 → MSG4**, BR quand on veut la bande de marques (R6) et
+attend le RMA). **ROLE** (rôles service client et commercial). Écarts : un champ
+`users.staff_role` et des gardes par liste d'autorisation plutôt que les groupes
+de sécurité éteints (`ENABLE_GROUP_PERMISSIONS`) ; pas de table d'agents (les
+canaux découlent du rôle). Reste : sur la fiche commande, les boutons
+d'action restent affichés à un membre de l'équipe et l'API les refuse (403) —
+à masquer. Ordre conseillé pour la suite : **MSG3 → MSG4**, BR quand on veut la bande de marques (R6) et
 les pages marque, en parallèle.
 ROLE peut attendre : sans lui, les superusers répondent.
 

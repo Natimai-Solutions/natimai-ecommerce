@@ -4820,7 +4820,8 @@ export interface paths {
         };
         /**
          * Conversation Team
-         * @description Who a conversation can be transferred to.
+         * @description Who a conversation (of ``channel``) can be transferred to: the
+         *     superusers and the team members whose role covers the channel.
          */
         get: operations["admin-messaging-conversation_team"];
         put?: never;
@@ -10081,6 +10082,8 @@ export interface components {
             is_active: boolean;
             /** Is Superuser */
             is_superuser: boolean;
+            /** Staff Role */
+            staff_role?: string | null;
             /** Is Verified */
             is_verified: boolean;
             /** Price Group Id */
@@ -10118,6 +10121,8 @@ export interface components {
             price_group_id?: string | null;
             /** Is Active */
             is_active?: boolean | null;
+            /** Staff Role */
+            staff_role?: string | null;
         };
         /**
          * AdminUsersPublic
@@ -15433,6 +15438,13 @@ export interface components {
             is_guest: boolean;
             /** Created At */
             created_at?: string | null;
+            /**
+             * Is Superuser
+             * @default false
+             */
+            is_superuser: boolean;
+            /** Staff Role */
+            staff_role?: string | null;
         };
         /**
          * MyProfileUpdate
@@ -32895,7 +32907,9 @@ export interface operations {
     };
     "admin-messaging-conversation_team": {
         parameters: {
-            query?: never;
+            query?: {
+                channel?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -32909,6 +32923,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TeamMember"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

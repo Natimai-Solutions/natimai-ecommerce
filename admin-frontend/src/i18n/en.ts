@@ -2734,6 +2734,11 @@ const en: MessageSchema = {
     validity: 'Validity',
   },
   users: {
+    staff_role: 'Team role',
+    staff_role_hint:
+      'Opens the back-office: messaging of its channels, orders read-only (quotes for sales)',
+    role_customer_service: 'Customer service (and technical support)',
+    role_sales: 'Sales',
     two_factor_reset_done:
       '{email} will set up two-factor authentication again at the next sign-in.',
     admin: 'Administrator',

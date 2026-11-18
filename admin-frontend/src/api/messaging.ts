@@ -24,8 +24,11 @@ export async function conversationsSummary(): Promise<ConversationSummaryCounts>
   return data;
 }
 
-export async function conversationTeam(): Promise<TeamMember[]> {
-  const { data } = await api.get<TeamMember[]>('/admin/conversations/team');
+/** Who a conversation of ``channel`` can be transferred to. */
+export async function conversationTeam(channel?: string): Promise<TeamMember[]> {
+  const { data } = await api.get<TeamMember[]>('/admin/conversations/team', {
+    params: channel ? { channel } : {},
+  });
   return data;
 }
 

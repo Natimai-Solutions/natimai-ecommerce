@@ -12,6 +12,8 @@
   "admin.user.email_taken": "An account already uses this address.",
   "admin.user.inactive": "Disabled account: reactivate it before resending the invitation.",
   "admin.user.self_deactivation": "You cannot deactivate your own account.",
+  "admin.user.staff_role": "Unknown team role: {role}.",
+  "admin.user.staff_role_superuser": "An administrator already has every right: no team role.",
   "attachment.key_mismatch": "This file does not belong to this payment.",
   "attachment.mimetype_unsupported": "This file type is not accepted.",
   "attachment.scan_pending": "Antivirus scan in progress: try again in a moment.",

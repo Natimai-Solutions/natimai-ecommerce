@@ -32,6 +32,7 @@ from app.core.errors import AppError
 from app.features.cart.models.quote_request import QuoteRequest
 from app.features.messaging.models import (
     CHANNEL_TOPICS,
+    CHANNELS,
     TOPIC_CHANNEL,
     Conversation,
     ConversationMessage,
@@ -44,6 +45,7 @@ from app.features.order.models.order import Order
 from app.features.product.models.product import Product
 from app.features.user.models.group_upgrade_request import GroupUpgradeRequest
 from app.features.user.models.user import User
+from app.features.user.staff import staff_channels
 
 NUMBER_PREFIX = "C"
 
@@ -369,7 +371,11 @@ async def transfer(
 ) -> None:
     now = now or utcnow()
     target = await session.get(User, target_id)
-    if target is None or not target.is_superuser or not target.is_active:
+    if (
+        target is None
+        or not target.is_active
+        or conversation.channel not in staff_channels(target)
+    ):
         raise AppError(
             code="messaging.invalid_assignee",
             status_code=400,
@@ -500,10 +506,17 @@ class StaffSummary:
     unread: int
 
 
-async def staff_summary(session: AsyncSession, staff_id: uuid.UUID) -> StaffSummary:
+async def staff_summary(
+    session: AsyncSession,
+    staff_id: uuid.UUID,
+    *,
+    channels: tuple[str, ...] = CHANNELS,
+) -> StaffSummary:
     async def count(*conditions: Any) -> int:
         result = await session.execute(
-            select(func.count()).select_from(Conversation).where(*conditions)
+            select(func.count())
+            .select_from(Conversation)
+            .where(col(Conversation.channel).in_(channels), *conditions)
         )
         return int(result.scalar_one())
 

@@ -7,6 +7,8 @@ import {
 } from 'vue-router';
 import routes from './routes';
 import { useAuthStore } from '@/stores/auth';
+import { useAccessStore } from '@/stores/access';
+import { canOpen, homeOf } from '@/utils/staffAccess';
 import { useShopConfigStore } from '@/stores/shopConfig';
 import { moduleOfPath } from '@/utils/modules';
 
@@ -39,6 +41,12 @@ export default defineRouter((/* { store, ssrContext } */) => {
     }
     if (to.path === '/login' && auth.isAuthenticated) {
       return { path: '/' };
+    }
+    // A team member reaches the screens of their role only (lot ROLE).
+    if (!isPublic && auth.isAuthenticated) {
+      const access = useAccessStore();
+      const me = await access.load();
+      if (!canOpen(me, to.path)) return { path: homeOf(me) };
     }
     // A screen of a switched-off module: back to the dashboard.
     const module = moduleOfPath(to.path);

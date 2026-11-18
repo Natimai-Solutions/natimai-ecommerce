@@ -41,6 +41,7 @@ from app.features.notification.email_renderer import render_email
 from app.features.notification.mailer import queue_email
 from app.features.user.crud.user_preference import get_preference_for_user
 from app.features.user.models.user import User
+from app.features.user.staff import STAFF_ROLES, staff_channels
 
 logger = logging.getLogger(__name__)
 
@@ -116,6 +117,19 @@ async def _staff_recipients(
         holder = await session.get(User, conversation.assigned_to_id)
         if holder is not None and holder.is_active and holder.email:
             return [str(holder.email)]
+    # The team members whose role covers the channel (lot ROLE).
+    members = await session.exec(
+        select(User).where(
+            col(User.staff_role).in_(list(STAFF_ROLES)), col(User.is_active).is_(True)
+        )
+    )
+    on_channel = [
+        str(u.email)
+        for u in members.all()
+        if u.email and conversation.channel in staff_channels(u)
+    ]
+    if on_channel:
+        return on_channel
     key = CHANNEL_ADDRESS.get(conversation.channel)
     if key:
         address = str(await runtime_settings.get(key, session) or "").strip()

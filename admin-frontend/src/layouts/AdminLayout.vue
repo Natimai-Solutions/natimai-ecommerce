@@ -98,6 +98,7 @@
 
         <nav class="admin-nav__scroll" :aria-label="$t('layout.admin_nav')">
           <router-link
+            v-if="canOpen(access.me, '/')"
             to="/"
             class="admin-nav__link"
             exact-active-class="admin-nav__link--active"
@@ -158,7 +159,9 @@ import { useRouter } from 'vue-router';
 
 import { getMe, type Me } from '@/api/me';
 import { useAuthStore } from '@/stores/auth';
+import { useAccessStore } from '@/stores/access';
 import { useMessagingStore } from '@/stores/messaging';
+import { canOpen } from '@/utils/staffAccess';
 import { useShopConfigStore } from '@/stores/shopConfig';
 import { moduleOfPath } from '@/utils/modules';
 import { readThemePreference, setThemePreference, type ThemePreference } from '@/utils/theme';
@@ -181,6 +184,8 @@ interface NavSection {
   label: string;
   links: NavLink[];
 }
+
+const access = useAccessStore();
 
 const allNav: NavSection[] = [
   {
@@ -265,7 +270,7 @@ const nav = computed<NavSection[]>(() =>
       ...section,
       links: section.links.filter((link) => {
         const module = moduleOfPath(link.to);
-        return !module || shopConfig.moduleOn(module);
+        return (!module || shopConfig.moduleOn(module)) && canOpen(access.me, link.to);
       }),
     }))
     .filter((section) => section.links.length > 0),
@@ -299,6 +304,7 @@ onMounted(() => {
 });
 
 function onLogout() {
+  access.reset();
   void auth.logout();
   void router.replace('/login');
 }

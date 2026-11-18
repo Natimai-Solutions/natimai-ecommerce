@@ -163,6 +163,7 @@ async def test_notes_stay_internal_and_move_nothing(
     await notify.notify_unread(db_session, now=utcnow() + datetime.timedelta(hours=1))
     assert [m for m in sent if m["event_type"] == "messaging.reply"] == []
 
+    await _fresh(db_session, agent)
     staff_view = await staff_routes.get_conversation(conversation_id, db_session, agent)
     assert [m.kind for m in staff_view.messages] == ["message", "note"]
 

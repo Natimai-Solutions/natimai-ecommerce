@@ -32,6 +32,7 @@ from app.features.user.models.user import (
     TokenPayload,
 )
 from app.features.user.services.two_factor import verify_second_factor
+from app.features.user.staff import is_back_office
 
 router = APIRouter()
 
@@ -157,7 +158,7 @@ async def login_access_token(
     _check_admin_origin(request, user)
 
     second_factor: str | None = None
-    if getattr(user, "is_superuser", False) and getattr(user, "totp_enabled", False):
+    if is_back_office(user) and getattr(user, "totp_enabled", False):
         user_id, user_email = user.id, user.email
         if not (totp_code or "").strip():
             raise AppError(
@@ -218,7 +219,7 @@ async def login_access_token(
     access_token, refresh_token, refresh_jti, refresh_expires_at = _build_token_bundle(
         user.id, user.security_stamp
     )
-    is_admin = bool(getattr(user, "is_superuser", False))
+    is_admin = is_back_office(user)
     admin_id, admin_email = user.id, getattr(user, "email", None)
 
     # Trace de connexion : le back-office s'en sert pour distinguer un compte
@@ -261,7 +262,7 @@ async def _audit_failed_admin_login(
         admin = await crud_user.get_by_email(session, email=email)
     except Exception:  # noqa: BLE001
         return
-    if admin is not None and getattr(admin, "is_superuser", False):
+    if admin is not None and is_back_office(admin):
         await audit.record(
             event="auth.login.failed",
             actor_id=admin.id,
@@ -283,7 +284,7 @@ def _check_admin_origin(request: Request, user: Any) -> None:
     ``Origin`` does not come from a page script.
     """
     admin_host = (settings.ADMIN_FRONTEND_HOST or "").strip().rstrip("/")
-    if not admin_host or not getattr(user, "is_superuser", False):
+    if not admin_host or not is_back_office(user):
         return
     origin = (request.headers.get("origin") or "").strip().rstrip("/")
     if origin and origin != admin_host:

@@ -19,7 +19,7 @@ from sqlalchemy import func
 from sqlalchemy import select as sa_select
 from sqlmodel import col, or_, select
 
-from app.api.deps import CurrentSuperUser, SessionDep
+from app.api.deps import CurrentOrderReader, CurrentSuperUser, SessionDep
 from app.api.routes.admin_payments import ReceiptResult, receipt_result
 from app.core.datetimes import as_utc
 from app.core.errors import AppError
@@ -351,7 +351,7 @@ _SearchQ = Query(
 @router.get("", response_model=AdminOrdersPage)
 async def list_orders(
     session: SessionDep,
-    _admin: CurrentSuperUser,
+    _admin: CurrentOrderReader,
     skip: Annotated[int, Query(ge=0)] = 0,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     departure_id: uuid.UUID | None = _DepartureQ,
@@ -593,7 +593,7 @@ class OrderStatusChangeResponse(BaseModel):
 
 
 @router.get("/statuses", response_model=list[str])
-async def list_order_statuses(_admin: CurrentSuperUser) -> list[str]:
+async def list_order_statuses(_admin: CurrentOrderReader) -> list[str]:
     """Every order status name, payment ones first then the fulfilment steps."""
     return list(ALL_ORDER_STATUSES)
 
@@ -652,7 +652,7 @@ async def change_order_status(
 async def get_order_detail(
     order_id: uuid.UUID,
     session: SessionDep,
-    _admin: CurrentSuperUser,
+    _admin: CurrentOrderReader,
 ) -> AdminOrderDetail:
     """Return the enriched detail of one order: client, status, lines, payments."""
     try:

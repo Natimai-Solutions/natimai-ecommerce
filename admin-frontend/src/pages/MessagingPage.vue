@@ -591,13 +591,20 @@ watch([tab, channel, search], () => {
 });
 watch(pageNumber, () => void loadQueue());
 watch(selectedId, (id) => void openThread(id));
+// Transfer: the members whose role covers the conversation's channel.
+watch(
+  () => current.value?.channel,
+  (channel) => {
+    if (!channel) return;
+    conversationTeam(channel)
+      .then((members) => (team.value = members))
+      .catch(() => (team.value = []));
+  },
+);
 
 onMounted(async () => {
   void loadQueue();
   void counters.refresh();
-  conversationTeam()
-    .then((members) => (team.value = members))
-    .catch(() => (team.value = []));
   getMe()
     .then((me) => (meId.value = me.id))
     .catch(() => (meId.value = null));

@@ -113,6 +113,18 @@ takes a tag as its `ref`.
   there, the customer being told by the usual « a reply is waiting » e-mail.
   *My quotes* links each request to its conversation; the back-office
   conversation links to the order, quote request or group request.
+- Back-office team roles (lot ROLE): a superuser gives an account the role
+  « customer service » or « sales » (*Users* → edit; migration
+  `d8f9a0b1c2d3`). The member signs in to the back-office like an
+  administrator — two-factor authentication, admin network, admin origin,
+  sign-ins journaled — and reaches, by allow-list, the messaging of its
+  channels (customer service and technical support / sales), the orders
+  read-only and, for sales, the quote requests; never costs, margins,
+  refunds or settings. The menu and the navigation follow the role. A
+  conversation of another channel reads as missing; a transfer goes to
+  someone whose role covers the channel; the team's unread e-mails go to the
+  members of the channel before the channel's address. Changing a role ends
+  the person's open sessions.
 
 - Homepage sections: the homepage is an ordered list of sections set in the
   admin (*Site homepage*) — hero, banners, category tiles, « favourites »
@@ -467,6 +479,9 @@ takes a tag as its `ref`.
   (superuser-only), as the base of the future fine-grained roles.
 
 ### Fixed
+
+- Back-office messaging actions read the signed-in member after the commit
+  (an expired object): the channels are read before it.
 
 - *Site homepage*: the warning « several heroes are live at once » was never
   shown (its container only appeared with another message).

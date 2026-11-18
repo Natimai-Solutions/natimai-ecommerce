@@ -12,6 +12,8 @@
   "admin.user.email_taken": "Un compte existe déjà pour cette adresse.",
   "admin.user.inactive": "Compte désactivé : réactivez-le avant de renvoyer l'invitation.",
   "admin.user.self_deactivation": "Vous ne pouvez pas désactiver votre propre compte.",
+  "admin.user.staff_role": "Rôle d'équipe inconnu : {role}.",
+  "admin.user.staff_role_superuser": "Un administrateur a déjà tous les droits : pas de rôle d'équipe.",
   "attachment.key_mismatch": "Ce fichier n'appartient pas à ce paiement.",
   "attachment.mimetype_unsupported": "Ce type de fichier n'est pas accepté.",
   "attachment.scan_pending": "Analyse antivirus en cours : réessayez dans un instant.",

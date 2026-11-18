@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, or_
 from sqlmodel import col, select
 
-from app.api.deps import CurrentSuperUser, SessionDep, module_required
+from app.api.deps import CurrentMessagingStaff, SessionDep, module_required
 from app.api.routes.messaging import (
     AttachmentPublic,
     ConversationSummary,
@@ -45,6 +45,7 @@ from app.features.product.models.price_group import PriceGroup
 from app.features.product.models.product import Product
 from app.features.user.models.group_upgrade_request import GroupUpgradeRequest
 from app.features.user.models.user import User
+from app.features.user.staff import STAFF_ROLES, staff_channels
 
 router = APIRouter(
     prefix="/admin/conversations",
@@ -149,9 +150,14 @@ async def _staff_view(
     )
 
 
-async def _get(session: SessionDep, conversation_id: uuid.UUID) -> Conversation:
+async def _get(
+    session: SessionDep, conversation_id: uuid.UUID, channels: tuple[str, ...]
+) -> Conversation:
+    """A conversation of the channels the team member works on; any other
+    reads as missing (lot ROLE). ``channels`` is read from the user before
+    any commit: a commit expires the signed-in user of the request."""
     conversation = await session.get(Conversation, conversation_id)
-    if conversation is None:
+    if conversation is None or conversation.channel not in channels:
         raise service.not_found(conversation_id)
     return conversation
 
@@ -181,7 +187,7 @@ async def _context_label(session: SessionDep, conversation: Conversation) -> str
 @router.get("", response_model=ConversationPage)
 async def list_conversations(
     session: SessionDep,
-    admin: CurrentSuperUser,
+    admin: CurrentMessagingStaff,
     tab: Annotated[Tab, Query()] = "todo",
     channel: Annotated[str | None, Query(max_length=30)] = None,
     q: Annotated[str | None, Query(max_length=100)] = None,
@@ -190,7 +196,8 @@ async def list_conversations(
 ) -> ConversationPage:
     """The queue: « to do » (open and free), « mine », « waiting for the
     customer », « resolved », « all »; oldest waiting first in « to do »."""
-    conditions: list[Any] = []
+    # Each team member sees the channels of their role (lot ROLE).
+    conditions: list[Any] = [col(Conversation.channel).in_(staff_channels(admin))]
     status = col(Conversation.status)
     if tab == "todo":
         conditions += [
@@ -251,10 +258,12 @@ async def list_conversations(
 
 @router.get("/summary", response_model=Summary)
 async def conversations_summary(
-    session: SessionDep, admin: CurrentSuperUser
+    session: SessionDep, admin: CurrentMessagingStaff
 ) -> Summary:
     """Counters of the menu and the tabs."""
-    summary = await service.staff_summary(session, admin.id)
+    summary = await service.staff_summary(
+        session, admin.id, channels=staff_channels(admin)
+    )
     return Summary(
         todo=summary.todo,
         mine=summary.mine,
@@ -265,26 +274,57 @@ async def conversations_summary(
 
 @router.get("/team", response_model=list[TeamMember])
 async def conversation_team(
-    session: SessionDep, _admin: CurrentSuperUser
+    session: SessionDep,
+    _admin: CurrentMessagingStaff,
+    channel: Annotated[str | None, Query(max_length=30)] = None,
 ) -> list[TeamMember]:
-    """Who a conversation can be transferred to."""
+    """Who a conversation (of ``channel``) can be transferred to: the
+    superusers and the team members whose role covers the channel."""
     rows = await session.exec(
         select(User).where(
-            col(User.is_superuser).is_(True), col(User.is_active).is_(True)
+            or_(
+                col(User.is_superuser).is_(True),
+                col(User.staff_role).in_(list(STAFF_ROLES)),
+            ),
+            col(User.is_active).is_(True),
         )
     )
-    return [TeamMember(id=u.id, name=service.display_name(u)) for u in rows.all()]
+    return [
+        TeamMember(id=u.id, name=service.display_name(u))
+        for u in rows.all()
+        if channel is None or channel in staff_channels(u)
+    ]
 
 
 @router.get("/{conversation_id}", response_model=StaffConversationDetail)
 async def get_conversation(
     conversation_id: uuid.UUID,
     session: SessionDep,
-    _admin: CurrentSuperUser,
+    _admin: CurrentMessagingStaff,
     after: Annotated[datetime.datetime | None, Query()] = None,
 ) -> StaffConversationDetail:
     """A conversation with its messages, notes and events."""
-    conversation = await _get(session, conversation_id)
+    return await _detail(session, conversation_id, staff_channels(_admin), after=after)
+
+
+async def _email_guest(
+    session: SessionDep, conversation_id: uuid.UUID, *, body: str, with_file: bool
+) -> None:
+    """A visitor without an account gets the reply by e-mail, with the link
+    to continue on the site (lot MSG2)."""
+    conversation = await session.get(Conversation, conversation_id)
+    if conversation is not None and conversation.customer_id is None:
+        await guests.email_reply(session, conversation, body=body, with_file=with_file)
+
+
+async def _detail(
+    session: SessionDep,
+    conversation_id: uuid.UUID,
+    channels: tuple[str, ...],
+    *,
+    after: datetime.datetime | None = None,
+) -> StaffConversationDetail:
+    conversation = await _get(session, conversation_id, channels)
     messages = await service.thread(session, conversation.id, staff=True, after=after)
     names: dict[uuid.UUID, str] = {}
     for author_id in {m.author_id for m in messages if m.author_id}:
@@ -310,22 +350,6 @@ async def get_conversation(
     return detail
 
 
-async def _email_guest(
-    session: SessionDep, conversation_id: uuid.UUID, *, body: str, with_file: bool
-) -> None:
-    """A visitor without an account gets the reply by e-mail, with the link
-    to continue on the site (lot MSG2)."""
-    conversation = await session.get(Conversation, conversation_id)
-    if conversation is not None and conversation.customer_id is None:
-        await guests.email_reply(session, conversation, body=body, with_file=with_file)
-
-
-async def _detail(
-    session: SessionDep, conversation_id: uuid.UUID, admin: User
-) -> StaffConversationDetail:
-    return await get_conversation(conversation_id, session, admin)
-
-
 @router.post(
     "/{conversation_id}/messages",
     response_model=StaffConversationDetail,
@@ -335,11 +359,12 @@ async def post_staff_message(
     conversation_id: uuid.UUID,
     body: StaffMessageCreate,
     session: SessionDep,
-    admin: CurrentSuperUser,
+    admin: CurrentMessagingStaff,
 ) -> StaffConversationDetail:
     """Answer the customer, or write an internal note. The first answer takes
     a free conversation (never one someone else holds)."""
-    conversation = await _get(session, conversation_id)
+    channels = staff_channels(admin)
+    conversation = await _get(session, conversation_id, channels)
     now = utcnow()
     if body.kind == "message":
         await service.claim(session, conversation, admin, implicit=True, now=now)
@@ -355,7 +380,7 @@ async def post_staff_message(
     await session.commit()
     if body.kind == "message":
         await _email_guest(session, conversation_id, body=body.body, with_file=False)
-    return await _detail(session, conversation_id, admin)
+    return await _detail(session, conversation_id, channels)
 
 
 @router.post(
@@ -366,14 +391,15 @@ async def post_staff_message(
 async def post_staff_file(
     conversation_id: uuid.UUID,
     session: SessionDep,
-    admin: CurrentSuperUser,
+    admin: CurrentMessagingStaff,
     file: Annotated[UploadFile, File()],
     body: Annotated[str, Form(max_length=BODY_MAX)] = "",
     kind: Annotated[Literal["message", "note"], Form()] = "message",
 ) -> StaffConversationDetail:
     """Send a file to the customer (takes a free conversation), or join it to
     an internal note."""
-    conversation = await _get(session, conversation_id)
+    channels = staff_channels(admin)
+    conversation = await _get(session, conversation_id, channels)
     prepared = await files.prepare(await file.read(files.MAX_BYTES + 1))
     now = utcnow()
     if kind == "message":
@@ -399,7 +425,7 @@ async def post_staff_file(
     await session.commit()
     if kind == "message":
         await _email_guest(session, conversation_id, body=body, with_file=True)
-    return await _detail(session, conversation_id, admin)
+    return await _detail(session, conversation_id, channels)
 
 
 @router.get("/{conversation_id}/attachments/{attachment_id}")
@@ -407,8 +433,9 @@ async def get_staff_file(
     conversation_id: uuid.UUID,
     attachment_id: uuid.UUID,
     session: SessionDep,
-    _admin: CurrentSuperUser,
+    _admin: CurrentMessagingStaff,
 ) -> Response:
+    await _get(session, conversation_id, staff_channels(_admin))
     attachment = await session.get(ConversationAttachment, attachment_id)
     if attachment is None or attachment.conversation_id != conversation_id:
         raise AppError(
@@ -422,9 +449,10 @@ async def get_staff_file(
 
 @router.post("/{conversation_id}/read", status_code=204)
 async def read_conversation(
-    conversation_id: uuid.UUID, session: SessionDep, _admin: CurrentSuperUser
+    conversation_id: uuid.UUID, session: SessionDep, admin: CurrentMessagingStaff
 ) -> None:
-    conversation = await _get(session, conversation_id)
+    channels = staff_channels(admin)
+    conversation = await _get(session, conversation_id, channels)
     service.mark_read(conversation, MessageSide.STAFF, utcnow())
     session.add(conversation)
     await session.commit()
@@ -434,40 +462,43 @@ async def read_conversation(
 async def claim_conversation(
     conversation_id: uuid.UUID,
     session: SessionDep,
-    admin: CurrentSuperUser,
+    admin: CurrentMessagingStaff,
     force: Annotated[bool, Query()] = False,
 ) -> StaffConversationDetail:
     """Take the conversation (409 if someone else holds it, unless ``force``)."""
-    conversation = await _get(session, conversation_id)
+    channels = staff_channels(admin)
+    conversation = await _get(session, conversation_id, channels)
     await service.claim(session, conversation, admin, force=force)
     await session.commit()
-    return await _detail(session, conversation_id, admin)
+    return await _detail(session, conversation_id, channels)
 
 
 @router.post("/{conversation_id}/release", response_model=StaffConversationDetail)
 async def release_conversation(
     conversation_id: uuid.UUID,
     session: SessionDep,
-    admin: CurrentSuperUser,
+    admin: CurrentMessagingStaff,
     force: Annotated[bool, Query()] = False,
 ) -> StaffConversationDetail:
-    conversation = await _get(session, conversation_id)
+    channels = staff_channels(admin)
+    conversation = await _get(session, conversation_id, channels)
     await service.release(session, conversation, admin, force=force)
     await session.commit()
-    return await _detail(session, conversation_id, admin)
+    return await _detail(session, conversation_id, channels)
 
 
 @router.post("/{conversation_id}/resolve", response_model=StaffConversationDetail)
 async def resolve_conversation(
     conversation_id: uuid.UUID,
     session: SessionDep,
-    admin: CurrentSuperUser,
+    admin: CurrentMessagingStaff,
     force: Annotated[bool, Query()] = False,
 ) -> StaffConversationDetail:
-    conversation = await _get(session, conversation_id)
+    channels = staff_channels(admin)
+    conversation = await _get(session, conversation_id, channels)
     await service.resolve_by_staff(session, conversation, admin, force=force)
     await session.commit()
-    return await _detail(session, conversation_id, admin)
+    return await _detail(session, conversation_id, channels)
 
 
 @router.post("/{conversation_id}/transfer", response_model=StaffConversationDetail)
@@ -475,12 +506,13 @@ async def transfer_conversation(
     conversation_id: uuid.UUID,
     body: TransferBody,
     session: SessionDep,
-    admin: CurrentSuperUser,
+    admin: CurrentMessagingStaff,
 ) -> StaffConversationDetail:
-    conversation = await _get(session, conversation_id)
+    channels = staff_channels(admin)
+    conversation = await _get(session, conversation_id, channels)
     await service.transfer(session, conversation, admin, body.user_id, force=body.force)
     await session.commit()
-    return await _detail(session, conversation_id, admin)
+    return await _detail(session, conversation_id, channels)
 
 
 @router.put("/{conversation_id}/topic", response_model=StaffConversationDetail)
@@ -488,15 +520,16 @@ async def move_conversation(
     conversation_id: uuid.UUID,
     body: TopicBody,
     session: SessionDep,
-    admin: CurrentSuperUser,
+    admin: CurrentMessagingStaff,
 ) -> StaffConversationDetail:
     """Move the conversation to another channel / topic (traced)."""
-    conversation = await _get(session, conversation_id)
+    channels = staff_channels(admin)
+    conversation = await _get(session, conversation_id, channels)
     await service.change_topic(
         session, conversation, admin, channel=body.channel, topic=body.topic
     )
     await session.commit()
-    return await _detail(session, conversation_id, admin)
+    return await _detail(session, conversation_id, channels)
 
 
 __all__ = ["ConversationMessage", "router"]

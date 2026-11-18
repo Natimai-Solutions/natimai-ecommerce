@@ -21,7 +21,7 @@ from fastapi import APIRouter, Depends, Query, Response
 from pydantic import BaseModel, Field
 from sqlmodel import col, or_, select
 
-from app.api.deps import CurrentSuperUser, SessionDep, module_required
+from app.api.deps import CurrentQuoteStaff, SessionDep, module_required
 from app.core.errors import AppError
 from app.features.cart.models.quote_request import (
     CLOSED_QUOTE_STATUSES,
@@ -161,7 +161,7 @@ async def _read_quote(session: SessionDep, quote_id: uuid.UUID) -> QuoteRequest:
 @router.get("", response_model=list[AdminQuoteRequestListItem])
 async def list_quote_requests(
     session: SessionDep,
-    _admin: CurrentSuperUser,
+    _admin: CurrentQuoteStaff,
     skip: Annotated[int, Query(ge=0)] = 0,
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
     status: QuoteRequestStatus | None = None,
@@ -202,7 +202,7 @@ async def list_quote_requests(
 async def get_quote_request(
     quote_id: uuid.UUID,
     session: SessionDep,
-    _admin: CurrentSuperUser,
+    _admin: CurrentQuoteStaff,
 ) -> AdminQuoteRequestDetail:
     """Le détail d'une demande, panier figé compris."""
     return _to_detail(await _read_quote(session, quote_id))
@@ -213,7 +213,7 @@ async def update_quote_request(
     quote_id: uuid.UUID,
     body: QuoteRequestUpdateBody,
     session: SessionDep,
-    admin: CurrentSuperUser,
+    admin: CurrentQuoteStaff,
 ) -> AdminQuoteRequestDetail:
     """Faire avancer le suivi d'une demande.
 
@@ -257,7 +257,7 @@ async def issue_quote_request(
     quote_id: uuid.UUID,
     body: QuoteIssueBody,
     session: SessionDep,
-    admin: CurrentSuperUser,
+    admin: CurrentQuoteStaff,
 ) -> QuoteIssueResponse:
     """Émettre (ou ré-émettre) le devis : lignes au prix consenti, livraison,
     validité, message ; numéro DEV alloué la première fois ; PDF envoyé au
@@ -283,7 +283,7 @@ async def issue_quote_request(
 
 @router.get("/{quote_id}/pdf")
 async def download_quote_pdf(
-    quote_id: uuid.UUID, session: SessionDep, _admin: CurrentSuperUser
+    quote_id: uuid.UUID, session: SessionDep, _admin: CurrentQuoteStaff
 ) -> Response:
     """Le PDF du devis émis."""
     quote = await _read_quote(session, quote_id)

@@ -2750,6 +2750,11 @@ const fr = {
     validity: 'Validité',
   },
   users: {
+    staff_role: "Rôle d'équipe",
+    staff_role_hint:
+      'Ouvre le back-office : messagerie de ses canaux, commandes en lecture (devis pour le commercial)',
+    role_customer_service: 'Service client (et support technique)',
+    role_sales: 'Service commercial',
     two_factor_reset_done:
       '{email} activera de nouveau la double authentification à sa prochaine connexion.',
     admin: 'Administrateur',

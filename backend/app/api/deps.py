@@ -18,6 +18,7 @@ from app.core.errors import AppError
 from app.core.field_visibility import reveal_internal_fields
 from app.core.rate_limit import get_client_ip
 from app.features.user.models.user import TokenPayload, User
+from app.features.user.staff import STAFF_ROLES, has_role, is_back_office
 
 reusable_oauth2 = OAuth2PasswordBearer(
     tokenUrl=f"{settings.API_V1_STR}/login/access-token"
@@ -90,9 +91,10 @@ async def _authenticated_user(session: AsyncSession, token: str) -> User:
 
 
 def must_enrol_second_factor(user: User) -> bool:
-    """A superuser who must set up 2FA (``ADMIN_2FA_REQUIRED``) and has not."""
+    """A back-office user (superuser or team member, lot ROLE) who must set
+    up 2FA (``ADMIN_2FA_REQUIRED``) and has not."""
     return bool(
-        user.is_superuser and settings.admin_2fa_required and not user.totp_enabled
+        is_back_office(user) and settings.admin_2fa_required and not user.totp_enabled
     )
 
 
@@ -112,8 +114,8 @@ def _admin_networks() -> list[ipaddress.IPv4Network | ipaddress.IPv6Network]:
 
 
 def _check_admin_network(user: User, request: Request | None) -> None:
-    """A superuser acts from ``ADMIN_ALLOWED_IPS`` only, on every route."""
-    if request is None or not user.is_superuser:
+    """A back-office user acts from ``ADMIN_ALLOWED_IPS`` only, on every route."""
+    if request is None or not is_back_office(user):
         return
     networks = _admin_networks()
     if not networks:
@@ -237,11 +239,52 @@ CurrentSuperUser = Annotated[User, Depends(get_current_active_superuser)]
 
 
 async def get_current_superuser_enrolling(current_user: CurrentUserEnrolling) -> User:
-    """A superuser, two-factor set up or not (the enrolment endpoints)."""
-    return _require_superuser(current_user)
+    """A back-office user (superuser or team member), two-factor set up or not
+    (the enrolment endpoints)."""
+    if not is_back_office(current_user):
+        return _require_superuser(current_user)
+    return current_user
 
 
 CurrentSuperUserEnrolling = Annotated[User, Depends(get_current_superuser_enrolling)]
+
+
+def _require_role(user: User, *roles: str) -> User:
+    """Allow-list: a superuser, or a team member with one of ``roles``."""
+    if not has_role(user, *roles):
+        raise AppError(
+            code="auth.superuser.required",
+            status_code=403,
+            message="Administrator access required.",
+            details={"user_id": str(user.id)},
+        )
+    if must_enrol_second_factor(user):
+        raise _enrollment_required(user)
+    return user
+
+
+async def get_current_messaging_staff(current_user: CurrentUser) -> User:
+    """The messaging: superusers and both team roles (each on its channels)."""
+    return _require_role(current_user, *STAFF_ROLES)
+
+
+CurrentMessagingStaff = Annotated[User, Depends(get_current_messaging_staff)]
+
+
+async def get_current_order_reader(current_user: CurrentUser) -> User:
+    """Reading orders: superusers and both team roles."""
+    return _require_role(current_user, *STAFF_ROLES)
+
+
+CurrentOrderReader = Annotated[User, Depends(get_current_order_reader)]
+
+
+async def get_current_quote_staff(current_user: CurrentUser) -> User:
+    """Quote requests: superusers and the sales role."""
+    return _require_role(current_user, "sales")
+
+
+CurrentQuoteStaff = Annotated[User, Depends(get_current_quote_staff)]
 
 
 async def get_current_logistics_admin(
