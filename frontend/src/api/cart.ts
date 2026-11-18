@@ -294,8 +294,11 @@ export interface CheckoutQuote extends DepositTerms {
   discount_code?: string | null;
   discount_amount?: string;
   discount_label?: string | null;
-  /** Pourquoi le code saisi n'a pas été appliqué (le devis reste valide sans lui). */
+  /** Pourquoi le code saisi n'a pas été appliqué (le devis reste valide sans lui) :
+   * texte anglais de repli, et le code de la raison à traduire avec ses valeurs. */
   discount_error?: string | null;
+  discount_error_code?: string | null;
+  discount_error_details?: Record<string, string> | null;
 }
 
 /** What POST /cart/checkout will bill for the backend cart and these choices.

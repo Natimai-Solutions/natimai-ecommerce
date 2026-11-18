@@ -77,7 +77,7 @@ async def _load_invoice(session: SessionDep, invoice_id: uuid.UUID) -> Invoice:
         raise AppError(
             code="invoice.not_found",
             status_code=404,
-            message="Invoice not found",
+            message="Invoice not found.",
             details={"invoice_id": str(invoice_id)},
         )
     return invoice
@@ -281,7 +281,7 @@ async def download_invoice_pdf(
         raise AppError(
             code="invoice.pdf.unavailable",
             status_code=503,
-            message="Invoice PDF rendering is unavailable on this deployment",
+            message="The invoice PDF is unavailable on this server.",
             details={"invoice_id": str(invoice_id)},
         ) from exc
 

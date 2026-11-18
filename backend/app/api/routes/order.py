@@ -84,7 +84,7 @@ class OrderRouter(
                 raise AppError(
                     code="order.not_found",
                     status_code=404,
-                    message=f"Order '{id}' not found",
+                    message="Order not found.",
                     details={"order_id": str(id)},
                 ) from exc
 
@@ -166,7 +166,7 @@ class OrderRouter(
                 raise AppError(
                     code="order.not_found",
                     status_code=404,
-                    message=f"Order '{id}' not found",
+                    message="Order not found.",
                     details={"order_id": str(id)},
                 ) from exc
             if (
@@ -219,7 +219,7 @@ class OrderRouter(
                 raise AppError(
                     code="order.not_found",
                     status_code=404,
-                    message=f"Order '{id}' not found",
+                    message="Order not found.",
                     details={"order_id": str(id)},
                 ) from exc
             # A deleted order's reservations were held for good.
@@ -295,7 +295,7 @@ async def get_orders_by_status(
         raise AppError(
             code="order.admin_required",
             status_code=403,
-            message="Admin privileges required to access orders by status",
+            message="Administrator access required.",
             details={"resource": "order.status"},
         )
 
@@ -309,7 +309,7 @@ async def get_orders_by_status(
         raise AppError(
             code="order.status.not_found",
             status_code=404,
-            message=f"Order status '{order_status_id}' not found",
+            message="Order status not found.",
             details={"status_name": str(order_status_id)},
         ) from exc
 

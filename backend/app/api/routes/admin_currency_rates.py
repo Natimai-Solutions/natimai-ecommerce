@@ -197,7 +197,7 @@ async def get_active_currency_rate(
         raise AppError(
             code="currency_rate.active.not_found",
             status_code=404,
-            message=f"No active currency rate found for '{code.upper()}'",
+            message="No active rate for this currency: add the currency first.",
             details={"currency_code": code.upper()},
         )
     return CurrencyRatePublic.model_validate(rate)
@@ -224,8 +224,7 @@ async def upsert_currency_rate(
             code="currency_rate.reference_currency.unsupported",
             status_code=400,
             message=(
-                f"{settings.REFERENCE_CURRENCY} is the reference currency "
-                "— no conversion rate needed."
+                "This is the reference currency: it needs no rate and is always offered."
             ),
             details={"currency_code": currency_code},
         )

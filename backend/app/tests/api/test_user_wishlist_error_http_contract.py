@@ -50,7 +50,7 @@ def test_get_user_wishlists_not_owned_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "wishlist.not_found",
-            "message": "Liste introuvable",
+            "message": "List not found.",
             "details": {"user_id": str(owner_user_id)},
         }
     }
@@ -77,7 +77,7 @@ def test_get_user_wishlist_not_found_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "wishlist.not_found",
-            "message": f"Wishlist '{wishlist_id}' not found",
+            "message": "List not found.",
             "details": {"wishlist_id": str(wishlist_id)},
         }
     }
@@ -97,7 +97,7 @@ def test_add_product_to_my_wishlist_product_not_found_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "wishlist.product.not_found",
-            "message": f"Product '{product_id}' not found",
+            "message": "Product not found.",
             "details": {"product_id": str(product_id)},
         }
     }
@@ -130,7 +130,7 @@ def test_remove_product_from_my_wishlist_missing_item_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "wishlist.product.not_in_wishlist",
-            "message": f"Product '{product_id}' not found in wishlist",
+            "message": "This product is not in the list.",
             "details": {
                 "product_id": str(product_id),
                 "wishlist_id": str(wishlist_id),

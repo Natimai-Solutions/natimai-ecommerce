@@ -46,7 +46,7 @@ def test_validate_coupon_invalid_returns_error_payload(
     monkeypatch.setattr(
         crud_discount,
         "validate_coupon",
-        AsyncMock(return_value=(False, "Code coupon invalide", None)),
+        AsyncMock(return_value=(False, "unknown", None)),
     )
 
     response = client.post(
@@ -58,10 +58,10 @@ def test_validate_coupon_invalid_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "discount.coupon.invalid",
-            "message": "Code coupon invalide",
+            "message": "This promo code cannot be applied.",
             "details": {
                 "coupon_code": "BAD-CODE",
-                "reason": "Code coupon invalide",
+                "reason": "unknown",
             },
         }
     }
@@ -88,7 +88,7 @@ def test_use_discount_not_found_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "discount.not_found",
-            "message": "R\u00e9duction non trouv\u00e9e",
+            "message": "Discount not found.",
             "details": {"discount_id": str(discount_id)},
         }
     }

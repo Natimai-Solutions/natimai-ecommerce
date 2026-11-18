@@ -146,7 +146,7 @@ async def write_setting(
             raise AppError(
                 code="system_setting.invalid_value",
                 status_code=400,
-                message=f"{spec.label} : {exc}",
+                message="Invalid value for this setting.",
                 details={"key": key},
             ) from exc
         stored_text = rs.seal(spec, rs.serialize(spec, value))

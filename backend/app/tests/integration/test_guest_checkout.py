@@ -139,7 +139,8 @@ async def test_a_known_address_never_opens_a_session(
     await db_session.commit()
     with pytest.raises(AppError) as refused:
         await _start(db_session, customer_email)
-    assert refused.value.code == "signup.guest.account_exists"
+    # A full account: the plain « e-mail already used » (review of 18/11/2026).
+    assert refused.value.code == "signup.email_exists"
     assert refused.value.status_code == 409
     assert refused.value.details == {"reason": "account"}
     assert await _activation_mails(db_session, customer_email) == 0

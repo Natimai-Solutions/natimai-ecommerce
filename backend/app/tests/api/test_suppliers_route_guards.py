@@ -83,6 +83,6 @@ async def test_trigger_inventory_sync_requires_configured_supplier(
 
     assert exc_info.value.status_code == 500
     assert exc_info.value.code == "supplier.credentials.not_configured"
-    assert exc_info.value.message == "Demo Supplier credentials not configured"
+    assert exc_info.value.message == "This supplier's credentials are not configured."
     assert exc_info.value.details == {"supplier_name": "demo_supplier"}
     trigger_inventory_refresh_mock.assert_not_awaited()

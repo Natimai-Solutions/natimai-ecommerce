@@ -66,7 +66,7 @@ def test_get_groups_by_type_authentication_required_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "group.authentication_required",
-            "message": "Authentication required",
+            "message": "Sign in to continue.",
             "details": {"resource": "group.by_type"},
         }
     }
@@ -87,7 +87,7 @@ def test_add_user_to_group_admin_required_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "group.admin_required",
-            "message": "Admin access required",
+            "message": "Administrator access required.",
             "details": {"resource": "group.users.add"},
         }
     }
@@ -156,7 +156,7 @@ def test_remove_user_from_group_not_found_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "group.user_not_in_group",
-            "message": f"User {user_id} not found in group {group_id}",
+            "message": "This user is not in this group.",
             "details": {
                 "group_id": str(group_id),
                 "user_id": str(user_id),
@@ -174,7 +174,7 @@ def test_get_user_groups_not_owned_returns_error_payload(client: TestClient) -> 
     assert response.json() == {
         "error": {
             "code": "group.not_found",
-            "message": "Groupe introuvable",
+            "message": "Group not found.",
             "details": {"user_id": str(owner_user_id)},
         }
     }
@@ -191,7 +191,7 @@ def test_get_group_security_permissions_admin_required_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "group_security.admin_required",
-            "message": "Admin access required",
+            "message": "Administrator access required.",
             "details": {"resource": "group_security.group_permissions"},
         }
     }
@@ -209,7 +209,7 @@ def test_get_group_users_admin_required_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "group.admin_required",
-            "message": "Admin access required",
+            "message": "Administrator access required.",
             "details": {"resource": "group.users.list"},
         }
     }

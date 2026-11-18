@@ -83,7 +83,7 @@ async def _get_active_tax_rate(session: SessionDep, tax_rate_id: uuid.UUID) -> T
         raise AppError(
             code="tax_rate.not_found",
             status_code=404,
-            message=f"Tax rate '{tax_rate_id}' not found",
+            message="Tax rate not found.",
             details={"tax_rate_id": str(tax_rate_id)},
         )
     return rate
@@ -207,7 +207,7 @@ async def update_tax_rate(
             raise AppError(
                 code="tax_rate.invalid_valid_until",
                 status_code=400,
-                message="valid_until cannot be before valid_from",
+                message="The end date cannot be before the start date.",
                 details={
                     "tax_rate_id": str(tax_rate_id),
                     "valid_from": str(rate.valid_from),
@@ -340,7 +340,7 @@ async def assign_tax_rate_to_product(
         raise AppError(
             code="product.not_found",
             status_code=404,
-            message=f"Product '{product_id}' not found",
+            message="Product not found.",
             details={"product_id": str(product_id)},
         ) from exc
 
@@ -377,7 +377,7 @@ async def assign_tax_rate_to_category(
         raise AppError(
             code="category.not_found",
             status_code=404,
-            message=f"Category '{category_id}' not found",
+            message="Unknown category.",
             details={"category_id": str(category_id)},
         ) from exc
 
@@ -414,7 +414,7 @@ async def assign_customs_rate_to_product(
         raise AppError(
             code="product.not_found",
             status_code=404,
-            message=f"Product '{product_id}' not found",
+            message="Product not found.",
             details={"product_id": str(product_id)},
         ) from exc
 
@@ -447,7 +447,7 @@ async def assign_customs_rate_to_category(
         raise AppError(
             code="category.not_found",
             status_code=404,
-            message=f"Category '{category_id}' not found",
+            message="Unknown category.",
             details={"category_id": str(category_id)},
         ) from exc
 

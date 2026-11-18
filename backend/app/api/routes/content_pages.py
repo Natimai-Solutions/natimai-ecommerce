@@ -38,7 +38,8 @@ def _bad_translations(exc: InvalidTranslations) -> AppError:
     return AppError(
         code="content.translations.invalid",
         status_code=400,
-        message=f"Traductions invalides : {exc}",
+        message="Invalid translations.",
+        details={"problem": str(exc)},
     )
 
 

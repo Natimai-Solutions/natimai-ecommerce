@@ -40,7 +40,7 @@ async def get_group_permissions(
         raise AppError(
             code="group_security.admin_required",
             status_code=403,
-            message="Admin access required",
+            message="Administrator access required.",
             details={"resource": "group_security.group_permissions"},
         )
 
@@ -63,7 +63,7 @@ async def get_table_permissions(
         raise AppError(
             code="group_security.admin_required",
             status_code=403,
-            message="Admin access required",
+            message="Administrator access required.",
             details={"resource": "group_security.table_permissions"},
         )
 
@@ -88,7 +88,7 @@ async def check_permission(
         raise AppError(
             code="group_security.admin_required",
             status_code=403,
-            message="Admin access required",
+            message="Administrator access required.",
             details={"resource": "group_security.permission_check"},
         )
 

@@ -97,7 +97,7 @@ async def _resolve_supplier(session: SessionDep, code: str | None) -> Supplier |
         raise AppError(
             code="supplier.not_found",
             status_code=404,
-            message=f"Unknown supplier '{code}'",
+            message="Unknown supplier.",
             details={"supplier_name": code},
         )
     return supplier
@@ -182,7 +182,7 @@ def _product_translations(
         raise AppError(
             code="product.translations.invalid",
             status_code=400,
-            message=f"Traductions invalides : {exc}",
+            message="Invalid translations.",
             details={"field": "translations"},
         ) from exc
 
@@ -489,7 +489,7 @@ async def preview_margin(
             raise AppError(
                 code="product.not_found",
                 status_code=404,
-                message="Product not found",
+                message="Product not found.",
                 details={"product_id": str(payload.product_id)},
             )
         fields = existing.model_dump()
@@ -605,7 +605,7 @@ async def set_group_prices(
         raise AppError(
             code="product.not_found",
             status_code=404,
-            message="Product not found",
+            message="Product not found.",
             details={"product_id": str(product_id)},
         )
     group_ids = {g.id for g in await _active_groups(session)}
@@ -715,7 +715,7 @@ async def admin_update_product(
         raise AppError(
             code="product.not_found",
             status_code=404,
-            message=f"Product '{product_id}' not found",
+            message="Product not found.",
             details={"product_id": str(product_id)},
         ) from exc
 
@@ -791,7 +791,7 @@ async def _read_product(session: SessionDep, product_id: uuid.UUID) -> Product:
         raise AppError(
             code="product.not_found",
             status_code=404,
-            message=f"Product '{product_id}' not found",
+            message="Product not found.",
             details={"product_id": str(product_id)},
         ) from exc
 
@@ -881,7 +881,7 @@ async def admin_release_override(
         raise AppError(
             code="product.not_found",
             status_code=404,
-            message=f"Product '{product_id}' not found",
+            message="Product not found.",
             details={"product_id": str(product_id)},
         ) from exc
 
@@ -889,7 +889,7 @@ async def admin_release_override(
         raise AppError(
             code="product.override.not_locked",
             status_code=404,
-            message=f"Field '{field}' is not locked on this product",
+            message="This field is not locked on this product.",
             details={"product_id": str(product_id), "field": field},
         )
 
@@ -965,14 +965,14 @@ async def _load_parent(session: SessionDep, product_id: uuid.UUID) -> Product:
         raise AppError(
             code="product.not_found",
             status_code=404,
-            message=f"Product '{product_id}' not found",
+            message="Product not found.",
             details={"product_id": str(product_id)},
         ) from exc
     if parent.parent_product_id is not None:
         raise AppError(
             code="product.variant.nested",
             status_code=409,
-            message="A variant cannot have variants of its own",
+            message="A variant cannot have variants of its own.",
             details={"product_id": str(product_id)},
         )
     return parent
@@ -1009,7 +1009,7 @@ async def admin_create_variant(
         raise AppError(
             code="product.variant.options_invalid",
             status_code=400,
-            message="Each option needs a name and a value",
+            message="Each option needs a name and a value.",
             details={"options": payload.options},
         )
     existing = await list_variants(session, parent.id, include_inactive=True)
@@ -1017,7 +1017,7 @@ async def admin_create_variant(
         raise AppError(
             code="product.variant.duplicate",
             status_code=409,
-            message="A variant with these options already exists",
+            message="A variant with these options already exists.",
             details={"options": options},
         )
 
@@ -1079,7 +1079,7 @@ async def admin_deactivate_variant(
         raise AppError(
             code="product.variant.not_found",
             status_code=404,
-            message=f"Variant '{variant_id}' not found under product '{product_id}'",
+            message="Variant not found.",
             details={"product_id": str(product_id), "variant_id": str(variant_id)},
         )
     parent_id = parent.id

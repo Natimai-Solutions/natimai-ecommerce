@@ -181,7 +181,7 @@ async def get_product_shipping_modes(
         raise AppError(
             code="product.not_found",
             status_code=404,
-            message="Product not found",
+            message="Product not found.",
             details={"product_id": str(product_id)},
         )
 
@@ -190,7 +190,7 @@ async def get_product_shipping_modes(
         raise AppError(
             code="product.not_found",
             status_code=404,
-            message="Product not found",
+            message="Product not found.",
             details={"product_id": str(product_id), "reason": "not_enriched"},
         )
 
@@ -200,7 +200,7 @@ async def get_product_shipping_modes(
             raise AppError(
                 code="product.not_found",
                 status_code=404,
-                message="Product not found",
+                message="Product not found.",
                 details={
                     "product_id": str(product_id),
                     "reason": "not_publishable",
@@ -279,7 +279,7 @@ async def _load_published_product(
         raise AppError(
             code="product.not_found",
             status_code=404,
-            message="Product not found",
+            message="Product not found.",
             details={"product_id": str(product_id)},
         )
 
@@ -291,7 +291,7 @@ async def _load_published_product(
         raise AppError(
             code="product.not_found",
             status_code=404,
-            message="Product not found",
+            message="Product not found.",
             details={"product_id": str(product_id), "reason": "not_publishable"},
         )
     return product
@@ -573,7 +573,7 @@ async def get_product_variants(
         raise AppError(
             code="product.not_found",
             status_code=404,
-            message="Product not found",
+            message="Product not found.",
             details={"product_id": str(product_id)},
         )
     variants = await list_variants(session, product_id)
@@ -698,7 +698,7 @@ async def feature_product(
         raise AppError(
             code="product.not_found",
             status_code=404,
-            message="Product not found",
+            message="Product not found.",
             details={"product_id": str(product_id)},
         )
 
@@ -722,7 +722,7 @@ async def unfeature_product(
         raise AppError(
             code="product.not_found",
             status_code=404,
-            message="Product not found",
+            message="Product not found.",
             details={"product_id": str(product_id)},
         )
 

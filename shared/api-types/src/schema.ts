@@ -10516,9 +10516,21 @@ export interface components {
             discount_label?: string | null;
             /**
              * Discount Error
-             * @description Pourquoi le code saisi n'a pas été appliqué (devis seulement)
+             * @description Why the code was not applied: English fallback text
              */
             discount_error?: string | null;
+            /**
+             * Discount Error Code
+             * @description Why the code was not applied, as a reason code the interfaces translate (checkout.discount.refused.<reason>; « throttled »)
+             */
+            discount_error_code?: string | null;
+            /**
+             * Discount Error Details
+             * @description Values of the reason's text (min_amount…)
+             */
+            discount_error_details?: {
+                [key: string]: string;
+            } | null;
             /**
              * Total Amount
              * @description Montant qui sera débité

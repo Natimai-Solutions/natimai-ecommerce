@@ -157,7 +157,7 @@ async def _load_user(session: SessionDep, user_id: uuid.UUID) -> User:
         raise AppError(
             code="auth.user.not_found",
             status_code=404,
-            message=f"User '{user_id}' not found",
+            message="Account not found.",
             details={"user_id": str(user_id)},
         )
     return user
@@ -171,7 +171,7 @@ async def _load_active_price_group(
         raise AppError(
             code="resource.not_found",
             status_code=404,
-            message=f"Price group '{price_group_id}' not found",
+            message="Item not found.",
             details={"resource": "price_group", "id": str(price_group_id)},
         )
     return group

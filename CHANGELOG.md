@@ -28,7 +28,13 @@ takes a tag as its `ref`.
   storefront and the admin translate the code from the catalogue
   (`apiErrorText` in `@app/utils`) and fall back on the server's message;
   their success texts come from their own i18n files. The API's success
-  texts are English too. `signup.guest` answers `signup.email_exists` for an
+  texts are English too. Every literal error message is aligned on the
+  catalogue's English text (« No active cart found » → « Your cart is
+  empty. »); runtime texts (`str(exc)`, a provider's answer) are kept. A
+  promo code refusal carries its reason (`details.reason`; the checkout
+  estimate adds `discount_error_code` and `discount_error_details`), and
+  the catalogue has a text per reason (`checkout.discount.refused.expired`…);
+  coupon validation (`POST …/validate-coupon`) answers reason codes too. `signup.guest` answers `signup.email_exists` for an
   address with a full account. A backend test fails when a raised code is
   missing from the catalogue, a placeholder is not in the raise's details, or
   a message is French.

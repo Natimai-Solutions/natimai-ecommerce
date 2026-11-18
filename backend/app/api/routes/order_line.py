@@ -74,7 +74,7 @@ async def _ensure_order_readable(
         raise AppError(
             code="order.not_found",
             status_code=404,
-            message=f"Order '{order_id}' not found",
+            message="Order not found.",
             details={"order_id": str(order_id)},
         )
 
@@ -104,7 +104,7 @@ async def get_product_order_lines(
         raise AppError(
             code="order.admin_required",
             status_code=403,
-            message="Admin privileges required to access product order lines",
+            message="Administrator access required.",
             details={"resource": "order_line.product"},
         )
 

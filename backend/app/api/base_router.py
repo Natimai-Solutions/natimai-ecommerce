@@ -149,7 +149,7 @@ class BaseRouter(
             raise AppError(
                 code="resource.authentication_required",
                 status_code=403,
-                message=f"Authentication required on {self.name}",
+                message="Sign in to continue.",
                 details={"resource": self.resource_name, "permission": permission},
             )
 
@@ -159,7 +159,7 @@ class BaseRouter(
             raise AppError(
                 code="resource.superuser_required",
                 status_code=403,
-                message=f"Superuser privileges required to {permission} on {self.name}",
+                message="Administrator access required.",
                 details={"resource": self.resource_name, "permission": permission},
             )
 
@@ -169,7 +169,7 @@ class BaseRouter(
             raise AppError(
                 code="resource.permission_denied",
                 status_code=403,
-                message=f"Not authorized to {permission} on {self.name}",
+                message="You are not allowed to do this.",
                 details={
                     "resource": self.resource_name,
                     "permission": permission,
@@ -195,7 +195,7 @@ class BaseRouter(
                 raise AppError(
                     code="resource.filter.unsupported",
                     status_code=400,
-                    message="Raw string filters are not supported on this endpoint",
+                    message="This filter is not supported here.",
                     details={"resource": self.resource_name, "filter": filter},
                 )
             result = await self.crud.read_multi(
@@ -228,7 +228,7 @@ class BaseRouter(
                 raise AppError(
                     code="resource.not_found",
                     status_code=404,
-                    message=f"{self.name} not found",
+                    message="Item not found.",
                     details={"resource": self.resource_name, "id": str(id)},
                 )
             return cast(PublicSchemaType, record)

@@ -312,7 +312,7 @@ async def _load(session: SessionDep, category_id: uuid.UUID) -> Category:
         raise AppError(
             code="category.not_found",
             status_code=404,
-            message=f"Category '{category_id}' not found",
+            message="Unknown category.",
             details={"category_id": str(category_id)},
         )
     return category
@@ -472,7 +472,7 @@ async def update_category(
             raise AppError(
                 code="category.translations.invalid",
                 status_code=400,
-                message=f"Traductions invalides : {exc}",
+                message="Invalid translations.",
                 details={"field": "translations"},
             ) from exc
 

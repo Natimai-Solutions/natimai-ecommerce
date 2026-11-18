@@ -61,7 +61,7 @@ def test_feature_product_not_found_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "product.not_found",
-            "message": "Product not found",
+            "message": "Product not found.",
             "details": {"product_id": str(product_id)},
         }
     }
@@ -85,7 +85,7 @@ def test_unfeature_product_not_found_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "product.not_found",
-            "message": "Product not found",
+            "message": "Product not found.",
             "details": {"product_id": str(product_id)},
         }
     }

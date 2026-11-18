@@ -507,7 +507,7 @@
               class="promo__input"
               :disable="!isAuthenticated || quoteLoading"
               :error="!!quote?.discount_error"
-              :error-message="quote?.discount_error ?? undefined"
+              :error-message="discountErrorText ?? undefined"
               :hint="appliedDiscountHint"
               data-testid="checkout-discount-input"
             >
@@ -547,7 +547,7 @@ import { NOINDEX } from '@/utils/seo';
 import { useI18n } from 'vue-i18n';
 import { useDepartureLabels } from '@/composables/useDepartureLabels';
 import { useRoute, useRouter } from 'vue-router';
-import { countryLabel, formatMoney as formatInCurrency, orderRef } from '@app/utils';
+import { apiErrorText, countryLabel, formatMoney as formatInCurrency, orderRef } from '@app/utils';
 import { deliveryModeLabel } from '@/utils/deliveryMode';
 
 import AppNotice from '@app/ui/AppNotice.vue';
@@ -655,6 +655,20 @@ const cartEmpty = computed(() => cartStore.items.length === 0);
 // validation (the admin validation flow is a separate decision — A10); the
 // backend stores a free-text snapshot regardless.
 const addresses = ref<Address[]>([]);
+// Why the promo code was refused, in the interface language: the reason
+// code from the shared catalogue, else the server's English text.
+const discountErrorText = computed(() => {
+  const current = quote.value;
+  if (!current?.discount_error) return null;
+  return (
+    apiErrorText(
+      'checkout.discount.refused',
+      { ...(current.discount_error_details ?? {}), reason: current.discount_error_code },
+      locale.value,
+    ) ?? current.discount_error
+  );
+});
+
 const selectedAddressId = ref<string | null>(null);
 const billToOther = ref(false);
 const billingAddressId = ref<string | null>(null);

@@ -108,7 +108,7 @@ async def submit_review(
         raise AppError(
             code="review.not_purchased",
             status_code=403,
-            message="Only a customer who bought this product can review it",
+            message="Only a customer who bought this product can review it.",
             details={"product_id": str(product_id)},
         )
     text = (comment or "").strip() or None
@@ -222,7 +222,7 @@ async def moderate_review(
         raise AppError(
             code="review.not_found",
             status_code=404,
-            message=f"Review '{review_id}' not found",
+            message="Review not found.",
             details={"review_id": str(review_id)},
         )
     review.status = (ReviewStatus.APPROVED if approve else ReviewStatus.REJECTED).value

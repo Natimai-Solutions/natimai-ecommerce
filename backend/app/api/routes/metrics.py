@@ -27,12 +27,12 @@ def _authorize(request: Request) -> None:
         raise AppError(
             code="metrics.unauthorized",
             status_code=401,
-            message="Metrics require the METRICS_TOKEN bearer",
+            message="Metrics require their token.",
         )
     if settings.ENVIRONMENT != "local":
         # Not configured: the endpoint does not exist, rather than leak the
         # route templates and traffic of the shop.
-        raise AppError(code="metrics.disabled", status_code=404, message="Not found")
+        raise AppError(code="metrics.disabled", status_code=404, message="Not found.")
 
 
 @router.get("/metrics", include_in_schema=False)

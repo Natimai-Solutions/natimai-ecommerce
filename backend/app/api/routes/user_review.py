@@ -124,7 +124,7 @@ async def get_user_review(
         raise AppError(
             code="review.not_found",
             status_code=404,
-            message=f"Review '{review_id}' not found",
+            message="Review not found.",
             details={"review_id": str(review_id)},
         ) from exc
 
@@ -132,7 +132,7 @@ async def get_user_review(
         raise AppError(
             code="review.not_found",
             status_code=404,
-            message=f"Review '{review_id}' not found",
+            message="Review not found.",
             details={"review_id": str(review_id)},
         )
 
@@ -200,7 +200,7 @@ async def update_user_review(
         raise AppError(
             code="review.not_found",
             status_code=404,
-            message=f"Review '{review_id}' not found",
+            message="Review not found.",
             details={"review_id": str(review_id)},
         ) from exc
 
@@ -208,7 +208,7 @@ async def update_user_review(
         raise AppError(
             code="review.not_found",
             status_code=404,
-            message=f"Review '{review_id}' not found",
+            message="Review not found.",
             details={"review_id": str(review_id)},
         )
 
@@ -250,7 +250,7 @@ async def delete_user_review(
         raise AppError(
             code="review.not_found",
             status_code=404,
-            message=f"Review '{review_id}' not found",
+            message="Review not found.",
             details={"review_id": str(review_id)},
         ) from exc
 
@@ -258,7 +258,7 @@ async def delete_user_review(
         raise AppError(
             code="review.not_found",
             status_code=404,
-            message=f"Review '{review_id}' not found",
+            message="Review not found.",
             details={"review_id": str(review_id)},
         )
 
@@ -331,7 +331,7 @@ async def get_user_review_for_product(
         raise AppError(
             code="review.not_found",
             status_code=404,
-            message="Review not found for this user and product",
+            message="Review not found.",
             details={
                 "user_id": str(user_id),
                 "product_id": str(product_id),

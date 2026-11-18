@@ -229,7 +229,7 @@ async def load_supplier_or_404(session: AsyncSession, code: str) -> Supplier:
         raise AppError(
             code="supplier.not_found",
             status_code=404,
-            message=f"Unknown supplier '{code}'",
+            message="Unknown supplier.",
             details={"supplier_name": code},
         )
     return supplier

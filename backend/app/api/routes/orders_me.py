@@ -151,7 +151,7 @@ async def _my_order_or_error(
         raise AppError(
             code="order.not_found",
             status_code=http_status.HTTP_404_NOT_FOUND,
-            message=f"Order {order_id} not found",
+            message="Order not found.",
             details={"order_id": str(order_id)},
         ) from exc
     if order.user_id != current_user.id:
@@ -159,7 +159,7 @@ async def _my_order_or_error(
         raise AppError(
             code="order.not_found",
             status_code=http_status.HTTP_404_NOT_FOUND,
-            message=f"Order {order_id} not found",
+            message="Order not found.",
             details={"order_id": str(order_id)},
         )
     return order
@@ -380,7 +380,7 @@ async def track_order_by_link(
         raise AppError(
             code="order.not_found",
             status_code=http_status.HTTP_404_NOT_FOUND,
-            message=f"Order {order_id} not found",
+            message="Order not found.",
             details={"order_id": str(order_id)},
         )
     try:
@@ -389,7 +389,7 @@ async def track_order_by_link(
         raise AppError(
             code="order.not_found",
             status_code=http_status.HTTP_404_NOT_FOUND,
-            message=f"Order {order_id} not found",
+            message="Order not found.",
             details={"order_id": str(order_id)},
         ) from exc
     if not tracking_link_still_valid(order.created_at):
@@ -398,7 +398,7 @@ async def track_order_by_link(
         raise AppError(
             code="order.not_found",
             status_code=http_status.HTTP_404_NOT_FOUND,
-            message=f"Order {order_id} not found",
+            message="Order not found.",
             details={"order_id": str(order_id)},
         )
     view = MyOrderPublic.model_validate(order)

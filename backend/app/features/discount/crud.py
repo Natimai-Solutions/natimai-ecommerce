@@ -70,29 +70,31 @@ class DiscountCrud(CrudBase[Discount, DiscountCreate, DiscountUpdate]):
     ) -> tuple[bool, str, Discount | None]:
         """
         Valide un code coupon.
-        Retourne (is_valid, message, discount)
+        Retourne (is_valid, reason, discount) : ``reason`` est un code stable
+        (unknown, disabled, not_started, expired, exhausted, valid) que les
+        interfaces traduisent.
         """
         discount = await self.get_by_code(session, code)
 
         if not discount:
-            return False, "Code coupon invalide", None
+            return False, "unknown", None
 
         if not discount.is_active:
-            return False, "Ce coupon est désactivé", None
+            return False, "disabled", None
 
         # Vérifier les dates
         now = datetime.datetime.now(datetime.UTC)
         if discount.start_date and discount.start_date > now:
-            return False, "Ce coupon n'est pas encore valide", None
+            return False, "not_started", None
 
         if discount.end_date and discount.end_date < now:
-            return False, "Ce coupon a expiré", None
+            return False, "expired", None
 
         # Vérifier le nombre d'utilisations
         if discount.max_uses and discount.current_uses >= discount.max_uses:
-            return False, "Ce coupon a atteint sa limite d'utilisation", None
+            return False, "exhausted", None
 
-        return True, "Coupon valide", discount
+        return True, "valid", discount
 
     async def increment_usage(
         self, session: AsyncSession, discount_id: uuid.UUID

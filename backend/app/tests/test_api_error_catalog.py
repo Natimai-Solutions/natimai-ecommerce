@@ -39,7 +39,7 @@ def _text(node: ast.AST | None) -> str | None:
         return node.value
     if isinstance(node, ast.JoinedStr):
         return "".join(
-            v.value if isinstance(v, ast.Constant) else "{}" for v in node.values
+            str(v.value) if isinstance(v, ast.Constant) else "{}" for v in node.values
         )
     if isinstance(node, ast.BinOp):
         return (_text(node.left) or "") + (_text(node.right) or "")
@@ -66,16 +66,16 @@ def _raises() -> list[dict[str, Any]]:
                 code = kw.get("code")
                 details = kw.get("details")
                 keys = (
-                    {k.value for k in details.keys if isinstance(k, ast.Constant)}
+                    {str(k.value) for k in details.keys if isinstance(k, ast.Constant)}
                     if isinstance(details, ast.Dict)
                     else None  # built elsewhere: not checked
                 )
                 codes: list[str] = []
                 if isinstance(code, ast.Constant):
-                    codes = [code.value]
+                    codes = [str(code.value)]
                 elif isinstance(code, ast.IfExp):
                     codes = [
-                        c.value
+                        str(c.value)
                         for c in (code.body, code.orelse)
                         if isinstance(c, ast.Constant)
                     ]
@@ -94,14 +94,14 @@ def _raises() -> list[dict[str, Any]]:
                     found.append(
                         {
                             "where": f"{path.relative_to(BACKEND)}:{node.lineno}",
-                            "code": f"{scope.value}.rate_limited",
+                            "code": f"{scope.value!s}.rate_limited",
                             "message": None,
                             "details": {"scope", "window_seconds"},
                         }
                     )
             elif name == "_invalid":
                 code_kw = kw.get("code")
-                code_value = (
+                code_value = str(
                     code_kw.value
                     if isinstance(code_kw, ast.Constant)
                     else node.args[1].value

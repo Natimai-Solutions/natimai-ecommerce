@@ -273,7 +273,7 @@ async def _advance_tracking(
         raise AppError(
             code="shipping.tracking.not_found",
             status_code=404,
-            message=f"Tracking '{tracking_id}' not found",
+            message="Tracking not found.",
             details={"tracking_id": str(tracking_id)},
         ) from exc
 
@@ -281,7 +281,7 @@ async def _advance_tracking(
         raise AppError(
             code="shipping.tracking.not_found",
             status_code=404,
-            message=f"Tracking '{tracking_id}' not found",
+            message="Tracking not found.",
             details={"tracking_id": str(tracking_id)},
         )
 
@@ -592,7 +592,7 @@ async def _get_consolidation_or_404(
         raise AppError(
             code="shipping.consolidation.not_found",
             status_code=404,
-            message=f"Consolidation '{consolidation_id}' not found",
+            message="Consolidation not found.",
             details={"consolidation_id": str(consolidation_id)},
         ) from exc
 
@@ -743,7 +743,7 @@ async def advance_tracking(
         raise AppError(
             code="shipping.tracking.not_found",
             status_code=404,
-            message="Tracking not found",
+            message="Tracking not found.",
             details={"tracking_id": str(tracking_id)},
         )
     # A customer-delivery leg has no « next »: advancing it would mark it

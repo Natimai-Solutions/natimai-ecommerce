@@ -77,15 +77,15 @@ async def test_validate_coupon_covers_every_refusal_reason(
         ok, message, _ = await crud_discount.validate_coupon(db_session, code)
         return ok, message
 
-    assert await verdict("INCONNU") == (False, "Code coupon invalide")
-    assert await verdict("FUTUR") == (False, "Ce coupon n'est pas encore valide")
-    assert await verdict("PASSE") == (False, "Ce coupon a expiré")
+    assert await verdict("INCONNU") == (False, "unknown")
+    assert await verdict("FUTUR") == (False, "not_started")
+    assert await verdict("PASSE") == (False, "expired")
     assert await verdict("EPUISE") == (
         False,
-        "Ce coupon a atteint sa limite d'utilisation",
+        "exhausted",
     )
     # Un usage restant, ou une fenêtre de validité en cours : valide.
-    assert await verdict("ENCORE") == (True, "Coupon valide")
+    assert await verdict("ENCORE") == (True, "valid")
     ok, _, discount = await crud_discount.validate_coupon(db_session, "FENETRE")
     assert ok is True and discount is not None and discount.code == "FENETRE"
 
@@ -106,7 +106,7 @@ async def test_increment_usage_counts_and_tolerates_unknown_ids(
     # Après consommation du dernier usage, le coupon ne passe plus.
     ok, message, _ = await crud_discount.validate_coupon(db_session, "UNE-FOIS")
     assert ok is False
-    assert "limite" in message
+    assert message == "exhausted"
 
     # Id inconnu : pas d'exception, rien à renvoyer.
     assert await crud_discount.increment_usage(db_session, uuid.uuid4()) is None

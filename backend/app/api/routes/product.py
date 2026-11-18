@@ -72,7 +72,7 @@ class ProductRouter(
                 raise AppError(
                     code="product.not_found",
                     status_code=404,
-                    message="Product not found",
+                    message="Product not found.",
                     details={"product_id": str(id), "reason": "record_not_found"},
                 )
 
@@ -81,7 +81,7 @@ class ProductRouter(
                 raise AppError(
                     code="product.not_found",
                     status_code=404,
-                    message="Product not found",
+                    message="Product not found.",
                     details={"product_id": str(id), "reason": "not_enriched"},
                 )
 
@@ -91,7 +91,7 @@ class ProductRouter(
                     raise AppError(
                         code="product.not_found",
                         status_code=404,
-                        message="Product not found",
+                        message="Product not found.",
                         details={
                             "product_id": str(id),
                             "reason": "not_publishable",

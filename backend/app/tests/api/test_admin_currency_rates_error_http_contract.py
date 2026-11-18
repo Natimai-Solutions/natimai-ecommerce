@@ -47,7 +47,7 @@ def test_get_active_currency_rate_not_found_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "currency_rate.active.not_found",
-            "message": "No active currency rate found for 'USD'",
+            "message": "No active rate for this currency: add the currency first.",
             "details": {"currency_code": "USD"},
         }
     }
@@ -68,7 +68,7 @@ def test_upsert_currency_rate_reference_currency_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "currency_rate.reference_currency.unsupported",
-            "message": "XPF is the reference currency — no conversion rate needed.",
+            "message": "This is the reference currency: it needs no rate and is always offered.",
             "details": {"currency_code": "XPF"},
         }
     }

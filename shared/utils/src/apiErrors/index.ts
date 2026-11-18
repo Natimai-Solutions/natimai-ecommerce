@@ -12,7 +12,7 @@
 import en from "./en.json";
 import fr from "./fr.json";
 
-const FALLBACK: Record<string, string> = fr
+const FALLBACK: Record<string, string> = fr;
 const CATALOGUES: Record<string, Record<string, string>> = { en, fr };
 const PLACEHOLDER = /\{([a-z_][a-z0-9_]*)\}/g;
 
@@ -39,7 +39,13 @@ export function apiErrorText(
 ): string | null {
   if (!code) return null;
   const lang = (locale ?? "fr").slice(0, 2).toLowerCase();
-  const text = (CATALOGUES[lang] ?? FALLBACK)[code];
+  const catalogue = CATALOGUES[lang] ?? FALLBACK;
+  // A refusal says why in `details.reason` (`checkout.discount.refused` +
+  // `expired`): its own text when the catalogue has one.
+  const reason = details?.reason;
+  const text =
+    (typeof reason === "string" ? catalogue[`${code}.${reason}`] : undefined) ??
+    catalogue[code];
   if (!text) return null;
   const filled = fillPlaceholders(text, details ?? {});
   return PLACEHOLDER.test(filled) ? null : filled;

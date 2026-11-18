@@ -501,8 +501,7 @@ async def _resolve_selected_checkout_routes(
         raise AppError(
             code="shipping.route.unknown_or_inactive",
             status_code=400,
-            message="Unknown or inactive shipping routes: "
-            + ", ".join(missing_route_ids),
+            message="This delivery mode is no longer available: choose another one.",
             details={"route_ids": missing_route_ids},
         )
 
@@ -512,9 +511,7 @@ async def _resolve_selected_checkout_routes(
             code="shipping.route.import_not_billable",
             status_code=400,
             message=(
-                "Import routes are already priced into the product and cannot "
-                "be charged as shipping: "
-                + ", ".join(sorted(str(rid) for rid in import_route_ids))
+                "An import route is already in the product price: it cannot be billed as shipping."
             ),
             details={"route_ids": sorted(str(rid) for rid in import_route_ids)},
         )
@@ -527,8 +524,7 @@ async def _resolve_selected_checkout_routes(
             raise AppError(
                 code="shipping.route.destination_not_served",
                 status_code=400,
-                message="Shipping routes not serving this destination: "
-                + ", ".join(foreign),
+                message="This delivery mode does not serve this destination: choose another one.",
                 details={"route_ids": foreign},
             )
 
@@ -1439,9 +1435,7 @@ async def _reserve_stock_for_checkout(
                     code="cart.stock.insufficient",
                     status_code=409,
                     message=(
-                        f"Insufficient local stock for product {product.id}: "
-                        f"requested={quantity_decimal}, "
-                        f"local_available={local_available}"
+                        "“{product_name}”: only {available} left. Adjust the quantity to continue."
                     ),
                     details={
                         "product_id": str(product.id),
@@ -1560,7 +1554,7 @@ async def _get_active_product_or_404(
         raise AppError(
             code="cart.product.not_found",
             status_code=404,
-            message=f"Product '{product_id}' not found",
+            message="This item is no longer for sale.",
             details={"product_id": str(product_id)},
         )
 
@@ -1573,7 +1567,7 @@ async def _get_active_product_or_404(
         raise AppError(
             code="cart.product.has_variants",
             status_code=409,
-            message=f"Product '{product_id}' has variants: choose one",
+            message="Choose a variant of this item.",
             details={"product_id": str(product_id)},
         )
     # A product whose customs rate or weight is missing prices below cost
@@ -1585,7 +1579,7 @@ async def _get_active_product_or_404(
         raise AppError(
             code="cart.product.not_purchasable",
             status_code=409,
-            message=f"Product '{product_id}' is not available for sale",
+            message="This item is not available for sale at the moment.",
             details={"product_id": str(product_id), "blockers": blockers},
         )
 
@@ -1929,7 +1923,7 @@ async def reorder_into_cart(
         raise AppError(
             code="order.not_found",
             status_code=404,
-            message=f"Order {order_id} not found",
+            message="Order not found.",
             details={"order_id": str(order_id)},
         )
     wanted = await order_lines_to_reorder(session, order_id=order_id)
@@ -2003,7 +1997,7 @@ async def update_cart_item_quantity(
         raise AppError(
             code="cart.item.not_found",
             status_code=404,
-            message=f"Cart item '{item_id}' not found",
+            message="This line is no longer in your cart.",
             details={"item_id": str(item_id)},
         )
 
@@ -2019,7 +2013,7 @@ async def update_cart_item_quantity(
         raise AppError(
             code="cart.not_found",
             status_code=404,
-            message=f"Cart '{item.cart_id}' not found",
+            message="Cart not found.",
             details={"cart_id": str(item.cart_id)},
         )
 
@@ -2043,7 +2037,7 @@ async def remove_cart_item(
         raise AppError(
             code="cart.item.not_found",
             status_code=404,
-            message=f"Cart item '{item_id}' not found",
+            message="This line is no longer in your cart.",
             details={"item_id": str(item_id)},
         )
 
@@ -2055,7 +2049,7 @@ async def remove_cart_item(
         raise AppError(
             code="cart.not_found",
             status_code=404,
-            message=f"Cart '{item.cart_id}' not found",
+            message="Cart not found.",
             details={"cart_id": str(item.cart_id)},
         )
 
@@ -2306,7 +2300,7 @@ async def create_quote_request(
         raise AppError(
             code="cart.quote.unavailable",
             status_code=503,
-            message="EMAIL_SUPPORT is not configured",
+            message="Quote requests are unavailable at the moment.",
             details={"setting": "EMAIL_SUPPORT"},
         )
 
@@ -2318,7 +2312,7 @@ async def create_quote_request(
         raise AppError(
             code="cart.active.not_found",
             status_code=400,
-            message="No active cart found",
+            message="Your cart is empty.",
             details={"user_id": str(current_user.id)},
         )
 
@@ -2327,7 +2321,7 @@ async def create_quote_request(
         raise AppError(
             code="cart.empty",
             status_code=400,
-            message="Cart is empty",
+            message="Your cart is empty.",
             details={"cart_id": str(cart.id)},
         )
 
@@ -2605,7 +2599,7 @@ async def create_guest_quote_request(
         raise AppError(
             code="cart.quote.unavailable",
             status_code=503,
-            message="EMAIL_SUPPORT is not configured",
+            message="Quote requests are unavailable at the moment.",
             details={"setting": "EMAIL_SUPPORT"},
         )
 
@@ -2614,7 +2608,7 @@ async def create_guest_quote_request(
         raise AppError(
             code="cart.quote.invalid_email",
             status_code=400,
-            message="customer_email is invalid",
+            message="Invalid e-mail address.",
             details={"field": "customer_email"},
         )
 
@@ -2622,7 +2616,7 @@ async def create_guest_quote_request(
         raise AppError(
             code="cart.empty",
             status_code=400,
-            message="Cart is empty",
+            message="Your cart is empty.",
             details={"reason": "guest_payload_items_empty"},
         )
 
@@ -2880,9 +2874,7 @@ async def _quote_checkout(
         raise AppError(
             code="checkout.delivery_type.unavailable",
             status_code=400,
-            message=(
-                f"Delivery mode '{delivery_type}' is not available for this destination"
-            ),
+            message=("This delivery mode is not offered for this destination."),
             details={
                 "delivery_type": delivery_type,
                 "pickup_place_id": str(pickup_place_id) if pickup_place_id else None,
@@ -3055,7 +3047,7 @@ async def _resolve_checkout_discount(
                 code="checkout.discount.refused",
                 status_code=400,
                 message=exc.message,
-                details={"discount_code": code, "reason": exc.reason},
+                details={"discount_code": code, "reason": exc.reason, **exc.params},
             ) from exc
         return None, exc.message
     return applied, None
@@ -3073,7 +3065,7 @@ QUOTE_COUPON_GUESS_REASONS: frozenset[str] = frozenset(
 )
 QUOTE_COUPON_FAILURES_WINDOW_SECONDS = 600
 QUOTE_COUPON_THROTTLED_MESSAGE = (
-    "Trop de codes promo refusés : réessayez dans quelques minutes."
+    "Too many promo codes refused: try again in a few minutes."
 )
 
 
@@ -3085,7 +3077,7 @@ async def _quote_discount_throttled(
     items: list[CartItem],
     products_by_id: dict[uuid.UUID, Product],
     currency: str,
-) -> tuple[AppliedDiscount | None, str | None]:
+) -> tuple[AppliedDiscount | None, DiscountRefused | None]:
     """``_resolve_checkout_discount`` for the quote, with a limit on refusals.
 
     Over the limit the code is not looked up at all: the quote is priced
@@ -3110,8 +3102,9 @@ async def _quote_discount_throttled(
         limit=QUOTE_COUPON_FAILURES_LIMIT,
         window_seconds=QUOTE_COUPON_FAILURES_WINDOW_SECONDS,
     ):
-        return None, QUOTE_COUPON_THROTTLED_MESSAGE
+        return None, DiscountRefused("throttled", QUOTE_COUPON_THROTTLED_MESSAGE)
     reason: str | None = None
+    refusal: DiscountRefused | None = None
     try:
         applied = await resolve_coupon(
             session,
@@ -3121,11 +3114,10 @@ async def _quote_discount_throttled(
             products_by_id=products_by_id,
             currency=currency,
         )
-        error = None
     except DiscountRefused as exc:
-        applied, error, reason = None, exc.message, exc.reason
+        applied, refusal, reason = None, exc, exc.reason
     if already_refused:
-        return applied, error
+        return applied, refusal
     if reason not in QUOTE_COUPON_GUESS_REASONS:
         # A valid code, or one refused for this cart (minimum not reached,
         # already used…): the customer re-quotes at every change of the cart
@@ -3133,7 +3125,7 @@ async def _quote_discount_throttled(
         await release_rate_limit_hit(key)
     else:
         await _remember_refused_code(refused_key, normalized)
-    return applied, error
+    return applied, refusal
 
 
 async def _code_refused_before(key: str, code: str) -> bool:
@@ -3233,7 +3225,7 @@ async def get_checkout_quote(
             str((issued.quote_snapshot or {}).get("shipping_fee_amount") or 0)
         )
 
-    applied_discount, discount_error = await _quote_discount_throttled(
+    applied_discount, refusal = await _quote_discount_throttled(
         session,
         code=discount_code,
         user_id=user_id,
@@ -3272,7 +3264,9 @@ async def get_checkout_quote(
         discount_code=applied_discount.code if applied_discount else None,
         discount_amount=quote.discount_amount,
         discount_label=applied_discount.label if applied_discount else None,
-        discount_error=discount_error,
+        discount_error=refusal.message if refusal else None,
+        discount_error_code=refusal.reason if refusal else None,
+        discount_error_details=refusal.params if refusal else None,
         total_amount=quote.total_amount,
         delivery_type=delivery_type,
         shipping_eta_days=quote.shipping_eta_days,
@@ -3540,7 +3534,7 @@ async def _replay_checkout(
         raise AppError(
             code="order.not_found",
             status_code=404,
-            message=f"Order {order_id} not found",
+            message="Order not found.",
             details={"order_id": str(order_id)},
         )
     payment = (
@@ -3646,7 +3640,7 @@ async def checkout_my_cart(
         raise AppError(
             code="cart.active.not_found",
             status_code=400,
-            message="No active cart found",
+            message="Your cart is empty.",
             details={"user_id": str(current_user.id)},
         )
 
@@ -3709,7 +3703,7 @@ async def checkout_my_cart(
         raise AppError(
             code="cart.empty",
             status_code=400,
-            message="Cart is empty",
+            message="Your cart is empty.",
             details={"cart_id": str(cart.id)},
         )
 
@@ -3809,7 +3803,7 @@ async def checkout_my_cart(
         raise AppError(
             code="cart.total.invalid",
             status_code=400,
-            message="Cart total must be > 0",
+            message="The cart total is zero.",
             details={
                 "cart_id": str(cart.id),
                 "total_amount": str(total_amount),
@@ -3925,6 +3919,7 @@ async def checkout_my_cart(
                     details={
                         "discount_code": applied_discount.code,
                         "reason": exc.reason,
+                        **exc.params,
                     },
                 ) from exc
         line_discounts = applied_discount.line_amounts if applied_discount else {}
@@ -4288,6 +4283,6 @@ async def checkout_my_cart(
         raise AppError(
             code="cart.checkout.failed",
             status_code=500,
-            message="Checkout failed",
+            message="The order could not be placed. Try again in a moment.",
             details={"reason": type(exc).__name__},
         ) from exc

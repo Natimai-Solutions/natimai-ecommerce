@@ -60,7 +60,7 @@ def _validate_update(
         raise AppError(
             code="user.preference.invalid",
             status_code=400,
-            message="Invalid default_shipping_preference",
+            message="Invalid preference.",
             details={
                 "field": "default_shipping_preference",
                 "value": data.default_shipping_preference,
@@ -74,7 +74,7 @@ def _validate_update(
         raise AppError(
             code="user.preference.invalid",
             status_code=400,
-            message="Invalid preferred_shipping_mode",
+            message="Invalid preference.",
             details={
                 "field": "preferred_shipping_mode",
                 "value": data.preferred_shipping_mode,
@@ -85,7 +85,7 @@ def _validate_update(
         raise AppError(
             code="user.preference.invalid",
             status_code=400,
-            message="Invalid locale",
+            message="Invalid preference.",
             details={
                 "field": "locale",
                 "value": data.locale,
@@ -98,7 +98,7 @@ def _validate_update(
         raise AppError(
             code="user.preference.invalid",
             status_code=400,
-            message="Invalid currency_pref",
+            message="Invalid preference.",
             details={
                 "field": "currency_pref",
                 "value": data.currency_pref,

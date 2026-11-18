@@ -156,7 +156,7 @@ async def _get_payment_or_404(session: SessionDep, payment_id: uuid.UUID) -> Pay
         raise AppError(
             code="payment.not_found",
             status_code=404,
-            message=f"Payment {payment_id} not found",
+            message="Payment not found.",
             details={"payment_id": str(payment_id)},
         ) from e
 
@@ -433,7 +433,7 @@ async def approve_payment(
             raise AppError(
                 code="payment.not_manual",
                 status_code=400,
-                message=f"Payment {payment.id} provider '{payment.provider_code}' is not manual",
+                message="This payment is not a manual payment.",
                 details={
                     "payment_id": str(payment_id),
                     "provider_code": payment.provider_code,
@@ -672,7 +672,7 @@ async def get_attachment_download_url(
         raise AppError(
             code="internal.record_not_found",
             status_code=404,
-            message=f"Attachment {attachment_id} not found",
+            message="Item not found.",
             details={"attachment_id": str(attachment_id)},
         ) from e
 
@@ -680,7 +680,7 @@ async def get_attachment_download_url(
         raise AppError(
             code="internal.record_not_found",
             status_code=404,
-            message="Attachment does not belong to this payment",
+            message="Item not found.",
             details={
                 "attachment_id": str(attachment_id),
                 "payment_id": str(payment_id),
@@ -698,7 +698,7 @@ async def get_attachment_download_url(
         raise AppError(
             code="attachment.validation_failed",
             status_code=403,
-            message=f"Attachment quarantined by antivirus: {attachment.av_signature}",
+            message="The file was rejected by the antivirus.",
             details={"reason": "quarantined"},
         )
 

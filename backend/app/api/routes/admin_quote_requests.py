@@ -151,7 +151,7 @@ async def _read_quote(session: SessionDep, quote_id: uuid.UUID) -> QuoteRequest:
         raise AppError(
             code="quote_request.not_found",
             status_code=404,
-            message=f"Quote request '{quote_id}' not found",
+            message="Quote request not found.",
             details={"quote_request_id": str(quote_id)},
         )
     return quote

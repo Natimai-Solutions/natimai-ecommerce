@@ -173,7 +173,7 @@ async def test_refresh_token_expired_is_revoked_and_rejected(
     assert response.json() == {
         "error": {
             "code": "login.refresh_token.expired",
-            "message": "Refresh token expiré",
+            "message": "Session expired: sign in again.",
             "details": {
                 "user_id": str(user_id),
                 "jti": old_jti,
@@ -233,7 +233,7 @@ async def test_refresh_token_reuse_revokes_all_active_sessions(
     assert response.json() == {
         "error": {
             "code": "login.refresh_token.revoked",
-            "message": "Refresh token révoqué",
+            "message": "Session ended: sign in again.",
             "details": {
                 "user_id": str(user_id),
                 "jti": old_jti,

@@ -661,7 +661,7 @@ async def get_order_detail(
         raise AppError(
             code="order.not_found",
             status_code=404,
-            message=f"Order '{order_id}' not found",
+            message="Order not found.",
             details={"order_id": str(order_id)},
         ) from exc
 

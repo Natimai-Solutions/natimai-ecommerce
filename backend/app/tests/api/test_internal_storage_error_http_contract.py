@@ -25,7 +25,7 @@ def test_internal_storage_upload_invalid_token_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "internal_storage.token.invalid",
-            "message": "Invalid token",
+            "message": "Invalid or expired upload link.",
             "details": {"reason": "invalid signature"},
         }
     }
@@ -56,7 +56,7 @@ def test_internal_storage_upload_wrong_operation_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "internal_storage.token.operation_not_allowed",
-            "message": "Token does not allow upload",
+            "message": "This link does not allow this operation.",
             "details": {
                 "expected": "put",
                 "actual": "get",
@@ -91,7 +91,7 @@ def test_internal_storage_upload_content_type_mismatch_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "internal_storage.content_type.invalid",
-            "message": "Content-Type must be application/pdf",
+            "message": "Unexpected file type.",
             "details": {
                 "expected": "application/pdf",
                 "received": "image/png",
@@ -126,7 +126,7 @@ def test_internal_storage_upload_too_large_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "internal_storage.file.too_large",
-            "message": "File exceeds allowed size",
+            "message": "The file is too large.",
             "details": {
                 "max_bytes": 3,
                 "content_length": 4,
@@ -158,10 +158,7 @@ def test_internal_storage_disabled_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "internal_storage.backend.unsupported",
-            "message": (
-                "Internal storage endpoint is only enabled "
-                "with FILE_STORAGE_BACKEND=local"
-            ),
+            "message": ("This storage endpoint is not enabled on this server."),
             "details": {
                 "setting": "FILE_STORAGE_BACKEND",
                 "backend": "s3",

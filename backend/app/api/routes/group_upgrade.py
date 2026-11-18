@@ -54,7 +54,7 @@ async def _load_request(
         raise AppError(
             code="user.upgrade_request.not_found",
             status_code=404,
-            message=f"Upgrade request '{request_id}' not found",
+            message="Request not found.",
             details={"request_id": str(request_id)},
         )
     return req
@@ -68,7 +68,7 @@ async def _load_active_price_group(
         raise AppError(
             code="resource.not_found",
             status_code=404,
-            message=f"Price group '{price_group_id}' not found",
+            message="Item not found.",
             details={"resource": "price_group", "id": str(price_group_id)},
         )
     return group
@@ -99,7 +99,7 @@ async def submit_upgrade_request(
         raise AppError(
             code="user.upgrade_request.not_required",
             status_code=400,
-            message="This price group does not require validation — contact support",
+            message="This price group needs no validation: please contact us.",
             details={"price_group_id": str(payload.price_group_id)},
         )
 
@@ -117,7 +117,7 @@ async def submit_upgrade_request(
         raise AppError(
             code="user.upgrade_request.duplicate",
             status_code=409,
-            message="A pending request for this group already exists",
+            message="A request for this group is already pending.",
             details={
                 "user_id": str(user_id),
                 "price_group_id": str(payload.price_group_id),
@@ -277,7 +277,7 @@ async def approve_upgrade_request(
         raise AppError(
             code="user.upgrade_request.wrong_status",
             status_code=400,
-            message="Request is not in PENDING status",
+            message="This request is no longer pending.",
             details={"request_id": str(request_id), "status": req.status},
         )
 
@@ -287,7 +287,7 @@ async def approve_upgrade_request(
         raise AppError(
             code="auth.user.not_found",
             status_code=404,
-            message=f"User '{req.user_id}' not found",
+            message="Account not found.",
             details={"user_id": str(req.user_id)},
         )
     admin_id = current_user.id  # capture before commit (MissingGreenlet)
@@ -329,7 +329,7 @@ async def reject_upgrade_request(
         raise AppError(
             code="user.upgrade_request.wrong_status",
             status_code=400,
-            message="Request is not in PENDING status",
+            message="This request is no longer pending.",
             details={"request_id": str(request_id), "status": req.status},
         )
 
@@ -381,7 +381,7 @@ async def assign_price_group_to_user(
         raise AppError(
             code="auth.user.not_found",
             status_code=404,
-            message=f"User '{user_id}' not found",
+            message="Account not found.",
             details={"user_id": str(user_id)},
         )
 

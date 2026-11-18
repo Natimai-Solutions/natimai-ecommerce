@@ -560,7 +560,17 @@ class CheckoutQuoteResponse(DepositTerms):
     )
     discount_error: str | None = Field(
         default=None,
-        description="Pourquoi le code saisi n'a pas été appliqué (devis seulement)",
+        description="Why the code was not applied: English fallback text",
+    )
+    discount_error_code: str | None = Field(
+        default=None,
+        description=(
+            "Why the code was not applied, as a reason code the interfaces "
+            "translate (checkout.discount.refused.<reason>; « throttled »)"
+        ),
+    )
+    discount_error_details: dict[str, str] | None = Field(
+        default=None, description="Values of the reason's text (min_amount…)"
     )
     total_amount: Decimal = Field(description="Montant qui sera débité")
     delivery_type: str | None = None

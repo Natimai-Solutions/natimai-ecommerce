@@ -43,7 +43,7 @@ def test_auth_credentials_invalid_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "auth.credentials.invalid",
-            "message": "Could not validate credentials",
+            "message": "Your session is no longer valid: sign in again.",
             "details": {"reason": "invalid_or_malformed_token"},
         }
     }
@@ -64,7 +64,7 @@ def test_auth_superuser_required_returns_error_payload(
     assert response.status_code == 403
     payload = response.json()["error"]
     assert payload["code"] == "auth.superuser.required"
-    assert payload["message"] == "The user doesn't have enough privileges"
+    assert payload["message"] == "Administrator access required."
     assert "user_id" in payload["details"]
 
 
@@ -77,7 +77,7 @@ def test_resource_authentication_required_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "resource.authentication_required",
-            "message": "Authentication required on Address",
+            "message": "Sign in to continue.",
             "details": {"resource": "address", "permission": "read"},
         }
     }
@@ -101,7 +101,7 @@ def test_resource_filter_unsupported_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "resource.filter.unsupported",
-            "message": "Raw string filters are not supported on this endpoint",
+            "message": "This filter is not supported here.",
             "details": {
                 "resource": "address",
                 "filter": "id is not null",

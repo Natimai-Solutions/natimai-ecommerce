@@ -66,7 +66,7 @@ async def _load_own_invoice(
         raise AppError(
             code="invoice.not_found",
             status_code=404,
-            message="Invoice not found",
+            message="Invoice not found.",
             details={"invoice_id": str(invoice_id)},
         )
     return invoice
@@ -107,7 +107,7 @@ async def get_my_invoice_for_order(
         raise AppError(
             code="invoice.order_not_found",
             status_code=404,
-            message="Order not found",
+            message="Order not found.",
             details={"order_id": str(order_id)},
         )
 
@@ -117,7 +117,7 @@ async def get_my_invoice_for_order(
         raise AppError(
             code="invoice.not_issued",
             status_code=404,
-            message="No invoice issued for this order yet",
+            message="No invoice has been issued for this order yet.",
             details={"order_id": str(order_id)},
         )
     return _to_public(invoice)
@@ -139,7 +139,7 @@ async def download_my_invoice_pdf(
         raise AppError(
             code="invoice.pdf.unavailable",
             status_code=503,
-            message="Invoice PDF rendering is unavailable on this deployment",
+            message="The invoice PDF is unavailable on this server.",
             details={"invoice_id": str(invoice_id)},
         ) from exc
 
@@ -163,7 +163,7 @@ async def _load_own_credit_note(
         raise AppError(
             code="credit_note.not_found",
             status_code=404,
-            message="Credit note not found",
+            message="Credit note not found.",
             details={"credit_note_id": str(credit_note_id)},
         )
     return credit_note
@@ -206,7 +206,7 @@ async def list_my_credit_notes_for_order(
         raise AppError(
             code="invoice.order_not_found",
             status_code=404,
-            message="Order not found",
+            message="Order not found.",
             details={"order_id": str(order_id)},
         )
 
@@ -234,7 +234,7 @@ async def download_my_credit_note_pdf(
         raise AppError(
             code="credit_note.pdf.unavailable",
             status_code=503,
-            message="Credit note PDF rendering is unavailable on this deployment",
+            message="The credit note PDF is unavailable on this server.",
             details={"credit_note_id": str(credit_note_id)},
         ) from exc
 

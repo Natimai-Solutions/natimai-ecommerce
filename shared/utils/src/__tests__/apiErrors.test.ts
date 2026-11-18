@@ -30,6 +30,23 @@ describe("API error texts", () => {
     expect(apiErrorText(null, {}, "fr")).toBeNull();
   });
 
+  it("says why a promo code was refused", () => {
+    expect(
+      apiErrorText("checkout.discount.refused", { reason: "expired" }, "fr"),
+    ).toBe("Ce code a expiré.");
+    expect(
+      apiErrorText(
+        "checkout.discount.refused",
+        { reason: "below_minimum", min_amount: "5000", currency: "XPF" },
+        "en",
+      ),
+    ).toBe("This code applies from 5000 XPF of eligible items.");
+    // An unknown reason: the code's own text.
+    expect(
+      apiErrorText("checkout.discount.refused", { reason: "new" }, "en"),
+    ).toBe("This promo code cannot be applied.");
+  });
+
   it("falls back on French for a language without catalogue", () => {
     expect(apiErrorText("cart.empty", {}, "ty")).toBe("Votre panier est vide.");
   });

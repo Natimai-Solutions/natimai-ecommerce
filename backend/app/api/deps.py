@@ -50,14 +50,14 @@ async def _authenticated_user(session: AsyncSession, token: str) -> User:
         raise AppError(
             code="auth.credentials.invalid",
             status_code=401,
-            message="Could not validate credentials",
+            message="Your session is no longer valid: sign in again.",
             details={"reason": "invalid_or_malformed_token"},
         )
     if token_data.type != "access":
         raise AppError(
             code="auth.credentials.invalid",
             status_code=401,
-            message="Could not validate credentials",
+            message="Your session is no longer valid: sign in again.",
             details={"reason": "invalid_token_type", "token_type": token_data.type},
         )
     user = await session.get(User, token_data.sub)
@@ -65,14 +65,14 @@ async def _authenticated_user(session: AsyncSession, token: str) -> User:
         raise AppError(
             code="auth.user.not_found",
             status_code=404,
-            message="User not found",
+            message="Account not found.",
             details={"user_id": str(token_data.sub)},
         )
     if not user.is_active:
         raise AppError(
             code="auth.user.inactive",
             status_code=400,
-            message="Inactive user",
+            message="Disabled account.",
             details={"user_id": str(user.id)},
         )
     if not token_data.stp or not hmac.compare_digest(
@@ -83,7 +83,7 @@ async def _authenticated_user(session: AsyncSession, token: str) -> User:
         raise AppError(
             code="auth.credentials.invalid",
             status_code=401,
-            message="Could not validate credentials",
+            message="Your session is no longer valid: sign in again.",
             details={"reason": "session_revoked"},
         )
     return user
@@ -179,7 +179,7 @@ async def get_current_verified_user(current_user: CurrentUser) -> User:
         raise AppError(
             code="auth.user.unverified",
             status_code=400,
-            message="Unverified user",
+            message="Account not verified yet.",
             details={"user_id": str(current_user.id)},
         )
     return current_user
@@ -213,7 +213,7 @@ def _require_superuser(user: User) -> User:
         raise AppError(
             code="auth.superuser.required",
             status_code=403,
-            message="The user doesn't have enough privileges",
+            message="Administrator access required.",
             details={"user_id": str(user.id)},
         )
     return user

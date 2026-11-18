@@ -60,7 +60,7 @@ async def _load_credit_note(
         raise AppError(
             code="credit_note.not_found",
             status_code=404,
-            message="Credit note not found",
+            message="Credit note not found.",
             details={"credit_note_id": str(credit_note_id)},
         )
     return credit_note
@@ -174,7 +174,7 @@ async def download_credit_note_pdf(
         raise AppError(
             code="credit_note.pdf.unavailable",
             status_code=503,
-            message="Credit note PDF rendering is unavailable on this deployment",
+            message="The credit note PDF is unavailable on this server.",
             details={"credit_note_id": str(credit_note_id)},
         ) from exc
 

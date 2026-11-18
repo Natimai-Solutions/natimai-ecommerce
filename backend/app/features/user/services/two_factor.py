@@ -170,7 +170,7 @@ def regenerate_recovery_codes(user: User, code: str) -> list[str]:
         raise AppError(
             code="auth.totp.invalid",
             status_code=400,
-            message="Code incorrect",
+            message="Incorrect code: check your phone's clock and try again.",
             details={},
         )
     codes = _new_recovery_codes()

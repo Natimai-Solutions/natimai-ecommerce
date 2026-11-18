@@ -51,7 +51,7 @@ def test_get_user_addresses_not_owned_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "address.not_found",
-            "message": "Adresse introuvable",
+            "message": "Address not found.",
             "details": {"user_id": str(owner_user_id)},
         }
     }
@@ -78,7 +78,7 @@ def test_get_user_address_not_found_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "address.not_found",
-            "message": f"Address '{address_id}' not found",
+            "message": "Address not found.",
             "details": {"address_id": str(address_id)},
         }
     }
@@ -105,7 +105,7 @@ def test_get_user_address_mismatched_owner_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "address.not_found",
-            "message": f"Address '{address_id}' not found",
+            "message": "Address not found.",
             "details": {"address_id": str(address_id)},
         }
     }
@@ -123,7 +123,7 @@ def test_get_user_addresses_by_type_invalid_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "address.type.invalid",
-            "message": "Invalid address type. Must be one of: billing, other, shipping",
+            "message": "Invalid address type.",
             "details": {
                 "address_type": "invalid",
                 "allowed": ["billing", "other", "shipping"],

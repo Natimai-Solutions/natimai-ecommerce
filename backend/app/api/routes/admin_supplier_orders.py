@@ -46,7 +46,7 @@ async def _load_supplier_order(
         raise AppError(
             code="supplier_order.not_found",
             status_code=404,
-            message=f"Supplier order '{supplier_order_id}' not found",
+            message="Supplier order not found.",
             details={"supplier_order_id": str(supplier_order_id)},
         )
     return record

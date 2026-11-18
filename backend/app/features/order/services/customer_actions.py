@@ -132,7 +132,7 @@ async def cancel_order_by_customer(
         raise AppError(
             code="order.not_found",
             status_code=404,
-            message=f"Order {order_id} not found",
+            message="Order not found.",
             details={"order_id": str(order_id)},
         )
     refusal = await cancellation_refusal(session, order)
@@ -140,7 +140,7 @@ async def cancel_order_by_customer(
         raise AppError(
             code="order.cancel_refused",
             status_code=409,
-            message="This order can no longer be cancelled from the account",
+            message="This order can no longer be cancelled from your account.",
             details={"order_id": str(order_id), "reason": refusal},
         )
 
@@ -167,7 +167,7 @@ async def cancel_order_by_customer(
             raise AppError(
                 code="order.cancel_refused",
                 status_code=409,
-                message="This order can no longer be cancelled from the account",
+                message="This order can no longer be cancelled from your account.",
                 details={"order_id": str(order_id), "reason": "paid"},
             )
         if current in DEAD_PAYMENT_STATUSES:
