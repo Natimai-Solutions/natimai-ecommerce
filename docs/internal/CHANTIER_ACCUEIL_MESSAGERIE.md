@@ -365,7 +365,7 @@ Ce qui existe :
 - **Notifications en application** : un modèle `notifications` /
   `user_notifications` (`features/user/models/notification.py`, types
   fermés, `is_read` / `read_at`) existe **sans route ni écran**, seulement
-  dans l'export RGPD. Recommandation (§10) : le **retirer** dans le lot MSG1
+  dans l'export RGPD. Décidé le 18/11/2026 : le **retirer** dans le lot MSG1
   (modèle, CRUD, entrée de l'export, migration qui supprime les deux tables
   après avoir vérifié qu'elles sont vides en production). Le badge de la
   messagerie se calcule directement sur les conversations
@@ -563,7 +563,7 @@ canaux de leur rôle par défaut, ajustables un par un (`messaging_agents`).
   pas, c'est le premier manque relevé côté équipe. Ces notes portent sur la
   conversation ; ce ne sont pas les notes de commande du plan (§4,
   historique de la commande).
-- **Priorité** (recommandée, §10) : une case « Prioritaire dans la
+- **Priorité** (décidée le 18/11/2026) : une case « Prioritaire dans la
   messagerie » sur la fiche d'un groupe tarifaire (`price_groups`). Les
   conversations des clients de ce groupe portent une pastille
   « prioritaire » et passent en tête de « À traiter » ; le délai affiché
@@ -632,7 +632,7 @@ canaux de leur rôle par défaut, ajustables un par un (`messaging_agents`).
   (`QuoteRequestStatus`, filet `EMAIL_FAILED`, `/issue`, `…/accept`
   inchangés) ; `admin_comment` devient une note interne. Ferme le volet
   « devis » de Z18 (accusé de réception et réponse).
-- **Demandes de groupe** (recommandé, §10) : la demande faite depuis *Mon
+- **Demandes de groupe** (décidé le 18/11/2026) : la demande faite depuis *Mon
   groupe* ouvre une conversation **commerciale** rattachée
   (`context_type = group_request`) : le commercial peut y demander un
   justificatif (n° Tahiti, extrait K-bis) et le client l'y déposer en pièce
@@ -910,23 +910,13 @@ Photos d'un colis abîmé = cas d'usage n° 1 du service client.
 - **HEIC** : converti en JPEG, et toute image réencodée sans métadonnées
   (§7, pièces jointes).
 
-### Recommandées, retenues sauf avis contraire
-
-Expliquées le 18/11/2026 ; à corriger ici si la réponse est non.
-
-1. **Demandes de changement de groupe en conversation** (§6). Aujourd'hui,
-   un client demande depuis *Mon groupe* à passer « Professionnel » ;
-   l'admin accepte ou refuse avec un commentaire que le client lit, mais ils
-   ne peuvent pas échanger (« envoyez-nous votre n° Tahiti »). La demande
-   ouvrirait une conversation commerciale : justificatifs en pièce jointe,
-   décision annoncée dans le fil (remplace l'e-mail de décision manquant,
-   M14).
-2. **Retrait des notifications en application dormantes** (§4). Deux tables
-   prévues pour une « cloche » de notifications n'ont jamais été branchées
-   (ni route, ni écran) ; le badge de la messagerie n'en a pas besoin. On
-   les supprime pour ne pas garder du code mort, présent dans l'export RGPD.
-3. **Priorité par groupe tarifaire** (§6). Une case sur le groupe : les
-   messages de ses clients passent en tête de la file de l'équipe.
+- **Demandes de changement de groupe** : ouvrent une conversation
+  commerciale, justificatifs en pièce jointe, décision annoncée dans le fil
+  (§6, lot MSG5).
+- **Notifications en application dormantes** : retirées dans le lot MSG1
+  (§4).
+- **Priorité par groupe tarifaire** : case sur le groupe, tête de file
+  (§6, lot MSG4).
 
 ### Attendues
 
