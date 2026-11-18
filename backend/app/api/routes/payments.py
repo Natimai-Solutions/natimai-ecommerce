@@ -850,6 +850,16 @@ async def _validate_order_for_initiation(
             },
         )
 
+    if kind == KIND_FULL and payment_method_id is not None:
+        await _rebill_method_fee(
+            session,
+            order,
+            order_payments,
+            payment_method_id,
+            currency,
+            settled_amounts,
+        )
+
     # The part may already be partly settled by a store credit.
     expected = quantize_amount(remaining_amount(order, kind, settled_amounts), currency)
     if quantize_amount(amount, currency) != expected:
@@ -872,6 +882,76 @@ async def _validate_order_for_initiation(
         # take it again before this attempt, or refuse it (audit 2026-11, B2).
         await reserve_released_order_stock(session, order_id=order_id)
     return kind
+
+
+async def _rebill_method_fee(
+    session: SessionDep,
+    order: Order,
+    order_payments: list[tuple[Any, str | None]],
+    payment_method_id: uuid.UUID,
+    currency: str,
+    settled_amounts: Any,
+) -> None:
+    """Bill the order the fee of the method it is now paid with.
+
+    An order still entirely unpaid (card refused, PayPal abandoned) can be
+    paid with another method: its total follows that method's fee, up or
+    down. It used to be refused (« ce moyen n'a pas les frais de la
+    commande ») on the very page that says « choisissez un autre moyen »
+    (relecture du 17/11/2026). Nothing is invoiced yet — the invoice is
+    issued at capture, from these totals.
+
+    The method the order is billed for is the one of its latest payment:
+    paying again with it keeps the fee the customer was quoted, whatever the
+    method's fee became since.
+
+    Only the full payment of an order: a deposit order keeps its split and
+    the rule of ``_check_method_fee_amount``. Flushes, no commit — a refused
+    initiation rolls the change back with the rest.
+    """
+    billed_method_id = next(
+        (
+            method_id
+            for payment, _status in reversed(order_payments)
+            if (method_id := getattr(payment, "payment_method_id", None)) is not None
+        ),
+        None,
+    )
+    if billed_method_id == payment_method_id:
+        return
+    method = await session.get(PaymentMethod, payment_method_id)
+    if method is None:
+        # Unknown method: initiate_payment_for_method reports it.
+        return
+    # Two attempts at once must not both move the total.
+    await session.refresh(order, with_for_update=True)
+    billed = quantize_amount(
+        Decimal(getattr(order, "payment_fee_amount", None) or 0), currency
+    )
+    fee = quantize_amount(Decimal(method.fee or 0), currency)
+    delta = fee - billed
+    if delta == 0:
+        return
+    new_total = quantize_amount(Decimal(order.total_amount) + delta, currency)
+    if new_total - settled_amounts.get(KIND_FULL, Decimal(0)) <= 0:
+        # A credit already covers the order without this fee: nothing left
+        # to initiate on. The fee check below answers.
+        return
+    order.payment_fee_amount = fee
+    order.total_fees_amount = quantize_amount(
+        Decimal(getattr(order, "total_fees_amount", None) or 0) + delta, currency
+    )
+    order.total_amount = new_total
+    session.add(order)
+    await session.flush()
+    logger.info(
+        "Order %s re-billed for payment method %s: fee %s → %s, total %s",
+        order.id,
+        payment_method_id,
+        billed,
+        fee,
+        new_total,
+    )
 
 
 async def _check_method_fee_amount(

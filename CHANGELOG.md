@@ -132,6 +132,12 @@ takes a tag as its `ref`.
 
 ### Changed
 
+- « Payer ma commande »: an order still entirely unpaid can be paid with
+  another payment method — it is re-billed that method's fee (total and fees
+  follow, up or down) instead of « ce moyen n'a pas les frais de la
+  commande ». The page shows the fee of each method and the new total. A
+  deposit or a balance keeps the order's amount: only the accepted methods
+  are listed.
 - Front: a Vitest design guard (`shared/ui/src/design-guard.test.ts`) over
   both apps and `shared/ui` refuses Material colours, `bg-white`, colours picked
   from `$q.dark`, hard-coded colours and `!important` outside the token files,

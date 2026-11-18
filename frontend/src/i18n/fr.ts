@@ -575,6 +575,8 @@ const fr = {
     pay: 'Régler {amount}',
     request_saved: 'Votre demande de règlement a bien été enregistrée.',
     see_order: 'Voir la commande',
+    method_fee: 'frais {amount}',
+    fee_changed: 'Le total suit les frais du moyen de paiement choisi.',
     not_payable:
       'Cette commande ne peut pas être réglée en ligne pour le moment. Consultez son suivi ou contactez-nous.',
     settled: 'Cette commande est intégralement réglée.',
