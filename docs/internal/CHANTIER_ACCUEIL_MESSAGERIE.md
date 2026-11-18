@@ -171,7 +171,7 @@ par le même `DOMPurify.sanitize` que `DbContentPage.vue` (le serveur ne
 nettoie pas `body_html` aujourd'hui) ; tout autre consommateur (aperçu
 admin) le nettoie aussi.
 
-### R8. Ciblage par audience (M)
+### R8. Ciblage par audience (M) — décidé, dès le lot A1
 
 Chaque section porte une **audience** : tous, visiteurs, clients connectés,
 un ou plusieurs **groupes tarifaires** (`price_group_id`). Plus une
@@ -354,7 +354,7 @@ Ce qui existe :
 - **Notifications en application** : un modèle `notifications` /
   `user_notifications` (`features/user/models/notification.py`, types
   fermés, `is_read` / `read_at`) existe **sans route ni écran**, seulement
-  dans l'export RGPD. À trancher (§10, attendue 8) : il porte le badge de non-lus de
+  dans l'export RGPD. À trancher (§10, attendue 4) : il porte le badge de non-lus de
   la messagerie, ou il est retiré — pas deux mécanismes.
 - **Modules activables** (`features/system/modules.py`, `module_required`
   → 404 sur un module coupé, `SECTION_MODULES` dans `MyAccountPage.vue`) :
@@ -455,8 +455,26 @@ Pièges déjà payés ailleurs, à ne pas refaire :
     seulement au moment où l'adresse est **prouvée** (lien ci-dessus, code
     de l'inscription, reprise d'un compte invité, lien de réinitialisation).
     Une session invitée (`POST /signup/guest`) ne prouve rien (§12.2).
-- Horaires et délai de réponse affichés (« réponse sous 1 jour ouvré, du
-  lundi au vendredi, 8 h – 17 h, heure de Tahiti »), réglables.
+- **Horaires et délai de réponse affichés (décidé le 18/11/2026)**, sur
+  `/contact`, dans l'onglet « Messages » et au-dessus du champ de saisie :
+  « Nous répondons du lundi au vendredi, de 8 h à 17 h (heure de Tahiti),
+  en général sous 24 h ».
+  - **Horaires** : réglages `messaging_hours_start` (défaut 08:00),
+    `messaging_hours_end` (17:00) et `messaging_days` (lundi à vendredi),
+    en heure de Tahiti. Hors horaires, le message est accepté et la page dit
+    quand l'équipe le lira (« Nous vous répondrons à partir de lundi 8 h »).
+  - **Délai** : réglage `messaging_response_time_mode` = `fixed` (défaut)
+    ou `measured`, et `messaging_response_time_hours` (défaut 24).
+    En `measured`, le délai affiché est le **80ᵉ centile** du temps de
+    première réponse de l'équipe sur les 90 derniers jours, compté **en
+    heures ouvrées** (un message reçu vendredi à 16 h et répondu lundi à
+    9 h = 2 h), arrondi au palier supérieur (2 h, 4 h, 8 h, 1 jour ouvré,
+    2 jours ouvrés). Tant qu'il y a moins de 20 conversations sur la période,
+    ou si la valeur mesurée dépasse le délai réglé, c'est le délai réglé qui
+    s'affiche : on n'annonce jamais mieux que ce qu'on tient. Calcul fait
+    chaque nuit (`task_messaging_digest`), pas à chaque affichage ; la même
+    mesure alimente le tableau de bord de l'équipe (délai médian, 80ᵉ
+    centile, conversations en attente au-delà du délai).
 - **Module `messaging`** (Admin → Modules) : coupé, l'onglet, le bouton de
   l'en-tête et les raccourcis disparaissent (`useShopModulesStore().isOn`).
 
@@ -495,12 +513,12 @@ Pièges déjà payés ailleurs, à ne pas refaire :
   pas, c'est le premier manque relevé côté équipe. Ces notes portent sur la
   conversation ; ce ne sont pas les notes de commande du plan (§4,
   historique de la commande).
-- **Option priorité** (§10, attendue 9) : pastille « prioritaire » et tri en tête de
+- **Option priorité** (§10, attendue 5) : pastille « prioritaire » et tri en tête de
   « À traiter » pour les clients d'un groupe tarifaire marqué prioritaire,
   calculée **à la lecture** en une requête par page (modèle FenuaPro), sans
   colonne écrite : un changement de groupe se prend en compte de lui-même.
-- **Rôles « Service client » et « Service commercial »** (demandés le
-  18/11/2026, lot ROLE, §11). Aujourd'hui tout compte de l'admin est
+- **Rôles « Service client » et « Service commercial »** (demandés et
+  grille validée le 18/11/2026, lot ROLE, §11). Aujourd'hui tout compte de l'admin est
   superuser : il voit et fait tout (remboursements, réglages, fournisseurs).
   Pour qu'un employé réponde aux messages sans ces droits, il faut des rôles
   fins (§4 du plan). Le dépôt en a déjà le modèle, éteint
@@ -546,7 +564,7 @@ Pièges déjà payés ailleurs, à ne pas refaire :
   confidentialité ou à ne pas journaliser.
 - **Équipe** : e-mail au titulaire, sinon aux membres du canal, sinon à
   l'adresse du canal (*client* → `email_support`, *commercial* →
-  `email_contact`, enfin utilisée), sinon aux superusers ; jamais pour une
+  `email_contact`), sinon aux superusers ; jamais pour une
   conversation réglée. Digest du matin (compteurs seuls). Le tout dans la
   **langue de l'opérateur** (`operator_messages.py`, `operator_locale`) ;
   facultatif : alerte Slack (fournisseur déjà présent).
@@ -693,6 +711,13 @@ Toutes les routes derrière `Depends(module_required("messaging"))`.
   (onglets, filtres, recherche, pagination serveur), `claim`, `release`,
   `transfer`, `resolve`, `notes`, `canned-replies` (CRUD), `summary`
   (compteurs du menu, sert aussi de présence).
+- Réglages (catalogue `settings_catalog.py`, groupe *Messagerie*) :
+  `messaging_hours_start`, `messaging_hours_end`, `messaging_days`,
+  `messaging_response_time_mode`, `messaging_response_time_hours`, durées
+  de conservation ; `email_contact` existe déjà et reçoit le défaut
+  `contact@natimai.solutions` (le réglage le plus prioritaire reste celui
+  saisi dans l'admin, puis `EMAIL_CONTACT`). `GET /public/config` (ou
+  l'équivalent de la vitrine) expose horaires, délai affiché et adresse.
 - Codes d'erreur `messaging.*` (dont `messaging.attachment.*`,
   `messaging.already_claimed`, `messaging.invalid_assignee`) dans les deux
   catalogues ; messages API en anglais ; textes de succès dans l'i18n de
@@ -723,7 +748,7 @@ PDF / JPEG / PNG). À faire :
   `filename*`) ;
 - WebP : ajouter sa signature (`RIFF….WEBP`) à `_MAGIC`, et **refuser un
   type sans signature connue** (aujourd'hui « no opinion » = accepté) ;
-  HEIC (photos d'iPhone) : refus 415 explicite ou conversion (§10, attendue 10) ;
+  HEIC (photos d'iPhone) : refus 415 explicite ou conversion (§10, attendue 6) ;
 - l'URL présignée PUT ne borne pas la taille : supprimer l'objet refusé
   (taille, type) du stockage ;
 - téléchargement seulement si `av_scanned and av_clean` (409 scan en
@@ -797,28 +822,29 @@ Photos d'un colis abîmé = cas d'usage n° 1 du service client.
 - **Rôles** « Service client » et « Service commercial » voulus (§6, lot
   ROLE).
 - **Marques** : rattacher les produits à des fiches marque (R6, lot BR).
+- **Ciblage par groupe tarifaire** (R8) : dès le premier lot (A1).
+- **Horaires et délai de réponse** : 8 h – 17 h et 24 h, réglables ; délai
+  mesuré sur les statistiques quand il y en a assez (§6).
+- **Adresse de contact** : le réglage existant `email_contact` (Paramètres →
+  Boutique, ou `EMAIL_CONTACT`), défaut `contact@natimai.solutions` ; c'est
+  l'adresse affichée sur `/contact` et celle qui reçoit les alertes du canal
+  commercial.
+- **Rôles** : grille du §6 validée.
 
 ### Attendues
 
 1. **Bandeau d'annonce et prochain départ** : même emplacement (l'annonce
    remplace le départ pendant sa période, recommandé), empilés, ou annonce
    au-dessus de l'en-tête ?
-2. **Ciblage par groupe tarifaire** (R8, exemple au §2) : dès le premier
-   lot, ou après ?
-3. **Canaux** : *client* et *commercial* seulement, ou aussi *retours* /
+2. **Canaux** : *client* et *commercial* seulement, ou aussi *retours* /
    *comptabilité* (factures, avoirs) ?
-4. **Demandes de changement de groupe** : leur rattacher aussi une
+3. **Demandes de changement de groupe** : leur rattacher aussi une
    conversation (`admin_comment` → message visible) ?
-5. **Horaires et délai de réponse** affichés : lesquels ?
-6. **Adresse** affichée sur la page contact (`email_support`,
-   `email_contact`, `legal_support_email`) ?
-7. **Rôles** : la grille du §6 convient-elle (lecture des commandes,
-   émission des devis par le commercial, pas de remboursement) ?
-8. **Notifications en application** (`notifications` /
+4. **Notifications en application** (`notifications` /
    `user_notifications`, dormantes) : support du badge de la messagerie, ou
    retrait ?
-9. **Priorité** : des groupes tarifaires prioritaires dans la file ?
-10. **HEIC** (photos d'iPhone) : refus explicite ou conversion ?
+5. **Priorité** : des groupes tarifaires prioritaires dans la file ?
+6. **HEIC** (photos d'iPhone) : refus explicite ou conversion ?
 
 ---
 
@@ -829,12 +855,12 @@ les identifiants M· de l'audit fonctionnel.
 
 | Lot | Contenu | Taille |
 |---|---|---|
-| **A1** | Accueil : sections ordonnables / masquables / titrées (R1), route d'ordre en une transaction, migration de reprise, endpoint unique `GET /homepage` + `GET /homepage/personal` (prix du client) | M |
+| **A1** | Accueil : sections ordonnables / masquables / titrées (R1), route d'ordre en une transaction, migration de reprise, **audience par section** (tous, visiteurs, connectés, groupes tarifaires, langue — R8), `GET /homepage` (version visiteur) + `GET /homepage/personal` (sections ciblées et prix du client) | M à L |
 | **A2** | Sélections de produits nommées (R2) et catégories choisies (R3), sélecteur admin | M |
 | **A3** | Annonce, réassurance, marques (après BR), bloc libre (R4 à R7) | M |
 | **A4** | Aperçu et programmation (R10), SEO de l'accueil (R11) | S à M |
-| **A5** | Ciblage par audience et sections personnelles (R8, R9) | M |
-| **MSG1** | Messagerie, socle : module, modèle, API client et admin, onglet « Messages », écran admin, sondage, e-mails de non-lus et préférence, pièces jointes (service générique), conservation et RGPD | L |
+| **A5** | Sections personnelles (R9) et héros par audience | M |
+| **MSG1** | Messagerie, socle : module, modèle, horaires et délai affiché (fixe puis mesuré), API client et admin, onglet « Messages », écran admin, sondage, e-mails de non-lus et préférence, pièces jointes (service générique), conservation et RGPD | L |
 | **MSG2** | Page `/contact` publique (M8 de l'audit), anti-spam, réponse au visiteur avec lien d'inscription, rattachement à un compte par adresse prouvée, purge à 6 mois | M |
 | **MSG3** | Raccourcis contextuels (produit, commande, panier, groupe), panneau client et objet rattaché dans le fil | M |
 | **MSG4** | Notes internes, réponses types, transfert, libération automatique, digest, priorité si retenue | M |
