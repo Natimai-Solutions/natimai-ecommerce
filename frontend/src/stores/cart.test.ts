@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 
-const { getMyCart, mergeGuestCart, replaceMyCartItems } = vi.hoisted(() => ({
+const { getMyCart, mergeGuestCart, replaceMyCartItems, replaceGuestCartItems } = vi.hoisted(() => ({
   getMyCart: vi.fn(),
   mergeGuestCart: vi.fn(),
   replaceMyCartItems: vi.fn(),
+  replaceGuestCartItems: vi.fn(),
 }));
 vi.mock('@/api/cart', () => ({
   getMyCart,
@@ -14,7 +15,7 @@ vi.mock('@/api/cart', () => ({
   clearMyCart: vi.fn(),
   createGuestQuoteRequest: vi.fn(),
   reorderIntoCart: vi.fn(),
-  replaceGuestCartItems: vi.fn(),
+  replaceGuestCartItems,
   replaceMyCartItems,
 }));
 vi.mock('@/api/products', () => ({
@@ -69,6 +70,55 @@ describe('the cart of the account at sign-in', () => {
     await Promise.all([store.mergeAfterLogin(), store.mergeAfterLogin()]);
 
     expect(getMyCart).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('a visitor cart at sign-in', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    mergeGuestCart.mockReset();
+    replaceGuestCartItems.mockReset();
+    const memory = new Map<string, string>();
+    vi.stubGlobal('window', {});
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => memory.get(key) ?? null,
+      setItem: (key: string, value: string) => memory.set(key, value),
+      removeItem: (key: string) => memory.delete(key),
+    });
+    localStorage.setItem('frontend.cart.token.v1', 'g-visitor');
+  });
+
+  it('sends the lines added just before, so the merge does not drop them', async () => {
+    const calls: string[] = [];
+    replaceGuestCartItems.mockImplementation(() => {
+      calls.push('replace');
+      return Promise.resolve();
+    });
+    mergeGuestCart.mockImplementation(() => {
+      calls.push('merge');
+      return Promise.resolve({
+        currency: 'XPF',
+        items: [
+          { product_id: 'p1', quantity: 2, unit_price: '1500' },
+          { product_id: 'p-new', quantity: 1, unit_price: '900' },
+        ],
+      });
+    });
+    const store = useCartStore();
+    // Added a moment ago: its debounced mirror has not run.
+    store.adoptServerCart({
+      currency: 'XPF',
+      items: [{ product_id: 'p-new', quantity: 1, unit_price: '900' }],
+    } as never);
+
+    await store.mergeAfterLogin();
+
+    expect(calls).toEqual(['replace', 'merge']);
+    expect(replaceGuestCartItems).toHaveBeenCalledWith('g-visitor', {
+      items: [{ product_id: 'p-new', quantity: 1, import_service_level: null }],
+    });
+    expect(store.items.map((item) => item.product_id)).toEqual(['p1', 'p-new']);
+    vi.unstubAllGlobals();
   });
 });
 

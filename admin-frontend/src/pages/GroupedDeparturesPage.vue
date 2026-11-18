@@ -1775,6 +1775,27 @@ function openEdit(d: Departure) {
 }
 
 async function submit() {
+  // Same confirmation as « Étape suivante »: a status past « open » moves
+  // every order of the departure and e-mails each customer — the form did it
+  // without a word (review of 17/11/2026).
+  const current = editId.value ? departures.value.find((d) => d.id === editId.value) : null;
+  if (
+    current &&
+    form.status !== current.status &&
+    form.status !== 'draft' &&
+    form.status !== 'open'
+  ) {
+    const confirmed = await ask({
+      title: t('departures.advance_confirm_title', {
+        name: current.name,
+        status: departureStatusLabel(form.status),
+      }),
+      message: t('departures.advance_confirm', { n: current.orders_count }),
+      okLabel: t('departures.advance_confirm_ok'),
+      destructive: false,
+    });
+    if (!confirmed) return;
+  }
   saving.value = true;
   dialogError.value = null;
   const payload: DepartureWrite = {

@@ -22,6 +22,7 @@ from app.features.order.models.order_status import OrderStatus
 from app.features.order.services.status import (
     ALL_ORDER_STATUSES,
     OrderStatusTransitionError,
+    check_status_transition,
     set_order_status,
 )
 
@@ -104,6 +105,33 @@ class OrderRouter(
         read.__name__ = f"get_one_{self.name}"
         return read
 
+    @staticmethod
+    async def _refuse_bad_transition(
+        session: SessionDep, order_id: uuid.UUID, target_status_id: uuid.UUID
+    ) -> None:
+        """The 400 / 409 of a status change, raised before the update."""
+        order = await session.get(Order, order_id)
+        if order is None or order.order_status_id == target_status_id:
+            return  # not found: the update answers 404; same status: no change
+        target = await session.get(OrderStatus, target_status_id)
+        if target is None or target.name not in ALL_ORDER_STATUSES:
+            raise AppError(
+                code="order.status.invalid",
+                status_code=400,
+                message="Statut de commande inconnu",
+                details={"order_status_id": str(target_status_id)},
+            )
+        current = await session.get(OrderStatus, order.order_status_id)
+        try:
+            check_status_transition(current.name if current else None, target.name)
+        except OrderStatusTransitionError as exc:
+            raise AppError(
+                code="order.status.transition_refused",
+                status_code=409,
+                message="Ce changement de statut n'est pas permis pour cette commande.",
+                details={"from": exc.old, "to": exc.new},
+            ) from exc
+
     def generate_update_endpoint(self) -> Callable[..., Any]:
         """Generate update endpoint with order-specific error codes."""
 
@@ -121,6 +149,9 @@ class OrderRouter(
             # takes the one path.
             target_status_id = data.order_status_id
             if target_status_id is not None:
+                # Checked before anything is written: the other fields used to
+                # be committed, then the status refused (review of 17/11/2026).
+                await self._refuse_bad_transition(session, id, target_status_id)
                 data = OrderUpdate(
                     **data.model_dump(exclude_unset=True, exclude={"order_status_id"})
                 )

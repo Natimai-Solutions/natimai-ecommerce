@@ -380,6 +380,8 @@ const fr = {
     cart_item_missing: 'Article introuvable dans le panier',
     cart_qty: 'Impossible de mettre à jour la quantité',
     cart_remove: 'Impossible de supprimer cet article',
+    cart_add: 'Impossible d’ajouter au panier',
+    cart_quote: 'Impossible d’envoyer la demande de devis',
     cart_clear: 'Impossible de vider le panier',
     cart_email: 'Veuillez renseigner un email client valide.',
     cart_empty: 'Le panier est vide.',

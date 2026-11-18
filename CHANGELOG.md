@@ -19,6 +19,22 @@ takes a tag as its `ref`.
 
 ### Added
 
+- The generic order update (`PUT /order/{id}`) checks a status change
+  before writing anything: the other fields used to be saved, then the
+  status refused. Review of 17/11/2026.
+- Storefront: at sign-in the visitor's server cart catches up with the local
+  one before the merge (an article added just before the session came back
+  was dropped by it); the cart store's fallback messages are translated.
+  Back office: changing a departure's status from its edit form asks the
+  same confirmation as « Étape suivante » (it moves every order and e-mails
+  each customer). Review of 17/11/2026.
+- The checkout estimate counts distinct refused promo codes, not answers: it
+  is re-asked at every change of the checkout, and ten re-quotes of the same
+  expired code locked every code out for 10 minutes. Review of 17/11/2026.
+- The order confirmation e-mail names the products in the customer's
+  language, prints the estimated delivery on the shop's clock (it was a day
+  early every afternoon at Tahiti), and for a pickup shows where to collect
+  the order instead of the customer's address. Review of 17/11/2026.
 - No more « handler abandoned » alerts for nothing: the credit note of a
   refund no longer waits for an invoice when the capture did not cover the
   order (parked for review, never invoiced), and the balance of a deposit

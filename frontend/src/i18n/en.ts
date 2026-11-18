@@ -377,6 +377,8 @@ const en: MessageSchema = {
     cart_item_missing: 'Item not found in the cart',
     cart_qty: 'The quantity could not be updated',
     cart_remove: 'This item could not be removed',
+    cart_add: 'The item could not be added to the cart',
+    cart_quote: 'The quote request could not be sent',
     cart_clear: 'The cart could not be emptied',
     cart_email: 'Please enter a valid customer e-mail.',
     cart_empty: 'The cart is empty.',

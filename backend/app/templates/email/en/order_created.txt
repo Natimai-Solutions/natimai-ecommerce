@@ -6,6 +6,7 @@ Order number    : {{ order_ref or (order_id | short_ref) }}
 Total amount    : {{ total_amount }} {{ currency }}
 Number of items : {{ item_count }}
 {% if delivery_label %}Delivery        : {{ delivery_label }}
+{% endif %}{% if pickup_place %}Pickup at       : {{ pickup_place }}
 {% endif %}{% if shipping_address %}Address         : {{ shipping_address }}
 {% endif %}{% if departure_name %}Departure       : {{ departure_name }}
 {% endif %}{% if estimated_delivery %}Est. delivery   : {{ estimated_delivery }}

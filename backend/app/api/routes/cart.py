@@ -26,6 +26,7 @@ from app.core.rate_limit import (
     hit_rate_limit,
     rate_limited,
     release_rate_limit_hit,
+    shared_redis,
 )
 from app.features.cart.crud.cart import crud_cart, crud_cart_item
 from app.features.cart.crud.quote_request import crud_quote_request
@@ -3024,10 +3025,17 @@ async def _quote_discount_throttled(
     if not code or not code.strip():
         return None, None
     key = f"coupon_quote:{user_id}"
+    # Distinct codes are counted, not answers: the quote is re-asked at every
+    # change of the checkout, and ten re-quotes of the same expired code
+    # locked every code out for 10 minutes (review of 17/11/2026). A code
+    # already refused tells nothing new: looked up again, not counted.
+    refused_key = f"coupon_quote_refused:{user_id}"
+    normalized = code.strip().upper()
+    already_refused = await _code_refused_before(refused_key, normalized)
     # Counted before the lookup, given back unless the code was a guess: read
     # first and counted after, a burst of parallel quotes all passed the
     # check and tried hundreds of codes in one window.
-    if await hit_rate_limit(
+    if not already_refused and await hit_rate_limit(
         key,
         limit=QUOTE_COUPON_FAILURES_LIMIT,
         window_seconds=QUOTE_COUPON_FAILURES_WINDOW_SECONDS,
@@ -3046,12 +3054,33 @@ async def _quote_discount_throttled(
         error = None
     except DiscountRefused as exc:
         applied, error, reason = None, exc.message, exc.reason
+    if already_refused:
+        return applied, error
     if reason not in QUOTE_COUPON_GUESS_REASONS:
         # A valid code, or one refused for this cart (minimum not reached,
         # already used…): the customer re-quotes at every change of the cart
         # and must not be locked out of their own code.
         await release_rate_limit_hit(key)
+    else:
+        await _remember_refused_code(refused_key, normalized)
     return applied, error
+
+
+async def _code_refused_before(key: str, code: str) -> bool:
+    try:
+        return bool(await shared_redis().sismember(key, code))  # type: ignore[misc]
+    except Exception:  # noqa: BLE001 - unknown: counted, the safe side
+        return False
+
+
+async def _remember_refused_code(key: str, code: str) -> None:
+    try:
+        async with shared_redis().pipeline(transaction=True) as pipe:
+            pipe.sadd(key, code)
+            pipe.expire(key, QUOTE_COUPON_FAILURES_WINDOW_SECONDS)
+            await pipe.execute()
+    except Exception:  # noqa: BLE001 - not remembered: counted again
+        logger.warning("refused promo code not remembered", exc_info=True)
 
 
 @router.get("/me/checkout-quote", response_model=CheckoutQuoteResponse)

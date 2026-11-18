@@ -272,3 +272,42 @@ async def test_a_code_refused_for_this_cart_is_not_a_guess(
         )
         assert quote.discount_error
         assert quote.discount_error != cart_routes.QUOTE_COUPON_THROTTLED_MESSAGE
+
+
+@pytest.mark.asyncio
+async def test_re_quoting_the_same_refused_code_is_counted_once(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Review of 17/11/2026: the quote is re-asked at every change of the
+    checkout; ten re-quotes of the same expired code locked every code out
+    for 10 minutes. Distinct codes are counted now."""
+    from app.api.routes import cart as cart_routes
+
+    monkeypatch.setattr(cart_routes, "QUOTE_COUPON_FAILURES_LIMIT", 2)
+    seed = await _seed(db_session)
+
+    async def quote(code: str) -> CheckoutQuoteResponse:
+        return await get_checkout_quote(
+            session=db_session,
+            current_user=seed.user,
+            address_id=None,
+            delivery_type="home_delivery",
+            payment_method_id=None,
+            discount_code=code,
+        )
+
+    for _ in range(6):
+        again = await quote("NOEL2025")
+        assert again.discount_error
+        assert again.discount_error != cart_routes.QUOTE_COUPON_THROTTLED_MESSAGE
+    # The same code typed in lower case is the same code.
+    assert (await quote("noel2025")).discount_error != (
+        cart_routes.QUOTE_COUPON_THROTTLED_MESSAGE
+    )
+    # Guessing still stops: one more distinct code, then the limit.
+    assert (await quote("GUESS-A")).discount_error != (
+        cart_routes.QUOTE_COUPON_THROTTLED_MESSAGE
+    )
+    assert (await quote("GUESS-B")).discount_error == (
+        cart_routes.QUOTE_COUPON_THROTTLED_MESSAGE
+    )

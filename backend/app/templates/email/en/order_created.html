@@ -10,6 +10,7 @@
           <tr><td>Total amount</td><td>{{ total_amount }} {{ currency }}</td></tr>
           <tr><td>Number of items</td><td>{{ item_count }}</td></tr>
           {% if delivery_label %}<tr><td>Delivery</td><td>{{ delivery_label }}</td></tr>{% endif %}
+          {% if pickup_place %}<tr><td>Pickup at</td><td>{{ pickup_place }}</td></tr>{% endif %}
           {% if shipping_address %}<tr><td>Address</td><td>{{ shipping_address }}</td></tr>{% endif %}
           {% if departure_name %}<tr><td>Grouped departure</td><td>{{ departure_name }}</td></tr>{% endif %}
           {% if estimated_delivery %}<tr><td>Estimated delivery</td><td>{{ estimated_delivery }}</td></tr>{% endif %}

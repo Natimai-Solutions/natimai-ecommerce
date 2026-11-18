@@ -6,6 +6,7 @@ Numéro de commande : {{ order_ref or (order_id | short_ref) }}
 Montant total      : {{ total_amount }} {{ currency }}
 Nombre d'articles  : {{ item_count }}
 {% if delivery_label %}Livraison          : {{ delivery_label }}
+{% endif %}{% if pickup_place %}Lieu de retrait    : {{ pickup_place }}
 {% endif %}{% if shipping_address %}Adresse            : {{ shipping_address }}
 {% endif %}{% if departure_name %}Départ groupé      : {{ departure_name }}
 {% endif %}{% if estimated_delivery %}Livraison estimée  : {{ estimated_delivery }}
