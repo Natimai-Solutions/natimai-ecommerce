@@ -18,8 +18,7 @@ Détail, fichiers et scénarios : [`AUDIT_2026-11.md`](AUDIT_2026-11.md) (identi
 
 ### Audit fonctionnel du 15/11/2026 (code)
 
-Détail : [`AUDIT_FONCTIONNEL_2026-11.md`](AUDIT_FONCTIONNEL_2026-11.md) (identifiants D·, Z·, M·). Les sept défauts D1 à D7 et les zones fragiles Z1 à Z6, Z11, Z12 et Z16 sont corrigés (voir CHANGELOG). Reste :
-
+Détail : [`AUDIT_FONCTIONNEL_2026-11.md`](AUDIT_FONCTIONNEL_2026-11.md) (identifiants D·, Z·, M·). Les sept défauts D1 à D7 et les zones fragiles Z1 à Z6, Z11, Z12 et Z16 sont corrigés (voir CHANGELOG), ainsi que la suite de D1 et Z3 (18/11/2026).
 
 ### Relecture du 17/11/2026
 
