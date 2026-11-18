@@ -221,7 +221,7 @@ def check_convertible(quote: QuoteRequest, *, user: Any) -> None:
         raise AppError(
             code="quote.not_found",
             status_code=404,
-            message="Devis introuvable",
+            message="Quote not found.",
             details={"quote_request_id": str(quote.id)},
         )
     details = {"quote_request_id": str(quote.id), "status": quote.status}
@@ -229,21 +229,21 @@ def check_convertible(quote: QuoteRequest, *, user: Any) -> None:
         raise AppError(
             code="quote.not_issued",
             status_code=409,
-            message="Ce devis n'est pas (ou plus) proposé à la commande",
+            message="This quote is not (or no longer) available to order.",
             details=details,
         )
     if quote.order_id is not None:
         raise AppError(
             code="quote.already_converted",
             status_code=409,
-            message="Ce devis a déjà été transformé en commande",
+            message="This quote has already been turned into an order.",
             details={**details, "order_id": str(quote.order_id)},
         )
     if quote.valid_until is not None and quote.valid_until < date.today():
         raise AppError(
             code="quote.expired",
             status_code=409,
-            message=f"Ce devis a expiré le {quote.valid_until.strftime('%d/%m/%Y')}",
+            message="This quote has expired.",
             details={**details, "valid_until": quote.valid_until.isoformat()},
         )
     if any(
@@ -252,7 +252,7 @@ def check_convertible(quote: QuoteRequest, *, user: Any) -> None:
         raise AppError(
             code="quote.not_orderable",
             status_code=409,
-            message="Ce devis contient des lignes hors catalogue : contactez-nous",
+            message="This quote contains items outside the catalogue: please contact us.",
             details=details,
         )
 
@@ -287,7 +287,7 @@ async def quote_pdf_response(quote: QuoteRequest) -> Response:
         raise AppError(
             code="quote.not_issued",
             status_code=409,
-            message="Ce devis n'a pas encore été émis",
+            message="This quote is not (or no longer) available to order.",
             details={"quote_request_id": str(quote.id)},
         )
     from app.core.i18n import request_locale
@@ -301,7 +301,7 @@ async def quote_pdf_response(quote: QuoteRequest) -> Response:
         raise AppError(
             code="quote.pdf.unavailable",
             status_code=503,
-            message="Le rendu PDF est indisponible sur ce serveur",
+            message="PDF rendering is unavailable on this server.",
             details={"reason": str(exc)},
         ) from exc
     return Response(

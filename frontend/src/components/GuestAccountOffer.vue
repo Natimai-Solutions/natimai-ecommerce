@@ -45,7 +45,8 @@ async function send() {
   sending.value = true;
   error.value = null;
   try {
-    sent.value = await sendGuestActivationLink();
+    await sendGuestActivationLink();
+    sent.value = t('guest.activation_link_sent', { email: authStore.profile?.email ?? '' });
   } catch (err) {
     error.value = apiErrorMessage(err) ?? t('guest.offer_failed');
   } finally {

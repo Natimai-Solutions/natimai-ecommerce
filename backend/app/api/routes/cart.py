@@ -255,14 +255,7 @@ def _plan_checkout_fulfillment_segments(
             # Named and counted: the customer read « Insufficient stock for
             # product <uuid>: requested=… » and could not tell which line.
             message=(
-                f"« {getattr(product, 'name', None) or 'Un article'} » : "
-                + (
-                    f"il n'en reste que {int(total_available)} "
-                    f"(vous en demandez {int(requested_quantity)}). "
-                    if total_available > 0
-                    else "cet article n'est plus en stock. "
-                )
-                + "Ajustez votre panier pour continuer."
+                "“{product_name}”: only {available} left. Adjust the quantity to continue."
             ),
             details={
                 "product_id": str(product.id),
@@ -680,7 +673,7 @@ async def _billing_snapshot(
         raise AppError(
             code="checkout.billing_address.not_found",
             status_code=400,
-            message="Adresse de facturation introuvable.",
+            message="Billing address not found.",
             details={"billing_address_id": str(address_id)},
         )
     postal = ", ".join(
@@ -1292,8 +1285,7 @@ async def _revalidate_checkout_prices(
         code="cart.price.changed",
         status_code=409,
         message=(
-            "Le prix de certains articles a changé depuis leur ajout au panier. "
-            "Vérifiez le nouveau montant avant de valider."
+            "The price of some items changed since they were added to the cart. Check the new total before confirming."
         ),
         details={"currency": currency, "items": drifted},
     )
@@ -1413,8 +1405,7 @@ async def _reserve_stock_for_checkout(
             code="cart.stock.unavailable",
             status_code=409,
             message=(
-                f"« {getattr(product, 'name', None) or 'Un article'} » n'est plus "
-                "disponible chez le fournisseur. Retirez-le du panier pour continuer."
+                "“{product_name}” is no longer available from the supplier: remove it from the cart to continue."
             ),
             details={
                 "product_id": str(product.id),
@@ -1454,6 +1445,8 @@ async def _reserve_stock_for_checkout(
                     ),
                     details={
                         "product_id": str(product.id),
+                        "product_name": product.name,
+                        "available": int(local_available + supplier_available),
                         "requested": str(quantity_decimal),
                         "local_available": str(local_available),
                         "supplier_available": str(supplier_available),
@@ -2479,7 +2472,7 @@ async def _my_quote_or_404(
         raise AppError(
             code="quote.not_found",
             status_code=404,
-            message="Devis introuvable",
+            message="Quote not found.",
             details={"quote_request_id": str(quote_id)},
         )
     return quote
@@ -3707,7 +3700,7 @@ async def checkout_my_cart(
         raise AppError(
             code="cart.already_checked_out",
             status_code=409,
-            message="Cette commande vient d'être enregistrée.",
+            message="This order has just been placed.",
             details={"cart_id": str(cart.id)},
         )
 
@@ -3772,7 +3765,7 @@ async def checkout_my_cart(
         raise AppError(
             code="checkout.delivery_type.required",
             status_code=400,
-            message="Choisissez un mode de livraison.",
+            message="Choose a delivery mode.",
             details={},
         )
     price_group = await resolve_customer_group(session, current_user)
@@ -3832,7 +3825,7 @@ async def checkout_my_cart(
         raise AppError(
             code="cart.cgv.not_accepted",
             status_code=400,
-            message="Les conditions générales de vente doivent être acceptées",
+            message="The terms and conditions of sale must be accepted.",
             details={"cart_id": str(cart.id), "cgv_version": cgv_version},
         )
     cgv_accepted_at = datetime.now(UTC)

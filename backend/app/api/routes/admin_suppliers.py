@@ -155,10 +155,7 @@ async def _validate(session: SessionDep, supplier: Supplier) -> None:
             raise AppError(
                 code="supplier.purchase_orders.unsupported",
                 status_code=400,
-                message=(
-                    f"L'intégration {supplier.adapter_key} ne sait pas passer de "
-                    "commande fournisseur"
-                ),
+                message=("This integration cannot place supplier orders."),
                 details={"adapter_key": supplier.adapter_key},
             )
         feed_url = (supplier.settings or {}).get("feed_url")
@@ -166,7 +163,7 @@ async def _validate(session: SessionDep, supplier: Supplier) -> None:
             raise AppError(
                 code="supplier.feed.https_required",
                 status_code=400,
-                message="L'adresse du fichier doit commencer par https://",
+                message="The file address must start with https://",
                 details={"feed_url": str(feed_url)},
             )
         adapter_cls = ADAPTERS[str(supplier.adapter_key)]
@@ -186,7 +183,7 @@ async def _validate(session: SessionDep, supplier: Supplier) -> None:
             raise AppError(
                 code="supplier.settings.invalid",
                 status_code=400,
-                message="Réglages du fournisseur invalides",
+                message="Invalid supplier settings.",
                 details={
                     "errors": [
                         {
@@ -406,7 +403,7 @@ async def inspect_supplier_feed(
         raise AppError(
             code="supplier.feed.not_a_feed",
             status_code=400,
-            message=f"{supplier.name} n'est pas un fournisseur par fichier en ligne",
+            message="This supplier is not an online-file supplier.",
             details={"supplier_name": code},
         )
     try:

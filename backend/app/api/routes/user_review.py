@@ -88,7 +88,7 @@ async def get_user_reviews(
         raise AppError(
             code="review.not_found",
             status_code=404,
-            message="Avis introuvable",
+            message="Review not found.",
             details={"user_id": str(user_id)},
         )
 
@@ -114,7 +114,7 @@ async def get_user_review(
         raise AppError(
             code="review.not_found",
             status_code=404,
-            message="Avis introuvable",
+            message="Review not found.",
             details={"user_id": str(user_id)},
         )
 
@@ -155,7 +155,7 @@ async def create_user_review(
         raise AppError(
             code="review.not_found",
             status_code=404,
-            message="Avis introuvable",
+            message="Review not found.",
             details={"user_id": str(user_id)},
         )
 
@@ -164,7 +164,7 @@ async def create_user_review(
         raise AppError(
             code="review.not_found",
             status_code=404,
-            message="Avis introuvable",
+            message="Review not found.",
             details={"user_id": str(user_id)},
         )
     review = await submit_review(
@@ -190,7 +190,7 @@ async def update_user_review(
         raise AppError(
             code="review.not_found",
             status_code=404,
-            message="Avis introuvable",
+            message="Review not found.",
             details={"user_id": str(user_id)},
         )
 
@@ -240,7 +240,7 @@ async def delete_user_review(
         raise AppError(
             code="review.not_found",
             status_code=404,
-            message="Avis introuvable",
+            message="Review not found.",
             details={"user_id": str(user_id)},
         )
 
@@ -320,7 +320,7 @@ async def get_user_review_for_product(
         raise AppError(
             code="review.not_found",
             status_code=404,
-            message="Avis introuvable",
+            message="Review not found.",
             details={"user_id": str(user_id)},
         )
 

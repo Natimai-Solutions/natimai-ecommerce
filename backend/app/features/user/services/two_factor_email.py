@@ -54,7 +54,7 @@ async def _redis(operation: Any) -> Any:
         raise AppError(
             code="rate_limit.unavailable",
             status_code=503,
-            message="Service momentanément indisponible : réessayez dans un instant.",
+            message="Service temporarily unavailable: try again in a moment.",
             details={},
         ) from exc
 
@@ -107,7 +107,7 @@ async def check_code(user_id: uuid.UUID, code: str | None) -> None:
         raise AppError(
             code="auth.2fa.email_code_expired",
             status_code=400,
-            message="Code e-mail expiré : recommencez l'activation.",
+            message="E-mail code expired: start the activation again.",
             details={},
         )
     expected = stored.decode() if isinstance(stored, bytes) else str(stored)
@@ -121,6 +121,6 @@ async def check_code(user_id: uuid.UUID, code: str | None) -> None:
     raise AppError(
         code="auth.2fa.email_code_invalid",
         status_code=400,
-        message="Code reçu par e-mail incorrect.",
+        message="Incorrect e-mail code.",
         details={"attempts_left": max(MAX_ATTEMPTS - tries, 0)},
     )

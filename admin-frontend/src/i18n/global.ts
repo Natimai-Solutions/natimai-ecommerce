@@ -10,6 +10,14 @@ export function setGlobalI18n(value: Composer): void {
   composer = value;
 }
 
+/** The interface language right now (`fr` until the i18n boot ran). */
+export function currentLocale(): string {
+  const value = composer?.locale as unknown;
+  if (typeof value === 'string') return value;
+  const ref = value as { value?: unknown } | undefined;
+  return typeof ref?.value === 'string' ? ref.value : 'fr';
+}
+
 export function gt(key: string, named: Record<string, unknown> = {}): string {
   return composer ? composer.t(key, named) : key;
 }

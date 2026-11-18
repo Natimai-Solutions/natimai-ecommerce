@@ -210,6 +210,7 @@ const en: MessageSchema = {
     alternatives: 'Alternatives',
   },
   guest: {
+    activation_link_sent: 'A link has just been sent to {email}.',
     title: 'Order without an account',
     hint: 'An e-mail is enough: the order confirmation and tracking are sent there.',
     email: 'E-mail',
@@ -503,6 +504,8 @@ const en: MessageSchema = {
     zone_unknown: 'Postal code not recognised. Tell us your island or delivery zone.',
   },
   auth: {
+    reset_link_sent: 'If an account exists for this address, a reset link has just been sent.',
+    password_reset_done: 'Password reset. You can sign in.',
     show_password: 'Show the password',
     hide_password: 'Hide the password',
     activate_my_account: 'Activate my account',

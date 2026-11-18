@@ -72,12 +72,12 @@ def encode_variants(data: bytes) -> list[EncodedVariant]:
             width, height = probe.size
             if fmt not in ACCEPTED_FORMATS:
                 raise _invalid(
-                    "Format non accepté : JPEG, PNG ou WebP uniquement.",
+                    "Format not accepted: JPEG, PNG or WebP only.",
                     "media.format",
                 )
             if width * height > MAX_PIXELS:
                 raise _invalid(
-                    "Image trop grande (plus de 40 millions de pixels).",
+                    "Image too large (more than 40 million pixels).",
                     "media.too_many_pixels",
                 )
             probe.verify()
@@ -87,7 +87,7 @@ def encode_variants(data: bytes) -> list[EncodedVariant]:
     except AppError:
         raise
     except (UnidentifiedImageError, OSError, SyntaxError, Image.DecompressionBombError):
-        raise _invalid("Fichier illisible : ce n'est pas une image valide.") from None
+        raise _invalid("Unreadable file: this is not a valid image.") from None
 
     has_alpha = image.mode in ("RGBA", "LA") or (
         image.mode == "P" and "transparency" in image.info
@@ -206,7 +206,7 @@ def validate_kind(kind: str) -> str:
     """Refuse an unknown kind rather than store a typo."""
     if kind not in MEDIA_KINDS:
         raise _invalid(
-            f"Usage inconnu : {kind}. Valeurs possibles : {', '.join(MEDIA_KINDS)}.",
+            f"Unknown use: {kind}. Allowed: {', '.join(MEDIA_KINDS)}.",
             "media.kind",
         )
     return kind
@@ -220,13 +220,12 @@ async def ingest_image(
     """Scan, re-encode and store an upload. Returns the variant rows, the
     largest width and height, and the total stored size."""
     if not data:
-        raise _invalid("Fichier vide.")
+        raise _invalid("Empty file.")
     if len(data) > settings.MEDIA_MAX_UPLOAD_BYTES:
-        limit_mb = settings.MEDIA_MAX_UPLOAD_BYTES // (1024 * 1024)
         raise AppError(
             code="media.too_large",
             status_code=413,
-            message=f"Fichier trop lourd (maximum {limit_mb} Mo).",
+            message="The file is too large.",
         )
 
     scan = await get_antivirus_scanner().scan_bytes(data)
@@ -234,7 +233,7 @@ async def ingest_image(
         raise AppError(
             code="media.infected",
             status_code=400,
-            message="Le fichier a été refusé par l'antivirus.",
+            message="The file was rejected by the antivirus.",
             details={"signature": scan.signature},
         )
 

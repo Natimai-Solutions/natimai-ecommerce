@@ -17,6 +17,22 @@ takes a tag as its `ref`.
   (`users.has_password`, migration `e1f2a3b4c5d6`; unknown for the accounts
   older than the column, which keep the previous rule).
 
+### Changed
+
+- The API is language-agnostic (decision of 18/11/2026): an error is a code,
+  its details and an English fallback message — every `AppError` message is
+  now the English text of the shared catalogue
+  `shared/utils/src/apiErrors/{en,fr}.json` (357 codes), `{placeholders}`
+  filled from `details`. The server no longer translates (`Accept-Language`
+  no longer changes an error; `app/core/error_messages.py` is gone). The
+  storefront and the admin translate the code from the catalogue
+  (`apiErrorText` in `@app/utils`) and fall back on the server's message;
+  their success texts come from their own i18n files. The API's success
+  texts are English too. `signup.guest` answers `signup.email_exists` for an
+  address with a full account. A backend test fails when a raised code is
+  missing from the catalogue, a placeholder is not in the raise's details, or
+  a message is French.
+
 ### Added
 
 - Tests: the freight from the product page to the invoice (one freight,

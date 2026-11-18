@@ -22,7 +22,7 @@ vi.mock('@/api/products', () => ({
   getProductById: vi.fn(() => Promise.reject(new Error('n/a'))),
 }));
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ isAuthenticated: true }) }));
-vi.mock('@/i18n/global', () => ({ gt: (key: string) => key }));
+vi.mock('@/i18n/global', () => ({ gt: (key: string) => key, currentLocale: () => 'fr' }));
 
 import { useCartStore } from './cart';
 

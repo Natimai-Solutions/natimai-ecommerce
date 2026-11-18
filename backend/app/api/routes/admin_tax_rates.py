@@ -153,7 +153,7 @@ async def create_tax_rate(
         raise AppError(
             code="tax_rate.code_required",
             status_code=400,
-            message="Le code du taux est obligatoire",
+            message="The rate code is required.",
         )
     rate = TaxRate(
         id=uuid.uuid4(),
@@ -304,7 +304,7 @@ async def update_tax_settings(
             raise AppError(
                 code="tax_rate.code_not_active",
                 status_code=400,
-                message=f"Aucun taux en vigueur sous le code « {code} »",
+                message="No rate is currently in force under this code.",
                 details={"field": field, "code": code},
             )
     before = await load_tax_codes(session, fresh=True)

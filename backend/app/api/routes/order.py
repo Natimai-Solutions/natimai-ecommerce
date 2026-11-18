@@ -96,7 +96,7 @@ class OrderRouter(
                 raise AppError(
                     code="order.not_found",
                     status_code=404,
-                    message="Commande introuvable",
+                    message="Order not found.",
                     details={"order_id": str(id)},
                 )
 
@@ -118,7 +118,7 @@ class OrderRouter(
             raise AppError(
                 code="order.status.invalid",
                 status_code=400,
-                message="Statut de commande inconnu",
+                message="Unknown order status.",
                 details={"order_status_id": str(target_status_id)},
             )
         current = await session.get(OrderStatus, order.order_status_id)
@@ -128,7 +128,7 @@ class OrderRouter(
             raise AppError(
                 code="order.status.transition_refused",
                 status_code=409,
-                message="Ce changement de statut n'est pas permis pour cette commande.",
+                message="This status change is not allowed for this order.",
                 details={"from": exc.old, "to": exc.new},
             ) from exc
 
@@ -178,7 +178,7 @@ class OrderRouter(
                     raise AppError(
                         code="order.status.invalid",
                         status_code=400,
-                        message="Statut de commande inconnu",
+                        message="Unknown order status.",
                         details={"order_status_id": str(target_status_id)},
                     )
                 try:
@@ -193,10 +193,7 @@ class OrderRouter(
                     raise AppError(
                         code="order.status.transition_refused",
                         status_code=409,
-                        message=(
-                            "Ce changement de statut n'est pas permis pour "
-                            "cette commande."
-                        ),
+                        message=("This status change is not allowed for this order."),
                         details={"from": exc.old, "to": exc.new},
                     ) from exc
                 await session.commit()
@@ -275,7 +272,7 @@ async def get_user_orders(
         raise AppError(
             code="order.not_found",
             status_code=404,
-            message="Commande introuvable",
+            message="Order not found.",
             details={"user_id": str(user_id)},
         )
 

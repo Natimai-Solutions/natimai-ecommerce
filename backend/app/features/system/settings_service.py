@@ -32,7 +32,7 @@ def unknown_key(key: str) -> AppError:
     return AppError(
         code="system_setting.unknown_key",
         status_code=404,
-        message=f"Réglage inconnu : {key}",
+        message="Unknown setting.",
         details={"key": key},
     )
 

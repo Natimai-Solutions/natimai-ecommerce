@@ -262,7 +262,7 @@ async def issue_quote_request(
         raise AppError(
             code="quote.already_converted",
             status_code=409,
-            message="Ce devis a déjà été transformé en commande",
+            message="This quote has already been turned into an order.",
             details={
                 "quote_request_id": str(quote_id),
                 "order_id": str(quote.order_id),

@@ -73,10 +73,7 @@ class OkMessage(BaseModel):
 
 #: Réponse volontairement identique dans tous les cas — voir le docstring.
 _NEUTRAL_RESPONSE = OkMessage(
-    message=(
-        "Si un compte existe pour cette adresse, un lien de réinitialisation "
-        "vient d'être envoyé."
-    )
+    message=("If an account exists for this address, a reset link has just been sent.")
 )
 
 
@@ -128,7 +125,7 @@ async def forgot_password(
         raise AppError(
             code="password_reset.rate_limited",
             status_code=429,
-            message="Trop de demandes. Réessayez dans quelques minutes.",
+            message="Too many requests. Try again in a few minutes.",
             details={
                 "retry_after_seconds": (
                     settings.PASSWORD_RESET_RATE_LIMIT_WINDOW_SECONDS
@@ -177,7 +174,7 @@ async def reset_password(
         raise AppError(
             code="password_reset.token.invalid",
             status_code=400,
-            message="Lien de réinitialisation invalide ou expiré.",
+            message="Invalid or expired reset link.",
             details={"reason": "invalid_or_expired"},
         )
 
@@ -208,4 +205,4 @@ async def reset_password(
     )
     await session.commit()
 
-    return OkMessage(message="Mot de passe réinitialisé. Vous pouvez vous connecter.")
+    return OkMessage(message="Password reset. You can sign in.")

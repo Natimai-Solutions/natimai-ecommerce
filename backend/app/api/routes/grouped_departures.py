@@ -56,7 +56,7 @@ async def get_departure(
         raise AppError(
             code="grouped_departure.not_found",
             status_code=404,
-            message="Départ groupé introuvable",
+            message="Grouped departure not found.",
             details={"departure_id": str(departure_id)},
         )
     return GroupedDepartureSummary.model_validate(departure)

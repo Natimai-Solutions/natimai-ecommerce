@@ -78,7 +78,7 @@ async def _get_or_404(session: SessionDep, departure_id: uuid.UUID) -> GroupedDe
         raise AppError(
             code="grouped_departure.not_found",
             status_code=404,
-            message="Départ groupé introuvable",
+            message="Grouped departure not found.",
             details={"departure_id": str(departure_id)},
         ) from exc
     return departure
@@ -151,8 +151,7 @@ async def update_departure(
             code="grouped_departure.close_required",
             status_code=409,
             message=(
-                "Clôturez ce départ avec « Clôturer le départ » : seuils, "
-                "stock fournisseur et départ suivant y sont traités"
+                "Close this departure with “Close the departure”: thresholds, supplier stock and the next departure are handled there."
             ),
             details={"departure_id": str(departure_id), "status": previous_status},
         )
@@ -197,7 +196,7 @@ async def delete_departure(
         raise AppError(
             code="grouped_departure.has_orders",
             status_code=409,
-            message="Des commandes sont rattachées à ce départ : déplacez-les d'abord",
+            message="Orders are attached to this departure: move them first.",
             details={"departure_id": str(departure_id), "orders_count": attached},
         )
     # Its reminders go with it (never posted: the departure no longer exists).
@@ -253,7 +252,7 @@ async def close_departure_endpoint(
         raise AppError(
             code="grouped_departure.not_open",
             status_code=409,
-            message="Ce départ est déjà clôturé",
+            message="This departure is already closed.",
             details={"departure_id": str(departure_id), "status": departure.status},
         )
     result = await close_departure(session, departure=departure, force=body.force)
@@ -308,7 +307,7 @@ async def remove_supplier_order(
         raise AppError(
             code="grouped_departure.supplier_order.not_found",
             status_code=404,
-            message="Bon de commande introuvable",
+            message="Purchase order not found.",
             details={"index": index},
         )
     entries.pop(index)
@@ -367,7 +366,7 @@ async def _reminder_or_404(
         raise AppError(
             code="departure_reminder.not_found",
             status_code=404,
-            message="Rappel introuvable",
+            message="Reminder not found.",
             details={"reminder_id": str(reminder_id)},
         )
     departure = await _get_or_404(session, reminder.grouped_departure_id)

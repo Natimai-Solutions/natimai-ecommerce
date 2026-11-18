@@ -369,7 +369,7 @@ async def list_orders(
         raise AppError(
             code="query.order_by_not_allowed",
             status_code=400,
-            message="Tri non autorisé",
+            message="Sorting not allowed on this field.",
             details={"sort_by": sort_by, "allowed": sorted(ORDER_SORTS)},
         )
     filters: dict[str, Any] = {
@@ -610,7 +610,7 @@ async def change_order_status(
         raise AppError(
             code="order.status.unknown",
             status_code=400,
-            message=f"Statut inconnu '{body.status}'",
+            message="Unknown status.",
             details={"status": body.status, "known": list(ALL_ORDER_STATUSES)},
         )
     order = await session.get(Order, order_id)
@@ -618,7 +618,7 @@ async def change_order_status(
         raise AppError(
             code="order.not_found",
             status_code=404,
-            message="Commande introuvable",
+            message="Order not found.",
             details={"order_id": str(order_id)},
         )
     try:
@@ -634,14 +634,11 @@ async def change_order_status(
         raise AppError(
             code="order.status.transition_refused",
             status_code=409,
-            # Without the status codes (« Cancelled », « Paid »): the admin
-            # reads French labels everywhere else.
             message=(
-                "Cette commande est annulée ou remboursée : elle ne peut plus "
-                "changer de statut."
+                "This order is cancelled or refunded: its status can no longer change."
                 if exc.old in ("Cancelled", "Refunded")
-                else "Cette commande a déjà été payée ou expédiée : elle ne peut "
-                "pas revenir en attente de paiement."
+                else "This order is already paid or shipped: it cannot go back "
+                "to awaiting payment."
             ),
             details={"from": exc.old, "to": exc.new},
         ) from exc
@@ -904,7 +901,7 @@ async def record_order_counter_payment(
         raise AppError(
             code="order.not_found",
             status_code=404,
-            message="Commande introuvable",
+            message="Order not found.",
             details={"order_id": str(order_id)},
         )
     try:
@@ -945,7 +942,7 @@ async def request_order_balance(
         raise AppError(
             code="order.not_found",
             status_code=404,
-            message="Commande introuvable",
+            message="Order not found.",
             details={"order_id": str(order_id)},
         )
     due = balance_amount(order)
@@ -953,7 +950,7 @@ async def request_order_balance(
         raise AppError(
             code="order.balance.not_due",
             status_code=409,
-            message="Aucun solde à demander sur cette commande",
+            message="There is no balance to request on this order.",
             details={"order_id": str(order_id), "payment_plan": order.payment_plan},
         )
     sent = await request_balance(session, order)

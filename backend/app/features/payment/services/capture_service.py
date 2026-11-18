@@ -60,7 +60,7 @@ async def capture_payment(
         raise AppError(
             code="capture.not_authorized",
             status_code=400,
-            message="Le paiement n'est pas en attente de capture (statut « Authorized »).",
+            message="The payment is not awaiting capture.",
             details={"payment_id": str(payment_id)},
         )
     try:
@@ -69,7 +69,7 @@ async def capture_payment(
         raise AppError(
             code="capture.provider_unknown",
             status_code=400,
-            message=f"Fournisseur de paiement inconnu : {provider_code}",
+            message="Unknown payment provider.",
             details={"provider_code": provider_code},
         ) from exc
 
@@ -78,7 +78,7 @@ async def capture_payment(
         raise AppError(
             code="capture.no_transaction",
             status_code=400,
-            message="Transaction du prestataire introuvable pour la capture.",
+            message="The provider's transaction for the capture cannot be found.",
             details={"payment_id": str(payment_id)},
         )
 
@@ -89,7 +89,7 @@ async def capture_payment(
         raise AppError(
             code="capture.failed",
             status_code=502,
-            message=result.message or "Capture refusée par le prestataire.",
+            message=result.message or "The provider refused the capture.",
         )
 
     captured = await crud_payment_status.get_by_name(

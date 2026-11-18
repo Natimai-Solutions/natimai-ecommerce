@@ -5,7 +5,7 @@ import { ref } from 'vue';
 const { post } = vi.hoisted(() => ({ post: vi.fn() }));
 vi.mock('@/boot/api', () => ({ accessToken: ref<string | null>(null), api: { post } }));
 vi.mock('@/api/profile', () => ({ getMyProfile: vi.fn(() => Promise.reject(new Error('n/a'))) }));
-vi.mock('@/i18n/global', () => ({ gt: (key: string) => key }));
+vi.mock('@/i18n/global', () => ({ gt: (key: string) => key, currentLocale: () => 'fr' }));
 
 import { useAuthStore } from './auth';
 
@@ -64,13 +64,13 @@ describe('storefront sign-in with a second factor', () => {
 
   it('a wrong password stays a plain error', async () => {
     post.mockRejectedValueOnce(
-      apiError('login.credentials.invalid', 'Email ou mot de passe incorrect.', 400),
+      apiError('login.credentials.invalid', 'E-mail ou mot de passe incorrect.', 400),
     );
     const store = useAuthStore();
 
     expect(await store.login('client@example.com', 'nope')).toBe(false);
     expect(store.needsSecondFactor).toBe(false);
-    expect(store.loginError).toBe('Email ou mot de passe incorrect.');
+    expect(store.loginError).toBe('E-mail ou mot de passe incorrect.');
   });
 });
 

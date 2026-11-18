@@ -73,7 +73,7 @@ async def require_captcha(request: Request, session: Any) -> None:
         raise AppError(
             code="captcha.required",
             status_code=400,
-            message="Vérification anti-robot requise",
+            message="Anti-robot check required.",
             details={"header": TOKEN_HEADER},
         )
     verdict = await verify_token(secret, token, get_client_ip(request))
@@ -81,7 +81,7 @@ async def require_captcha(request: Request, session: Any) -> None:
         raise AppError(
             code="captcha.failed",
             status_code=400,
-            message="Vérification anti-robot échouée : réessayez",
+            message="The anti-robot check failed: try again.",
             details={"header": TOKEN_HEADER},
         )
 

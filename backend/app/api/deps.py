@@ -101,8 +101,7 @@ def _enrollment_required(user: User) -> AppError:
         code="auth.totp.enrollment_required",
         status_code=403,
         message=(
-            "La double authentification est obligatoire pour l'administration : "
-            "activez-la pour continuer"
+            "Two-factor authentication is required for the back office: enable it to continue."
         ),
         details={"user_id": str(user.id)},
     )
@@ -127,7 +126,7 @@ def _check_admin_network(user: User, request: Request | None) -> None:
         raise AppError(
             code="auth.admin.network_denied",
             status_code=403,
-            message="Accès réservé : administration depuis un réseau autorisé.",
+            message="Restricted access: administration from an authorised network only.",
             details={},
         )
 
@@ -290,7 +289,7 @@ async def get_current_logistics_admin(
     raise AppError(
         code="auth.logistics.required",
         status_code=403,
-        message="Accès réservé à la logistique",
+        message="Restricted to the logistics team.",
         details={"user_id": str(current_user.id)},
     )
 

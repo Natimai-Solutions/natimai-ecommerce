@@ -344,7 +344,7 @@ async def get_user_addresses(
         raise AppError(
             code="address.not_found",
             status_code=404,
-            message="Adresse introuvable",
+            message="Address not found.",
             details={"user_id": str(user_id)},
         )
 
@@ -370,7 +370,7 @@ async def get_user_address(
         raise AppError(
             code="address.not_found",
             status_code=404,
-            message="Adresse introuvable",
+            message="Address not found.",
             details={"user_id": str(user_id)},
         )
 
@@ -411,7 +411,7 @@ async def create_user_address(
         raise AppError(
             code="address.not_found",
             status_code=404,
-            message="Adresse introuvable",
+            message="Address not found.",
             details={"user_id": str(user_id)},
         )
 
@@ -434,7 +434,7 @@ async def update_user_address(
         raise AppError(
             code="address.not_found",
             status_code=404,
-            message="Adresse introuvable",
+            message="Address not found.",
             details={"user_id": str(user_id)},
         )
 
@@ -481,7 +481,7 @@ async def delete_user_address(
         raise AppError(
             code="address.not_found",
             status_code=404,
-            message="Adresse introuvable",
+            message="Address not found.",
             details={"user_id": str(user_id)},
         )
 
@@ -591,7 +591,7 @@ async def get_user_addresses_by_type(
         raise AppError(
             code="address.not_found",
             status_code=404,
-            message="Adresse introuvable",
+            message="Address not found.",
             details={"user_id": str(user_id)},
         )
 

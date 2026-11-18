@@ -528,7 +528,7 @@ async def _ensure_category(session: SessionDep, category_id: uuid.UUID) -> None:
         raise AppError(
             code="category.not_found",
             status_code=404,
-            message=f"Catégorie inconnue : {category_id}",
+            message="Unknown category.",
             details={"category_id": str(category_id)},
         )
 
@@ -688,7 +688,7 @@ async def import_catalog_file(
         raise AppError(
             code="supplier.import.mapping_invalid",
             status_code=400,
-            message="; ".join(problems) or "Aucun mapping de colonnes défini",
+            message="Invalid column mapping.",
             details={"problems": problems, "headers": parsed.headers},
         )
     if parsed.total_rows > max_rows:
@@ -895,7 +895,7 @@ async def _queue_file_import(
         raise AppError(
             code="supplier.import.queue_unavailable",
             status_code=503,
-            message="L'import en tâche de fond est indisponible ; réessayez plus tard",
+            message="Background import is unavailable; try again later.",
             details={"supplier_name": supplier_code, "filename": filename},
         ) from exc
 

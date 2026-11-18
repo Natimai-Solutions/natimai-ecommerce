@@ -1993,6 +1993,9 @@ const en: MessageSchema = {
     width: 'Width (cm)',
   },
   products: {
+    attach_pending:
+      'Attached: the item will be adopted (cost and stock) at the next file import holding the reference {sku}.',
+    attach_adopted: 'Attached: cost and stock taken from the supplier.',
     published_as_is_n: '{n} item(s) published as is.',
     back_to_enrichment: '{n} item(s) sent back to enrichment.',
     already_n: ', {n} already published',

@@ -161,7 +161,7 @@ async def confirm_pending_refunds(
         raise AppError(
             code="refund.nothing_pending",
             status_code=409,
-            message="Aucun remboursement en attente sur ce paiement.",
+            message="No refund pending on this payment.",
             details={"payment_id": str(payment.id)},
         )
     now = datetime.now(UTC)
@@ -229,14 +229,14 @@ async def refund_payment(
         raise AppError(
             code="refund.invalid_amount",
             status_code=400,
-            message="Le montant du remboursement doit être positif.",
+            message="The refund amount must be positive.",
             details={"refundable": str(refundable)},
         )
     if refund_amount > refundable:
         raise AppError(
             code="refund.exceeds_refundable",
             status_code=400,
-            message="Le remboursement dépasse le montant remboursable.",
+            message="The refund exceeds the refundable amount.",
             details={"requested": str(refund_amount), "refundable": str(refundable)},
         )
 
@@ -246,7 +246,7 @@ async def refund_payment(
         raise AppError(
             code="refund.provider_unknown",
             status_code=400,
-            message=f"Fournisseur de paiement inconnu : {provider_code}",
+            message="Unknown payment provider.",
             details={"provider_code": provider_code},
         ) from exc
 
@@ -265,7 +265,7 @@ async def refund_payment(
         raise AppError(
             code="refund.provider_failed",
             status_code=502,
-            message=f"Le prestataire n'a pas pu rembourser : {exc}",
+            message="The provider could not refund.",
             details={"payment_id": str(payment_id)},
         ) from exc
     completed = result.status == "completed"

@@ -248,14 +248,14 @@ def _check_parent(
         raise AppError(
             code="category.parent.not_found",
             status_code=400,
-            message=f"Catégorie parente introuvable : {parent_id}",
+            message="Parent category not found.",
             details={"field": "parent_id"},
         )
     if parent.merged_into_id is not None:
         raise AppError(
             code="category.parent.merged",
             status_code=409,
-            message="La catégorie parente a été fusionnée dans une autre",
+            message="The parent category was merged into another one.",
             details={"field": "parent_id", "parent_id": str(parent_id)},
         )
     if category_id is not None:
@@ -266,8 +266,7 @@ def _check_parent(
                 code="category.parent.cycle",
                 status_code=409,
                 message=(
-                    "Une catégorie ne peut pas être rangée sous elle-même ni "
-                    "sous une de ses sous-catégories"
+                    "A category cannot be placed under itself or under one of its subcategories."
                 ),
                 details={"field": "parent_id", "parent_id": str(parent_id)},
             ) from exc
@@ -409,7 +408,7 @@ async def create_category(
         raise AppError(
             code="category.name.conflict",
             status_code=409,
-            message=f"Une catégorie « {existing.name} » existe déjà",
+            message="A category with this name already exists.",
             details={"category_id": str(existing.id)},
         )
     if payload.parent_id is not None:
@@ -446,7 +445,7 @@ async def update_category(
         raise AppError(
             code="category.merged",
             status_code=409,
-            message="Cette catégorie a été fusionnée : elle ne peut pas être réactivée",
+            message="This category was merged: it cannot be reactivated.",
             details={
                 "category_id": str(category_id),
                 "merged_into_id": str(category.merged_into_id),
@@ -494,7 +493,7 @@ async def update_category(
             raise AppError(
                 code="category.suggested.unknown",
                 status_code=400,
-                message=f"Catégorie introuvable : {unknown[0]}",
+                message="Category not found.",
                 details={"field": "suggested_category_ids"},
             )
         await replace_category_links(session, category.id, list(suggested))
@@ -537,7 +536,7 @@ async def merge_category(
         raise AppError(
             code="category.merge.self",
             status_code=400,
-            message="Une catégorie ne peut pas être fusionnée dans elle-même",
+            message="A category cannot be merged into itself.",
             details={"category_id": str(category_id)},
         )
     source = await _load(session, category_id)
@@ -547,7 +546,7 @@ async def merge_category(
         raise AppError(
             code="category.merged",
             status_code=409,
-            message="Cette catégorie a déjà été fusionnée",
+            message="This category was merged: it cannot be reactivated.",
             details={
                 "category_id": str(category_id),
                 "merged_into_id": str(source.merged_into_id),
@@ -557,7 +556,7 @@ async def merge_category(
         raise AppError(
             code="category.merge.target_unavailable",
             status_code=409,
-            message="La catégorie cible est inactive ou a elle-même été fusionnée",
+            message="The target category is inactive or was itself merged.",
             details={"target_id": str(payload.target_id)},
         )
     tree = await load_tree(session)
@@ -566,8 +565,7 @@ async def merge_category(
             code="category.merge.target_below_source",
             status_code=409,
             message=(
-                "La catégorie cible est une sous-catégorie de la source : "
-                "déplacez-la d'abord ailleurs"
+                "The target category is a subcategory of the source: move it elsewhere first."
             ),
             details={"target_id": str(payload.target_id)},
         )

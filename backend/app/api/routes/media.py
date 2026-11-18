@@ -48,7 +48,7 @@ def _not_found(asset_id: uuid.UUID) -> AppError:
     return AppError(
         code="media.not_found",
         status_code=404,
-        message="Image introuvable",
+        message="Image not found.",
         details={"id": str(asset_id)},
     )
 
@@ -229,7 +229,7 @@ async def delete_media(
         raise AppError(
             code="media.in_use",
             status_code=409,
-            message="Image encore utilisée : " + ", ".join(usages[:5]),
+            message="This image is still in use.",
             details={"usages": usages},
         )
     await delete_stored_variants(asset)

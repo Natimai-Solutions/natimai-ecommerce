@@ -52,7 +52,7 @@ async def _redis_call(operation: Any) -> Any:
         raise AppError(
             code="rate_limit.unavailable",
             status_code=503,
-            message="Service momentanément indisponible : réessayez dans un instant.",
+            message="Service temporarily unavailable: try again in a moment.",
             details={},
         ) from exc
 

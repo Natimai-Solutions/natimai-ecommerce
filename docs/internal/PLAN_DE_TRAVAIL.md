@@ -141,7 +141,7 @@ Tous les constats sont corrigés ou tranchés (décisions du 18/11/2026) : voir 
 
 - `CrudBase` + `BaseRouter` → socle de natimai-paie (`Policy`, `sortable_fields`, `Page[T]`), puis migration des routeurs `admin_*` qui paginent à la main — L.
 - La commande hors de `api/routes/cart.py` (3 700 lignes) → `features/order/services/checkout.py` ; une seule `get_or_create_status` (3 copies : `admin_shipping`, `manual_payment`, `document_payment`) ; code fournisseurs regroupé dans `features/integrations/` — L.
-- Front : `BaseApi` / `verifyResult` et un extracteur d'erreur unique traduisant le code ; `useResource` et `<CrudPage>` pour l'admin ; `formatDate` / `formatMoney` locaux remplacés par `@app/utils` — M.
+- Front : `BaseApi` / `verifyResult` (l'extracteur d'erreur traduisant le code est fait : `apiErrorText`, catalogue partagé) ; `useResource` et `<CrudPage>` pour l'admin ; `formatDate` / `formatMoney` locaux remplacés par `@app/utils` — M.
 - Tests : fabriques partagées (`tests/factories.py`), test générique sur les routeurs (authentification, tri refusé, propriétaire → 404) — M.
 
 ---

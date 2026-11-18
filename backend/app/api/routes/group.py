@@ -195,7 +195,7 @@ async def get_user_groups(
         raise AppError(
             code="group.not_found",
             status_code=404,
-            message="Groupe introuvable",
+            message="Group not found.",
             details={"user_id": str(user_id)},
         )
 

@@ -161,12 +161,12 @@ async def send_otp(
         raise AppError(
             code="signup.email_exists",
             status_code=400,
-            message="Un compte existe déjà avec cet email.",
+            message="An account already exists with this e-mail.",
         )
 
     code = await create_otp(redis, str(body.email))
     await _send_otp_email(session, str(body.email), code)
-    return OkMessage(message="Un code de vérification a été envoyé par email.")
+    return OkMessage(message="A verification code has been sent by e-mail.")
 
 
 @router.post("/verify-otp", response_model=SignupTokenResponse)
@@ -194,7 +194,7 @@ async def complete_signup(
         raise AppError(
             code="signup.email_exists",
             status_code=400,
-            message="Un compte existe déjà avec cet email.",
+            message="An account already exists with this e-mail.",
         )
 
     password_hash = await aget_password_hash(body.password)
@@ -251,13 +251,17 @@ async def start_guest_checkout(
         ):
             await send_guest_activation_link(session, existing)
         raise AppError(
-            code="signup.guest.account_exists",
+            code=(
+                "signup.guest.account_exists"
+                if reason == "guest"
+                else "signup.email_exists"
+            ),
             status_code=409,
             message=(
-                "Vous avez déjà commandé avec cette adresse : un lien pour "
-                "retrouver votre compte vient de vous être envoyé."
+                "You already ordered with this address: a link to recover your "
+                "account has just been sent to you."
                 if reason == "guest"
-                else "Un compte existe déjà avec cette adresse : connectez-vous."
+                else "An account already exists with this e-mail."
             ),
             details={"reason": reason},
         )
@@ -280,8 +284,8 @@ async def send_my_guest_activation_link(
         raise AppError(
             code="signup.guest.not_guest",
             status_code=409,
-            message="Ce compte a déjà un mot de passe.",
+            message="This account already has a password.",
         )
     email = current_user.email
     await send_guest_activation_link(session, current_user)
-    return OkMessage(message=f"Un lien vient d'être envoyé à {email}.")
+    return OkMessage(message=f"A link has just been sent to {email}.")

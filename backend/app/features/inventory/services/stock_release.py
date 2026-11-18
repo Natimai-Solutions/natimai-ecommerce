@@ -297,8 +297,7 @@ async def reserve_released_order_stock(
             code="payment.order.out_of_stock",
             status_code=409,
             message=(
-                "Un article de cette commande n'est plus en stock : "
-                "elle ne peut plus être payée."
+                "An item of this order is no longer in stock: it can no longer be paid."
             ),
             details={"order_id": str(order_id), "product_ids": short},
         )

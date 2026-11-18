@@ -200,7 +200,7 @@ async def get_user_wishlists(
         raise AppError(
             code="wishlist.not_found",
             status_code=404,
-            message="Liste introuvable",
+            message="List not found.",
             details={"user_id": str(user_id)},
         )
 
@@ -229,7 +229,7 @@ async def create_user_wishlist(
         raise AppError(
             code="wishlist.not_found",
             status_code=404,
-            message="Liste introuvable",
+            message="List not found.",
             details={"user_id": str(user_id)},
         )
 
@@ -254,7 +254,7 @@ async def get_user_wishlist(
         raise AppError(
             code="wishlist.not_found",
             status_code=404,
-            message="Liste introuvable",
+            message="List not found.",
             details={"user_id": str(user_id)},
         )
 

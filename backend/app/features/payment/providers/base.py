@@ -317,7 +317,7 @@ class ManualPaymentProvider(PaymentProvider, ABC):
         reissue / transfer is performed off-system by the back office."""
         return RefundResult(
             status="completed",
-            message="Remboursement manuel enregistré (écriture comptable à effectuer).",
+            message="Manual refund recorded (accounting entry to make).",
         )
 
 
@@ -374,5 +374,5 @@ class DocumentValidatedProvider(PaymentProvider, ABC):
         decision, applied immediately."""
         return RefundResult(
             status="completed",
-            message="Remboursement validé (décision administrative).",
+            message="Refund validated (administrative decision).",
         )

@@ -115,7 +115,8 @@ async function onSubmit() {
   submitting.value = true;
   errorMessage.value = null;
   try {
-    doneMessage.value = await resetPassword(token.value, password.value);
+    await resetPassword(token.value, password.value);
+    doneMessage.value = t('auth.password_reset_done');
   } catch (err) {
     errorMessage.value = apiErrorMessage(err) ?? t('auth.link_invalid');
   } finally {

@@ -195,6 +195,32 @@ docker compose exec redis redis-cli                                  # Redis CLI
 - Map external/library exceptions to `AppError` at the route or service boundary so
   the client always gets the standard shape.
 
+### Languages: the API is language-agnostic
+
+The backend does not translate errors (decision of 18/11/2026). An error is a
+**code**, its **details** and an **English fallback message**; the interfaces
+translate the code.
+
+- **Catalogue**: `shared/utils/src/apiErrors/en.json` and `fr.json`, one entry
+  per code, the same codes in both. `{name}` placeholders are filled from
+  `details` (`apiErrorText(code, details, locale)` in `@app/utils`).
+- **Backend**: `message` is the catalogue's **English** text, word for word,
+  placeholders included: `AppError` fills them from `details`. Never French.
+  Put in `details` every value a placeholder names.
+- **Frontends**: show `apiErrorMessage(err)` (storefront, `@/utils/errors`) or
+  `extractApiError(err)` (admin, `@/api/errors`): the code translated in the
+  interface language, else the server's message. Never display
+  `error.message` directly, nor a success `message` of the API: success
+  texts live in the app's own i18n files.
+- **New error code**: add it to both catalogue files in the same change.
+  `backend/app/tests/test_api_error_catalog.py` fails otherwise (it also checks
+  that placeholders are details the raise provides, and that no message is
+  French).
+- **Out of scope**: what the server renders itself is translated server-side —
+  e-mails (`app/templates/email/{fr,en}`), PDFs (`app/templates/invoice/{fr,en}`),
+  catalogue content (`translations`). Records written in the data (ledger
+  reasons, journey reasons) and operator alerts are not API messages.
+
 ## Notification providers
 
 Transactional emails (and Slack) go through a provider abstraction

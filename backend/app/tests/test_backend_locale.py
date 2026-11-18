@@ -6,9 +6,7 @@ import pathlib
 from datetime import date
 
 import pytest
-from fastapi.testclient import TestClient
 
-from app.core.error_messages import EN, localized_message
 from app.core.i18n import (
     format_date,
     format_money,
@@ -68,26 +66,3 @@ def test_money_and_dates_follow_the_language() -> None:
     assert format_money("19.9", "EUR", "fr") == "19,90 EUR"
     assert format_date(date(2026, 6, 23), "en") == "23 Jun 2026"
     assert format_date("2026-06-23T10:00:00Z", "fr") == "23/06/2026"
-
-
-def test_error_messages_follow_accept_language() -> None:
-    assert localized_message("cart.cgv.not_accepted", "Les CGV…", "fr") == "Les CGV…"
-    assert (
-        localized_message("cart.cgv.not_accepted", "Les CGV…", "en")
-        == EN["cart.cgv.not_accepted"]
-    )
-    assert localized_message("not.listed", "Message", "en") == "Message"
-
-    from app.main import app
-
-    with TestClient(app) as client:
-        form = {"username": "nobody@example.com", "password": "wrong-password"}
-        en = client.post(
-            "/api/v1/login/access-token", data=form, headers={"Accept-Language": "en"}
-        )
-        fr = client.post(
-            "/api/v1/login/access-token", data=form, headers={"Accept-Language": "fr"}
-        )
-    assert en.json()["error"]["code"] == fr.json()["error"]["code"]
-    assert en.json()["error"]["message"] == "Incorrect e-mail or password."
-    assert fr.json()["error"]["message"] != en.json()["error"]["message"]

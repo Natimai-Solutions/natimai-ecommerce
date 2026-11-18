@@ -294,7 +294,7 @@ async def save_mappings(
                 raise AppError(
                     code="category.not_found",
                     status_code=404,
-                    message=f"Catégorie inconnue : {rule.category_id}",
+                    message="Unknown category.",
                     details={"category_id": str(rule.category_id)},
                 )
     existing = {
@@ -314,7 +314,7 @@ async def save_mappings(
             raise AppError(
                 code="supplier.category_mapping.empty_source",
                 status_code=400,
-                message="Une règle doit nommer une catégorie ou une sous-catégorie",
+                message="A rule must name a category or a subcategory.",
                 details={},
             )
         row = existing.get(key) or SupplierCategoryMapping(
@@ -340,7 +340,7 @@ async def delete_mapping(
         raise AppError(
             code="supplier.category_mapping.not_found",
             status_code=404,
-            message="Règle de mappage introuvable",
+            message="Mapping rule not found.",
             details={"mapping_id": str(mapping_id)},
         )
     await session.delete(row)

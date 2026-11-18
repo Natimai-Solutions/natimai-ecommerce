@@ -33,7 +33,7 @@ def _not_found(asset_id: uuid.UUID) -> AppError:
     return AppError(
         code="media.not_found",
         status_code=404,
-        message="Image introuvable",
+        message="Image not found.",
         details={"asset_id": str(asset_id)},
     )
 

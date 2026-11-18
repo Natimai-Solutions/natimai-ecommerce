@@ -423,8 +423,7 @@ async def approve_payment(
                 code="payment.document_missing",
                 status_code=409,
                 message=(
-                    "Aucun document déposé pour ce bon de commande : il ne peut "
-                    "pas être validé"
+                    "No document uploaded for this purchase order: it cannot be validated."
                 ),
                 details={"payment_id": str(payment_id)},
             ) from e
@@ -512,8 +511,7 @@ async def reject_payment(
                 code="payment.receipt.exists",
                 status_code=409,
                 message=(
-                    "Des versements ont déjà été reçus sur ce paiement : "
-                    "annulez-les d'abord (chèque impayé, somme rendue)"
+                    "Instalments were already received on this payment: cancel them first (bounced cheque, money returned)."
                 ),
                 details={"payment_id": str(payment_id)},
             )
@@ -529,7 +527,7 @@ async def reject_payment(
             raise AppError(
                 code="payment.already_decided",
                 status_code=409,
-                message="Ce paiement a déjà été validé, rejeté ou annulé.",
+                message="This payment was already validated, rejected or cancelled.",
                 details={"payment_id": str(payment_id)},
             ) from e
         except PaymentNotManualError as e:
@@ -693,7 +691,7 @@ async def get_attachment_download_url(
         raise AppError(
             code="attachment.scan_pending",
             status_code=409,
-            message="Analyse antivirus en cours : réessayez dans un instant.",
+            message="Antivirus scan in progress: try again in a moment.",
             details={"reason": "scan_pending"},
         )
     if attachment.av_clean is False:
@@ -819,7 +817,7 @@ async def cancel_payment_receipt(
         raise AppError(
             code="payment.receipt.not_found",
             status_code=404,
-            message="Versement introuvable",
+            message="Instalment not found.",
             details={"receipt_id": str(receipt_id)},
         )
     try:

@@ -44,7 +44,7 @@ async def subscribe_stock_alert(
         raise AppError(
             code="product.not_found",
             status_code=404,
-            message="Produit introuvable",
+            message="Product not found.",
             details={"product_id": str(body.product_id)},
         )
     # Signed in: the account's own address, whatever was typed (audit
@@ -55,7 +55,7 @@ async def subscribe_stock_alert(
         raise AppError(
             code="stock_alert.email_required",
             status_code=400,
-            message="Indiquez l'adresse e-mail à prévenir",
+            message="Enter the e-mail address to notify.",
             details={},
         )
     alert = await subscribe(
@@ -112,7 +112,7 @@ async def cancel_my_stock_alert(
         raise AppError(
             code="stock_alert.not_found",
             status_code=404,
-            message="Alerte introuvable",
+            message="Alert not found.",
             details={"alert_id": str(alert_id)},
         )
     alert.status = "cancelled"

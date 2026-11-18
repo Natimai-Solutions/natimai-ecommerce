@@ -44,7 +44,7 @@ def _check_code(currency_code: str) -> None:
         raise AppError(
             code="currency_rate.code.invalid",
             status_code=400,
-            message="Code devise invalide : trois lettres (ISO 4217), ex. USD, EUR",
+            message="Invalid currency code: three letters (ISO 4217), e.g. USD, EUR.",
             details={"currency_code": currency_code},
         )
 
@@ -155,14 +155,14 @@ async def set_default_display_currency(
             raise AppError(
                 code="currency_rate.active.not_found",
                 status_code=400,
-                message=f"Aucun taux actif pour {code} : ajoutez la devise d'abord",
+                message="No active rate for this currency: add the currency first.",
                 details={"currency_code": code},
             )
         if code in await _hidden(session):
             raise AppError(
                 code="currency_rate.display.hidden",
                 status_code=400,
-                message=f"{code} n'est pas proposée au visiteur : activez-la d'abord",
+                message="This currency is not offered to visitors: enable it first.",
                 details={"currency_code": code},
             )
     await write_setting(session, "default_display_currency", code, **actor)
@@ -286,8 +286,7 @@ async def set_currency_display(
         raise AppError(
             code="currency_rate.reference_currency.unsupported",
             status_code=400,
-            message=f"{settings.REFERENCE_CURRENCY} est la devise de référence : "
-            "toujours proposée.",
+            message="This is the reference currency: it needs no rate and is always offered.",
             details={"currency_code": currency_code},
         )
     hidden = await _hidden(session)

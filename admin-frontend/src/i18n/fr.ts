@@ -2006,6 +2006,9 @@ const fr = {
     width: 'Larg. (cm)',
   },
   products: {
+    attach_pending:
+      'Rattaché : l’article sera adopté (coût et stock) au prochain import de fichier contenant la référence {sku}.',
+    attach_adopted: 'Rattaché : coût et stock repris du fournisseur.',
     published_as_is_n: '{n} article(s) publié(s) tel(s) quel(s).',
     back_to_enrichment: '{n} article(s) remis en attente d’enrichissement.',
     already_n: ', {n} déjà publié(s)',

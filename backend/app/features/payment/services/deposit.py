@@ -72,7 +72,7 @@ def choose_plan(policy: DepositPolicy, requested: str | None) -> str:
             raise AppError(
                 code="checkout.deposit.unavailable",
                 status_code=400,
-                message="L'acompte à la commande n'est pas proposé pour votre compte",
+                message="A deposit at checkout is not offered for your account.",
                 details={},
             )
         return PLAN_FULL

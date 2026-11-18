@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia';
+import { apiErrorMessage } from '@/utils/errors';
 import { computed, ref, watch } from 'vue';
 import { accessToken, api } from '@/boot/api';
 import { getMyProfile, type MyProfile } from '@/api/profile';
@@ -227,18 +228,6 @@ function extractErrorReason(err: unknown): string | null {
 }
 
 function extractErrorMessage(err: unknown): string | null {
-  if (typeof err === 'object' && err !== null && 'response' in err) {
-    const resp = (err as { response?: { data?: unknown } }).response;
-    const data = resp?.data;
-    if (typeof data === 'object' && data !== null) {
-      // Backend AppError shape: { error: { message } }; OAuth2 default: { detail }
-      const errorObj = (data as { error?: { message?: unknown } }).error;
-      if (errorObj && typeof errorObj.message === 'string') return errorObj.message;
-      const detail = (data as { detail?: unknown }).detail;
-      if (typeof detail === 'string') return detail;
-      const message = (data as { message?: unknown }).message;
-      if (typeof message === 'string') return message;
-    }
-  }
-  return null;
+  // The code translated from the shared catalogue, else the server's text.
+  return apiErrorMessage(err);
 }

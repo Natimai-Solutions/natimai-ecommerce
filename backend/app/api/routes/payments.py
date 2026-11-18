@@ -1012,8 +1012,7 @@ async def _check_deposit_order_method(
         code="payment.method.must_match",
         status_code=409,
         message=(
-            "Une commande avec acompte se règle avec un seul moyen de paiement : "
-            "utilisez celui de la commande."
+            "An order with a deposit is paid with a single payment method: use “{payment_method_name}”."
         ),
         details={
             "order_id": str(order.id),
@@ -1061,8 +1060,7 @@ async def _check_method_fee_amount(
             code="payment.method.fee_mismatch",
             status_code=409,
             message=(
-                "Ce moyen de paiement n'a pas les frais de la commande : "
-                "choisissez celui de la commande."
+                "This payment method does not carry the order's fee: choose the order's one."
             ),
             details={
                 "order_id": str(order.id),
@@ -1195,7 +1193,7 @@ async def _resolve_owned_document_payment(
         raise AppError(
             code="payment.not_found",
             status_code=404,
-            message="Paiement introuvable",
+            message="Payment not found.",
             details={"payment_id": str(payment_id)},
         )
 
@@ -1439,7 +1437,7 @@ async def get_payment_status_by_token(
         raise AppError(
             code="payment.not_found",
             status_code=404,
-            message="Paiement introuvable",
+            message="Payment not found.",
             details={"payment_id": str(payment_id)},
         )
     return await _payment_status_response(session, payment)
@@ -1477,7 +1475,7 @@ async def _read_owned_payment(
         raise AppError(
             code="payment.not_found",
             status_code=404,
-            message="Paiement introuvable",
+            message="Payment not found.",
             details={"payment_id": str(payment_id)},
         )
     return payment
@@ -1528,14 +1526,14 @@ async def confirm_my_payment(
             raise AppError(
                 code="payment.confirm.unsupported",
                 status_code=400,
-                message="Ce paiement n'a pas d'étape de confirmation.",
+                message="This payment has no confirmation step.",
                 details={"payment_id": str(payment_id)},
             ) from exc
         if not payment.provider_reference:
             raise AppError(
                 code="payment.confirm.no_reference",
                 status_code=400,
-                message="Référence du prestataire introuvable pour ce paiement.",
+                message="The provider's reference for this payment cannot be found.",
                 details={"payment_id": str(payment_id)},
             )
         try:
@@ -1548,7 +1546,7 @@ async def confirm_my_payment(
             raise AppError(
                 code="payment.confirm.failed",
                 status_code=502,
-                message="Le prestataire n'a pas confirmé le paiement.",
+                message="The provider did not confirm the payment.",
                 details={"payment_id": str(payment_id)},
             ) from exc
         await apply_provider_outcome(
@@ -1601,7 +1599,7 @@ async def process_provider_webhook(
         raise AppError(
             code="payment.webhook.invalid_signature",
             status_code=400,
-            message="Notification du prestataire non authentifiée",
+            message="Unauthenticated provider notification.",
             details={"provider_code": normalized_provider_code},
         ) from exc
 

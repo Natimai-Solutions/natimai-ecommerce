@@ -141,7 +141,7 @@ async def use_discount(
         raise AppError(
             code="discount.not_found",
             status_code=404,
-            message="Réduction non trouvée",
+            message="Discount not found.",
             details={"discount_id": str(discount_id)},
         )
     return DiscountPublic.model_validate(discount)

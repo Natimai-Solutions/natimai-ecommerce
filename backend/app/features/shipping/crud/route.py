@@ -54,8 +54,7 @@ async def _require_mode_into_customs(
             code="shipping_route.import_mode_required",
             status_code=400,
             message=(
-                f"Une route vers « {place.name} », lieu de dédouanement, est une "
-                "route d'import : choisissez son mode (rapide, économique…)."
+                "A route into a customs clearance place is an import route: choose its mode (fast, economy…)."
             ),
             details={"to_place_id": str(to_place_id), "field": "service_level"},
         )

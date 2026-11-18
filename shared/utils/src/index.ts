@@ -1,4 +1,4 @@
-export { formatXpf, formatPrice, formatMoney, parseDecimal } from './currency'
+export { formatXpf, formatPrice, formatMoney, parseDecimal } from "./currency";
 export {
   dayBounds,
   formatDate,
@@ -7,7 +7,7 @@ export {
   fromShopDateTimeInput,
   todayLocal,
   toShopDateTimeInput,
-} from './date'
+} from "./date";
 export {
   configureFormatting,
   decimalsOf,
@@ -15,12 +15,12 @@ export {
   intlLocale,
   setCurrencyDecimals,
   setFormatContextResolver,
-} from './format'
-export type { FormatContext } from './format'
-export { fr as i18nFr } from './i18n/fr'
-export type { TranslationKeys } from './i18n/fr'
-export { ISO_COUNTRY_CODES, countryLabel, countryOptions } from './countries'
-export { orderRef } from './orderRef'
+} from "./format";
+export type { FormatContext } from "./format";
+export { fr as i18nFr } from "./i18n/fr";
+export type { TranslationKeys } from "./i18n/fr";
+export { ISO_COUNTRY_CODES, countryLabel, countryOptions } from "./countries";
+export { orderRef } from "./orderRef";
 export {
   DEPARTURE_STATUSES,
   departureStatusLabel,
@@ -28,6 +28,7 @@ export {
   departureDaysLeft,
   departureCutoffLabel,
   departureDeliveryLabel,
-} from './departure'
-export type { DepartureLike, DepartureStatus } from './departure'
-export type { CountryOption } from './countries'
+} from "./departure";
+export type { DepartureLike, DepartureStatus } from "./departure";
+export type { CountryOption } from "./countries";
+export { API_ERROR_CODES, apiErrorText, fillPlaceholders } from "./apiErrors";

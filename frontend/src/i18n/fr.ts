@@ -210,6 +210,7 @@ const fr = {
     alternatives: 'Alternatives',
   },
   guest: {
+    activation_link_sent: 'Un lien vient d’être envoyé à {email}.',
     title: 'Commander sans compte',
     hint: 'Un e-mail suffit : la confirmation et le suivi de la commande y arrivent.',
     email: 'E-mail',
@@ -507,6 +508,8 @@ const fr = {
     zone_unknown: 'Code postal non reconnu. Indiquez votre île ou zone de livraison.',
   },
   auth: {
+    reset_link_sent: 'Si un compte existe pour cette adresse, un lien de réinitialisation vient d’être envoyé.',
+    password_reset_done: 'Mot de passe réinitialisé. Vous pouvez vous connecter.',
     show_password: 'Afficher le mot de passe',
     hide_password: 'Masquer le mot de passe',
     activate_my_account: 'Activer mon compte',

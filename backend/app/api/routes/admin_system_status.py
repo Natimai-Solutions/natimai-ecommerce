@@ -418,7 +418,7 @@ async def replay_abandoned_delivery(
         raise AppError(
             code="outbox.failure.not_found",
             status_code=404,
-            message="Traitement introuvable ou déjà rejoué.",
+            message="Handling not found or already replayed.",
             details={"id": str(failure_id)},
         )
     handler_path, event_id, event_type, payload = claimed
@@ -465,7 +465,7 @@ async def replay_failed_event(
         raise AppError(
             code="outbox.event.not_failed",
             status_code=404,
-            message="Événement introuvable ou déjà relancé.",
+            message="Event not found or already replayed.",
             details={"id": str(event_id)},
         )
     await session.commit()
@@ -496,7 +496,7 @@ async def dismiss_failed_event(
         raise AppError(
             code="outbox.event.not_failed",
             status_code=404,
-            message="Événement introuvable ou déjà traité.",
+            message="Event not found or already replayed.",
             details={"id": str(event_id)},
         )
     await session.commit()

@@ -68,7 +68,7 @@ async def update_payment_provider(
         raise AppError(
             code="payment.provider.unknown",
             status_code=404,
-            message=f"Prestataire inconnu : {provider_code}",
+            message="Unknown payment provider.",
             details={"allowed": list(PSP_DEFAULTS)},
         )
     await set_provider_enabled(session, code, body.enabled)

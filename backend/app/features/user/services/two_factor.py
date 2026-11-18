@@ -95,7 +95,7 @@ def start_enrollment(user: User, *, shop_name: str | None = None) -> Enrollment:
         raise AppError(
             code="auth.totp.already_enabled",
             status_code=409,
-            message="La double authentification est déjà active",
+            message="Two-factor authentication is already enabled.",
             details={},
         )
     secret = totp.generate_secret()
@@ -111,7 +111,7 @@ def confirm(user: User, code: str) -> list[str]:
         raise AppError(
             code="auth.totp.already_enabled",
             status_code=409,
-            message="La double authentification est déjà active",
+            message="Two-factor authentication is already enabled.",
             details={},
         )
     secret = _secret(user)
@@ -119,7 +119,7 @@ def confirm(user: User, code: str) -> list[str]:
         raise AppError(
             code="auth.totp.not_started",
             status_code=400,
-            message="Commencez par générer le code à scanner",
+            message="Start by generating the code to scan.",
             details={},
         )
     step = totp.matching_step(secret, code)
@@ -127,7 +127,7 @@ def confirm(user: User, code: str) -> list[str]:
         raise AppError(
             code="auth.totp.invalid",
             status_code=400,
-            message="Code incorrect : vérifiez l'heure du téléphone et réessayez",
+            message="Incorrect code: check your phone's clock and try again.",
             details={},
         )
     codes = _new_recovery_codes()
