@@ -51,6 +51,7 @@ jobs:
   resolve:
     name: Commit et CI
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
       actions: read
@@ -85,17 +86,37 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           SHA: ${{ steps.sha.outputs.sha }}
+        # La CI ne tourne plus à la fusion (minutes comptées) : le commit
+        # déployé est vert si un run de CI l'a validé lui-même (passage
+        # hebdomadaire, lancement manuel), ou si la PR qui l'a produit avait
+        # une CI verte sur son dernier commit. La protection de branche
+        # « Require branches to be up to date before merging » garantit que
+        # ce dernier commit contenait main : le code testé est celui fusionné.
         run: |
-          count="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$SHA&status=success" --jq '.total_count')"
-          if [[ "$count" == "0" ]]; then
-            echo "::error::Aucune CI verte pour $SHA. Attendre la CI, ou relancer avec « skip_ci_check »."
-            exit 1
+          green() {
+            gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$1&status=success" \
+              --jq '.total_count'
+          }
+          if [[ "$(green "$SHA")" != "0" ]]; then
+            echo "CI verte sur $SHA."
+            exit 0
           fi
+          heads="$(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/pulls" \
+            --jq '.[] | select(.merged_at != null) | .head.sha')"
+          for head in $heads; do
+            if [[ "$(green "$head")" != "0" ]]; then
+              echo "CI verte sur $head, dernier commit de la PR fusionnée en $SHA."
+              exit 0
+            fi
+          done
+          echo "::error::Aucune CI verte pour $SHA ni pour la PR qui l'a produit. Lancer la CI sur main (Actions → CI → Run workflow), ou relancer avec « skip_ci_check » (staging)."
+          exit 1
 
   build:
     name: Image ${{ matrix.image }}
     needs: resolve
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     environment: ${{ inputs.environment }}
     permissions:
       contents: read
@@ -165,6 +186,7 @@ jobs:
     name: Mise en service (${{ inputs.environment }})
     needs: [resolve, build]
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     environment:
       name: ${{ inputs.environment }}
       url: ${{ vars.VITE_API_URL }}

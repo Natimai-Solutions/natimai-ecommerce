@@ -347,17 +347,21 @@ The most important variables; [`DEPLOYMENT.md`](DEPLOYMENT.md) has the
 ## Tests & coverage
 
 CI ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) runs on every
-pull request (only the jobs whose files changed) and on every push to `main`
-(everything):
+pull request that is ready for review (drafts run nothing; only the jobs whose
+files changed), once a week on `main` and on demand (everything). It does not
+run again on the merge: branch protection requires the branch to be up to date
+and the single required status is **CI verte**, which passes when every job
+succeeded or was skipped. `deploy.yml` accepts the green CI of the pull request
+that produced the deployed commit.
 
 - **backend**: `ruff` (lint + format), `mypy`, a single Alembic head, `pytest`
   **under coverage** against a throwaway PostgreSQL service. Coverage config
   lives in [`backend/pyproject.toml`](../backend/pyproject.toml); `fail_under`
   gates the build.
-- **api-types**: the committed `shared/api-types/src/schema.ts` is regenerated
-  from the application and compared.
 - **frontend**: `lint` + `typecheck` for both apps, unit tests of the shared
-  engine (`@app/utils`) via **vitest**, under coverage.
+  engine (`@app/utils`) via **vitest**, under coverage; and the API types
+  check: the committed `shared/api-types/src/schema.ts` is regenerated from the
+  application and compared.
 - **e2e**: the storefront and admin Playwright journeys against the compose stack.
 
 ```bash

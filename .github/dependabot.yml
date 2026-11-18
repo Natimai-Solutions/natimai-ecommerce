@@ -9,10 +9,25 @@
 # réglage du dépôt : Settings → Code security → Dependabot alerts + Dependabot
 # security updates. Les activer est au moins aussi important que ce fichier.
 #
-# Les mises à jour sont groupées pour éviter la noyade sous les PR : une PR par
-# écosystème pour les patchs et mineures, mais les majeures restent séparées —
-# elles demandent un arbitrage, pas une fusion réflexe.
+# Minutes de CI comptées (18/11/2026) : chaque PR Dependabot lance la CI
+# complète. Une fois par mois, et deux PR en tout :
+# - « applicatif » : JavaScript et Python ensemble ;
+# - « infrastructure » : images Docker et actions GitHub ensemble.
+# Les majeures y entrent aussi : une PR groupée qui casse se règle à la main
+# (la scinder avec « @dependabot ignore » sur la dépendance fautive).
+# Les security updates ne sont pas concernées : elles arrivent dès qu'une
+# faille est publiée, une PR par dépendance.
 version: 2
+
+multi-ecosystem-groups:
+  applicatif:
+    schedule:
+      interval: "monthly"
+    labels: ["dépendances"]
+  infrastructure:
+    schedule:
+      interval: "monthly"
+    labels: ["dépendances", "ci"]
 
 updates:
   # ── JavaScript (workspace pnpm) ────────────────────────────────────────────
@@ -20,14 +35,8 @@ updates:
   # et e2e : inutile de déclarer chaque paquet du workspace.
   - package-ecosystem: "npm"
     directory: "/"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 5
-    groups:
-      js-mineures-et-patchs:
-        update-types: ["minor", "patch"]
-    labels: ["dépendances", "javascript"]
+    multi-ecosystem-group: "applicatif"
+    patterns: ["*"]
     ignore:
       # Majeures qui ne peuvent pas passer seules (PLAN_DE_TRAVAIL §9) :
       # - typescript 7 : vue-tsc et typescript-eslint ne le prennent pas encore ;
@@ -47,14 +56,8 @@ updates:
   # seul cet écosystème sait régénérer de façon cohérente avec pyproject.toml.
   - package-ecosystem: "uv"
     directory: "/backend"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 5
-    groups:
-      python-mineures-et-patchs:
-        update-types: ["minor", "patch"]
-    labels: ["dépendances", "python"]
+    multi-ecosystem-group: "applicatif"
+    patterns: ["*"]
 
   # ── Images de base Docker ──────────────────────────────────────────────────
   # Le scanner signalait des vulnérabilités dans node:22-alpine et
@@ -65,11 +68,8 @@ updates:
       - "/backend"
       - "/frontend"
       - "/admin-frontend"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 3
-    labels: ["dépendances", "docker"]
+    multi-ecosystem-group: "infrastructure"
+    patterns: ["*"]
     ignore:
       # Node : les lignes LTS sont les majeures PAIRES (24 « Krypton », 22
       # « Jod »…). Dependabot ne suit que « la plus récente » et a donc proposé
@@ -88,7 +88,5 @@ updates:
   # n'est pas de l'hygiène décorative.
   - package-ecosystem: "github-actions"
     directory: "/"
-    schedule:
-      interval: "monthly"
-    open-pull-requests-limit: 3
-    labels: ["dépendances", "ci"]
+    multi-ecosystem-group: "infrastructure"
+    patterns: ["*"]

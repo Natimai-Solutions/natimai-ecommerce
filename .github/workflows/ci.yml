@@ -1,9 +1,26 @@
 name: CI
 
+# Minutes comptées (dépôt privé, 18/11/2026) :
+# - une PR en brouillon ne lance rien : la CI part quand elle passe « prête »
+#   (ready_for_review) puis à chaque push sur une PR prête ;
+# - un nouveau push sur une PR annule le run précédent encore en cours ;
+# - pas de nouvelle suite à la fusion : la PR l'a passée, et la protection de
+#   branche « Require branches to be up to date before merging » garantit que
+#   le code testé est celui qui est fusionné. deploy.yml accepte la CI verte de
+#   la PR qui a produit le commit déployé ;
+# - un passage hebdomadaire sur main (et à la demande) garde les badges de
+#   couverture et vérifie main même sans PR.
 on:
   pull_request:
-  push:
-    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+  schedule:
+    # Lundi 04:20 UTC.
+    - cron: "20 4 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Least privilege (audit 2026-11): read-only token unless a job asks for more.
 permissions:
@@ -27,6 +44,8 @@ jobs:
   changes:
     name: Périmètre des changements
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.event_name == 'pull_request' && !github.event.pull_request.draft
     permissions:
       contents: read
       pull-requests: read
@@ -80,7 +99,10 @@ jobs:
     name: Backend — lint, typecheck, tests & coverage
     runs-on: ubuntu-latest
     needs: changes
-    if: github.event_name == 'push' || needs.changes.outputs.backend == 'true'
+    if: >-
+      !cancelled() && (github.event_name != 'pull_request'
+      || (needs.changes.result == 'success' && needs.changes.outputs.backend == 'true'))
+    timeout-minutes: 40
     # Point the app settings (engine, alembic, initial_data) at the CI services:
     # the defaults ("db", "redis") are docker-compose hostnames that do not
     # resolve on the runner. The app uses its own database so the integration
@@ -196,7 +218,7 @@ jobs:
           uv run coverage report
 
       - name: Read backend coverage
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.HAS_GIST_SECRET == 'true'
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && env.HAS_GIST_SECRET == 'true'
         id: cov_back
         working-directory: backend
         run: |
@@ -204,7 +226,7 @@ jobs:
           echo "pct=$pct" >> "$GITHUB_OUTPUT"
 
       - name: Backend coverage badge (gist)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.HAS_GIST_SECRET == 'true'
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && env.HAS_GIST_SECRET == 'true'
         uses: schneegans/dynamic-badges-action@28b0fa8bdeb46170ac397105ece0c1fe58f68910 # v1.9.0
         with:
           auth: ${{ secrets.GIST_SECRET }}
@@ -231,46 +253,21 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  api-types:
-    name: Types de l'API — dérive de shared/api-types
-    runs-on: ubuntu-latest
-    needs: changes
-    if: github.event_name == 'push' || needs.changes.outputs.api_types == 'true'
-    # Le schéma TypeScript commité est regénéré depuis l'application (sans
-    # serveur ni base) et comparé : une route ou un schéma modifié côté
-    # backend sans `pnpm gen:types` fait échouer la CI au lieu de laisser les
-    # fronts typer une API qui n'existe plus (R8 / U2).
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.14"
-      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
-        with:
-          version: latest
-      - name: Install backend dependencies
-        working-directory: backend
-        env:
-          UV_PYTHON: "3.14"
-          UV_PYTHON_PREFERENCE: only-system
-        run: uv sync --locked
-      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - name: Comparer schema.ts à l'API
-        env:
-          UV_PYTHON: "3.14"
-          UV_PYTHON_PREFERENCE: only-system
-        run: pnpm check:types
-
+  # Lint, typecheck et tests partagés des deux interfaces, plus la dérive du
+  # schéma TypeScript de l'API : un seul job, une seule installation pnpm
+  # (le contrôle des types était un job à part, une minute facturée de plus).
   frontend:
-    name: Frontend — lint, typecheck & shared tests
+    name: Frontend — lint, typecheck, tests & types de l'API
     runs-on: ubuntu-latest
     needs: changes
-    if: github.event_name == 'push' || needs.changes.outputs.frontend == 'true'
+    if: >-
+      !cancelled() && (github.event_name != 'pull_request'
+      || (needs.changes.result == 'success'
+          && (needs.changes.outputs.frontend == 'true' || needs.changes.outputs.api_types == 'true')))
+    timeout-minutes: 25
+    env:
+      RUN_FRONTEND: ${{ github.event_name != 'pull_request' || needs.changes.outputs.frontend == 'true' }}
+      RUN_API_TYPES: ${{ github.event_name != 'pull_request' || needs.changes.outputs.api_types == 'true' }}
     steps:
       - uses: actions/checkout@v7
 
@@ -284,28 +281,59 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Le schéma TypeScript commité est regénéré depuis l'application (sans
+      # serveur ni base) et comparé : une route ou un schéma modifié côté
+      # backend sans `pnpm gen:types` fait échouer la CI au lieu de laisser les
+      # fronts typer une API qui n'existe plus (R8 / U2).
+      - if: env.RUN_API_TYPES == 'true'
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - if: env.RUN_API_TYPES == 'true'
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
+        with:
+          version: latest
+      - name: Install backend dependencies
+        if: env.RUN_API_TYPES == 'true'
+        working-directory: backend
+        env:
+          UV_PYTHON: "3.14"
+          UV_PYTHON_PREFERENCE: only-system
+        run: uv sync --locked
+      - name: Comparer schema.ts à l'API
+        if: env.RUN_API_TYPES == 'true'
+        env:
+          UV_PYTHON: "3.14"
+          UV_PYTHON_PREFERENCE: only-system
+        run: pnpm check:types
+
       - name: Lint frontend
+        if: env.RUN_FRONTEND == 'true'
         run: pnpm --filter frontend run lint
 
       - name: Lint admin
+        if: env.RUN_FRONTEND == 'true'
         run: pnpm --filter admin run lint
 
       - name: Typecheck frontend
+        if: env.RUN_FRONTEND == 'true'
         run: pnpm --filter frontend run typecheck
 
       - name: Typecheck admin
+        if: env.RUN_FRONTEND == 'true'
         run: pnpm --filter admin run typecheck
 
       - name: Shared engine tests (coverage)
+        if: env.RUN_FRONTEND == 'true'
         run: pnpm test:coverage
 
       - name: Read frontend coverage
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.HAS_GIST_SECRET == 'true'
+        if: env.RUN_FRONTEND == 'true' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && env.HAS_GIST_SECRET == 'true'
         id: cov_front
         run: echo "pct=$(node -p "Math.round(require('./coverage/coverage-summary.json').total.lines.pct)")" >> "$GITHUB_OUTPUT"
 
       - name: Frontend coverage badge (gist)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.HAS_GIST_SECRET == 'true'
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && env.HAS_GIST_SECRET == 'true'
         uses: schneegans/dynamic-badges-action@28b0fa8bdeb46170ac397105ece0c1fe58f68910 # v1.9.0
         with:
           auth: ${{ secrets.GIST_SECRET }}
@@ -331,7 +359,10 @@ jobs:
     name: E2E — vitrine et admin (Playwright)
     runs-on: ubuntu-latest
     needs: changes
-    if: github.event_name == 'push' || needs.changes.outputs.stack == 'true'
+    if: >-
+      !cancelled() && (github.event_name != 'pull_request'
+      || (needs.changes.result == 'success' && needs.changes.outputs.stack == 'true'))
+    timeout-minutes: 40
     # Vitrine : catalogue → panier → checkout → commande, puis l'espace client.
     # Admin : accès, tableau de bord, chaque écran du menu, validation d'un
     # virement jusqu'à la commande payée, bannière d'accueil publiée sur la
@@ -420,3 +451,28 @@ jobs:
       - name: Stack logs on failure
         if: failure()
         run: docker compose -f docker-compose.yml logs --tail=200
+
+  # Le seul statut à exiger dans la protection de branche (« CI verte ») : il
+  # est vert quand chaque job a réussi ou a été sauté faute de changement dans
+  # son périmètre, rouge sinon. Sur une PR en brouillon tout est sauté : la
+  # fusion attend de toute façon qu'elle soit prête, ce qui relance la CI.
+  ci-ok:
+    name: CI verte
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [changes, backend, frontend, e2e]
+    # Rien sur un brouillon : un statut requis sauté compte comme réussi, et la
+    # fusion attend que la PR soit prête (ce qui relance tout).
+    if: always() && !(github.event_name == 'pull_request' && github.event.pull_request.draft)
+    steps:
+      - name: Tous les jobs ont réussi ou ont été sautés
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Résultats : $RESULTS"
+          for result in $RESULTS; do
+            case "$result" in
+              success|skipped) ;;
+              *) echo "::error::Un job a échoué ou a été annulé ($result)."; exit 1 ;;
+            esac
+          done
