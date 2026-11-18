@@ -296,3 +296,76 @@ async def test_the_order_address_is_built_by_the_server(
     )
     assert order.shipping_recipient == "Teva Tane"
     assert order.shipping_phone == "+689 87 00 00 00"
+
+
+@pytest.mark.asyncio
+async def test_a_card_checkout_on_a_real_database(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The whole card checkout on a real database, only PayZen's HTTP call
+    stubbed: the bug of 17/11/2026 (a card checkout failing after the order
+    was committed) was seen by no test — the card path ran on mocks only."""
+    from types import SimpleNamespace
+
+    from app.features.payment.models.payment import Payment
+    from app.features.payment.models.payment_method import PaymentMethod
+    from app.features.payment.services import payment_initiation
+
+    async def available(*_args: Any, **_kwargs: Any) -> bool:
+        return True
+
+    sent: list[Any] = []
+
+    async def payzen(provider_code: str, request: Any) -> Any:
+        sent.append((provider_code, request))
+        return SimpleNamespace(
+            provider_reference="pz-123",
+            raw_response={"answer": "ok"},
+            form_token="FORM-TOKEN",
+            server_url="https://static.payzen.test",
+            public_key="pk:test",
+            redirect_url=None,
+            instructions=None,
+        )
+
+    async def no_unavailable(*_args: Any, **_kwargs: Any) -> set[str]:
+        return set()
+
+    monkeypatch.setattr(payment_initiation, "provider_available", available)
+    monkeypatch.setattr(payment_initiation, "initiate_api_payment", payzen)
+    monkeypatch.setattr(
+        "app.features.payment.services.eligibility.unavailable_providers",
+        no_unavailable,
+    )
+    user_id, product_id = await _seed(db_session)
+    card = PaymentMethod(name="Carte bancaire", provider_code="payzen")
+    db_session.add(card)
+    await db_session.flush()
+    card_id = card.id
+    await db_session.commit()
+    await _fill_cart(db_session, user_id, product_id)
+    user = await db_session.get(User, user_id)
+    assert user is not None
+
+    placed = await checkout_my_cart(
+        db_session,
+        user,
+        CheckoutRequest(
+            shipping_address="1 rue du Test, Papeete",
+            cgv_accepted=True,
+            payment_method_id=card_id,
+            return_url="https://shop.test/paiement/retour",
+            idempotency_key=uuid.uuid4().hex,
+        ),
+    )
+
+    assert placed.payment_start_failed is False
+    assert placed.form_token == "FORM-TOKEN" and placed.provider_code == "payzen"
+    assert len(sent) == 1 and sent[0][0] == "payzen"
+    payment = await db_session.get(Payment, placed.payment_id)
+    assert payment is not None
+    assert payment.order_id == placed.order_id
+    assert payment.provider_reference == "pz-123"
+    assert payment.amount == placed.amount_due_now
+    assert (payment.provider_data or {}).get("form_token") == "FORM-TOKEN"
+    assert await _orders_of(db_session, user_id) == 1

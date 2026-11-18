@@ -23,7 +23,7 @@ Détail : [`AUDIT_FONCTIONNEL_2026-11.md`](AUDIT_FONCTIONNEL_2026-11.md) (identi
 - **Z3 (reste)** : un worker « unhealthy » n'est pas redémarré automatiquement (pas d'autoheal dans les compose) — S, à décider avec l'hébergement.
 - **D1 (suite)** : le délai de livraison affiché ignore encore le mode d'import choisi et le délai fournisseur ; un départ groupé ne porte pas de mode — M.
 
-### Relecture du 17/11/2026 — constats confirmés, non corrigés
+### Relecture du 17/11/2026 — ce qui reste
 
 Cinq relectures indépendantes des changements de novembre ; ce qui a été corrigé est au CHANGELOG. Reste, par ordre d'importance :
 
@@ -33,7 +33,7 @@ Cinq relectures indépendantes des changements de novembre ; ce qui a été corr
 - **Écran d'état, reste** : un travail abandonné par arq sans appel de la fonction (délai d'attente dans la file, `max_tries` atteint avant l'exécution) ne laisse pas de ligne ; seuls les crons en retard le trahissent — S.
 - **Remboursement partiel d'une commande avec acompte** : elle passe encore à `PartiallyRefunded` (et ne suit plus son départ), car son solde ne déduit pas les remboursements et c'est ce statut qui empêche de le demander en entier. Déduire les remboursements du solde, puis la traiter comme une commande payée en une fois — S à M.
 - **Vitrine, virement puis carte** : une commande dont le virement est annoncé reste payable par carte (changer de moyen est voulu, et le virement en attente est fermé à l'encaissement). Risque : un client qui a déjà viré, virement pas encore saisi, paie aussi par carte. **À décider** : avertissement sur « Payer ma commande », ou confirmation explicite exigée par l'API tant qu'un paiement manuel est en attente — S.
-- **Tests manquants** : checkout par carte sur une vraie base (un checkout sans moyen de paiement l'est désormais : `test_checkout_idempotency.py`) (le bug du 17/11 n'était vu par aucun test), parité fiche / panier / ligne de commande / facture du fret, verrou du panier, `GET /admin/system-status` et rejeu, `deploy.sh`.
+- **Tests manquants** : parité fiche / panier / ligne de commande / facture du fret, verrou du panier (deux requêtes réellement concurrentes), `deploy.sh`. Faits : checkout par carte et checkout idempotent sur une vraie base (`test_checkout_idempotency.py`), écran d'état et rejeu (`test_system_status.py`).
 
 ### Exploitation (sur le serveur, hors code)
 
