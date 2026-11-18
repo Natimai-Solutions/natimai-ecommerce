@@ -70,7 +70,16 @@
               </thead>
               <tbody>
                 <tr v-for="line in order.lines" :key="line.product_id">
-                  <td class="text-left">{{ line.product_name || line.product_id.slice(0, 8) }}</td>
+                  <td class="text-left">
+                    {{ line.product_name || line.product_id.slice(0, 8) }}
+                    <div
+                      v-if="line.import_mode_label"
+                      class="text-caption text-subtle"
+                      data-testid="order-line-import-mode"
+                    >
+                      {{ $t('order.import_mode', { mode: line.import_mode_label }) }}
+                    </div>
+                  </td>
                   <td class="text-right font-mono">{{ line.quantity }}</td>
                   <td class="text-right font-mono">{{ formatMoney(line.unit_price) }}</td>
                   <td class="text-right font-mono">{{ formatMoney(line.line_total) }}</td>
@@ -584,7 +593,27 @@
                 <dd class="order-panel__wrap">{{ order.user_email }}</dd>
               </template>
               <dt>{{ $t('order.delivery') }}</dt>
-              <dd class="order-panel__wrap">{{ order.shipping_address || '—' }}</dd>
+              <dd class="order-panel__wrap" data-testid="order-shipping">
+                <div v-if="order.shipping_recipient" class="text-weight-medium">
+                  {{ order.shipping_recipient }}
+                </div>
+                {{ order.shipping_address || '—' }}
+                <div v-if="order.shipping_phone" class="font-mono">
+                  {{ order.shipping_phone }}
+                </div>
+              </dd>
+              <template v-if="order.billing_address">
+                <dt>{{ $t('order.billing') }}</dt>
+                <dd class="order-panel__wrap" data-testid="order-billing">
+                  <div v-if="order.billing_name" class="text-weight-medium">
+                    {{ order.billing_name }}
+                  </div>
+                  {{ order.billing_address }}
+                  <div v-if="order.billing_tax_id" class="font-mono">
+                    {{ $t('order.tax_id', { id: order.billing_tax_id }) }}
+                  </div>
+                </dd>
+              </template>
               <template v-if="order.notes">
                 <dt>{{ $t('order.notes') }}</dt>
                 <dd class="order-panel__wrap">{{ order.notes }}</dd>

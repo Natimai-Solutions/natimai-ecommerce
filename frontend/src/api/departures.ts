@@ -8,9 +8,14 @@ export interface Departure extends DepartureLike {
   departure_at: string | null;
 }
 
-/** The departure new orders are attached to right now, or null. */
-export async function getNextDeparture(): Promise<Departure | null> {
-  const { data } = await api.get<Departure | null>('/grouped-departures/next');
+/**
+ * The departure new orders are attached to right now, or null. With an
+ * import mode (rapide, economique…), the one an order paid on it joins.
+ */
+export async function getNextDeparture(serviceLevel?: string | null): Promise<Departure | null> {
+  const { data } = await api.get<Departure | null>('/grouped-departures/next', {
+    params: serviceLevel ? { service_level: serviceLevel } : undefined,
+  });
   return data;
 }
 

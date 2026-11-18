@@ -102,7 +102,7 @@ async def _get_active_product_or_404(
         raise AppError(
             code="wishlist.product.not_found",
             status_code=404,
-            message=f"Product '{product_id}' not found",
+            message="Product not found.",
             details={"product_id": str(product_id)},
         )
     return product
@@ -171,7 +171,7 @@ async def remove_product_from_my_wishlist(
         raise AppError(
             code="wishlist.product.not_in_wishlist",
             status_code=404,
-            message=f"Product '{product_id}' not found in wishlist",
+            message="This product is not in the list.",
             details={
                 "product_id": str(product_id),
                 "wishlist_id": str(wishlist.id),
@@ -200,7 +200,7 @@ async def get_user_wishlists(
         raise AppError(
             code="wishlist.not_found",
             status_code=404,
-            message="Liste introuvable",
+            message="List not found.",
             details={"user_id": str(user_id)},
         )
 
@@ -229,7 +229,7 @@ async def create_user_wishlist(
         raise AppError(
             code="wishlist.not_found",
             status_code=404,
-            message="Liste introuvable",
+            message="List not found.",
             details={"user_id": str(user_id)},
         )
 
@@ -254,7 +254,7 @@ async def get_user_wishlist(
         raise AppError(
             code="wishlist.not_found",
             status_code=404,
-            message="Liste introuvable",
+            message="List not found.",
             details={"user_id": str(user_id)},
         )
 
@@ -265,7 +265,7 @@ async def get_user_wishlist(
         raise AppError(
             code="wishlist.not_found",
             status_code=404,
-            message=f"Wishlist '{wishlist_id}' not found",
+            message="List not found.",
             details={"wishlist_id": str(wishlist_id)},
         )
 

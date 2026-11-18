@@ -16,8 +16,8 @@ from sqlalchemy import update
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.alerting import send_alert
 from app.core.arq_pool import get_arq_pool
+from app.core.operator_messages import alert
 from app.outbox.models import OutboxEvent
 from app.outbox.registry import outbox_registry
 
@@ -291,10 +291,13 @@ async def poll_outbox_once(session: AsyncSession) -> bool:
                     event.attempts,
                     e,
                 )
-                await send_alert(
-                    f"Événement outbox {event.type} ({event.id}) abandonné après "
-                    f"{event.attempts} tentatives : {str(e)[:200]}",
+                await alert(
+                    "outbox.event_abandoned",
                     source="outbox",
+                    event_type=event.type,
+                    event_id=event.id,
+                    tries=event.attempts,
+                    error=str(e)[:200],
                 )
                 return True
             event.status = "PENDING"

@@ -155,7 +155,7 @@ def _check_method(method: str) -> str:
         raise AppError(
             code="payment.receipt.method_invalid",
             status_code=400,
-            message=f"Mode d'encaissement inconnu : {method!r}",
+            message="A counter collection is made in cash, by cheque or by transfer.",
             details={"allowed": list(RECEIPT_METHODS)},
         )
     return normalized
@@ -170,7 +170,7 @@ def _check_received_at(received_at: datetime | None) -> datetime:
         raise AppError(
             code="payment.receipt.date_in_future",
             status_code=400,
-            message="La date de réception ne peut pas être dans le futur",
+            message="The date received cannot be in the future.",
             details={},
         )
     return received_at
@@ -181,7 +181,7 @@ async def _assert_pending_manual(session: AsyncSession, payment: Payment) -> Non
         raise AppError(
             code="payment.receipt.not_manual",
             status_code=400,
-            message="Seul un paiement manuel (espèces, chèque, virement) reçoit des versements",
+            message="Only a manual payment (cash, cheque, transfer) receives instalments.",
             details={
                 "payment_id": str(payment.id),
                 "provider_code": payment.provider_code,
@@ -192,7 +192,7 @@ async def _assert_pending_manual(session: AsyncSession, payment: Payment) -> Non
         raise AppError(
             code="payment.receipt.not_pending",
             status_code=409,
-            message="Ce paiement n'attend plus de versement",
+            message="This payment no longer awaits instalments.",
             details={"payment_id": str(payment.id), "payment_status": status_name},
         )
 
@@ -240,7 +240,7 @@ async def record_receipt(
         raise AppError(
             code="payment.receipt.amount_invalid",
             status_code=400,
-            message="Le montant reçu doit être positif",
+            message="The amount received must be positive.",
             details={},
         )
     already = await received_amount(session, payment_id=payment.id)
@@ -250,7 +250,7 @@ async def record_receipt(
             code="payment.receipt.exceeds_amount",
             status_code=400,
             message=(
-                f"Le versement dépasse le reste dû ({remaining_before} {currency})"
+                "The instalment exceeds the amount still due ({remaining_amount})."
             ),
             details={"remaining_amount": str(remaining_before)},
         )
@@ -359,7 +359,7 @@ async def cancel_receipt(
         raise AppError(
             code="payment.receipt.already_cancelled",
             status_code=409,
-            message="Ce versement est déjà annulé",
+            message="This instalment is already cancelled.",
             details={"receipt_id": str(receipt.id)},
         )
     reason = reason.strip()
@@ -367,7 +367,7 @@ async def cancel_receipt(
         raise AppError(
             code="payment.receipt.reason_required",
             status_code=400,
-            message="Indiquez le motif de l'annulation (chèque impayé, remboursé…)",
+            message="Give the reason for the cancellation (bounced cheque, refunded…).",
             details={},
         )
     payment = await session.get(Payment, receipt.payment_id)
@@ -375,7 +375,7 @@ async def cancel_receipt(
         raise AppError(
             code="payment.not_found",
             status_code=404,
-            message="Paiement introuvable",
+            message="Payment not found.",
             details={"payment_id": str(receipt.payment_id)},
         )
     if await _status_name(session, payment) != MANUAL_STATUS_AWAITING_VALIDATION:
@@ -383,8 +383,7 @@ async def cancel_receipt(
             code="payment.receipt.payment_settled",
             status_code=409,
             message=(
-                "Le paiement est déjà soldé : un chèque impayé après encaissement "
-                "se traite par un remboursement ou un avoir"
+                "The payment is already settled: a bounced cheque after collection is handled with a refund or a store credit."
             ),
             details={"payment_id": str(payment.id)},
         )
@@ -445,7 +444,7 @@ async def record_counter_payment(
         raise AppError(
             code="payment.receipt.method_invalid",
             status_code=400,
-            message="Un encaissement au comptoir se fait en espèces, par chèque ou virement",
+            message="A counter collection is made in cash, by cheque or by transfer.",
             details={"allowed": sorted(PROVIDER_BY_METHOD)},
         )
 
@@ -458,7 +457,7 @@ async def record_counter_payment(
         raise AppError(
             code="payment.order.already_paid",
             status_code=409,
-            message="Cette commande est déjà réglée",
+            message="This order is already paid.",
             details={"order_id": str(order.id)},
         )
 
@@ -471,7 +470,7 @@ async def record_counter_payment(
             raise AppError(
                 code="payment.order.cancelled",
                 status_code=409,
-                message="Cette commande est annulée : elle ne peut plus être encaissée",
+                message="This order is cancelled: it can no longer be paid.",
                 details={"order_id": str(order.id)},
             )
         await reserve_released_order_stock(session, order_id=order.id)

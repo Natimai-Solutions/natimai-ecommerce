@@ -71,7 +71,7 @@ async def hit_rate_limit(key: str, *, limit: int, window_seconds: int) -> bool:
         raise AppError(
             code="rate_limit.unavailable",
             status_code=503,
-            message="Service momentanément indisponible : réessayez dans un instant.",
+            message="Service temporarily unavailable: try again in a moment.",
             details={},
         ) from exc
     return int(count) > limit
@@ -97,7 +97,7 @@ async def rate_limit_reached(key: str, *, limit: int) -> bool:
         raise AppError(
             code="rate_limit.unavailable",
             status_code=503,
-            message="Service momentanément indisponible : réessayez dans un instant.",
+            message="Service temporarily unavailable: try again in a moment.",
             details={},
         ) from exc
     return raw is not None and int(raw) >= limit
@@ -119,7 +119,7 @@ def rate_limited(
             raise AppError(
                 code=f"{scope}.rate_limited",
                 status_code=429,
-                message="Trop de tentatives : réessayez dans quelques minutes.",
+                message="Too many attempts: try again in a few minutes.",
                 details={"scope": scope, "window_seconds": window_seconds},
             )
 

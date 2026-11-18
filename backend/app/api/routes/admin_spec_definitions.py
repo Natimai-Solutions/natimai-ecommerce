@@ -78,7 +78,7 @@ async def get_spec_definition(
         raise AppError(
             code="spec_definition.not_found",
             status_code=http_status.HTTP_404_NOT_FOUND,
-            message=f"Spec definition '{key}' not found",
+            message="Specification not found.",
             details={"key": key},
         )
     return SpecDefinitionPublic.model_validate(spec)
@@ -99,7 +99,7 @@ def _translations(
         raise AppError(
             code="spec_definition.translations.invalid",
             status_code=http_status.HTTP_400_BAD_REQUEST,
-            message=f"Traductions invalides : {exc}",
+            message="Invalid translations.",
         ) from exc
 
 
@@ -117,7 +117,7 @@ async def create_spec_definition(
         raise AppError(
             code="spec_definition.duplicate_key",
             status_code=http_status.HTTP_409_CONFLICT,
-            message=f"Spec definition with key '{data.key}' already exists",
+            message="A specification already uses this key.",
             details={"key": data.key},
         )
 
@@ -153,7 +153,7 @@ async def update_spec_definition(
         raise AppError(
             code="spec_definition.not_found",
             status_code=http_status.HTTP_404_NOT_FOUND,
-            message=f"Spec definition '{key}' not found",
+            message="Specification not found.",
             details={"key": key},
         )
 
@@ -190,7 +190,7 @@ async def delete_spec_definition(
         raise AppError(
             code="spec_definition.not_found",
             status_code=http_status.HTTP_404_NOT_FOUND,
-            message=f"Spec definition '{key}' not found",
+            message="Specification not found.",
             details={"key": key},
         )
 

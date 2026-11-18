@@ -74,6 +74,9 @@ export interface AdminOrderLineItem {
   line_margin?: number | null;
   /** Marge / total HT de la ligne (taux de marque). */
   margin_pct?: number | null;
+  /** Mode d'import payé par le client : c'est par lui qu'il faut expédier. */
+  import_service_level?: string | null;
+  import_mode_label?: string | null;
 }
 
 /** Marge brute sur les articles (frais et livraison exclus). */
@@ -133,6 +136,13 @@ export interface AdminOrderDetail {
   discount_amount?: number;
   total_amount: number;
   shipping_address: string | null;
+  /** Destinataire et téléphone figés au checkout (absents avant le 18/11/2026). */
+  shipping_recipient?: string | null;
+  shipping_phone?: string | null;
+  /** Facturation choisie au checkout (sinon : le compte, à l'adresse de livraison). */
+  billing_name?: string | null;
+  billing_address?: string | null;
+  billing_tax_id?: string | null;
   /** Last-leg mode chosen at checkout (home_delivery, pickup…). */
   delivery_type: string | null;
   grouped_departure_id: string | null;

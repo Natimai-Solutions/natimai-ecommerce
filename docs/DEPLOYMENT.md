@@ -1152,6 +1152,30 @@ half‑way through a production restore.
 
 ---
 
+### 12.1 Unhealthy containers are restarted
+
+Docker restarts a container whose process exits (`restart: unless-stopped`),
+not one that is only « unhealthy ». Two layers close that gap:
+
+- **The worker ends itself when stuck** (`app/core/worker_watchdog.py`): its
+  event loop blocked for 5 minutes, or Redis unreachable for 3, and the
+  process exits; Docker starts a fresh one and arq retries the interrupted
+  jobs. `WORKER_WATCHDOG=0` switches it off (debugging only).
+- **A cron on the server** restarts any container of the project Docker
+  reports unhealthy, every 5 minutes, and posts each restart to
+  `ALERT_WEBHOOK_URL`. Past 3 restarts of the same container in an hour it
+  stops restarting it and alerts « intervention nécessaire » — a restart
+  loop would hide the failure.
+
+```bash
+sudo cp scripts/ops/ecommerce-autoheal.cron /etc/cron.d/ecommerce-autoheal
+sudo chown root:root /etc/cron.d/ecommerce-autoheal && sudo chmod 644 /etc/cron.d/ecommerce-autoheal
+DRY_RUN=true ./scripts/ops/restart-unhealthy.sh   # what it would do now
+```
+
+Fill `ALERT_WEBHOOK_URL` (and the directory and user) in the cron file
+first. No Docker socket is given to any container.
+
 ## 13. Legal identity — fill before opening (L1)
 
 The company's identity is a **launch blocker**: incomplete legal notices expose

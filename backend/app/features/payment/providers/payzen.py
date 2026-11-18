@@ -98,7 +98,7 @@ class PayzenProvider(ApiPaymentProvider):
         return CaptureResult(
             status="completed",
             provider_reference=payment_reference,
-            message="Capture PayZen effectuée.",
+            message="PayZen capture done.",
         )
 
     def refund_reference(
@@ -132,7 +132,7 @@ class PayzenProvider(ApiPaymentProvider):
         return VoidResult(
             status="completed",
             provider_reference=answer.get("uuid") or payment_reference,
-            message="Autorisation PayZen annulée.",
+            message="PayZen authorisation cancelled.",
             metadata={"detailed_status": answer.get("detailedStatus")},
         )
 
@@ -161,6 +161,6 @@ class PayzenProvider(ApiPaymentProvider):
         return RefundResult(
             status="completed",
             provider_reference=answer.get("uuid") or payment_reference,
-            message="Remboursement PayZen effectué.",
+            message="PayZen refund done.",
             metadata={"detailed_status": answer.get("detailedStatus")},
         )

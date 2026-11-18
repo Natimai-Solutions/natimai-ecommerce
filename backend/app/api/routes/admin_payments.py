@@ -156,7 +156,7 @@ async def _get_payment_or_404(session: SessionDep, payment_id: uuid.UUID) -> Pay
         raise AppError(
             code="payment.not_found",
             status_code=404,
-            message=f"Payment {payment_id} not found",
+            message="Payment not found.",
             details={"payment_id": str(payment_id)},
         ) from e
 
@@ -423,8 +423,7 @@ async def approve_payment(
                 code="payment.document_missing",
                 status_code=409,
                 message=(
-                    "Aucun document déposé pour ce bon de commande : il ne peut "
-                    "pas être validé"
+                    "No document uploaded for this purchase order: it cannot be validated."
                 ),
                 details={"payment_id": str(payment_id)},
             ) from e
@@ -434,7 +433,7 @@ async def approve_payment(
             raise AppError(
                 code="payment.not_manual",
                 status_code=400,
-                message=f"Payment {payment.id} provider '{payment.provider_code}' is not manual",
+                message="This payment is not a manual payment.",
                 details={
                     "payment_id": str(payment_id),
                     "provider_code": payment.provider_code,
@@ -512,8 +511,7 @@ async def reject_payment(
                 code="payment.receipt.exists",
                 status_code=409,
                 message=(
-                    "Des versements ont déjà été reçus sur ce paiement : "
-                    "annulez-les d'abord (chèque impayé, somme rendue)"
+                    "Instalments were already received on this payment: cancel them first (bounced cheque, money returned)."
                 ),
                 details={"payment_id": str(payment_id)},
             )
@@ -529,7 +527,7 @@ async def reject_payment(
             raise AppError(
                 code="payment.already_decided",
                 status_code=409,
-                message="Ce paiement a déjà été validé, rejeté ou annulé.",
+                message="This payment was already validated, rejected or cancelled.",
                 details={"payment_id": str(payment_id)},
             ) from e
         except PaymentNotManualError as e:
@@ -674,7 +672,7 @@ async def get_attachment_download_url(
         raise AppError(
             code="internal.record_not_found",
             status_code=404,
-            message=f"Attachment {attachment_id} not found",
+            message="Item not found.",
             details={"attachment_id": str(attachment_id)},
         ) from e
 
@@ -682,7 +680,7 @@ async def get_attachment_download_url(
         raise AppError(
             code="internal.record_not_found",
             status_code=404,
-            message="Attachment does not belong to this payment",
+            message="Item not found.",
             details={
                 "attachment_id": str(attachment_id),
                 "payment_id": str(payment_id),
@@ -693,14 +691,14 @@ async def get_attachment_download_url(
         raise AppError(
             code="attachment.scan_pending",
             status_code=409,
-            message="Analyse antivirus en cours : réessayez dans un instant.",
+            message="Antivirus scan in progress: try again in a moment.",
             details={"reason": "scan_pending"},
         )
     if attachment.av_clean is False:
         raise AppError(
             code="attachment.validation_failed",
             status_code=403,
-            message=f"Attachment quarantined by antivirus: {attachment.av_signature}",
+            message="The file was rejected by the antivirus.",
             details={"reason": "quarantined"},
         )
 
@@ -819,7 +817,7 @@ async def cancel_payment_receipt(
         raise AppError(
             code="payment.receipt.not_found",
             status_code=404,
-            message="Versement introuvable",
+            message="Instalment not found.",
             details={"receipt_id": str(receipt_id)},
         )
     try:

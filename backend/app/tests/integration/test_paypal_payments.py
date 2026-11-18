@@ -470,7 +470,7 @@ async def test_authorize_then_capture_then_refund_in_euros(
     outcome = await refund_payment(
         db_session, payment=payment, admin=seed.admin, amount=Decimal("10000")
     )
-    assert outcome.message == "Remboursement PayPal effectué."
+    assert outcome.message == "PayPal refund done."
     method, path, body = paypal.calls[-1]
     assert (method, path) == ("POST", f"/v2/payments/captures/{CAPTURE_ID}/refund")
     assert body is not None

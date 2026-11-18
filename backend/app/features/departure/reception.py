@@ -38,6 +38,7 @@ from app.features.product.services.pricing import (
     CurrencyRateMissing,
     convert_to_reference_currency,
 )
+from app.features.shipping.services.import_routes import import_mode_labels
 
 #: Orders whose goods travel with the departure (paid, on the way, or handed
 #: over): the ones the receipt is matched against.
@@ -405,6 +406,10 @@ class MyOrderLine(BaseModel):
     image_url: str | None = None
     manufacturer: str | None = None
     product_available: bool = False
+    # The import mode the line was paid on (rapide, économique…) and its
+    # label; None for a line with no import leg.
+    import_service_level: str | None = None
+    import_mode_label: str | None = None
 
 
 async def customer_lines(session: AsyncSession, order: Order) -> list[MyOrderLine]:
@@ -429,6 +434,9 @@ async def customer_lines(session: AsyncSession, order: Order) -> list[MyOrderLin
                 await _receipt_lines(session, order.grouped_departure_id)
             ).items()
         }
+    labels = await import_mode_labels(
+        session, (line.import_service_level for line, _ in rows)
+    )
     items: list[MyOrderLine] = []
     for line, product in rows:
         since = received.get(product.id)
@@ -448,6 +456,8 @@ async def customer_lines(session: AsyncSession, order: Order) -> list[MyOrderLin
                 image_url=product.image_url or product.supplier_image_url,
                 manufacturer=product.manufacturer,
                 product_available=bool(product.is_active and product.is_admin_active),
+                import_service_level=line.import_service_level,
+                import_mode_label=labels.get(line.import_service_level or ""),
             )
         )
     return items

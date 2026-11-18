@@ -226,7 +226,7 @@ async def erase_account(session: AsyncSession, user: User) -> None:
         raise AppError(
             code="account.delete.superuser",
             status_code=403,
-            message="Un compte administrateur se supprime depuis le back-office.",
+            message="An administrator account is removed from the back office.",
         )
     uid = user.id
     running = await open_orders_count(session, uid)
@@ -235,8 +235,7 @@ async def erase_account(session: AsyncSession, user: User) -> None:
             code="account.delete.open_orders",
             status_code=409,
             message=(
-                "Une commande est encore en cours : le compte pourra être "
-                "supprimé une fois qu'elle sera livrée ou annulée."
+                "An order is still in progress: the account can be deleted once it is delivered or cancelled."
             ),
             details={"open_orders": running},
         )

@@ -167,7 +167,7 @@ class PlaceRouter(
                 raise AppError(
                     code="resource.not_found",
                     status_code=404,
-                    message="Place not found",
+                    message="Item not found.",
                     details={"id": str(id)},
                 ) from exc
             try:
@@ -181,10 +181,7 @@ class PlaceRouter(
                 raise AppError(
                     code="place.postal_code.conflict",
                     status_code=409,
-                    message=(
-                        "Postal code(s) already mapped to another place: "
-                        + ", ".join(exc.postal_codes)
-                    ),
+                    message=("Some postal codes are already mapped to another place."),
                     details={"postal_codes": exc.postal_codes},
                 ) from exc
             # Capture before commit: committing expires the ORM instances and a
@@ -216,7 +213,7 @@ class PlaceRouter(
                 raise AppError(
                     code="resource.not_found",
                     status_code=404,
-                    message="Place not found",
+                    message="Item not found.",
                     details={"id": str(id)},
                 ) from exc
             await session.commit()

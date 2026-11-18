@@ -24,6 +24,9 @@ class AddressBase(Base):
     recipient_name: str | None = Field(default=None, max_length=150)
     company: str | None = Field(default=None, max_length=150)
     phone: str | None = Field(default=None, max_length=40)
+    #: Business identifier printed on the invoice (n° TAHITI, SIRET, VAT
+    #: number…) — a billing address of a company.
+    tax_id: str | None = Field(default=None, max_length=40)
     street: str = Field(description="Street address")
     city: str = Field(description="City of the address")
     state: str | None = Field(default=None, description="State of the address")
@@ -64,6 +67,7 @@ class AddressUpdate(AddressBase, BaseUpdate):
     recipient_name: str | None = Field(default=None, max_length=150)
     company: str | None = Field(default=None, max_length=150)
     phone: str | None = Field(default=None, max_length=40)
+    tax_id: str | None = Field(default=None, max_length=40)
     street: str | None = None
     city: str | None = None
     state: str | None = None

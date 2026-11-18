@@ -33,10 +33,7 @@ def _storage() -> LocalFileStorage:
         raise AppError(
             code="internal_storage.backend.unsupported",
             status_code=404,
-            message=(
-                "Internal storage endpoint is only enabled "
-                "with FILE_STORAGE_BACKEND=local"
-            ),
+            message=("This storage endpoint is not enabled on this server."),
             details={
                 "setting": "FILE_STORAGE_BACKEND",
                 "backend": settings.FILE_STORAGE_BACKEND,
@@ -55,7 +52,7 @@ async def upload_via_token(token: str, request: Request) -> Response:
         raise AppError(
             code="internal_storage.token.invalid",
             status_code=403,
-            message="Invalid token",
+            message="Invalid or expired upload link.",
             details={"reason": str(e)},
         ) from e
 
@@ -63,7 +60,7 @@ async def upload_via_token(token: str, request: Request) -> Response:
         raise AppError(
             code="internal_storage.token.operation_not_allowed",
             status_code=403,
-            message="Token does not allow upload",
+            message="This link does not allow this operation.",
             details={
                 "expected": "put",
                 "actual": body.get("op"),
@@ -75,7 +72,7 @@ async def upload_via_token(token: str, request: Request) -> Response:
         raise AppError(
             code="internal_storage.content_type.invalid",
             status_code=400,
-            message=f"Content-Type must be {declared_ct}",
+            message="Unexpected file type.",
             details={
                 "expected": declared_ct,
                 "received": request.headers.get("content-type"),
@@ -90,7 +87,7 @@ async def upload_via_token(token: str, request: Request) -> Response:
                 raise AppError(
                     code="internal_storage.file.too_large",
                     status_code=413,
-                    message="File exceeds allowed size",
+                    message="The file is too large.",
                     details={
                         "max_bytes": int(max_bytes),
                         "content_length": int(content_length),
@@ -100,7 +97,7 @@ async def upload_via_token(token: str, request: Request) -> Response:
             raise AppError(
                 code="internal_storage.content_length.invalid",
                 status_code=400,
-                message="Invalid Content-Length header",
+                message="Invalid file size.",
                 details={"content_length": content_length},
             ) from e
 
@@ -109,7 +106,7 @@ async def upload_via_token(token: str, request: Request) -> Response:
         raise AppError(
             code="internal_storage.file.too_large",
             status_code=413,
-            message="File exceeds allowed size",
+            message="The file is too large.",
             details={
                 "max_bytes": int(max_bytes),
                 "received_bytes": len(data),
@@ -130,7 +127,7 @@ async def download_via_token(token: str, filename: str | None = None) -> Respons
         raise AppError(
             code="internal_storage.token.invalid",
             status_code=403,
-            message="Invalid token",
+            message="Invalid or expired upload link.",
             details={"reason": str(e)},
         ) from e
 
@@ -138,7 +135,7 @@ async def download_via_token(token: str, filename: str | None = None) -> Respons
         raise AppError(
             code="internal_storage.token.operation_not_allowed",
             status_code=403,
-            message="Token does not allow download",
+            message="This link does not allow this operation.",
             details={
                 "expected": "get",
                 "actual": body.get("op"),

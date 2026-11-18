@@ -119,7 +119,7 @@ def test_get_supplier_unknown_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "supplier.not_found",
-            "message": "Unknown supplier 'unknown'. Registered: ingram_micro, demo_supplier",
+            "message": "Unknown supplier.",
             "details": {
                 "supplier_name": "unknown",
                 "registered": ["ingram_micro", "demo_supplier"],
@@ -173,7 +173,7 @@ def test_trigger_product_sync_disabled_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "supplier.sync.disabled",
-            "message": "Demo Supplier synchronization is disabled in settings",
+            "message": "This supplier's synchronisation is switched off.",
             "details": {"supplier_name": "demo_supplier"},
         }
     }
@@ -197,7 +197,7 @@ def test_trigger_inventory_sync_not_configured_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "supplier.credentials.not_configured",
-            "message": "Demo Supplier credentials not configured",
+            "message": "This supplier's credentials are not configured.",
             "details": {"supplier_name": "demo_supplier"},
         }
     }
@@ -229,7 +229,7 @@ def test_trigger_inventory_sync_queue_failure_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "supplier.sync.queue_failed",
-            "message": "Failed to queue inventory refresh (see the server log)",
+            "message": "The synchronisation could not be queued (see the server log).",
             "details": {
                 "supplier_name": "demo_supplier",
                 "sync_type": "inventory",

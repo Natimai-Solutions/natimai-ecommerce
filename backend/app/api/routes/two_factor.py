@@ -43,7 +43,7 @@ async def _account_code_limit(current_user: CurrentSuperUserEnrolling) -> None:
         raise AppError(
             code="two_factor.rate_limited",
             status_code=429,
-            message="Trop de tentatives : réessayez dans quelques minutes.",
+            message="Too many attempts: try again in a few minutes.",
             details={"scope": "two_factor", "window_seconds": 600},
         )
 
@@ -211,7 +211,7 @@ async def disable(
         raise AppError(
             code="auth.2fa.disable_refused",
             status_code=400,
-            message="Mot de passe ou code incorrect",
+            message="Incorrect password or code.",
             details={},
         )
     two_factor.disable(current_user)

@@ -217,7 +217,7 @@ async def initiate_payment_for_method(
         raise AppError(
             code="payment.provider.disabled",
             status_code=400,
-            message="Ce moyen de paiement est momentanément indisponible",
+            message="This payment method is temporarily unavailable.",
             details={"provider_code": provider_code},
         )
 
@@ -232,7 +232,7 @@ async def initiate_payment_for_method(
         raise AppError(
             code="payment.method.not_eligible",
             status_code=403,
-            message="This payment method is not available for your account or order amount",
+            message="This payment method is not available for your account or this amount.",
             details={"payment_method_id": str(payment_method_id)},
         )
 
@@ -244,10 +244,7 @@ async def initiate_payment_for_method(
             raise AppError(
                 code="payment.method.deposit_not_allowed",
                 status_code=400,
-                message=(
-                    f"Le moyen de paiement « {method.name} » ne peut pas régler "
-                    "un acompte"
-                ),
+                message=("This payment method cannot pay a deposit."),
                 details={"payment_method_id": str(payment_method_id)},
             )
 
@@ -353,7 +350,7 @@ async def initiate_payment_for_method(
         raise AppError(
             code="payment.provider.unsupported_for_initiation",
             status_code=400,
-            message=f"Provider '{provider_code}' does not support payment initiation",
+            message="This payment method cannot be started online.",
             details={"provider_code": provider_code},
         )
 

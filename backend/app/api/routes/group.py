@@ -50,7 +50,7 @@ async def get_groups_by_type(
         raise AppError(
             code="group.authentication_required",
             status_code=403,
-            message="Authentication required",
+            message="Sign in to continue.",
             details={"resource": "group.by_type"},
         )
 
@@ -76,7 +76,7 @@ async def get_pricing_groups(
         raise AppError(
             code="group.authentication_required",
             status_code=403,
-            message="Authentication required",
+            message="Sign in to continue.",
             details={"resource": "group.pricing"},
         )
 
@@ -101,7 +101,7 @@ async def add_user_to_group(
         raise AppError(
             code="group.admin_required",
             status_code=403,
-            message="Admin access required",
+            message="Administrator access required.",
             details={"resource": "group.users.add"},
         )
 
@@ -136,7 +136,7 @@ async def remove_user_from_group(
         raise AppError(
             code="group.admin_required",
             status_code=403,
-            message="Admin access required",
+            message="Administrator access required.",
             details={"resource": "group.users.remove"},
         )
 
@@ -150,7 +150,7 @@ async def remove_user_from_group(
         raise AppError(
             code="group.user_not_in_group",
             status_code=404,
-            message=f"User {user_id} not found in group {group_id}",
+            message="This user is not in this group.",
             details={
                 "group_id": str(group_id),
                 "user_id": str(user_id),
@@ -170,7 +170,7 @@ async def get_group_users(
         raise AppError(
             code="group.admin_required",
             status_code=403,
-            message="Admin access required",
+            message="Administrator access required.",
             details={"resource": "group.users.list"},
         )
 
@@ -195,7 +195,7 @@ async def get_user_groups(
         raise AppError(
             code="group.not_found",
             status_code=404,
-            message="Groupe introuvable",
+            message="Group not found.",
             details={"user_id": str(user_id)},
         )
 

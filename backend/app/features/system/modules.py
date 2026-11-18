@@ -218,7 +218,7 @@ def spec_for(key: str) -> ModuleSpec:
         raise AppError(
             code="module.unknown",
             status_code=404,
-            message=f"Module inconnu : {key}",
+            message="Unknown module.",
             details={"key": key, "available": sorted(_BY_KEY)},
         ) from None
 
@@ -269,11 +269,11 @@ async def module_enabled(session: AsyncSession, key: str) -> bool:
 async def require_module(session: AsyncSession, key: str) -> None:
     """Raise an explicit 404 when module ``key`` is off."""
     if not await module_enabled(session, key):
-        spec = spec_for(key)
+        spec_for(key)  # an unknown key raises here
         raise AppError(
             code="module.disabled",
             status_code=404,
-            message=f"Le module « {spec.label} » est désactivé",
+            message="This feature is switched off.",
             details={"module": key},
         )
 

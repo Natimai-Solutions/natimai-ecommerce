@@ -276,6 +276,19 @@ def _order_pay_url_or_none(raw_order_id: Any) -> str | None:
         return None
 
 
+async def _customer_reachable(session: AsyncSession, user_id: Any) -> bool:
+    """Whether an e-mail to this customer can ever be delivered: the account
+    exists, has an address, and was not erased (anonymised address)."""
+    from app.features.user.services.privacy import ANONYMISED_DOMAIN
+
+    try:
+        user = await session.get(User, uuid.UUID(str(user_id)))
+    except (TypeError, ValueError):
+        return False
+    email = str(getattr(user, "email", "") or "") if user is not None else ""
+    return bool(email) and not email.lower().endswith("@" + ANONYMISED_DOMAIN)
+
+
 async def request_balance(session: AsyncSession, order: Order) -> bool:
     """Ask the customer for the balance of a deposit order: e-mail with the
     amounts and the payment link, ``balance_requested_at`` stamped. Sent
@@ -334,6 +347,16 @@ async def on_order_received_request_balance(
     if order.balance_paid_at is not None or order.balance_requested_at is not None:
         return
     order_id = order.id
+    if not await _customer_reachable(session, order.user_id):
+        # An erased account (or one without an address): the e-mail can never
+        # go, and retrying ended in a misleading « handler abandoned » alert
+        # (review of 17/11/2026). The admin sees the balance due on the order.
+        logger.info(
+            "Balance of order %s not requested: the customer has no reachable "
+            "address (erased account?)",
+            order_id,
+        )
+        return
     if not await request_balance(session, order):
         if not await runtime_settings.get("notifications_email_enabled", session):
             return  # e-mails switched off on purpose: nothing to retry
@@ -373,6 +396,7 @@ async def _order_summary(
     empty: dict[str, Any] = {
         "lines": [],
         "shipping_address": "",
+        "pickup_place": "",
         "delivery_label": "",
         "departure_name": "",
         "estimated_delivery": "",
@@ -385,22 +409,33 @@ async def _order_summary(
         return empty
     rows = (
         await session.exec(
-            select(OrderLine, Product.name)
+            select(OrderLine, Product.name, Product.translations)
             .join(Product, col(Product.id) == col(OrderLine.product_id), isouter=True)
             .where(
                 col(OrderLine.order_id) == order.id, col(OrderLine.is_active).is_(True)
             )
         )
     ).all()
+    from app.core.content_i18n import translated_values
+    from app.features.shipping.services.import_routes import import_mode_labels
+
+    modes = await import_mode_labels(
+        session, (line.import_service_level for line, _, _ in rows)
+    )
     lines = [
         {
-            "name": name or "",
+            # In the customer's language: the names stayed in French in an
+            # English e-mail (review of 17/11/2026).
+            "name": translated_values(translations, ("name",), lang).get("name")
+            or name
+            or "",
+            "import_mode": modes.get(line.import_service_level or "", ""),
             "quantity": int(line.quantity),
             "line_total": str(
                 line.unit_price * line.quantity - (line.discount_amount or 0)
             ),
         }
-        for line, name in rows
+        for line, name, translations in rows
     ]
     labels = _DELIVERY_LABELS.get(lang, _DELIVERY_LABELS["fr"])
     delivery = order.delivery_type or ""
@@ -410,13 +445,64 @@ async def _order_summary(
         else None
     )
     estimated = getattr(departure, "estimated_delivery_at", None) if departure else None
+    if estimated is not None:
+        # On the shop's clock: the date printed in UTC was a day early every
+        # afternoon at Tahiti (review of 17/11/2026).
+        from app.features.invoice.services.numbering import shop_local
+
+        estimated = shop_local(estimated)
+    pickup = await _pickup_place_text(session, order)
     return {
         "lines": lines,
-        "shipping_address": order.shipping_address or "",
+        # A pickup is collected at the shop: the customer's own address was
+        # printed as if the parcel were delivered there.
+        "shipping_address": (
+            ""
+            if pickup is not None
+            else ", ".join(
+                part
+                for part in (
+                    order.shipping_recipient,
+                    order.shipping_address,
+                    order.shipping_phone,
+                )
+                if part
+            )
+        ),
+        "pickup_place": pickup or "",
         "delivery_label": labels.get(delivery, delivery.replace("_", " ")),
         "departure_name": departure.name if departure else "",
         "estimated_delivery": format_date(estimated, lang) if estimated else "",
     }
+
+
+async def _pickup_place_text(session: AsyncSession, order: Order) -> str | None:
+    """Where a pickup order is collected (name and address of the last leg's
+    destination), ``None`` when the order is delivered. ``""`` for a pickup
+    whose place cannot be read."""
+    from app.features.place.models import Place
+    from app.features.shipping.models.route import ShippingRoute
+
+    segments = (order.shipping_cost_breakdown or {}).get("segments") or []
+    for segment in reversed(segments):
+        try:
+            route = await session.get(
+                ShippingRoute, uuid.UUID(str((segment or {}).get("route_id")))
+            )
+        except (TypeError, ValueError):
+            continue
+        if route is None or getattr(route, "mode", None) != "pickup":
+            continue
+        place = await session.get(Place, route.to_place_id)
+        if place is None:
+            return ""
+        parts = [
+            place.name,
+            place.address_line1,
+            " ".join(p for p in (place.postal_code, place.city) if p),
+        ]
+        return ", ".join(p for p in parts if p)
+    return "" if order.delivery_type == "pickup" else None
 
 
 @outbox_handler(EVENT_ORDER_CREATED)

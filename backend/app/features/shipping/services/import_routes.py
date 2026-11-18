@@ -43,6 +43,9 @@ class ImportRoute:
     customer_label: str | None = None
     eta_days: int | None = None
     is_default_import: bool = False
+    #: Fixed cost of one shipment and the weight it is spread over.
+    base_price: Decimal = Decimal("0")
+    fixed_basis_kg: Decimal | None = None
 
 
 def _snapshot(route: ShippingRoute) -> ImportRoute:
@@ -55,7 +58,31 @@ def _snapshot(route: ShippingRoute) -> ImportRoute:
         customer_label=route.customer_label,
         eta_days=getattr(route, "eta_days", None),
         is_default_import=bool(route.is_default_import),
+        base_price=Decimal(route.base_price or 0),
+        fixed_basis_kg=(
+            Decimal(route.import_fixed_basis_kg)
+            if route.import_fixed_basis_kg is not None
+            else None
+        ),
     )
+
+
+def fixed_cost_per_kg(route: Any) -> Decimal:
+    """The share of the shipment's fixed cost each billable kg carries:
+    ``base_price / basis``, 0 when either is missing."""
+    fixed = Decimal(getattr(route, "base_price", None) or 0)
+    basis = getattr(route, "fixed_basis_kg", None)
+    if basis is None:
+        basis = getattr(route, "import_fixed_basis_kg", None)
+    if fixed <= 0 or basis is None or Decimal(basis) <= 0:
+        return Decimal("0")
+    return fixed / Decimal(basis)
+
+
+def import_freight_rate(route: Any) -> Decimal:
+    """Freight per billable kg of an import route: its price per kg plus the
+    share of its fixed cost (``ImportRoute`` or ``ShippingRoute``)."""
+    return Decimal(getattr(route, "price_per_kg", None) or 0) + fixed_cost_per_kg(route)
 
 
 async def import_routes(session: AsyncSession) -> list[ImportRoute]:
@@ -114,3 +141,40 @@ async def import_route_for_level(
             if route.service_level == service_level:
                 return route
     return routes[0] if routes else None
+
+
+async def import_mode_labels(session: AsyncSession, levels: Any) -> dict[str, str]:
+    """``service_level → label shown to the customer`` for the given levels.
+
+    A line keeps the mode it was paid on even when that route is later
+    withdrawn: the routes on offer answer first, then any route that ever
+    carried the level, then the key itself (never a blank).
+    """
+    wanted = {level for level in levels or () if level}
+    if not wanted:
+        return {}
+    labels: dict[str, str] = {}
+    for route in await import_routes(session):
+        level = route.service_level
+        if level and level in wanted and level not in labels:
+            labels[level] = route.customer_label or level
+    missing = wanted - labels.keys()
+    if missing:
+        rows = (
+            await session.exec(
+                select(ShippingRoute)
+                .where(col(ShippingRoute.service_level).in_(missing))
+                .order_by(
+                    col(ShippingRoute.is_active).desc(),
+                    col(ShippingRoute.priority).asc(),
+                    col(ShippingRoute.id).asc(),
+                )
+            )
+        ).all()
+        for row in rows:
+            level = getattr(row, "service_level", None)
+            if level and level not in labels and row.customer_label:
+                labels[level] = row.customer_label
+    for level in wanted:
+        labels.setdefault(level, level)
+    return labels

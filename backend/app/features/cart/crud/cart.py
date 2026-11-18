@@ -336,8 +336,7 @@ class CartItemCrud(CrudBase[CartItem, CartItemCreate, CartItemUpdate]):
                     code="cart.quantity.too_large",
                     status_code=400,
                     message=(
-                        f"{MAX_LINE_QUANTITY} unités au plus par article : "
-                        "demandez un devis pour une plus grande quantité."
+                        "At most {max} units per item: request a quote for a larger quantity."
                     ),
                     details={"max": MAX_LINE_QUANTITY},
                 )

@@ -170,6 +170,7 @@
         <div class="party__title">Client</div>
         <div class="party__name">{{ buyer.name or buyer.email }}</div>
         {% if buyer.address %}<div>{{ buyer.address }}</div>{% endif %}
+        {% if buyer.tax_id %}<div>N° d'identification : {{ buyer.tax_id }}</div>{% endif %}
         {% if buyer.name and buyer.email %}<div>{{ buyer.email }}</div>{% endif %}
       </div>
     </div>

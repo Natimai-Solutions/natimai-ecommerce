@@ -10,6 +10,7 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.alerting import send_alert
+from app.core.operator_messages import alert
 from app.features.base.crud import RecordNotFoundError
 from app.features.inventory.services.stock_release import (
     release_order_stock,
@@ -538,6 +539,7 @@ async def _close_superseded_payments(
         session.add(cancelled)
         await session.flush()
     closed = 0
+    kept: list[tuple[uuid.UUID, Any]] = []
     for payment in waiting:
         if received.get(payment.id):
             logger.warning(
@@ -547,6 +549,7 @@ async def _close_superseded_payments(
                 order_id,
                 paid_id,
             )
+            kept.append((payment.id, received[payment.id]))
             continue
         locked = (
             await session.exec(
@@ -569,7 +572,40 @@ async def _close_superseded_payments(
             closed,
             paid_id,
         )
+    if kept:
+        await _alert_kept_receipts(
+            session, order_id=order_id, paid_id=paid_id, kept=kept
+        )
     return closed > 0
+
+
+async def _alert_kept_receipts(
+    session: AsyncSession,
+    *,
+    order_id: uuid.UUID,
+    paid_id: uuid.UUID,
+    kept: list[tuple[uuid.UUID, Any]],
+) -> None:
+    """Money was received on a payment the part no longer needs: the order is
+    paid twice for that amount. Only a person can decide (refund it, or move
+    it to the balance), so the shop is told — a log line alone reached no one
+    (review of 17/11/2026)."""
+    order = await session.get(Order, order_id)
+    reference = (
+        (getattr(order, "order_number", None) or str(order_id))
+        if order
+        else str(order_id)
+    )
+    currency = getattr(order, "currency", None) or ""
+    amounts = ", ".join(f"{amount} {currency}".strip() for _, amount in kept)
+    await alert(
+        "payments.receipts_kept",
+        source="payments",
+        order=reference,
+        payment=paid_id,
+        count=len(kept),
+        amounts=amounts,
+    )
 
 
 async def _secure_stock_on_payment(
@@ -590,13 +626,19 @@ async def _secure_stock_on_payment(
             confirm,
         )
     if short:
-        message = (
-            f"Commande {order_id} payée sans stock : sa réservation avait été "
-            f"libérée et {len(short)} article(s) ne sont plus disponibles "
-            f"({', '.join(short)}). À réapprovisionner ou à rembourser."
+        logger.error(
+            "Order %s paid without stock: %d item(s) no longer available (%s)",
+            order_id,
+            len(short),
+            ", ".join(short),
         )
-        logger.error(message)
-        await send_alert(message, source="stock")
+        await alert(
+            "stock.paid_without_stock",
+            source="stock",
+            order=order_id,
+            count=len(short),
+            items=", ".join(short),
+        )
 
 
 async def _receipt_status_sync(
@@ -698,6 +740,7 @@ async def on_payment_captured_issue_invoice(
 
     invoice = await issue_invoice_for_order(session, order_id=order_id)
     logger.info("Invoice %s available for order %s", invoice.invoice_number, order_id)
+    await _credit_refunds_made_before_the_invoice(session, order_id=order_id)
 
     # Issuing is not delivering. The invoice used to sit in the database until
     # the customer thought to look for it; the law expects it to be handed
@@ -758,13 +801,28 @@ async def on_payment_refunded(session: AsyncSession, payload: dict[str, Any]) ->
         fully,
         payload.get("amount"),
     )
-    await _sync_order_status(
-        session,
-        payload=payload,
-        target_status_name=(
-            ORDER_STATUS_REFUNDED if fully else ORDER_STATUS_PARTIALLY_REFUNDED
-        ),
-    )
+    _payment, order = await _load_payment_and_order(session, payload)
+    if not fully and order is not None:
+        # A partial refund (one article missing, a gesture) does not end the
+        # order: it moved to « PartiallyRefunded » whatever its progress and
+        # stopped following its departure (review of 17/11/2026). The refund
+        # shows on the payment (« PartiallyRefunded ») and its credit note. A
+        # deposit order too: its balance (total − deposit) stays right — the
+        # refund lowers what is owed and what was paid alike — and the
+        # credit note of a refund made before the invoice follows the invoice.
+        logger.info(
+            "Order %s keeps its status after a partial refund of payment %s",
+            order.id,
+            payload.get("payment_id"),
+        )
+    else:
+        await _sync_order_status(
+            session,
+            payload=payload,
+            target_status_name=(
+                ORDER_STATUS_REFUNDED if fully else ORDER_STATUS_PARTIALLY_REFUNDED
+            ),
+        )
     # Loyalty points earned on the order go back in proportion (R8 / confort).
     refund_order_id = _parse_order_id(payload)
     if refund_order_id is not None:
@@ -791,7 +849,7 @@ async def on_payment_refunded(session: AsyncSession, payload: dict[str, Any]) ->
             await session.commit()
         if message:
             logger.error("%s", message)
-            await send_alert(message, source="gift_cards")
+            await send_alert(message, source="gift_cards")  # operator language
     # Only a *fully* refunded order gives its stock back, and only the
     # reservations still PENDING. A captured payment has already confirmed its
     # movements (COMPLETED), so this is a no-op on the normal flow — it exists
@@ -842,8 +900,17 @@ async def _order_was_captured(session: AsyncSession, payload: dict[str, Any]) ->
             payment = await session.get(Payment, uuid.UUID(str(raw_payment_id)))
         except (TypeError, ValueError):
             payment = None
-        if _payment_kind(payment) != KIND_DEPOSIT:
-            return True
+        if _payment_kind(payment) == KIND_DEPOSIT:
+            continue
+        # A capture whose amount did not cover its part got no invoice (the
+        # order was parked for review and the admins told): none is coming,
+        # and the refund retried until it gave up with a misleading alert
+        # (review of 17/11/2026).
+        if isinstance(
+            await _captured_amount_mismatch(session, payload=dict(captured)), dict
+        ):
+            continue
+        return True
     return False
 
 
@@ -899,6 +966,11 @@ async def on_payment_refunded_issue_credit_note(
     # Issuing is not delivering (same rule as the invoice): a dedicated event
     # e-mails the document and retries on its own. Issuance is idempotent, so
     # a replay re-publishes for the same note; ``emailed_at`` stops the mail.
+    await _publish_credit_note_issued(session, credit_note)
+    await session.commit()
+
+
+async def _publish_credit_note_issued(session: AsyncSession, credit_note: Any) -> None:
     await outbox_registry.publish(
         session=session,
         event_type=EVENT_CREDIT_NOTE_ISSUED,
@@ -915,7 +987,48 @@ async def on_payment_refunded_issue_credit_note(
         },
         correlation_id=credit_note.order_id,
     )
-    await session.commit()
+
+
+async def _credit_refunds_made_before_the_invoice(
+    session: AsyncSession, *, order_id: uuid.UUID
+) -> int:
+    """Credit notes for the refunds that preceded the invoice.
+
+    A deposit order is invoiced once, with its balance: a refund made before
+    (an article missing, refunded on the deposit) had no invoice to correct,
+    its credit note was skipped, and the invoice then billed the whole total
+    (review of 18/11/2026). Each completed refund without a note gets one
+    now. Idempotent per refund. Does not commit.
+    """
+    from sqlmodel import col, select
+
+    from app.features.invoice.models.credit_note import CreditNote
+    from app.features.payment.models.refund import Refund
+
+    credited = select(CreditNote.refund_id).where(col(CreditNote.order_id) == order_id)
+    refunds = (
+        await session.exec(
+            select(Refund.id)
+            .where(
+                col(Refund.order_id) == order_id,
+                col(Refund.status) == "completed",
+                col(Refund.id).not_in(credited),
+            )
+            .order_by(col(Refund.created_at).asc().nulls_last())
+        )
+    ).all()
+    issued = 0
+    for refund_id in refunds:
+        try:
+            note = await issue_credit_note_for_refund(
+                session, refund_id=refund_id, commit=False
+            )
+        except CreditNoteIssuanceError as exc:
+            logger.error("Earlier refund %s not credited: %s", refund_id, exc)
+            continue
+        await _publish_credit_note_issued(session, note)
+        issued += 1
+    return issued
 
 
 @outbox_handler("payment.rejected")

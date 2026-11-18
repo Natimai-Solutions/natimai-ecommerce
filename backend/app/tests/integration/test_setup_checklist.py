@@ -126,3 +126,61 @@ async def test_the_catalogue_is_counted_as_the_storefront_publishes_it(
     assert statuses["catalogue"] == ("done", 1)
     assert statuses["customs_rates"] == ("done", 0)
     assert statuses["weights"] == ("done", 0)
+
+
+@pytest.mark.asyncio
+async def test_import_routes_and_their_fixed_cost_are_checked(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Review of 17/11/2026 and decision of 18/11/2026: imported articles
+    with no import route carrying a service level were sold without freight;
+    a fixed cost with no weight to spread it over is billed nowhere."""
+    from app.features.shipping.models.route import ShippingRoute
+
+    _settings(monkeypatch, {})
+    _legal(monkeypatch, {})
+    db_session.add(
+        Product(
+            name="Écran",
+            description="",
+            base_price=Decimal("10000"),
+            pricing_mode=PricingMode.IMPORT,
+            is_supplier_managed=False,
+        )
+    )
+    await db_session.commit()
+
+    async def statuses() -> dict[str, tuple[str, int]]:
+        return _statuses(
+            await checklist.get_setup_checklist(db_session, cast(User, None))
+        )
+
+    assert (await statuses())["import_routes"][0] == "todo"
+
+    hub = Place(name="Hub", type="warehouse", is_warehouse=True, country="FR")
+    papeete = Place(name="Papeete", type="warehouse", is_warehouse=True, country="PF")
+    db_session.add_all([hub, papeete])
+    await db_session.flush()
+    route = ShippingRoute(
+        from_place_id=hub.id,
+        to_place_id=papeete.id,
+        name="Import avion",
+        mode="air",
+        service_level="rapide",
+        price_per_kg=Decimal("700"),
+        base_price=Decimal("15000"),
+    )
+    db_session.add(route)
+    await db_session.flush()
+    route_id = route.id
+    await db_session.commit()
+    now = await statuses()
+    assert now["import_routes"][0] == "done"
+    assert now["import_fixed_cost"] == ("todo", 1)
+
+    saved = await db_session.get(ShippingRoute, route_id)
+    assert saved is not None
+    saved.import_fixed_basis_kg = Decimal("200")
+    db_session.add(saved)
+    await db_session.commit()
+    assert (await statuses())["import_fixed_cost"] == ("done", 0)

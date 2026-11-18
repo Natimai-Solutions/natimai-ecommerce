@@ -17,8 +17,178 @@ takes a tag as its `ref`.
   (`users.has_password`, migration `e1f2a3b4c5d6`; unknown for the accounts
   older than the column, which keep the previous rule).
 
+### Changed
+
+- Fewer CI runs: draft pull requests run nothing; a new push cancels the running
+  CI of the same PR; CI and Security no longer run again on the merge to `main`
+  (weekly run and manual runs instead; `deploy.yml` accepts the green CI of the
+  merged PR's head); the API types check runs inside the frontend job;
+  gitleaks, pip-audit and pnpm audit run in one job, the audits only when a
+  manifest or lockfile changed; every job has a
+  `timeout-minutes`; Dependabot opens at most two grouped PRs a month
+  (JavaScript + Python, Docker + actions). The single required status is
+  « CI verte ».
+- Messages to the operator — the alerts posted to `ALERT_WEBHOOK_URL`, the
+  staff notifications of payment events, the quote request e-mailed to the
+  support — are written in the operator's language: the new setting
+  `operator_locale` (Settings → Display; `OPERATOR_LOCALE`), the shop's
+  default language when empty. They were French only. Each message is a key
+  of `app/core/operator_messages.py`, in English and French.
+
+- The API is language-agnostic (decision of 18/11/2026): an error is a code,
+  its details and an English fallback message — every `AppError` message is
+  now the English text of the shared catalogue
+  `shared/utils/src/apiErrors/{en,fr}.json` (357 codes), `{placeholders}`
+  filled from `details`. The server no longer translates (`Accept-Language`
+  no longer changes an error; `app/core/error_messages.py` is gone). The
+  storefront and the admin translate the code from the catalogue
+  (`apiErrorText` in `@app/utils`) and fall back on the server's message;
+  their success texts come from their own i18n files. The API's success
+  texts are English too. Every literal error message is aligned on the
+  catalogue's English text (« No active cart found » → « Your cart is
+  empty. »); runtime texts (`str(exc)`, a provider's answer) are kept. A
+  promo code refusal carries its reason (`details.reason`; the checkout
+  estimate adds `discount_error_code` and `discount_error_details`), and
+  the catalogue has a text per reason (`checkout.discount.refused.expired`…);
+  coupon validation (`POST …/validate-coupon`) answers reason codes too. `signup.guest` answers `signup.email_exists` for an
+  address with a full account. A backend test fails when a raised code is
+  missing from the catalogue, a placeholder is not in the raise's details, or
+  a message is French.
+
 ### Added
 
+- Tests: the freight from the product page to the invoice (one freight,
+  billed once), two checkouts truly in parallel on one cart (two sessions:
+  one order), and `scripts/release/deploy.sh` run for real with fake
+  docker/curl (dump before migrating, rollback when the new version does not
+  start or is never ready, no migration without a dump).
+- A job arq gives up on before running it (expired in the queue, past its
+  tries before it could start, unknown function) is journaled as failed and
+  alerts, like a job that ran and failed: arq only stored a result read by
+  no one, and « État du système » kept the task « ok ». Review of 17/11/2026.
+- A departure carries an import mode (`grouped_departures.service_level`,
+  optional): an order whose lines share one mode joins the next departure of
+  that mode, else one carrying no mode — an order paid by sea went with the
+  next air departure and showed its date. The storefront shows the departure
+  of the mode chosen on the product page and of the cart's mode at checkout
+  (`GET /grouped-departures/next?service_level=`). A supplier has a lead time
+  (`suppliers.lead_time_days`), added to each mode's delay on the product
+  page when the article is not in local stock (`supplier_lead_days`).
+  Migration `b9c0d1e2f3a4`. Functional audit D1.
+- A deposit order partially refunded keeps its status too and follows its
+  departure: its balance (total − deposit) stays right, the refund lowering
+  what is owed and what was paid alike. A refund made before the invoice
+  (issued with the balance) had no invoice to correct, so its credit note
+  was skipped and the invoice billed the whole total: issuing the invoice
+  now credits every completed refund without a note.
+- A recurring departure left open below its threshold past its cut-off
+  opens its following departure in advance: the new orders go there while
+  the admin decides (they were attached to no departure). The link
+  (`grouped_departures.next_departure_id`, migration `a8b9c0d1e2f3`) keeps a
+  later close from opening a second one. Decision of 18/11/2026 (option B).
+- A route into a customs clearance place must carry a mode (rapide,
+  économique…): saving one without is refused
+  (`shipping_route.import_mode_required`). The article price holds the
+  freight of the routes with a mode while the checkout leaves out every route
+  ending where customs clear: such a route's freight was billed nowhere. An
+  inactive route is exempt (an old one can still be switched off); the active
+  ones saved before are listed by the setup checklist. Decision of 18/11/2026.
+- The fixed fee of an import route (the forwarder's fee per shipment,
+  `base_price`) was billed nowhere: neither in the article price nor at
+  checkout. It is now spread per billable kg (actual or volumetric weight,
+  whichever is higher) over the weight of a departure at its threshold,
+  entered on the route (`import_fixed_basis_kg`, migration `f7a8b9c0d1e2`):
+  rate = price per kg + fee ÷ that weight, the same on the product page, the
+  cart, the order line's cost and the cached catalogue price. The route form
+  shows the resulting rate. The setup checklist blocks while imported
+  articles have no import route carrying a mode, or an import route has a
+  fee and no weight to spread it over. Decision of 18/11/2026.
+- A stuck worker restarts (Z3, decision of 18/11/2026): the worker ends
+  itself when its event loop is blocked for 5 minutes or Redis is unreachable
+  for 3 (`app/core/worker_watchdog.py`), so Docker starts a fresh one; a
+  server cron (`scripts/ops/restart-unhealthy.sh`, every 5 minutes) restarts
+  any container Docker reports unhealthy and alerts, and stops after 3
+  restarts in an hour. DEPLOYMENT.md §12.1.
+- A separate billing address (decision of 18/11/2026): an address carries
+  an optional business id (n° TAHITI, SIRET…); at checkout « Facturer à une
+  autre adresse (société) » picks one, frozen on the order (`billing_name`,
+  `billing_address`, `billing_tax_id`, migration `e6f7a8b9c0d1`) and printed
+  as the buyer on the invoice and the credit notes, tax id included. The
+  admin order page shows it.
+- « Payer ma commande » warns when a transfer, cheque or cash payment is
+  announced and not received yet: a customer who already sent it would pay
+  twice (decision of 18/11/2026: a warning, not a refusal).
+- The order's address is built by the server from the saved address
+  (`shipping_address_id`): company, street, city, country; the recipient and
+  the phone have their own columns (`orders.shipping_recipient`,
+  `orders.shipping_phone`, migration `d5e6f7a8b9c0`). The storefront used to
+  compose the text, recipient and phone inside, and the invoice took it as
+  the buyer's address. The order pages and the e-mail show the three; the
+  address cards (checkout, account) show the recipient, the company and the
+  phone, and say when the recipient is missing. Review of 17/11/2026.
+- A partial refund no longer moves a fully paid order to
+  « PartiallyRefunded » whatever its progress (it then followed its departure
+  no more): the order keeps its status, the refund shows on the payment and
+  its credit note. A deposit order keeps the old rule until its balance
+  deducts refunds. Review of 17/11/2026.
+- « État du système » tells a stopped worker (no health key in Redis) and a
+  scheduled task that missed its next run by more than 20 minutes (« En
+  retard », worked out from its cron), instead of « ok » on the last success.
+  The events the poller gave up on (FAILED) are listed, with « Relancer »
+  (back to pending, attempts reset) and « Écarter » (closed, then purged by
+  the retention). A replay is claimed in one statement: two clicks no longer
+  replay twice. Review of 17/11/2026.
+- The generic order update (`PUT /order/{id}`) checks a status change
+  before writing anything: the other fields used to be saved, then the
+  status refused. Review of 17/11/2026.
+- Storefront: at sign-in the visitor's server cart catches up with the local
+  one before the merge (an article added just before the session came back
+  was dropped by it); the cart store's fallback messages are translated.
+  Back office: changing a departure's status from its edit form asks the
+  same confirmation as « Étape suivante » (it moves every order and e-mails
+  each customer). Review of 17/11/2026.
+- The checkout estimate counts distinct refused promo codes, not answers: it
+  is re-asked at every change of the checkout, and ten re-quotes of the same
+  expired code locked every code out for 10 minutes. Review of 17/11/2026.
+- The order confirmation e-mail names the products in the customer's
+  language, prints the estimated delivery on the shop's clock (it was a day
+  early every afternoon at Tahiti), and for a pickup shows where to collect
+  the order instead of the customer's address. Review of 17/11/2026.
+- No more « handler abandoned » alerts for nothing: the credit note of a
+  refund no longer waits for an invoice when the capture did not cover the
+  order (parked for review, never invoiced), and the balance of a deposit
+  order is not requested from an erased account (anonymised address).
+  Review of 17/11/2026.
+- Task alerts: a supplier health probe answering « unhealthy » now counts as
+  a failure (it alerted nobody); the one-article Icecat task is no longer
+  journaled (an article Icecat does not know marked « the » task failed);
+  `last_alert_at` is stamped once the alert is out, not before (a webhook
+  down at that moment silenced the task for 6 hours). Review of 17/11/2026.
+- « État du système » lists the open group departures past their cut-off
+  (threshold not reached, waiting for the admin), with how long, and turns
+  « à surveiller ». The 15-minute cron no longer asks the supplier for the
+  live stock of a departure it then leaves open: only one that closes is
+  checked. Review of 17/11/2026.
+- A waiting payment that already carries money received at the counter,
+  left open when its part is paid by another payment, now alerts the shop
+  (`ALERT_WEBHOOK_URL`: order, amounts received, what to do) instead of a log
+  line only. Review of 17/11/2026.
+- The checkout takes an `idempotency_key`, chosen by the storefront once per
+  submission (a changed cart is a new one) and kept across a reload: a retry
+  whose first attempt went through — its response lost to a timeout — gets
+  that order back (`replayed`, the storefront opens the order's page) instead
+  of a second order, and the cart the retry rebuilt is emptied. Two attempts
+  in flight meet on a unique index (`orders.checkout_key`, migration
+  `c4d5e6f7a8b9`) before any stock or payment is touched; a double click that
+  finds its cart ordered gets the order too. The storefront now handles
+  `cart.already_checked_out` (another tab). D5, review of 17/11/2026.
+- The import mode the customer paid for (rapide, économique…) shows on the
+  back-office order page, under each line — the shop ships by it —, on the
+  customer's order page and in the confirmation e-mail, by its customer label
+  (kept for a route withdrawn since). It follows a quote request, the issued
+  quote and its acceptance into the cart, and « commander à nouveau » (an
+  article already in the cart keeps the cart's mode; a mode no longer on
+  offer falls back to the default one). Review of 17/11/2026.
 - The order confirmation e-mail lists the lines, the delivery mode, the
   delivery address, the group departure and the estimated delivery, in the
   customer's language (functional audit M4).

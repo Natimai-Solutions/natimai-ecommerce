@@ -77,7 +77,8 @@ async function onSubmit() {
   submitting.value = true;
   errorMessage.value = null;
   try {
-    sentMessage.value = await requestPasswordReset(email.value.trim().toLowerCase());
+    await requestPasswordReset(email.value.trim().toLowerCase());
+    sentMessage.value = t('auth.reset_link_sent');
   } catch (err) {
     errorMessage.value = apiErrorMessage(err) ?? t('auth.send_failed');
   } finally {

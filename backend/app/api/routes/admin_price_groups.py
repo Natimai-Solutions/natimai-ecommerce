@@ -57,7 +57,7 @@ async def update_price_group(
         raise AppError(
             code="price_group.not_found",
             status_code=404,
-            message="Groupe tarifaire introuvable",
+            message="Price group not found.",
             details={"group_id": str(group_id)},
         )
     changes = body.model_dump(exclude_unset=True)
@@ -69,8 +69,7 @@ async def update_price_group(
             code="price_group.default_discount",
             status_code=400,
             message=(
-                "Le groupe par défaut donne les prix de référence : il ne peut pas "
-                "avoir de remise"
+                "The default group gives the reference prices: it cannot have a discount."
             ),
             details={"group_id": str(group_id)},
         )

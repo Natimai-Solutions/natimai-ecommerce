@@ -12,6 +12,8 @@ export interface Departure extends DepartureLike {
   min_amount: string | null;
   min_units: number | null;
   recurrence_days: number | null;
+  /** Mode d'import du départ (null = tous modes). */
+  service_level?: string | null;
   notes: string | null;
   consolidation_id: string | null;
   /** Real purchase orders placed for this departure (one per supplier). */
@@ -38,6 +40,7 @@ export interface DepartureWrite {
   min_amount?: string | null;
   min_units?: number | null;
   recurrence_days?: number | null;
+  service_level?: string | null;
   notes?: string | null;
   freight_cost?: string | null;
   customs_cost?: string | null;

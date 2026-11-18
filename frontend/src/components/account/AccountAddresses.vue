@@ -40,10 +40,19 @@
           />
         </div>
         <address class="address-card__body">
+          <template v-if="address.recipient_name"
+            ><strong>{{ address.recipient_name }}</strong
+            ><br
+          /></template>
+          <template v-if="address.company">{{ address.company }}<br /></template>
           {{ address.street }}<br />
           {{ address.postal_code }} {{ address.city }}<br />
           <template v-if="address.state">{{ address.state }}<br /></template>
           {{ countryLabel(address.country) }}
+          <template v-if="address.phone"><br />{{ address.phone }}</template>
+          <template v-if="!address.recipient_name"
+            ><br /><span class="text-subtle">{{ $t('addresses.no_recipient') }}</span></template
+          >
         </address>
         <div class="address-card__actions">
           <button type="button" class="text-link" @click="openAddressDialog(address)">

@@ -98,7 +98,7 @@ async def test_unknown_code_is_refused() -> None:
     )
 
     assert (valid, discount) == (False, None)
-    assert message == "Code coupon invalide"
+    assert message == "unknown"
 
 
 @pytest.mark.anyio
@@ -108,7 +108,7 @@ async def test_coupon_not_yet_valid_is_refused() -> None:
     )
 
     assert (valid, discount) == (False, None)
-    assert message == "Ce coupon n'est pas encore valide"
+    assert message == "not_started"
 
 
 @pytest.mark.anyio
@@ -118,7 +118,7 @@ async def test_expired_coupon_is_refused() -> None:
     )
 
     assert (valid, discount) == (False, None)
-    assert message == "Ce coupon a expiré"
+    assert message == "expired"
 
 
 @pytest.mark.anyio
@@ -128,7 +128,7 @@ async def test_coupon_at_its_usage_limit_is_refused() -> None:
     )
 
     assert (valid, discount) == (False, None)
-    assert message == "Ce coupon a atteint sa limite d'utilisation"
+    assert message == "exhausted"
 
 
 @pytest.mark.anyio
@@ -139,7 +139,7 @@ async def test_deactivated_coupon_is_refused() -> None:
     )
 
     assert (valid, discount) == (False, None)
-    assert message == "Ce coupon est désactivé"
+    assert message == "disabled"
 
 
 @pytest.mark.anyio
@@ -153,7 +153,7 @@ async def test_coupon_inside_its_window_and_under_its_quota_is_accepted() -> Non
     )
 
     assert valid is True
-    assert message == "Coupon valide"
+    assert message == "valid"
     assert discount is coupon
 
 

@@ -196,7 +196,7 @@ async def test_advance_consolidation_admin_endpoint(db_session: AsyncSession) ->
         session=db_session,
         admin=seed.admin,
     )
-    assert "colis" in resp.message
+    assert "parcel" in resp.message
 
     completed_id = await _status_id(
         db_session, entity="route_tracking", code="completed"
@@ -240,7 +240,7 @@ async def test_deliver_consolidation_detaches_and_delivers(
     resp = await deliver_consolidation(
         consolidation_id=seed.consolidation_id, session=db_session, admin=seed.admin
     )
-    assert "livré" in resp.message
+    assert "delivered" in resp.message
 
     delivered_id = await _status_id(
         db_session, entity="route_tracking", code="delivered"

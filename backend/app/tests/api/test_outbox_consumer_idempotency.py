@@ -340,7 +340,7 @@ async def test_execute_outbox_handler_gives_up_and_alerts_after_max_tries(
         Mock(return_value=_FakeSessionContext()),
     )
     alert_mock = AsyncMock(return_value=True)
-    monkeypatch.setattr(consumer_module, "send_alert", alert_mock)
+    monkeypatch.setattr("app.core.alerting.send_alert", alert_mock)
 
     redis = SimpleNamespace(
         get=AsyncMock(return_value=None),

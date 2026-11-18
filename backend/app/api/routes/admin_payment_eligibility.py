@@ -36,7 +36,7 @@ async def list_eligible_groups(
         raise AppError(
             code="payment.method.not_found",
             status_code=404,
-            message=f"Payment method {payment_method_id} not found",
+            message="Payment method not found.",
             details={"payment_method_id": str(payment_method_id)},
         ) from exc
 
@@ -71,7 +71,7 @@ async def add_eligible_group(
         raise AppError(
             code="payment.method.not_found",
             status_code=404,
-            message=f"Payment method {payment_method_id} not found",
+            message="Payment method not found.",
             details={"payment_method_id": str(payment_method_id)},
         ) from exc
 
@@ -80,7 +80,7 @@ async def add_eligible_group(
         raise AppError(
             code="price_group.not_found",
             status_code=404,
-            message=f"Price group {price_group_id} not found",
+            message="Price group not found.",
             details={"price_group_id": str(price_group_id)},
         )
 

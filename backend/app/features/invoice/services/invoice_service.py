@@ -28,8 +28,8 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import runtime_settings
-from app.core.alerting import send_alert
 from app.core.config import settings
+from app.core.operator_messages import alert
 from app.features.invoice.models.invoice import Invoice
 from app.features.invoice.services.integrity import seal_document
 from app.features.invoice.services.numbering import (
@@ -163,14 +163,28 @@ async def _seller_identity(session: AsyncSession) -> dict[str, str]:
     # whereas a bad invoice has already burned a number in a legally gap-free
     # sequence and cannot be edited or deleted.
     logger.error(message)
-    await send_alert(message, source="invoice")
+    await alert(
+        "invoice.identity_incomplete", source="invoice", missing=", ".join(missing)
+    )
     raise InvoiceIssuanceError(message)
 
 
 async def _build_buyer_identity(
     session: AsyncSession, *, order: Order, user: User | None
 ) -> dict[str, Any]:
-    """Buyer block: account identity plus the shipping address of the order."""
+    """Buyer block: the billing identity chosen at checkout (a company, its
+    tax id), else the account identity at the shipping address."""
+    # getattr: orders built before the columns (and lightweight test orders).
+    billed_at = getattr(order, "billing_address", None)
+    if billed_at:
+        return {
+            "name": getattr(order, "billing_name", None)
+            or (user.full_name if user else None)
+            or "",
+            "email": (user.email if user else None) or "",
+            "address": billed_at,
+            "tax_id": getattr(order, "billing_tax_id", None) or "",
+        }
     billing_address = order.shipping_address or ""
     if not billing_address:
         # Fall back to the user's first known address (orders placed through

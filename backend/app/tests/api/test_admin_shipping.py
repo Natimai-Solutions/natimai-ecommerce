@@ -64,7 +64,7 @@ async def test_ship_tracking_sets_status_ref_and_publishes(
         admin=admin,
     )
 
-    assert "expédié" in response.message.lower()
+    assert "shipped" in response.message.lower()
 
     # Forced transition to the resolved "shipped" status id.
     assert update_status.await_args is not None
@@ -112,7 +112,7 @@ async def test_deliver_tracking_marks_delivered(
         tracking_id=tracking.id, session=session, admin=admin
     )
 
-    assert "livré" in response.message.lower()
+    assert "delivered" in response.message.lower()
     assert publish.await_args is not None
     assert publish.await_args.kwargs["payload"]["status_code"] == "delivered"
     session.commit.assert_awaited()

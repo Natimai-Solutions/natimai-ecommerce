@@ -76,6 +76,20 @@ class ShippingRouteBase(Base):
     price_per_kg: Decimal | None = Field(
         default=None, sa_column=Column(NUMERIC(10, 2)), description="Price per kg"
     )
+    # Import route: ``base_price`` is the fixed cost of one shipment (the
+    # forwarder's per-departure fee), shared by every order of the departure.
+    # Billed per order it would be paid many times over; it is spread per kg
+    # instead, over the billable weight of a departure at its threshold:
+    # rate = price_per_kg + base_price / import_fixed_basis_kg (decision of
+    # 18/11/2026). Null = the fixed cost is billed nowhere.
+    import_fixed_basis_kg: Decimal | None = Field(
+        default=None,
+        sa_column=Column(NUMERIC(10, 2)),
+        description=(
+            "Import route: billable weight (kg) of a departure at its threshold, "
+            "over which the fixed cost (base_price) is spread per kg"
+        ),
+    )
     # Classic carrier grid: the weight part of the tariff by band instead of
     # linear per-kg. [{"max_kg": 1, "price": 5}, {"max_kg": 3, "price": 8},
     # {"max_kg": null, "price": 12}] — sorted ascending, an optional open last
@@ -284,6 +298,7 @@ class ShippingRouteUpdate(ShippingRouteBase, BaseUpdate):
     operator_ref: str | None = None
     base_price: Decimal | None = None
     price_per_kg: Decimal | None = None
+    import_fixed_basis_kg: Decimal | None = None
     weight_bands: list[dict[str, Any]] | None = None
     free_shipping_threshold: Decimal | None = None
     carbon_footprint_kg_co2e: float | None = None

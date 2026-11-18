@@ -38,7 +38,8 @@ def _bad_translations(exc: InvalidTranslations) -> AppError:
     return AppError(
         code="content.translations.invalid",
         status_code=400,
-        message=f"Traductions invalides : {exc}",
+        message="Invalid translations.",
+        details={"problem": str(exc)},
     )
 
 
@@ -46,7 +47,7 @@ def _not_found(slug: str) -> AppError:
     return AppError(
         code="content_page.not_found",
         status_code=404,
-        message="Page introuvable",
+        message="Page not found.",
         details={"slug": slug},
     )
 
@@ -114,7 +115,7 @@ async def get_page_template(
         raise AppError(
             code="content_page.template.not_found",
             status_code=404,
-            message="Aucun modèle pour cette page",
+            message="No template for this page.",
             details={"slug": slug},
         )
     body_html = await render_legal_template_from_db(session, slug)
@@ -130,7 +131,7 @@ async def upsert_page(
         raise AppError(
             code="content_page.slug.invalid",
             status_code=400,
-            message="Slug invalide : minuscules, chiffres et tirets (ex. comment-ca-marche)",
+            message="Invalid slug: lowercase letters, digits and hyphens (e.g. how-it-works).",
             details={"slug": slug},
         )
     existing = await crud_content_page.get_by_slug(session, slug)

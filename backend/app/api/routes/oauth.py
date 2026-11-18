@@ -126,8 +126,7 @@ def _check_provider(provider: str) -> None:
         raise AppError(
             code="oauth.provider.unsupported",
             status_code=400,
-            message=f"Fournisseur OAuth non supporté : {provider!r}. "
-            f"Valeurs acceptées : {sorted(_SUPPORTED_PROVIDERS)}",
+            message="Unsupported sign-in provider.",
             details={"provider": provider},
         )
 
@@ -139,7 +138,7 @@ def _check_configured(provider: str) -> None:
         raise AppError(
             code="oauth.provider.not_configured",
             status_code=503,
-            message="La connexion via Google n'est pas configurée sur ce serveur.",
+            message="Signing in with this provider is not configured on this server.",
             details={"provider": "google"},
         )
     if provider == "microsoft" and not (
@@ -148,7 +147,7 @@ def _check_configured(provider: str) -> None:
         raise AppError(
             code="oauth.provider.not_configured",
             status_code=503,
-            message="La connexion via Microsoft n'est pas configurée sur ce serveur.",
+            message="Signing in with this provider is not configured on this server.",
             details={"provider": "microsoft"},
         )
 
@@ -233,7 +232,7 @@ async def _exchange_code(
         raise AppError(
             code="oauth.token.exchange_failed",
             status_code=502,
-            message="Impossible d'obtenir le token OAuth auprès du fournisseur.",
+            message="Could not obtain the sign-in token from the provider.",
             details={"provider": provider},
         )
     return cast("dict[str, Any]", resp.json())
@@ -259,7 +258,7 @@ async def _fetch_user_info(provider: str, access_token: str) -> dict[str, Any]:
         raise AppError(
             code="oauth.userinfo.fetch_failed",
             status_code=502,
-            message="Impossible de récupérer les informations utilisateur auprès du fournisseur.",
+            message="Could not fetch your details from the provider.",
             details={"provider": provider},
         )
     return cast("dict[str, Any]", resp.json())

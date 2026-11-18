@@ -355,7 +355,7 @@ async def test_disable_gives_one_answer_for_either_mistake(
                 user,
             )
         answers.add((refused.value.code, refused.value.message))
-    assert answers == {("auth.2fa.disable_refused", "Mot de passe ou code incorrect")}
+    assert answers == {("auth.2fa.disable_refused", "Incorrect password or code.")}
 
 
 def test_recovery_codes_are_hashed_with_the_server_key() -> None:

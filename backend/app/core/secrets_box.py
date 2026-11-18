@@ -64,8 +64,7 @@ def encrypt_json(values: dict[str, str]) -> str:
             code="secrets.no_key",
             status_code=400,
             message=(
-                "Ce secret ne peut pas être enregistré : "
-                "SECRETS_ENCRYPTION_KEY n'est pas configurée sur le serveur"
+                "This secret cannot be stored: the encryption key is not configured on the server."
             ),
             details={"setting": "SECRETS_ENCRYPTION_KEY"},
         ) from exc

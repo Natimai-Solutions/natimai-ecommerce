@@ -172,7 +172,7 @@ async def capture_payzen_transaction(trans_uuid: str) -> dict[str, Any]:
         raise AppError(
             code="internal.unavailable",
             status_code=503,
-            message="Communication error with PayZen during capture",
+            message="A service did not answer. Try again in a moment.",
             details={"service": "payzen"},
         ) from e
 
@@ -224,7 +224,7 @@ async def refund_payzen_transaction(
         raise AppError(
             code="internal.unavailable",
             status_code=503,
-            message="Communication error with PayZen during refund",
+            message="A service did not answer. Try again in a moment.",
             details={"service": "payzen"},
         ) from e
 
@@ -324,7 +324,7 @@ async def create_payzen_form_token(
                 raise AppError(
                     code="payment.provider.invalid_response",
                     status_code=502,
-                    message="Invalid response from PayZen",
+                    message="The payment form could not be prepared. Try again in a moment.",
                     details={"provider_code": "payzen", "reason": "invalid_json"},
                 ) from e
 
@@ -375,7 +375,7 @@ async def create_payzen_form_token(
                 raise AppError(
                     code="payment.provider.invalid_response",
                     status_code=502,
-                    message="Error generating formToken",
+                    message="The payment form could not be prepared. Try again in a moment.",
                     details={
                         "provider_code": "payzen",
                         "reason": "missing_form_token",
@@ -387,7 +387,7 @@ async def create_payzen_form_token(
         raise AppError(
             code="internal.unavailable",
             status_code=503,
-            message="Communication error with PayZen",
+            message="A service did not answer. Try again in a moment.",
             details={"service": "payzen"},
         ) from e
     except httpx.HTTPStatusError as e:
@@ -395,7 +395,7 @@ async def create_payzen_form_token(
         raise AppError(
             code="internal.unavailable",
             status_code=503,
-            message=f"PayZen error: {e.response.status_code}",
+            message="A service did not answer. Try again in a moment.",
             details={"service": "payzen", "status_code": e.response.status_code},
         ) from e
     except AppError:
@@ -405,6 +405,6 @@ async def create_payzen_form_token(
         raise AppError(
             code="payment.provider.gateway_error",
             status_code=500,
-            message="Internal server error during PayZen payment initiation",
+            message="The payment provider did not answer. Try again in a moment.",
             details={"provider_code": "payzen", "reason": type(e).__name__},
         ) from e

@@ -429,7 +429,7 @@ class PaypalProvider(ApiPaymentProvider):
                 response.status_code,
                 response.text[:500],
             )
-            return CaptureResult(status="failed", message="PayPal a refusé la capture.")
+            return CaptureResult(status="failed", message="PayPal refused the capture.")
         capture = response.json()
         status = str(capture.get("status"))
         if status not in ("COMPLETED", "PENDING"):
@@ -439,7 +439,7 @@ class PaypalProvider(ApiPaymentProvider):
         return CaptureResult(
             status="completed",
             provider_reference=capture.get("id"),
-            message="Capture PayPal effectuée."
+            message="PayPal capture done."
             if status == "COMPLETED"
             else "Capture PayPal en cours de traitement chez PayPal.",
         )
@@ -475,14 +475,14 @@ class PaypalProvider(ApiPaymentProvider):
             )
             return RefundResult(
                 status="failed",
-                message=f"PayPal a refusé le remboursement ({_issue(response) or response.status_code}).",
+                message=f"PayPal refused the refund ({_issue(response) or response.status_code}).",
             )
         refund = response.json()
         status = str(refund.get("status"))
         return RefundResult(
             status="completed" if status == "COMPLETED" else "pending",
             provider_reference=refund.get("id"),
-            message="Remboursement PayPal effectué."
+            message="PayPal refund done."
             if status == "COMPLETED"
             else "Remboursement PayPal en cours de traitement chez PayPal.",
             metadata={

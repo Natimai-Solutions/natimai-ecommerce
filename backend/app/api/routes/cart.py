@@ -10,6 +10,8 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Header, Query, Request, Response, status
 from pydantic import BaseModel, EmailStr
+from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.attributes import set_committed_value
 from sqlmodel import SQLModel, col, or_, select
 
@@ -20,10 +22,12 @@ from app.core.config import settings
 from app.core.errors import AppError
 from app.core.i18n import request_locale
 from app.core.observability import log_structured_event, observe_checkout_result
+from app.core.operator_messages import operator_locale, operator_text
 from app.core.rate_limit import (
     hit_rate_limit,
     rate_limited,
     release_rate_limit_hit,
+    shared_redis,
 )
 from app.features.cart.crud.cart import crud_cart, crud_cart_item
 from app.features.cart.crud.quote_request import crud_quote_request
@@ -57,6 +61,7 @@ from app.features.cart.services.quote import (
     check_convertible,
     quote_currency,
     quote_pdf_response,
+    quoted_levels,
     quoted_prices,
 )
 from app.features.departure.crud import crud_grouped_departure
@@ -85,13 +90,16 @@ from app.features.order.crud.order_crud import crud_order
 from app.features.order.crud.order_line_crud import crud_order_line
 from app.features.order.crud.order_status_crud import crud_order_status
 from app.features.order.models.order import Order, OrderCreate
-from app.features.order.models.order_line import OrderLineCreate
+from app.features.order.models.order_line import OrderLine, OrderLineCreate
 from app.features.order.models.order_status import OrderStatus, OrderStatusCreate
-from app.features.order.services.customer_actions import order_lines_to_reorder
+from app.features.order.services.customer_actions import (
+    order_line_levels,
+    order_lines_to_reorder,
+)
 from app.features.order.services.order_number import allocate_order_number
 from app.features.payment.crud.payment import crud_payment
 from app.features.payment.crud.payment_status import crud_payment_status
-from app.features.payment.models.payment import PaymentCreate
+from app.features.payment.models.payment import Payment, PaymentCreate
 from app.features.payment.models.payment_method import PaymentMethod
 from app.features.payment.models.payment_status import (
     PaymentStatus,
@@ -248,14 +256,7 @@ def _plan_checkout_fulfillment_segments(
             # Named and counted: the customer read « Insufficient stock for
             # product <uuid>: requested=… » and could not tell which line.
             message=(
-                f"« {getattr(product, 'name', None) or 'Un article'} » : "
-                + (
-                    f"il n'en reste que {int(total_available)} "
-                    f"(vous en demandez {int(requested_quantity)}). "
-                    if total_available > 0
-                    else "cet article n'est plus en stock. "
-                )
-                + "Ajustez votre panier pour continuer."
+                "“{product_name}”: only {available} left. Adjust the quantity to continue."
             ),
             details={
                 "product_id": str(product.id),
@@ -501,8 +502,7 @@ async def _resolve_selected_checkout_routes(
         raise AppError(
             code="shipping.route.unknown_or_inactive",
             status_code=400,
-            message="Unknown or inactive shipping routes: "
-            + ", ".join(missing_route_ids),
+            message="This delivery mode is no longer available: choose another one.",
             details={"route_ids": missing_route_ids},
         )
 
@@ -512,9 +512,7 @@ async def _resolve_selected_checkout_routes(
             code="shipping.route.import_not_billable",
             status_code=400,
             message=(
-                "Import routes are already priced into the product and cannot "
-                "be charged as shipping: "
-                + ", ".join(sorted(str(rid) for rid in import_route_ids))
+                "An import route is already in the product price: it cannot be billed as shipping."
             ),
             details={"route_ids": sorted(str(rid) for rid in import_route_ids)},
         )
@@ -527,8 +525,7 @@ async def _resolve_selected_checkout_routes(
             raise AppError(
                 code="shipping.route.destination_not_served",
                 status_code=400,
-                message="Shipping routes not serving this destination: "
-                + ", ".join(foreign),
+                message="This delivery mode does not serve this destination: choose another one.",
                 details={"route_ids": foreign},
             )
 
@@ -614,6 +611,83 @@ def _compute_checkout_declared_value_and_weight(
                 total_weight_kg += product_weight * item_quantity
 
     return declared_value, total_weight_kg
+
+
+def address_text(address: Any) -> str:
+    """The postal part of a saved address, as the order keeps it."""
+    parts = [
+        getattr(address, "company", None),
+        getattr(address, "street", None),
+        " ".join(
+            p
+            for p in (
+                getattr(address, "postal_code", None),
+                getattr(address, "city", None),
+            )
+            if p
+        ),
+        getattr(address, "state", None),
+        getattr(address, "country", None),
+    ]
+    return ", ".join(str(p).strip() for p in parts if p and str(p).strip())
+
+
+async def _order_address_snapshot(
+    session: SessionDep,
+    *,
+    user_id: uuid.UUID,
+    address_id: uuid.UUID | None,
+    typed: str | None,
+) -> tuple[str | None, str | None, str | None]:
+    """``(address, recipient, phone)`` frozen on the order.
+
+    Built here from the customer's saved address: the storefront used to
+    compose the text (recipient and phone included, capped at 500 characters)
+    and the invoice took it, as is, for the buyer's address (review of
+    17/11/2026). The typed text stays for a caller without a saved address.
+    """
+    if address_id is not None:
+        address = await session.get(Address, address_id)
+        if address is not None and address.user_id == user_id:
+            return (
+                address_text(address)[:500] or None,
+                address.recipient_name or None,
+                address.phone or None,
+            )
+    return (typed, None, None)
+
+
+async def _billing_snapshot(
+    session: SessionDep, *, user_id: uuid.UUID, address_id: uuid.UUID | None
+) -> tuple[str | None, str | None, str | None]:
+    """``(name, address, tax_id)`` billed when the customer chose a billing
+    address of their own; all None otherwise (the invoice then bills the
+    account at the shipping address)."""
+    if address_id is None:
+        return (None, None, None)
+    address = await session.get(Address, address_id)
+    if address is None or address.user_id != user_id:
+        raise AppError(
+            code="checkout.billing_address.not_found",
+            status_code=400,
+            message="Billing address not found.",
+            details={"billing_address_id": str(address_id)},
+        )
+    postal = ", ".join(
+        str(p).strip()
+        for p in (
+            address.street,
+            " ".join(p for p in (address.postal_code, address.city) if p),
+            address.state,
+            address.country,
+        )
+        if p and str(p).strip()
+    )
+    return (
+        address.company or address.recipient_name or None,
+        postal[:500] or None,
+        address.tax_id or None,
+    )
 
 
 async def _resolve_tracking_address_for_checkout(
@@ -1208,8 +1282,7 @@ async def _revalidate_checkout_prices(
         code="cart.price.changed",
         status_code=409,
         message=(
-            "Le prix de certains articles a changé depuis leur ajout au panier. "
-            "Vérifiez le nouveau montant avant de valider."
+            "The price of some items changed since they were added to the cart. Check the new total before confirming."
         ),
         details={"currency": currency, "items": drifted},
     )
@@ -1329,8 +1402,7 @@ async def _reserve_stock_for_checkout(
             code="cart.stock.unavailable",
             status_code=409,
             message=(
-                f"« {getattr(product, 'name', None) or 'Un article'} » n'est plus "
-                "disponible chez le fournisseur. Retirez-le du panier pour continuer."
+                "“{product_name}” is no longer available from the supplier: remove it from the cart to continue."
             ),
             details={
                 "product_id": str(product.id),
@@ -1364,12 +1436,12 @@ async def _reserve_stock_for_checkout(
                     code="cart.stock.insufficient",
                     status_code=409,
                     message=(
-                        f"Insufficient local stock for product {product.id}: "
-                        f"requested={quantity_decimal}, "
-                        f"local_available={local_available}"
+                        "“{product_name}”: only {available} left. Adjust the quantity to continue."
                     ),
                     details={
                         "product_id": str(product.id),
+                        "product_name": product.name,
+                        "available": int(local_available + supplier_available),
                         "requested": str(quantity_decimal),
                         "local_available": str(local_available),
                         "supplier_available": str(supplier_available),
@@ -1483,7 +1555,7 @@ async def _get_active_product_or_404(
         raise AppError(
             code="cart.product.not_found",
             status_code=404,
-            message=f"Product '{product_id}' not found",
+            message="This item is no longer for sale.",
             details={"product_id": str(product_id)},
         )
 
@@ -1496,7 +1568,7 @@ async def _get_active_product_or_404(
         raise AppError(
             code="cart.product.has_variants",
             status_code=409,
-            message=f"Product '{product_id}' has variants: choose one",
+            message="Choose a variant of this item.",
             details={"product_id": str(product_id)},
         )
     # A product whose customs rate or weight is missing prices below cost
@@ -1508,7 +1580,7 @@ async def _get_active_product_or_404(
         raise AppError(
             code="cart.product.not_purchasable",
             status_code=409,
-            message=f"Product '{product_id}' is not available for sale",
+            message="This item is not available for sale at the moment.",
             details={"product_id": str(product_id), "blockers": blockers},
         )
 
@@ -1852,7 +1924,7 @@ async def reorder_into_cart(
         raise AppError(
             code="order.not_found",
             status_code=404,
-            message=f"Order {order_id} not found",
+            message="Order not found.",
             details={"order_id": str(order_id)},
         )
     wanted = await order_lines_to_reorder(session, order_id=order_id)
@@ -1868,6 +1940,14 @@ async def reorder_into_cart(
         item.product_id: item.quantity for item in current_items
     }
     levels = await _levels_of(session, current_items)
+    # An article not already in the cart comes back on the import mode it
+    # was paid on (when still on offer, else the default one); one already
+    # in the cart keeps the cart's mode.
+    for product_id, level in (
+        await order_line_levels(session, order_id=order_id)
+    ).items():
+        if product_id not in levels:
+            levels[product_id] = await _line_level(session, level)
     added = skipped = 0
     for product_id, quantity in wanted:
         quantities[product_id] = min(
@@ -1918,7 +1998,7 @@ async def update_cart_item_quantity(
         raise AppError(
             code="cart.item.not_found",
             status_code=404,
-            message=f"Cart item '{item_id}' not found",
+            message="This line is no longer in your cart.",
             details={"item_id": str(item_id)},
         )
 
@@ -1934,7 +2014,7 @@ async def update_cart_item_quantity(
         raise AppError(
             code="cart.not_found",
             status_code=404,
-            message=f"Cart '{item.cart_id}' not found",
+            message="Cart not found.",
             details={"cart_id": str(item.cart_id)},
         )
 
@@ -1958,7 +2038,7 @@ async def remove_cart_item(
         raise AppError(
             code="cart.item.not_found",
             status_code=404,
-            message=f"Cart item '{item_id}' not found",
+            message="This line is no longer in your cart.",
             details={"item_id": str(item_id)},
         )
 
@@ -1970,7 +2050,7 @@ async def remove_cart_item(
         raise AppError(
             code="cart.not_found",
             status_code=404,
-            message=f"Cart '{item.cart_id}' not found",
+            message="Cart not found.",
             details={"cart_id": str(item.cart_id)},
         )
 
@@ -2109,6 +2189,8 @@ def _render_quote_email(
     """Render a quote-request support email via the shared email layout."""
     email = render_email(
         "quote_request",
+        # Read by the shop's team: the operator's language.
+        lang=operator_locale(),
         subtitle=subtitle,
         contact=contact,
         item_count=len(item_snapshots),
@@ -2132,15 +2214,15 @@ def _format_quote_support_email(
 ) -> tuple[str, str, str]:
     """Build subject and body for support quote request emails."""
     return _render_quote_email(
-        subtitle="Demande transmise depuis le panier client.",
+        subtitle=operator_text("quote.subtitle_account"),
         contact=str(current_user.email),
         summary=[
-            ("Utilisateur", str(current_user.id)),
-            ("Email", str(current_user.email)),
-            ("Nom", current_user.full_name or "n/a"),
-            ("Téléphone", current_user.phone or "n/a"),
-            ("Adresse de livraison", shipping_address or "n/a"),
-            ("Notes", notes or "n/a"),
+            (operator_text("quote.user"), str(current_user.id)),
+            (operator_text("quote.email"), str(current_user.email)),
+            (operator_text("quote.name"), current_user.full_name or "n/a"),
+            (operator_text("quote.phone"), current_user.phone or "n/a"),
+            (operator_text("quote.address"), shipping_address or "n/a"),
+            (operator_text("quote.notes"), notes or "n/a"),
         ],
         currency=currency,
         item_snapshots=item_snapshots,
@@ -2161,14 +2243,14 @@ def _format_guest_quote_support_email(
 ) -> tuple[str, str, str]:
     """Build subject and body for guest quote request emails."""
     return _render_quote_email(
-        subtitle="Demande transmise depuis le panier public.",
+        subtitle=operator_text("quote.subtitle_public"),
         contact=customer_email,
         summary=[
-            ("Email", customer_email),
-            ("Nom", customer_name or "n/a"),
-            ("Téléphone", customer_phone or "n/a"),
-            ("Adresse de livraison", shipping_address or "n/a"),
-            ("Notes", notes or "n/a"),
+            (operator_text("quote.email"), customer_email),
+            (operator_text("quote.name"), customer_name or "n/a"),
+            (operator_text("quote.phone"), customer_phone or "n/a"),
+            (operator_text("quote.address"), shipping_address or "n/a"),
+            (operator_text("quote.notes"), notes or "n/a"),
         ],
         currency=currency,
         item_snapshots=item_snapshots,
@@ -2221,7 +2303,7 @@ async def create_quote_request(
         raise AppError(
             code="cart.quote.unavailable",
             status_code=503,
-            message="EMAIL_SUPPORT is not configured",
+            message="Quote requests are unavailable at the moment.",
             details={"setting": "EMAIL_SUPPORT"},
         )
 
@@ -2233,7 +2315,7 @@ async def create_quote_request(
         raise AppError(
             code="cart.active.not_found",
             status_code=400,
-            message="No active cart found",
+            message="Your cart is empty.",
             details={"user_id": str(current_user.id)},
         )
 
@@ -2242,7 +2324,7 @@ async def create_quote_request(
         raise AppError(
             code="cart.empty",
             status_code=400,
-            message="Cart is empty",
+            message="Your cart is empty.",
             details={"cart_id": str(cart.id)},
         )
 
@@ -2266,6 +2348,7 @@ async def create_quote_request(
                 "quantity": str(item.quantity),
                 "unit_price": str(item.unit_price),
                 "line_total": str(line_total),
+                "import_service_level": getattr(item, "import_service_level", None),
             }
         )
 
@@ -2386,7 +2469,7 @@ async def _my_quote_or_404(
         raise AppError(
             code="quote.not_found",
             status_code=404,
-            message="Devis introuvable",
+            message="Quote not found.",
             details={"quote_request_id": str(quote_id)},
         )
     return quote
@@ -2405,10 +2488,16 @@ async def _install_quote_in_cart(
     *,
     cart_id: uuid.UUID,
     prices: dict[uuid.UUID, tuple[int, Decimal]],
+    levels: dict[uuid.UUID, str | None] | None = None,
 ) -> list[CartItem]:
     """Replace the cart content with the quote's lines (``quoted_prices``) at
-    the quoted prices. Commits (the cart CRUD does), so the caller reads what
-    it needs from the quote *before* calling."""
+    the quoted prices, each on the import mode it was quoted on
+    (``quoted_levels``). Commits (the cart CRUD does), so the caller reads
+    what it needs from the quote *before* calling."""
+    line_levels = {
+        product_id: await _line_level(session, level)
+        for product_id, level in (levels or {}).items()
+    }
     entries: list[tuple[Product, int]] = []
     for product_id, (quantity, _price) in prices.items():
         entries.append(
@@ -2416,7 +2505,7 @@ async def _install_quote_in_cart(
             (await _get_active_product_or_404(session, product_id=product_id), quantity)
         )
     items = await crud_cart_item.replace_cart_items(
-        session, cart_id=cart_id, entries=entries
+        session, cart_id=cart_id, entries=entries, levels=line_levels
     )
     for item in items:
         item.unit_price = prices[item.product_id][1]
@@ -2470,11 +2559,14 @@ async def accept_my_quote(
     so nothing typed in between can change the amounts)."""
     quote = await _load_convertible_quote(session, quote_id, current_user)
     prices = quoted_prices(quote)  # before the cart commits expire the quote
+    levels = quoted_levels(quote)
     cart = await crud_cart.get_or_create_active_cart(
         session=session, user_id=current_user.id
     )
     cart_id = cart.id
-    items = await _install_quote_in_cart(session, cart_id=cart_id, prices=prices)
+    items = await _install_quote_in_cart(
+        session, cart_id=cart_id, prices=prices, levels=levels
+    )
     cart = await crud_cart.get_or_create_active_cart(
         session=session, user_id=current_user.id
     )
@@ -2510,7 +2602,7 @@ async def create_guest_quote_request(
         raise AppError(
             code="cart.quote.unavailable",
             status_code=503,
-            message="EMAIL_SUPPORT is not configured",
+            message="Quote requests are unavailable at the moment.",
             details={"setting": "EMAIL_SUPPORT"},
         )
 
@@ -2519,7 +2611,7 @@ async def create_guest_quote_request(
         raise AppError(
             code="cart.quote.invalid_email",
             status_code=400,
-            message="customer_email is invalid",
+            message="Invalid e-mail address.",
             details={"field": "customer_email"},
         )
 
@@ -2527,7 +2619,7 @@ async def create_guest_quote_request(
         raise AppError(
             code="cart.empty",
             status_code=400,
-            message="Cart is empty",
+            message="Your cart is empty.",
             details={"reason": "guest_payload_items_empty"},
         )
 
@@ -2549,6 +2641,7 @@ async def create_guest_quote_request(
                 "quantity": str(item.quantity),
                 "unit_price": str(unit_price),
                 "line_total": str(line_total),
+                "import_service_level": item.import_service_level,
             }
         )
 
@@ -2784,9 +2877,7 @@ async def _quote_checkout(
         raise AppError(
             code="checkout.delivery_type.unavailable",
             status_code=400,
-            message=(
-                f"Delivery mode '{delivery_type}' is not available for this destination"
-            ),
+            message=("This delivery mode is not offered for this destination."),
             details={
                 "delivery_type": delivery_type,
                 "pickup_place_id": str(pickup_place_id) if pickup_place_id else None,
@@ -2959,7 +3050,7 @@ async def _resolve_checkout_discount(
                 code="checkout.discount.refused",
                 status_code=400,
                 message=exc.message,
-                details={"discount_code": code, "reason": exc.reason},
+                details={"discount_code": code, "reason": exc.reason, **exc.params},
             ) from exc
         return None, exc.message
     return applied, None
@@ -2977,7 +3068,7 @@ QUOTE_COUPON_GUESS_REASONS: frozenset[str] = frozenset(
 )
 QUOTE_COUPON_FAILURES_WINDOW_SECONDS = 600
 QUOTE_COUPON_THROTTLED_MESSAGE = (
-    "Trop de codes promo refusés : réessayez dans quelques minutes."
+    "Too many promo codes refused: try again in a few minutes."
 )
 
 
@@ -2989,7 +3080,7 @@ async def _quote_discount_throttled(
     items: list[CartItem],
     products_by_id: dict[uuid.UUID, Product],
     currency: str,
-) -> tuple[AppliedDiscount | None, str | None]:
+) -> tuple[AppliedDiscount | None, DiscountRefused | None]:
     """``_resolve_checkout_discount`` for the quote, with a limit on refusals.
 
     Over the limit the code is not looked up at all: the quote is priced
@@ -2999,16 +3090,24 @@ async def _quote_discount_throttled(
     if not code or not code.strip():
         return None, None
     key = f"coupon_quote:{user_id}"
+    # Distinct codes are counted, not answers: the quote is re-asked at every
+    # change of the checkout, and ten re-quotes of the same expired code
+    # locked every code out for 10 minutes (review of 17/11/2026). A code
+    # already refused tells nothing new: looked up again, not counted.
+    refused_key = f"coupon_quote_refused:{user_id}"
+    normalized = code.strip().upper()
+    already_refused = await _code_refused_before(refused_key, normalized)
     # Counted before the lookup, given back unless the code was a guess: read
     # first and counted after, a burst of parallel quotes all passed the
     # check and tried hundreds of codes in one window.
-    if await hit_rate_limit(
+    if not already_refused and await hit_rate_limit(
         key,
         limit=QUOTE_COUPON_FAILURES_LIMIT,
         window_seconds=QUOTE_COUPON_FAILURES_WINDOW_SECONDS,
     ):
-        return None, QUOTE_COUPON_THROTTLED_MESSAGE
+        return None, DiscountRefused("throttled", QUOTE_COUPON_THROTTLED_MESSAGE)
     reason: str | None = None
+    refusal: DiscountRefused | None = None
     try:
         applied = await resolve_coupon(
             session,
@@ -3018,15 +3117,35 @@ async def _quote_discount_throttled(
             products_by_id=products_by_id,
             currency=currency,
         )
-        error = None
     except DiscountRefused as exc:
-        applied, error, reason = None, exc.message, exc.reason
+        applied, refusal, reason = None, exc, exc.reason
+    if already_refused:
+        return applied, refusal
     if reason not in QUOTE_COUPON_GUESS_REASONS:
         # A valid code, or one refused for this cart (minimum not reached,
         # already used…): the customer re-quotes at every change of the cart
         # and must not be locked out of their own code.
         await release_rate_limit_hit(key)
-    return applied, error
+    else:
+        await _remember_refused_code(refused_key, normalized)
+    return applied, refusal
+
+
+async def _code_refused_before(key: str, code: str) -> bool:
+    try:
+        return bool(await shared_redis().sismember(key, code))  # type: ignore[misc]
+    except Exception:  # noqa: BLE001 - unknown: counted, the safe side
+        return False
+
+
+async def _remember_refused_code(key: str, code: str) -> None:
+    try:
+        async with shared_redis().pipeline(transaction=True) as pipe:
+            pipe.sadd(key, code)
+            pipe.expire(key, QUOTE_COUPON_FAILURES_WINDOW_SECONDS)
+            await pipe.execute()
+    except Exception:  # noqa: BLE001 - not remembered: counted again
+        logger.warning("refused promo code not remembered", exc_info=True)
 
 
 @router.get("/me/checkout-quote", response_model=CheckoutQuoteResponse)
@@ -3109,7 +3228,7 @@ async def get_checkout_quote(
             str((issued.quote_snapshot or {}).get("shipping_fee_amount") or 0)
         )
 
-    applied_discount, discount_error = await _quote_discount_throttled(
+    applied_discount, refusal = await _quote_discount_throttled(
         session,
         code=discount_code,
         user_id=user_id,
@@ -3148,7 +3267,9 @@ async def get_checkout_quote(
         discount_code=applied_discount.code if applied_discount else None,
         discount_amount=quote.discount_amount,
         discount_label=applied_discount.label if applied_discount else None,
-        discount_error=discount_error,
+        discount_error=refusal.message if refusal else None,
+        discount_error_code=refusal.reason if refusal else None,
+        discount_error_details=refusal.params if refusal else None,
         total_amount=quote.total_amount,
         delivery_type=delivery_type,
         shipping_eta_days=quote.shipping_eta_days,
@@ -3377,6 +3498,118 @@ async def estimate_product_shipping(
     )
 
 
+async def _order_for_checkout_key(
+    session: SessionDep, *, user_id: uuid.UUID, key: str | None
+) -> uuid.UUID | None:
+    """The order a previous attempt of this submission created, if any."""
+    if not key:
+        return None
+    found = (
+        await session.exec(
+            select(Order.id).where(
+                col(Order.user_id) == user_id, col(Order.checkout_key) == key
+            )
+        )
+    ).first()
+    return found if isinstance(found, uuid.UUID) else None
+
+
+async def _replay_checkout(
+    session: SessionDep, *, user_id: uuid.UUID, order_id: uuid.UUID
+) -> CheckoutResponse:
+    """What a retry of an already placed order gets back: the order, no new
+    one, no new payment form (the customer pays from the order page).
+
+    The retry rebuilt the server cart from the browser before asking: that
+    cart holds the articles just ordered, so it is emptied — left full, it
+    came back at the next sign-in as if nothing had been ordered.
+    """
+    # populate_existing: after a rollback the instances in the session are
+    # expired, and reading one would lazy-load (MissingGreenlet).
+    order = (
+        await session.exec(
+            select(Order)
+            .where(col(Order.id) == order_id)
+            .execution_options(populate_existing=True)
+        )
+    ).first()
+    if order is None:  # pragma: no cover - the key was just read
+        raise AppError(
+            code="order.not_found",
+            status_code=404,
+            message="Order not found.",
+            details={"order_id": str(order_id)},
+        )
+    payment = (
+        await session.exec(
+            select(Payment)
+            .where(col(Payment.order_id) == order_id)
+            .order_by(col(Payment.created_at).desc().nulls_last())
+            .execution_options(populate_existing=True)
+        )
+    ).first()
+    item_count = (
+        await session.exec(
+            select(func.count())
+            .select_from(OrderLine)
+            .where(
+                col(OrderLine.order_id) == order_id,
+                col(OrderLine.is_active).is_(True),
+            )
+        )
+    ).one()
+    deposit = order.payment_plan == "deposit"
+    response = CheckoutResponse(
+        payment_plan=order.payment_plan or "full",
+        deposit_amount=order.deposit_amount or Decimal("0.00"),
+        deposit_fee_amount=order.deposit_fee_amount or Decimal("0.00"),
+        balance_amount=(
+            order.total_amount - (order.deposit_amount or Decimal("0.00"))
+            if deposit
+            else Decimal("0.00")
+        ),
+        amount_due_now=(order.deposit_amount if deposit else order.total_amount)
+        or Decimal("0.00"),
+        order_id=order.id,
+        order_number=order.order_number,
+        grouped_departure_id=order.grouped_departure_id,
+        payment_id=payment.id if payment is not None else order.id,
+        payment_status_token=(
+            payment_status_token(payment.id) if payment is not None else None
+        ),
+        cart_id=order.id,
+        subtotal_amount=order.subtotal_amount,
+        discount_code=order.discount_code,
+        discount_amount=order.discount_amount or Decimal("0.00"),
+        shipping_fee_amount=order.shipping_fee_amount or Decimal("0.00"),
+        payment_fee_amount=order.payment_fee_amount or Decimal("0.00"),
+        total_fees_amount=order.total_fees_amount or Decimal("0.00"),
+        total_amount=order.total_amount,
+        currency=order.currency or settings.REFERENCE_CURRENCY,
+        item_count=int(item_count or 0),
+        shipping_cost_breakdown=order.shipping_cost_breakdown,
+        provider_code=payment.provider_code if payment is not None else None,
+        replayed=True,
+        message="Order already placed",
+    )
+    cart = await crud_cart.get_active_cart_by_user(session=session, user_id=user_id)
+    if cart is not None:
+        cart_id = cart.id
+        await crud_cart_item.replace_cart_items(
+            session=session, cart_id=cart_id, entries=[]
+        )
+        await crud_cart.sync_total(session=session, cart_id=cart_id)
+        response.cart_id = cart_id
+    log_structured_event(
+        logger,
+        level="info",
+        event="checkout_replayed",
+        order_id=order_id,
+        user_id=user_id,
+    )
+    return response
+
+
 @router.post(
     "/checkout",
     response_model=CheckoutResponse,
@@ -3396,6 +3629,12 @@ async def checkout_my_cart(
     # including current_user. Capture the id up-front so the post-commit logging
     # and error paths don't trigger a sync lazy-load (MissingGreenlet).
     user_id = current_user.id
+    checkout_key = payload.idempotency_key
+    # A retry of a submission whose order went through (a timeout, a lost
+    # response): that order, not a second one (D5, review of 17/11/2026).
+    placed = await _order_for_checkout_key(session, user_id=user_id, key=checkout_key)
+    if placed is not None:
+        return await _replay_checkout(session, user_id=user_id, order_id=placed)
     cart = await crud_cart.get_active_cart_by_user(
         session=session,
         user_id=user_id,
@@ -3404,7 +3643,7 @@ async def checkout_my_cart(
         raise AppError(
             code="cart.active.not_found",
             status_code=400,
-            message="No active cart found",
+            message="Your cart is empty.",
             details={"user_id": str(current_user.id)},
         )
 
@@ -3423,7 +3662,10 @@ async def checkout_my_cart(
         )
         cart_id = cart.id
         await _install_quote_in_cart(
-            session, cart_id=cart_id, prices=quoted_prices(issued_quote)
+            session,
+            cart_id=cart_id,
+            prices=quoted_prices(issued_quote),
+            levels=quoted_levels(issued_quote),
         )
         cart = await crud_cart.get_or_create_active_cart(
             session=session, user_id=user_id
@@ -3444,10 +3686,18 @@ async def checkout_my_cart(
     if isinstance(locked_cart, Cart) and (
         locked_cart.is_checked_out or not locked_cart.is_active
     ):
+        # The other request was the same submission (a double click): its
+        # order is the answer.
+        placed = await _order_for_checkout_key(
+            session, user_id=user_id, key=checkout_key
+        )
+        if placed is not None:
+            await session.rollback()
+            return await _replay_checkout(session, user_id=user_id, order_id=placed)
         raise AppError(
             code="cart.already_checked_out",
             status_code=409,
-            message="Cette commande vient d'être enregistrée.",
+            message="This order has just been placed.",
             details={"cart_id": str(cart.id)},
         )
 
@@ -3456,7 +3706,7 @@ async def checkout_my_cart(
         raise AppError(
             code="cart.empty",
             status_code=400,
-            message="Cart is empty",
+            message="Your cart is empty.",
             details={"cart_id": str(cart.id)},
         )
 
@@ -3512,7 +3762,7 @@ async def checkout_my_cart(
         raise AppError(
             code="checkout.delivery_type.required",
             status_code=400,
-            message="Choisissez un mode de livraison.",
+            message="Choose a delivery mode.",
             details={},
         )
     price_group = await resolve_customer_group(session, current_user)
@@ -3556,7 +3806,7 @@ async def checkout_my_cart(
         raise AppError(
             code="cart.total.invalid",
             status_code=400,
-            message="Cart total must be > 0",
+            message="The cart total is zero.",
             details={
                 "cart_id": str(cart.id),
                 "total_amount": str(total_amount),
@@ -3572,21 +3822,39 @@ async def checkout_my_cart(
         raise AppError(
             code="cart.cgv.not_accepted",
             status_code=400,
-            message="Les conditions générales de vente doivent être acceptées",
+            message="The terms and conditions of sale must be accepted.",
             details={"cart_id": str(cart.id), "cgv_version": cgv_version},
         )
     cgv_accepted_at = datetime.now(UTC)
 
     try:
         # Départ groupé ouvert le plus proche (None = boutique classique, ou
-        # module « Départs groupés » éteint).
+        # module « Départs groupés » éteint), du mode d'import de la commande
+        # quand toutes ses lignes en portent un seul (audit fonctionnel, D1).
+        order_modes = {
+            level
+            for level in (getattr(item, "import_service_level", None) for item in items)
+            if level
+        }
         departure = (
-            await crud_grouped_departure.get_next_open(session)
+            await crud_grouped_departure.get_next_open(
+                session,
+                service_level=order_modes.pop() if len(order_modes) == 1 else None,
+            )
             if await module_enabled(session, "grouped_departures")
             else None
         )
 
         order_status = await _get_or_create_order_pending_status(session)
+        address_snapshot, recipient, recipient_phone = await _order_address_snapshot(
+            session,
+            user_id=user_id,
+            address_id=payload.shipping_address_id,
+            typed=payload.shipping_address,
+        )
+        billing_name, billing_address, billing_tax_id = await _billing_snapshot(
+            session, user_id=user_id, address_id=payload.billing_address_id
+        )
         # Human-readable reference allocated up-front (server-side only — the
         # field is not part of OrderCreate, cf. Order.order_number).
         order_number = await allocate_order_number(session)
@@ -3604,7 +3872,12 @@ async def checkout_my_cart(
                 discount_code=applied_discount.code if applied_discount else None,
                 discount_amount=quote.discount_amount,
                 currency=cart.currency,
-                shipping_address=payload.shipping_address,
+                shipping_address=address_snapshot,
+                shipping_recipient=recipient,
+                shipping_phone=recipient_phone,
+                billing_name=billing_name,
+                billing_address=billing_address,
+                billing_tax_id=billing_tax_id,
                 shipping_cost_breakdown=shipping_cost_breakdown_payload,
                 notes=payload.notes,
                 delivery_type=payload.delivery_type,
@@ -3619,7 +3892,22 @@ async def checkout_my_cart(
             user=current_user,
         )
         order.order_number = order_number
+        order.checkout_key = checkout_key
         session.add(order)
+        if checkout_key:
+            # Written now: an attempt of the same submission still running
+            # holds the key, so this waits for it and, once it has committed,
+            # fails here — before any stock or payment is touched.
+            try:
+                await session.flush()
+            except IntegrityError:
+                await session.rollback()
+                placed = await _order_for_checkout_key(
+                    session, user_id=user_id, key=checkout_key
+                )
+                if placed is None:
+                    raise
+                return await _replay_checkout(session, user_id=user_id, order_id=placed)
 
         # Take the use now, inside the transaction: a refusal (the last use
         # just went to someone else) rolls the whole order back.
@@ -3634,6 +3922,7 @@ async def checkout_my_cart(
                     details={
                         "discount_code": applied_discount.code,
                         "reason": exc.reason,
+                        **exc.params,
                     },
                 ) from exc
         line_discounts = applied_discount.line_amounts if applied_discount else {}
@@ -3997,6 +4286,6 @@ async def checkout_my_cart(
         raise AppError(
             code="cart.checkout.failed",
             status_code=500,
-            message="Checkout failed",
+            message="The order could not be placed. Try again in a moment.",
             details={"reason": type(exc).__name__},
         ) from exc

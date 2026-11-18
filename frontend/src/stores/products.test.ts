@@ -3,7 +3,7 @@ import { createPinia, setActivePinia } from 'pinia';
 
 const { searchProducts } = vi.hoisted(() => ({ searchProducts: vi.fn() }));
 vi.mock('@/api/products', () => ({ searchProducts, getCategories: vi.fn() }));
-vi.mock('@/i18n/global', () => ({ gt: (key: string) => key }));
+vi.mock('@/i18n/global', () => ({ gt: (key: string) => key, currentLocale: () => 'fr' }));
 
 import { useProductsStore } from './products';
 

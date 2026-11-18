@@ -61,7 +61,7 @@ async def subscribe(
         raise AppError(
             code="stock_alert.orderable",
             status_code=409,
-            message="Ce produit est disponible : ajoutez-le au panier",
+            message="This product is available: add it to your cart.",
             details={"product_id": str(product.id)},
         )
     existing = (

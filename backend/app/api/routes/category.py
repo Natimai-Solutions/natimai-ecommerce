@@ -85,7 +85,7 @@ class CategoryRouter(
                 raise AppError(
                     code="resource.not_found",
                     status_code=404,
-                    message="category not found",
+                    message="Item not found.",
                     details={"resource": self.resource_name, "id": str(id)},
                 )
             public = CategoryPublic.model_validate(record)

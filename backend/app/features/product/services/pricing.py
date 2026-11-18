@@ -36,6 +36,7 @@ from app.features.shipping.models.route import ShippingRoute
 from app.features.shipping.services.import_routes import (
     ImportRoute,
     default_import_route,
+    import_freight_rate,
 )
 from app.features.shipping.services.origin import (
     OriginContext,
@@ -553,7 +554,7 @@ async def calculate_sale_price(
             metadata=route_meta,
             mode=getattr(import_route, "mode", None),
         )
-        freight_variable = _as_decimal(import_route.price_per_kg) * billable_weight_kg
+        freight_variable = import_freight_rate(import_route) * billable_weight_kg
 
     # Insurance is priced on what is actually insured: the goods *and* the
     # freight paid to bring them here (ad valorem premiums are quoted on the
@@ -608,7 +609,7 @@ async def calculate_price_by_mode(
             metadata=route_meta,
             mode=getattr(route, "mode", None),
         )
-        freight = _quantize_money(_as_decimal(route.price_per_kg) * billable_weight_kg)
+        freight = _quantize_money(import_freight_rate(route) * billable_weight_kg)
         sale_price = await calculate_sale_price(
             session,
             product,
@@ -983,7 +984,7 @@ class PricingContext:
                 metadata=_route_metadata_to_dict(import_route),
                 mode=getattr(import_route, "mode", None),
             )
-            freight = _as_decimal(import_route.price_per_kg) * billable
+            freight = import_freight_rate(import_route) * billable
         insurance = (cost + freight) * (self.insurance_rate_pct / Decimal("100"))
         customs = _as_decimal(self.customs_rate_pct(product))
         return _quantize_money(
@@ -1053,7 +1054,7 @@ class PricingContext:
                 metadata=_route_metadata_to_dict(import_route),
                 mode=getattr(import_route, "mode", None),
             )
-            freight = _as_decimal(import_route.price_per_kg) * billable
+            freight = import_freight_rate(import_route) * billable
         insurance = (cost + freight) * (self.insurance_rate_pct / Decimal("100"))
         caf = cost + freight + insurance
         return apply_payment_commission(

@@ -65,7 +65,7 @@ async def grant_store_credit(
         raise AppError(
             code="user.not_found",
             status_code=404,
-            message="Client introuvable",
+            message="Customer not found.",
             details={"user_id": str(user_id)},
         )
     await store_credit.grant(

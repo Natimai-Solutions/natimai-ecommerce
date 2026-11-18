@@ -29,12 +29,17 @@ ZERO = Decimal("0.00")
 
 
 class DiscountRefused(Exception):
-    """The code cannot be applied; ``reason`` is a stable code, ``message`` French."""
+    """The code cannot be applied: ``reason`` is a stable code the interfaces
+    translate (``checkout.discount.refused.<reason>`` in the shared
+    catalogue), ``params`` its values, ``message`` the English fallback."""
 
-    def __init__(self, reason: str, message: str) -> None:
+    def __init__(
+        self, reason: str, message: str, params: dict[str, str] | None = None
+    ) -> None:
         super().__init__(message)
         self.reason = reason
         self.message = message
+        self.params = params or {}
 
 
 @dataclass(frozen=True)
@@ -164,7 +169,7 @@ async def resolve_coupon(
     """
     normalized = normalize_code(code)
     if not normalized:
-        raise DiscountRefused("empty", "Saisissez un code promo")
+        raise DiscountRefused("empty", "Enter a promo code.")
     result = await session.exec(
         select(Discount).where(
             func.upper(col(Discount.code)) == normalized,
@@ -173,20 +178,20 @@ async def resolve_coupon(
     )
     discount = result.first()
     if discount is None or not discount.is_active or not discount.is_admin_active:
-        raise DiscountRefused("unknown", "Code promo inconnu")
+        raise DiscountRefused("unknown", "Unknown promo code.")
     now = _now()
     if discount.start_date and discount.start_date > now:
-        raise DiscountRefused("not_started", "Ce code n'est pas encore valide")
+        raise DiscountRefused("not_started", "This code is not valid yet.")
     if discount.end_date and discount.end_date < now:
-        raise DiscountRefused("expired", "Ce code a expiré")
+        raise DiscountRefused("expired", "This code has expired.")
     if discount.max_uses is not None and discount.current_uses >= discount.max_uses:
-        raise DiscountRefused("exhausted", "Ce code a atteint sa limite d'utilisation")
+        raise DiscountRefused("exhausted", "This code has reached its usage limit.")
     if discount.max_uses_per_customer is not None:
         used = await _customer_uses(session, discount_id=discount.id, user_id=user_id)
         if used >= discount.max_uses_per_customer:
             raise DiscountRefused(
                 "customer_limit",
-                "Vous avez déjà utilisé ce code le nombre de fois permis",
+                "You have already used this code as many times as allowed.",
             )
 
     ancestors = (
@@ -223,7 +228,7 @@ async def resolve_coupon(
         if not kept:
             raise DiscountRefused(
                 "promoted_only",
-                "Ce code ne s'applique pas aux articles déjà en promotion",
+                "This code does not apply to items already on promotion.",
             )
         lines = kept
     weights = [
@@ -233,7 +238,7 @@ async def resolve_coupon(
     eligible_total = sum((w for _, w in weights), ZERO)
     if eligible_total <= ZERO:
         raise DiscountRefused(
-            "not_applicable", "Aucun article du panier n'est concerné par ce code"
+            "not_applicable", "No item of the cart is covered by this code."
         )
     if (
         discount.min_order_amount is not None
@@ -241,8 +246,9 @@ async def resolve_coupon(
     ):
         raise DiscountRefused(
             "below_minimum",
-            f"Ce code s'applique à partir de {discount.min_order_amount} {currency} "
-            "d'articles concernés",
+            f"This code applies from {discount.min_order_amount} {currency} of "
+            "eligible items.",
+            {"min_amount": str(discount.min_order_amount), "currency": currency},
         )
 
     if discount.percentage is not None:
@@ -250,10 +256,10 @@ async def resolve_coupon(
     elif discount.amount is not None:
         raw = Decimal(discount.amount)
     else:
-        raise DiscountRefused("misconfigured", "Ce code n'a pas de remise définie")
+        raise DiscountRefused("misconfigured", "This code has no discount set.")
     amount = min(quantize_amount(raw, currency), eligible_total)
     if amount <= ZERO:
-        raise DiscountRefused("zero", "Ce code ne donne aucune remise sur ce panier")
+        raise DiscountRefused("zero", "This code gives no discount on this cart.")
 
     return AppliedDiscount(
         discount_id=discount.id,
@@ -280,5 +286,5 @@ async def consume_coupon(session: AsyncSession, *, discount_id: uuid.UUID) -> No
     )
     if getattr(result, "rowcount", 1) == 0:
         raise DiscountRefused(
-            "exhausted", "Ce code vient d'atteindre sa limite d'utilisation"
+            "exhausted", "This code has just reached its usage limit."
         )

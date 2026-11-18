@@ -137,7 +137,7 @@ async def change_my_password(
         raise AppError(
             code="user.password.rate_limited",
             status_code=429,
-            message="Trop de tentatives. Réessayez dans quelques minutes.",
+            message="Too many attempts. Try again in a few minutes.",
         )
     if not current_user.hashed_password or not await averify_password(
         payload.current_password, current_user.hashed_password
@@ -145,14 +145,14 @@ async def change_my_password(
         raise AppError(
             code="user.password.invalid_current",
             status_code=400,
-            message="Le mot de passe actuel est incorrect.",
+            message="The current password is incorrect.",
             details={"field": "current_password"},
         )
     if payload.new_password == payload.current_password:
         raise AppError(
             code="user.password.unchanged",
             status_code=400,
-            message="Le nouveau mot de passe doit être différent de l'actuel.",
+            message="The new password must differ from the current one.",
             details={"field": "new_password"},
         )
     current_user.hashed_password = await aget_password_hash(payload.new_password)
@@ -186,7 +186,7 @@ async def export_my_data(session: SessionDep, current_user: CurrentUser) -> Resp
         raise AppError(
             code="account.export.rate_limited",
             status_code=429,
-            message="Trop d'exports : réessayez dans une heure.",
+            message="Too many exports: try again in an hour.",
         )
     payload = await export_account(session, current_user)
     stamp = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d")
@@ -224,13 +224,13 @@ async def delete_my_account(
         raise AppError(
             code="account.delete.rate_limited",
             status_code=429,
-            message="Trop de tentatives. Réessayez dans quelques minutes.",
+            message="Too many attempts. Try again in a few minutes.",
         )
     if payload.confirmation.strip().lower() != current_user.email.lower():
         raise AppError(
             code="account.delete.confirmation_mismatch",
             status_code=400,
-            message="Saisissez l'adresse e-mail du compte pour confirmer.",
+            message="Type the account's e-mail address to confirm.",
             details={"field": "confirmation"},
         )
     has_provider = (
@@ -249,7 +249,7 @@ async def delete_my_account(
             raise AppError(
                 code="user.password.invalid_current",
                 status_code=400,
-                message="Le mot de passe actuel est incorrect.",
+                message="The current password is incorrect.",
                 details={"field": "password"},
             )
     else:
@@ -267,8 +267,7 @@ async def delete_my_account(
                 code="account.delete.reauth_required",
                 status_code=400,
                 message=(
-                    "Par sécurité, reconnectez-vous puis confirmez la "
-                    f"suppression dans les {RECENT_SIGN_IN_MINUTES} minutes."
+                    "For your security, sign in again, then confirm the deletion within a few minutes."
                 ),
                 details={"field": "password"},
             )

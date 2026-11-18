@@ -18,6 +18,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core import runtime_settings
 from app.core.config import settings
 from app.core.errors import AppError
+from app.core.operator_messages import operator_text
 from app.features.order.models.order import Order
 from app.features.order.models.order_line import OrderLine
 from app.features.payment.models.gift_card import (
@@ -123,7 +124,7 @@ async def issue(
         raise AppError(
             code="gift_card.amount.invalid",
             status_code=400,
-            message="Le montant d'une carte cadeau doit être positif",
+            message="The gift card amount must be positive.",
             details={},
         )
     email = (recipient_email or "").strip().lower() or None
@@ -131,7 +132,7 @@ async def issue(
         raise AppError(
             code="gift_card.recipient.required",
             status_code=400,
-            message="Un bon d'achat est nominatif : indiquez l'e-mail du client",
+            message="A voucher is nominative: give the customer's e-mail address.",
             details={},
         )
     cards = [
@@ -179,7 +180,7 @@ async def redeem(session: AsyncSession, *, code: str, user: User) -> GiftCard:
         raise AppError(
             code="gift_card.not_found",
             status_code=404,
-            message="Ce code est inconnu",
+            message="Unknown code.",
             details={},
         )
     state = state_of(card)
@@ -188,9 +189,9 @@ async def redeem(session: AsyncSession, *, code: str, user: User) -> GiftCard:
             code=f"gift_card.{state}",
             status_code=409,
             message={
-                "redeemed": "Ce code a déjà été utilisé",
-                "expired": "Ce code a expiré",
-                "cancelled": "Ce code a été annulé",
+                "redeemed": "This code has already been used.",
+                "expired": "This code has expired.",
+                "cancelled": "This code has been cancelled.",
             }[state],
             details={"state": state},
         )
@@ -283,14 +284,14 @@ async def set_active(
         raise AppError(
             code="gift_card.not_found",
             status_code=404,
-            message="Carte cadeau introuvable",
+            message="Unknown code.",
             details={"id": str(card_id)},
         )
     if card.redeemed_at is not None:
         raise AppError(
             code="gift_card.redeemed",
             status_code=409,
-            message="Ce code a déjà été utilisé",
+            message="This code has already been used.",
             details={"state": "redeemed"},
         )
     card.is_active = active
@@ -411,16 +412,18 @@ class RefundRevocation:
         lines: list[str] = []
         if self.shortfalls:
             lines.append(
-                f"Commande {order_label} remboursée : avoir de cartes cadeaux "
-                "déjà dépensé, à récupérer manuellement — "
-                + " ; ".join(self.shortfalls)
+                operator_text(
+                    "gift_cards.refund_shortfall",
+                    order=order_label,
+                    details="; ".join(self.shortfalls),
+                )
             )
         if self.to_review:
             codes = ", ".join(mask_code(c.code) for c in self.to_review)
             lines.append(
-                f"Commande {order_label} remboursée en partie : elle a émis des "
-                f"cartes cadeaux ({codes}). À annuler dans « Cartes cadeaux » si "
-                "le remboursement les concerne."
+                operator_text(
+                    "gift_cards.partial_refund_review", order=order_label, codes=codes
+                )
             )
         return "\n".join(lines) or None
 
@@ -469,8 +472,13 @@ async def revoke_for_refund(
             missing = Decimal(card.amount) - take
             if missing > 0:
                 outcome.shortfalls.append(
-                    f"{mask_code(card.code)} : {missing} {card.currency} "
-                    f"(compte {card.redeemed_by_id})"
+                    operator_text(
+                        "gift_cards.shortfall_item",
+                        code=mask_code(card.code),
+                        missing=missing,
+                        currency=card.currency,
+                        account=card.redeemed_by_id,
+                    )
                 )
         else:
             outcome.cancelled.append(card)

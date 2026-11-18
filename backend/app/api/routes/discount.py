@@ -75,22 +75,19 @@ async def validate_coupon(
     Valider un code coupon.
     Retourne les informations du coupon si valide.
     """
-    is_valid, message, discount = await crud_discount.validate_coupon(session, code)
+    is_valid, reason, discount = await crud_discount.validate_coupon(session, code)
 
     if not is_valid:
         raise AppError(
             code="discount.coupon.invalid",
             status_code=400,
-            message=message,
-            details={
-                "coupon_code": code,
-                "reason": message,
-            },
+            message="This promo code cannot be applied.",
+            details={"coupon_code": code, "reason": reason},
         )
 
     return {
         "valid": True,
-        "message": message,
+        "message": "Valid promo code.",
         "discount": DiscountPublic.model_validate(discount),
     }
 
@@ -133,7 +130,7 @@ async def use_discount(
         raise AppError(
             code="discount.admin_required",
             status_code=403,
-            message="Admin privileges required to consume a discount usage",
+            message="Administrator access required.",
             details={"discount_id": str(discount_id)},
         )
     discount = await crud_discount.increment_usage(session, discount_id)
@@ -141,7 +138,7 @@ async def use_discount(
         raise AppError(
             code="discount.not_found",
             status_code=404,
-            message="Réduction non trouvée",
+            message="Discount not found.",
             details={"discount_id": str(discount_id)},
         )
     return DiscountPublic.model_validate(discount)

@@ -147,6 +147,7 @@ class GuestQuoteRequestItem(SQLModel):
     quantity: int = Field(ge=1)
     unit_price: Decimal = Field(ge=0, max_digits=12, decimal_places=2)
     line_total: Decimal = Field(ge=0, max_digits=12, decimal_places=2)
+    import_service_level: str | None = Field(default=None, max_length=50)
 
 
 class GuestQuoteRequestSubmit(SQLModel):

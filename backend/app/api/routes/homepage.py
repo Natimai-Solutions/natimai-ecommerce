@@ -46,7 +46,9 @@ def _invalid(message: str, code: str, field: str) -> AppError:
 def _validate(body: HomepageBlockWrite) -> None:
     if body.kind not in HOMEPAGE_BLOCK_KINDS:
         raise _invalid(
-            f"Type inconnu : {body.kind} (hero ou banner).", "homepage.kind", "kind"
+            f"Unknown block type: {body.kind} (hero or banner).",
+            "homepage.kind",
+            "kind",
         )
     link = (body.cta_link or "").strip()
     # A storefront path or an https URL: never javascript: or a protocol-relative
@@ -56,21 +58,21 @@ def _validate(body: HomepageBlockWrite) -> None:
         or link.startswith("https://")
     ):
         raise _invalid(
-            "Lien : un chemin du site (/catalogue…) ou une adresse https://.",
+            "Link: a path of the site (/catalogue…) or an https:// address.",
             "homepage.link",
             "cta_link",
         )
     image = (body.image_url or "").strip()
     if image and not image.startswith("https://") and not image.startswith("http://"):
         raise _invalid(
-            "Image : une adresse http(s) complète.", "homepage.image", "image_url"
+            "Image: a complete http(s) address.", "homepage.image", "image_url"
         )
     if (
         body.starts_at
         and body.ends_at
         and as_utc(body.ends_at) <= as_utc(body.starts_at)
     ):
-        raise _invalid("La fin doit suivre le début.", "homepage.dates", "ends_at")
+        raise _invalid("The end must follow the start.", "homepage.dates", "ends_at")
 
 
 def _with_translations(
@@ -87,7 +89,7 @@ def _with_translations(
         )
     except InvalidTranslations as exc:
         raise _invalid(
-            f"Traductions invalides : {exc}", "homepage.translations", "translations"
+            f"Invalid translations: {exc}", "homepage.translations", "translations"
         )
     return data
 
@@ -208,9 +210,7 @@ async def _refuse_second_live_hero(
                 code="homepage.hero.conflict",
                 status_code=409,
                 message=(
-                    f"Un autre hero publié couvre déjà cette période : « {other.title} ». "
-                    "Un seul hero s'affiche ; dépubliez-le, ou donnez aux deux des "
-                    "dates qui ne se chevauchent pas."
+                    "Another published hero already covers this period: “{other_title}”. Only one hero is shown: unpublish it or give them dates that do not overlap."
                 ),
                 details={
                     "field": "is_published",
@@ -225,7 +225,7 @@ async def _check_media(session: SessionDep, media_id: uuid.UUID | None) -> None:
         return
     media = await session.get(MediaAsset, media_id)
     if media is None or not media.is_active:
-        raise _invalid("Image introuvable.", "homepage.media", "media_id")
+        raise _invalid("Image not found.", "homepage.media", "media_id")
 
 
 @router.post(
@@ -255,7 +255,7 @@ async def _block_or_404(session: SessionDep, block_id: uuid.UUID) -> HomepageBlo
         raise AppError(
             code="homepage.not_found",
             status_code=404,
-            message="Bloc introuvable",
+            message="Block not found.",
             details={"id": str(block_id)},
         )
     return block

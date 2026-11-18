@@ -132,7 +132,7 @@ async def cancel_order_by_customer(
         raise AppError(
             code="order.not_found",
             status_code=404,
-            message=f"Order {order_id} not found",
+            message="Order not found.",
             details={"order_id": str(order_id)},
         )
     refusal = await cancellation_refusal(session, order)
@@ -140,7 +140,7 @@ async def cancel_order_by_customer(
         raise AppError(
             code="order.cancel_refused",
             status_code=409,
-            message="This order can no longer be cancelled from the account",
+            message="This order can no longer be cancelled from your account.",
             details={"order_id": str(order_id), "reason": refusal},
         )
 
@@ -167,7 +167,7 @@ async def cancel_order_by_customer(
             raise AppError(
                 code="order.cancel_refused",
                 status_code=409,
-                message="This order can no longer be cancelled from the account",
+                message="This order can no longer be cancelled from your account.",
                 details={"order_id": str(order_id), "reason": "paid"},
             )
         if current in DEAD_PAYMENT_STATUSES:
@@ -212,3 +212,26 @@ async def order_lines_to_reorder(
     for line in lines:
         merged[line.product_id] = merged.get(line.product_id, 0) + int(line.quantity)
     return [(product_id, qty) for product_id, qty in merged.items() if qty > 0]
+
+
+async def order_line_levels(
+    session: AsyncSession, *, order_id: uuid.UUID
+) -> dict[uuid.UUID, str | None]:
+    """``product_id → import mode`` the order's lines were paid on, so that
+    « commander à nouveau » prices them on the same mode (the first line
+    carrying one wins when a product appears twice)."""
+    lines = (
+        await session.exec(
+            select(OrderLine)
+            .where(
+                col(OrderLine.order_id) == order_id,
+                col(OrderLine.is_active).is_(True),
+            )
+            .order_by(col(OrderLine.id))
+        )
+    ).all()
+    levels: dict[uuid.UUID, str | None] = {}
+    for line in lines:
+        if levels.get(line.product_id) is None:
+            levels[line.product_id] = line.import_service_level
+    return levels

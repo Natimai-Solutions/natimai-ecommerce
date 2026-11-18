@@ -574,6 +574,31 @@
                 class="col"
               />
             </div>
+            <!-- Route d'import : le forfait par expédition est partagé par les
+                 commandes du départ ; il est réparti au kilo facturé, sur le
+                 poids d'un départ au seuil (décision du 18/11/2026). -->
+            <template v-if="routeForm.service_level">
+              <q-input
+                v-model="routeForm.import_fixed_basis_kg"
+                :label="$t('logistics.fixed_basis_kg')"
+                type="number"
+                step="1"
+                min="0"
+                outlined
+                dense
+                bottom-slots
+                data-testid="route-fixed-basis"
+                :hint="$t('logistics.fixed_basis_hint')"
+              />
+              <AppNotice
+                v-if="importRatePreview"
+                :tone="importRatePreview.warn ? 'warning' : 'info'"
+                class="q-mb-sm"
+                data-testid="route-fixed-preview"
+              >
+                {{ importRatePreview.text }}
+              </AppNotice>
+            </template>
             <WeightBandsEditor v-model="routeBands" :currency="shopConfig.currency" />
             <q-input
               v-model="routeForm.free_shipping_threshold"
@@ -1053,6 +1078,7 @@ const routeForm = reactive<{
   eta_days: number | null;
   price_per_kg: string;
   base_price: string;
+  import_fixed_basis_kg: string;
   free_shipping_threshold: string;
   is_to_customer: boolean;
 }>({
@@ -1065,8 +1091,27 @@ const routeForm = reactive<{
   eta_days: null,
   price_per_kg: '',
   base_price: '',
+  import_fixed_basis_kg: '',
   free_shipping_threshold: '',
   is_to_customer: false,
+});
+
+/** What a billable kg of the import route costs once the fixed fee is spread. */
+const importRatePreview = computed<{ text: string; warn: boolean } | null>(() => {
+  const fixed = Number(routeForm.base_price || 0);
+  if (!(fixed > 0)) return null;
+  const basis = Number(routeForm.import_fixed_basis_kg || 0);
+  if (!(basis > 0)) return { text: t('logistics.fixed_not_billed'), warn: true };
+  const share = fixed / basis;
+  const rate = Number(routeForm.price_per_kg || 0) + share;
+  return {
+    text: t('logistics.fixed_spread', {
+      share: Math.round(share * 100) / 100,
+      rate: Math.round(rate * 100) / 100,
+      currency: shopConfig.currency,
+    }),
+    warn: false,
+  };
 });
 const routeBands = ref<BandRow[]>([]);
 // Unsaved edits are not lost on Escape, backdrop or navigation (R9 / T5).
@@ -1107,6 +1152,7 @@ function resetRouteForm() {
   routeForm.eta_days = null;
   routeForm.price_per_kg = '';
   routeForm.base_price = '';
+  routeForm.import_fixed_basis_kg = '';
   routeForm.free_shipping_threshold = '';
   routeForm.is_to_customer = false;
   routeBands.value = [];
@@ -1137,6 +1183,7 @@ function openRouteEdit(r: ShippingRoute) {
   routeForm.eta_days = r.eta_days;
   routeForm.price_per_kg = r.price_per_kg ?? '';
   routeForm.base_price = r.base_price ?? '';
+  routeForm.import_fixed_basis_kg = r.import_fixed_basis_kg ?? '';
   routeForm.free_shipping_threshold = r.free_shipping_threshold ?? '';
   routeForm.is_to_customer = r.is_to_customer;
   routeBands.value = bandRows(r.weight_bands);
@@ -1169,6 +1216,9 @@ async function submitRoute() {
         : null,
     price_per_kg: routeForm.price_per_kg.trim() || null,
     base_price: routeForm.base_price.trim() || null,
+    import_fixed_basis_kg: routeForm.service_level
+      ? String(routeForm.import_fixed_basis_kg ?? '').trim() || null
+      : null,
     weight_bands: bandsPayload(routeBands.value),
     // q-input clearable sets null; keep the payload a string or null.
     free_shipping_threshold: (routeForm.free_shipping_threshold ?? '').trim() || null,

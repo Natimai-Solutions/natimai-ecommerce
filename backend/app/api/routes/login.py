@@ -52,7 +52,7 @@ def _raise_invalid_refresh_token(
     raise AppError(
         code="login.refresh_token.invalid",
         status_code=401,
-        message="Refresh token invalide",
+        message="Invalid session: sign in again.",
         details=details,
     )
 
@@ -113,7 +113,7 @@ async def login_access_token(
         raise AppError(
             code="login.rate_limited",
             status_code=429,
-            message="Trop de tentatives de connexion. Réessayez dans une minute.",
+            message="Too many sign-in attempts. Try again in a minute.",
             details={"retry_after_seconds": settings.LOGIN_RATE_LIMIT_WINDOW_SECONDS},
         )
 
@@ -130,8 +130,7 @@ async def login_access_token(
             code="login.account.locked",
             status_code=429,
             message=(
-                "Compte temporairement verrouillé après trop de tentatives. "
-                "Réessayez plus tard."
+                "Account temporarily locked after too many attempts. Try again later."
             ),
             details={"locked_until": exc.locked_until.isoformat()},
         ) from exc
@@ -142,14 +141,14 @@ async def login_access_token(
         raise AppError(
             code="login.credentials.invalid",
             status_code=400,
-            message="Email ou mot de passe incorrect.",
+            message="Incorrect e-mail or password.",
             details={"reason": "invalid_credentials"},
         )
     elif not user.is_active:
         raise AppError(
             code="login.user.inactive",
             status_code=400,
-            message="Utilisateur désactivé",
+            message="Disabled account.",
             details={"user_id": str(user.id)},
         )
 
@@ -164,7 +163,7 @@ async def login_access_token(
             raise AppError(
                 code="login.totp.required",
                 status_code=401,
-                message="Saisissez le code de votre application d'authentification.",
+                message="Enter the code from your authenticator app.",
                 details={"reason": "totp_required"},
             )
         # The password was right, so the password counters were just cleared:
@@ -178,8 +177,7 @@ async def login_access_token(
                 code="login.account.locked",
                 status_code=429,
                 message=(
-                    "Compte temporairement verrouillé après trop de tentatives. "
-                    "Réessayez plus tard."
+                    "Account temporarily locked after too many attempts. Try again later."
                 ),
                 details={"reason": "totp_locked"},
             )
@@ -206,15 +204,14 @@ async def login_access_token(
                     code="login.account.locked",
                     status_code=429,
                     message=(
-                        "Compte temporairement verrouillé après trop de tentatives. "
-                        "Réessayez plus tard."
+                        "Account temporarily locked after too many attempts. Try again later."
                     ),
                     details={"locked_until": exc.locked_until.isoformat()},
                 ) from exc
             raise AppError(
                 code="login.totp.invalid",
                 status_code=401,
-                message="Code de vérification incorrect.",
+                message="Incorrect verification code.",
                 details={"reason": "totp_invalid"},
             )
 
@@ -293,7 +290,7 @@ def _check_admin_origin(request: Request, user: Any) -> None:
         raise AppError(
             code="login.refresh_token.admin_origin",
             status_code=403,
-            message="Compte d'administration : connectez-vous depuis l'admin.",
+            message="Administration account: sign in from the back office.",
             details={},
         )
 
@@ -346,7 +343,7 @@ async def refresh_access_token(
         raise AppError(
             code="login.user.inactive",
             status_code=400,
-            message="Utilisateur désactivé",
+            message="Disabled account.",
             details={"user_id": str(user.id)},
         )
 
@@ -363,7 +360,7 @@ async def refresh_access_token(
         raise AppError(
             code="login.refresh_token.revoked",
             status_code=401,
-            message="Refresh token révoqué",
+            message="Session ended: sign in again.",
             details={"user_id": str(user_id), "jti": token_jti},
         )
 
@@ -397,7 +394,7 @@ async def refresh_access_token(
         raise AppError(
             code="login.refresh_token.revoked",
             status_code=401,
-            message="Refresh token révoqué",
+            message="Session ended: sign in again.",
             details={
                 "user_id": str(user_id),
                 "jti": token_jti,
@@ -414,7 +411,7 @@ async def refresh_access_token(
         raise AppError(
             code="login.refresh_token.expired",
             status_code=401,
-            message="Refresh token expiré",
+            message="Session expired: sign in again.",
             details={
                 "user_id": str(user_id),
                 "jti": token_jti,
@@ -442,7 +439,7 @@ async def refresh_access_token(
         raise AppError(
             code="login.refresh_token.revoked",
             status_code=401,
-            message="Refresh token révoqué",
+            message="Session ended: sign in again.",
             details={"user_id": str(user_id), "jti": token_jti},
         )
 

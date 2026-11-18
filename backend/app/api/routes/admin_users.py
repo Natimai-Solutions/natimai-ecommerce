@@ -157,7 +157,7 @@ async def _load_user(session: SessionDep, user_id: uuid.UUID) -> User:
         raise AppError(
             code="auth.user.not_found",
             status_code=404,
-            message=f"User '{user_id}' not found",
+            message="Account not found.",
             details={"user_id": str(user_id)},
         )
     return user
@@ -171,7 +171,7 @@ async def _load_active_price_group(
         raise AppError(
             code="resource.not_found",
             status_code=404,
-            message=f"Price group '{price_group_id}' not found",
+            message="Item not found.",
             details={"resource": "price_group", "id": str(price_group_id)},
         )
     return group
@@ -276,7 +276,7 @@ async def create_user(
         raise AppError(
             code="admin.user.email_taken",
             status_code=409,
-            message="Un compte existe déjà pour cette adresse",
+            message="An account already uses this address.",
             details={"email": email, "user_id": str(existing.id)},
         )
 
@@ -339,14 +339,14 @@ async def resend_invitation(
         raise AppError(
             code="admin.user.already_activated",
             status_code=409,
-            message="Ce compte a déjà été activé : l'invitation n'a plus d'objet",
+            message="This account is already activated: the invitation is no longer needed.",
             details={"user_id": str(user_id)},
         )
     if not user.is_active:
         raise AppError(
             code="admin.user.inactive",
             status_code=409,
-            message="Compte désactivé : réactivez-le avant de renvoyer l'invitation",
+            message="Disabled account: reactivate it before resending the invitation.",
             details={"user_id": str(user_id)},
         )
 
@@ -392,7 +392,7 @@ async def update_user(
         raise AppError(
             code="admin.user.self_deactivation",
             status_code=400,
-            message="Vous ne pouvez pas désactiver votre propre compte",
+            message="You cannot deactivate your own account.",
             details={"user_id": str(user_id)},
         )
 
@@ -440,7 +440,7 @@ async def reset_two_factor(
         raise AppError(
             code="auth.totp.reset_self",
             status_code=400,
-            message="Désactivez votre propre double authentification depuis « Sécurité »",
+            message="Disable your own two-factor authentication from “Security”.",
             details={},
         )
     user = await _load_user(session, user_id)

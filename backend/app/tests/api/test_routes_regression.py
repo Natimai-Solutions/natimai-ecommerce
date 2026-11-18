@@ -292,7 +292,7 @@ async def test_tracking_update_status_requires_superuser(
     assert response.status_code == 403
     payload = response.json()["error"]
     assert payload["code"] == "auth.superuser.required"
-    assert "enough privileges" in payload["message"]
+    assert payload["message"] == "Administrator access required."
 
 
 @pytest.mark.asyncio
@@ -307,7 +307,7 @@ async def test_read_multi_rejects_raw_filter_query_string(
     assert response.status_code == 400
     payload = response.json()["error"]
     assert payload["code"] == "resource.filter.unsupported"
-    assert "Raw string filters" in payload["message"]
+    assert payload["message"] == "This filter is not supported here."
 
 
 @pytest.mark.asyncio
@@ -334,5 +334,5 @@ async def test_product_router_create_permission_requires_superuser(
 
     assert exc_info.value.status_code == 403
     assert exc_info.value.code == "resource.superuser_required"
-    assert "Superuser privileges required" in exc_info.value.message
+    assert exc_info.value.message == "Administrator access required."
     permission_mock.assert_not_awaited()

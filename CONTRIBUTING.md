@@ -87,15 +87,16 @@ See [`README.md`](README.md) and [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
 | Lint | `make lint` (ruff, eslint) | backend, frontend |
 | Types | `make typecheck` (mypy strict, vue-tsc) | backend, frontend |
 | Unit / integration tests | `make test` | backend, frontend |
-| API types in sync | `make check-types` | api-types |
+| API types in sync | `make check-types` | frontend |
 | End-to-end | `make e2e` (stack running) | e2e |
 
 `uvx pre-commit install` runs the formatters and gitleaks on each commit with
 the repository's own tools ([`.pre-commit-config.yaml`](.pre-commit-config.yaml)).
 
 CI only runs the jobs whose files your pull request touches: a storefront-only
-PR skips pytest and the end-to-end suite. Skipped jobs count as passed. On
-`main` everything always runs.
+PR skips pytest and the end-to-end suite. Skipped jobs count as passed. A
+draft PR runs nothing: mark it ready for review when you want CI. Everything
+runs once a week on `main` and on demand (Actions → CI → Run workflow).
 
 ## Conventions that CI enforces
 

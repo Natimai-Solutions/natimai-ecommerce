@@ -147,7 +147,7 @@ async def adjust_inventory(
         raise AppError(
             code="inventory.product.not_found",
             status_code=404,
-            message=f"Product '{payload.product_id}' not found",
+            message="Product not found.",
             details={"product_id": str(payload.product_id)},
         )
 

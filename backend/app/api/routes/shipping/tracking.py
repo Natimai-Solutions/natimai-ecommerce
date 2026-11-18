@@ -251,7 +251,7 @@ class ShippingRouteTrackingRouter(
                 raise AppError(
                     code="order.not_found",
                     status_code=status.HTTP_404_NOT_FOUND,
-                    message=f"Order '{order_id}' not found",
+                    message="Order not found.",
                     details={"order_id": str(order_id)},
                 )
 
@@ -317,7 +317,7 @@ class ShippingRouteTrackingRouter(
                 raise AppError(
                     code="shipping.tracking.not_found",
                     status_code=status.HTTP_404_NOT_FOUND,
-                    message=f"Tracking '{tracking_id}' not found",
+                    message="Tracking not found.",
                     details={"tracking_id": str(tracking_id)},
                 ) from exc
 
@@ -400,7 +400,7 @@ class ShippingRouteTrackingRouter(
                 raise AppError(
                     code="shipping.tracking.not_found",
                     status_code=status.HTTP_404_NOT_FOUND,
-                    message=f"Tracking '{tracking_id}' not found",
+                    message="Tracking not found.",
                     details={"tracking_id": str(tracking_id)},
                 ) from exc
 
@@ -436,7 +436,7 @@ class ShippingRouteTrackingRouter(
                 raise AppError(
                     code="shipping.tracking.not_found",
                     status_code=status.HTTP_404_NOT_FOUND,
-                    message=f"Tracking '{tracking_id}' not found",
+                    message="Tracking not found.",
                     details={"tracking_id": str(tracking_id)},
                 ) from exc
 

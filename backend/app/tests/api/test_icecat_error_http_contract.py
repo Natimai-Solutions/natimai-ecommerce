@@ -75,7 +75,7 @@ def test_icecat_enrich_disabled_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "icecat.disabled",
-            "message": "Icecat enrichment is disabled in settings",
+            "message": "Icecat enrichment is switched off.",
             "details": {"setting": "ICECAT_ENABLED"},
         }
     }
@@ -98,7 +98,7 @@ def test_icecat_enrich_queue_failed_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "icecat.enrich.queue_failed",
-            "message": "Failed to queue enrichment job (see the server log)",
+            "message": "The enrichment could not be queued (see the server log).",
             "details": {
                 "product_id": "P1",
             },
@@ -123,7 +123,7 @@ def test_icecat_batch_queue_failed_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "icecat.batch.queue_failed",
-            "message": "Failed to queue batch enrichment job (see the server log)",
+            "message": "The enrichment batch could not be queued (see the server log).",
             "details": {
                 "limit": 20,
             },
@@ -156,7 +156,7 @@ def test_icecat_test_endpoint_failure_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "icecat.test.failed",
-            "message": "Icecat API test failed (see the server log)",
+            "message": "The Icecat API test failed (see the server log).",
             "details": {
                 "vendor_part_number": "VP-123",
                 "manufacturer": "Acme",
@@ -184,7 +184,7 @@ def test_icecat_search_upc_failure_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "icecat.search.upc.failed",
-            "message": "UPC search failed (see the server log)",
+            "message": "The UPC search failed (see the server log).",
             "details": {
                 "upc": "123456789012",
             },
@@ -209,7 +209,7 @@ def test_icecat_search_ean_failure_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "icecat.search.ean.failed",
-            "message": "EAN search failed (see the server log)",
+            "message": "The EAN search failed (see the server log).",
             "details": {
                 "ean": "1234567890123",
             },

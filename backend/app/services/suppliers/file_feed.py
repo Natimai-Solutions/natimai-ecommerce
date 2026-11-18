@@ -313,7 +313,7 @@ class FileFeedAdapter(SupplierAdapter):
             return SupplierHealth(
                 healthy=False,
                 configured=False,
-                message="Flux mal configuré : " + ", ".join(problems),
+                message="Feed misconfigured: " + ", ".join(problems),
             )
         try:
             content, filename = await self.download(limit=HEALTH_PROBE_BYTES)

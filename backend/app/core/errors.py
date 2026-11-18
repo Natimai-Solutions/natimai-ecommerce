@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any
 
 from fastapi import FastAPI, Request
@@ -12,8 +13,30 @@ from app.features.base.crud import RecordNotFoundError
 logger = logging.getLogger(__name__)
 
 
+_PLACEHOLDER = re.compile(r"\{([a-z_][a-z0-9_]*)\}")
+
+
+def fill_placeholders(message: str, details: dict[str, Any]) -> str:
+    """``{name}`` replaced by ``details[name]`` when it is there.
+
+    The fallback message is the English text of the shared catalogue
+    (``shared/utils/src/apiErrors/en.json``), placeholders included: the same
+    values fill it here and in the frontends.
+    """
+    return _PLACEHOLDER.sub(
+        lambda m: str(details[m.group(1)]) if m.group(1) in details else m.group(0),
+        message,
+    )
+
+
 class AppError(Exception):
-    """Application error with stable machine-readable code."""
+    """Application error with a stable machine-readable code.
+
+    The API is language-agnostic: clients translate the ``code`` (with the
+    ``details`` as parameters) — the frontends from the shared catalogue
+    ``shared/utils/src/apiErrors/{en,fr}.json``. ``message`` is the English
+    fallback, the catalogue's English text, for API clients and logs.
+    """
 
     def __init__(
         self,
@@ -23,12 +46,12 @@ class AppError(Exception):
         message: str | None = None,
         details: dict[str, Any] | None = None,
     ) -> None:
-        resolved_message = message or code
+        self.details = details or {}
+        resolved_message = fill_placeholders(message or code, self.details)
         super().__init__(resolved_message)
         self.code = code
         self.status_code = status_code
         self.message = resolved_message
-        self.details = details or {}
 
 
 def _app_error_payload(exc: AppError) -> dict[str, Any]:
@@ -42,22 +65,11 @@ def _app_error_payload(exc: AppError) -> dict[str, Any]:
     }
 
 
-async def app_error_handler(request: Request, exc: Exception) -> JSONResponse:
-    """Handle application errors with a stable payload contract.
-
-    The message follows the caller's ``Accept-Language`` (R7 / L3); the code
-    never changes.
-    """
+async def app_error_handler(_request: Request, exc: Exception) -> JSONResponse:
+    """Handle application errors with a stable payload contract: the code,
+    its English fallback message, its details. The client translates."""
     assert isinstance(exc, AppError)
-    from app.core.error_messages import localized_message
-    from app.core.i18n import from_accept_language, request_locale
-
-    locale = from_accept_language(request.headers.get("accept-language")) or (
-        request_locale()
-    )
-    payload = _app_error_payload(exc)
-    payload["error"]["message"] = localized_message(exc.code, exc.message, locale)
-    return JSONResponse(status_code=exc.status_code, content=payload)
+    return JSONResponse(status_code=exc.status_code, content=_app_error_payload(exc))
 
 
 async def record_not_found_handler(_request: Request, exc: Exception) -> JSONResponse:
@@ -113,10 +125,10 @@ async def currency_rate_missing_handler(
     error = AppError(
         code="product.price_unavailable",
         status_code=409,
-        message="Le prix de cet article n'est pas disponible pour le moment.",
+        message="The price of this item is not available at the moment.",
         details={"currency": getattr(exc, "currency_code", None)},
     )
-    # Through the common handler: the message follows the caller's language.
+    # Through the common handler (same payload contract).
     return await app_error_handler(request, error)
 
 

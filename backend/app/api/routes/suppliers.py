@@ -100,8 +100,7 @@ async def get_supplier(
         raise AppError(
             code="supplier.not_found",
             status_code=404,
-            message=f"Unknown supplier '{supplier_name}'. "
-            f"Registered: {', '.join(registered)}",
+            message="Unknown supplier.",
             details={"supplier_name": supplier_name, "registered": registered},
         )
     return supplier
@@ -116,10 +115,7 @@ def get_supplier_adapter(supplier: SupplierDep) -> SupplierAdapter:
         raise AppError(
             code="supplier.not_api",
             status_code=400,
-            message=(
-                f"Supplier '{supplier.code}' has no live API integration "
-                f"(kind={supplier.kind.value}, adapter_key={supplier.adapter_key!r})"
-            ),
+            message=("This supplier has no live API integration."),
             details={
                 "supplier_name": supplier.code,
                 "kind": supplier.kind.value,
@@ -314,14 +310,14 @@ def _ensure_sync_allowed(adapter: SupplierAdapter) -> None:
         raise AppError(
             code="supplier.sync.disabled",
             status_code=400,
-            message=f"{adapter.supplier_display_name} synchronization is disabled in settings",
+            message="This supplier's synchronisation is switched off.",
             details={"supplier_name": adapter.name},
         )
     if not adapter.is_configured():
         raise AppError(
             code="supplier.credentials.not_configured",
             status_code=500,
-            message=f"{adapter.supplier_display_name} credentials not configured",
+            message="This supplier's credentials are not configured.",
             details={"supplier_name": adapter.name},
         )
 
@@ -346,7 +342,7 @@ async def trigger_product_sync(
         raise AppError(
             code="supplier.sync.queue_failed",
             status_code=500,
-            message="Failed to queue product sync (see the server log)",
+            message="The synchronisation could not be queued (see the server log).",
             details={
                 "supplier_name": adapter.name,
                 "sync_type": "product_catalog",
@@ -381,7 +377,7 @@ async def trigger_inventory_sync(
         raise AppError(
             code="supplier.sync.queue_failed",
             status_code=500,
-            message="Failed to queue inventory refresh (see the server log)",
+            message="The synchronisation could not be queued (see the server log).",
             details={
                 "supplier_name": adapter.name,
                 "sync_type": "inventory",
@@ -493,7 +489,7 @@ async def _read_upload(file: UploadFile) -> tuple[str, bytes]:
         raise AppError(
             code="supplier.import.file_too_large",
             status_code=413,
-            message=f"File exceeds {MAX_UPLOAD_BYTES // (1024 * 1024)} MB",
+            message="The file is too large.",
             details={"filename": filename, "size": len(content)},
         )
     return filename, content
@@ -508,7 +504,7 @@ def _parse_mapping_field(raw: str | None) -> dict[str, str] | None:
         raise AppError(
             code="supplier.import.mapping_invalid",
             status_code=400,
-            message=f"mapping is not valid JSON: {exc}",
+            message="Invalid column mapping.",
             details={"mapping": raw[:200]},
         ) from exc
     if not isinstance(parsed, dict) or not all(
@@ -517,7 +513,7 @@ def _parse_mapping_field(raw: str | None) -> dict[str, str] | None:
         raise AppError(
             code="supplier.import.mapping_invalid",
             status_code=400,
-            message="mapping must be a JSON object of {internal_field: column}",
+            message="Invalid column mapping.",
             details={},
         )
     return {k: v for k, v in parsed.items() if v}
@@ -528,7 +524,7 @@ async def _ensure_category(session: SessionDep, category_id: uuid.UUID) -> None:
         raise AppError(
             code="category.not_found",
             status_code=404,
-            message=f"Catégorie inconnue : {category_id}",
+            message="Unknown category.",
             details={"category_id": str(category_id)},
         )
 
@@ -688,14 +684,14 @@ async def import_catalog_file(
         raise AppError(
             code="supplier.import.mapping_invalid",
             status_code=400,
-            message="; ".join(problems) or "Aucun mapping de colonnes défini",
+            message="Invalid column mapping.",
             details={"problems": problems, "headers": parsed.headers},
         )
     if parsed.total_rows > max_rows:
         raise AppError(
             code="supplier.import.too_many_rows",
             status_code=413,
-            message=f"File has {parsed.total_rows} rows; the limit is {max_rows}",
+            message="The file has too many rows ({total_rows}; at most {limit}).",
             details={"total_rows": parsed.total_rows, "limit": max_rows},
         )
 
@@ -806,7 +802,7 @@ async def import_catalog_file(
         raise AppError(
             code="supplier.import.failed",
             status_code=500,
-            message=f"Import failed: {exc}",
+            message="The import failed.",
             details={"supplier_name": supplier_code, "filename": filename},
         ) from exc
 
@@ -895,7 +891,7 @@ async def _queue_file_import(
         raise AppError(
             code="supplier.import.queue_unavailable",
             status_code=503,
-            message="L'import en tâche de fond est indisponible ; réessayez plus tard",
+            message="Background import is unavailable; try again later.",
             details={"supplier_name": supplier_code, "filename": filename},
         ) from exc
 
@@ -949,14 +945,14 @@ async def get_catalog_import_status(
         raise AppError(
             code="supplier.import.not_found",
             status_code=404,
-            message=f"Import {sync_log_id} not found",
+            message="Import not found.",
             details={"sync_log_id": str(sync_log_id)},
         ) from exc
     if log.supplier_name != supplier.code:
         raise AppError(
             code="supplier.import.not_found",
             status_code=404,
-            message=f"Import {sync_log_id} not found for {supplier.code}",
+            message="Import not found.",
             details={"sync_log_id": str(sync_log_id), "supplier_name": supplier.code},
         )
 

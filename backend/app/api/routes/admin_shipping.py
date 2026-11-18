@@ -273,7 +273,7 @@ async def _advance_tracking(
         raise AppError(
             code="shipping.tracking.not_found",
             status_code=404,
-            message=f"Tracking '{tracking_id}' not found",
+            message="Tracking not found.",
             details={"tracking_id": str(tracking_id)},
         ) from exc
 
@@ -281,7 +281,7 @@ async def _advance_tracking(
         raise AppError(
             code="shipping.tracking.not_found",
             status_code=404,
-            message=f"Tracking '{tracking_id}' not found",
+            message="Tracking not found.",
             details={"tracking_id": str(tracking_id)},
         )
 
@@ -418,7 +418,7 @@ def _normalize_carrier_code(code: str) -> str:
         raise AppError(
             code="carrier.code.invalid",
             status_code=400,
-            message="Le code du transporteur est requis",
+            message="The carrier code is required.",
         )
     return cleaned
 
@@ -446,7 +446,7 @@ async def _ensure_carrier_code_free(
         raise AppError(
             code="carrier.code.duplicate",
             status_code=409,
-            message=f"Un transporteur porte déjà le code '{code}'",
+            message="A carrier already uses this code.",
             details={"code": code, "carrier_id": str(existing.id)},
         )
 
@@ -459,7 +459,7 @@ async def _get_carrier_or_404(session: SessionDep, carrier_id: uuid.UUID) -> Car
         raise AppError(
             code="carrier.not_found",
             status_code=404,
-            message=f"Transporteur '{carrier_id}' introuvable",
+            message="Carrier not found.",
             details={"carrier_id": str(carrier_id)},
         )
     return carrier
@@ -526,7 +526,7 @@ async def retire_carrier(
     carrier.is_active = False
     session.add(carrier)
     await session.commit()
-    return OkResponse(message="Transporteur retiré du sélecteur")
+    return OkResponse(message="Carrier removed from the selector")
 
 
 @router.post("/consolidations", response_model=AdminConsolidationItem, status_code=201)
@@ -592,7 +592,7 @@ async def _get_consolidation_or_404(
         raise AppError(
             code="shipping.consolidation.not_found",
             status_code=404,
-            message=f"Consolidation '{consolidation_id}' not found",
+            message="Consolidation not found.",
             details={"consolidation_id": str(consolidation_id)},
         ) from exc
 
@@ -618,7 +618,7 @@ async def add_trackings(
         if ok:
             added += 1
     await session.commit()
-    return OkResponse(message=f"{added} tracking(s) ajouté(s) à la consolidation")
+    return OkResponse(message=f"{added} tracking(s) added to the consolidation")
 
 
 @router.post("/consolidations/{consolidation_id}/ship-all", response_model=OkResponse)
@@ -673,7 +673,7 @@ async def ship_consolidation(
     session.add(consolidation)
     await session.commit()
     return OkResponse(
-        message=f"{len(tracking_ids)} tracking(s) marqué(s) expédié(s)",
+        message=f"{len(tracking_ids)} tracking(s) marked shipped",
     )
 
 
@@ -699,7 +699,7 @@ async def ship_tracking(
         carrier_id=body.carrier_id,
     )
     await session.commit()
-    return OkResponse(message="Tracking marqué expédié")
+    return OkResponse(message="Tracking marked shipped")
 
 
 @router.post("/trackings/{tracking_id}/deliver", response_model=OkResponse)
@@ -725,7 +725,7 @@ async def deliver_tracking(
         admin_id=admin.id,
     )
     await session.commit()
-    return OkResponse(message="Tracking marqué livré")
+    return OkResponse(message="Tracking marked delivered")
 
 
 @router.post("/trackings/{tracking_id}/advance", response_model=AdvanceResponse)
@@ -743,7 +743,7 @@ async def advance_tracking(
         raise AppError(
             code="shipping.tracking.not_found",
             status_code=404,
-            message="Tracking not found",
+            message="Tracking not found.",
             details={"tracking_id": str(tracking_id)},
         )
     # A customer-delivery leg has no « next »: advancing it would mark it
@@ -754,8 +754,7 @@ async def advance_tracking(
             code="shipping.advance.last_leg",
             status_code=400,
             message=(
-                "Dernier tronçon (livraison client) — utilisez « Livrer » "
-                "pour confirmer la livraison"
+                "Last leg (customer delivery): use “Deliver” to confirm the delivery."
             ),
             details={"tracking_id": str(tracking_id), "route_id": str(route.id)},
         )
@@ -766,9 +765,7 @@ async def advance_tracking(
         changed_by=admin_id,
     )
     if next_tracking is None:
-        return AdvanceResponse(
-            has_next=False, message="Dernier tronçon — parcours terminé"
-        )
+        return AdvanceResponse(has_next=False, message="Last leg: journey complete")
     # Notify the customer the parcel moved on to the next leg. Snapshot the id
     # before the commit, which expires next_tracking.
     next_id = next_tracking.id
@@ -784,7 +781,7 @@ async def advance_tracking(
     return AdvanceResponse(
         has_next=True,
         next_tracking_id=next_id,
-        message="Tronçon suivant activé",
+        message="Next leg started",
     )
 
 
@@ -845,7 +842,7 @@ async def advance_consolidation(
                 changed_by=admin_id,
             )
 
-    message = f"{advanced}/{len(tracking_ids)} colis passé(s) au tronçon suivant"
+    message = f"{advanced}/{len(tracking_ids)} parcel(s) moved to the next leg"
     regrouped = await _regroup_next_legs(
         session,
         next_legs=[] if body.ungroup else next_legs,
@@ -853,9 +850,9 @@ async def advance_consolidation(
         notes=lot_notes,
     )
     if regrouped is not None:
-        message += f", regroupés dans {regrouped}"
+        message += f", grouped in {regrouped}"
     elif not body.ungroup and len(next_legs) > 1:
-        message += " ; trajets suivants différents : colis non regroupés"
+        message += "; different next journeys: parcels not grouped"
     await session.commit()
     return OkResponse(message=message)
 
@@ -948,7 +945,7 @@ async def deliver_consolidation(
         consolidation.status_id = consolidation_status_id
         session.add(consolidation)
     await session.commit()
-    return OkResponse(message=f"{len(tracking_ids)} colis dégroupé(s) et livré(s)")
+    return OkResponse(message=f"{len(tracking_ids)} parcel(s) split and delivered")
 
 
 @router.get(
@@ -983,7 +980,7 @@ async def order_journey(
         raise AppError(
             code="order.journey.empty",
             status_code=404,
-            message=f"Aucun tronçon pour la commande '{order_id}'",
+            message="No shipping leg for this order.",
             details={"order_id": str(order_id)},
         )
 

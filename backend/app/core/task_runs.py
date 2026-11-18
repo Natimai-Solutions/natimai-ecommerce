@@ -52,7 +52,9 @@ def outcome_of(result: Any) -> tuple[str, str | None]:
     if not isinstance(result, dict):
         return STATUS_OK, None
     status = str(result.get("status") or "").lower()
-    if status in {"error", "failed", "failure"}:
+    # « unhealthy »: the supplier health probe answers that way, and its
+    # failure alerted nobody (review of 17/11/2026).
+    if status in {"error", "failed", "failure", "unhealthy"}:
         return STATUS_FAILED, str(
             result.get("message") or result.get("error") or status
         )
@@ -123,16 +125,28 @@ async def _record_end(name: str, status: str, error: str | None, result: Any) ->
             # A new incident alerts at once — unless one was sent within the
             # hour: a task that alternates success and failure alerted on
             # every other run.
+            # Stamped once the alert is out (``_mark_alerted``): stamped
+            # before, a webhook down at that moment silenced the task for
+            # the next 6 hours.
             alert = (
                 last is None
                 or (now - last >= REALERT_AFTER)
                 or (row.consecutive_failures == 1 and now - last >= FLAPPING_QUIET)
             )
-            if alert:
-                row.last_alert_at = now
         session.add(row)
         await session.commit()
         return alert
+
+
+async def _mark_alerted(name: str) -> None:
+    from app.features.system.models.task_run import TaskRun
+
+    async with AsyncSession(_engine()) as session:
+        row = await session.get(TaskRun, name)
+        if row is not None:
+            row.last_alert_at = _now()
+            session.add(row)
+            await session.commit()
 
 
 async def record_run(
@@ -147,14 +161,16 @@ async def record_run(
     if not alert:
         return
     try:
-        from app.core.alerting import send_alert
+        from app.core.operator_messages import alert as post_alert
 
-        label = (
-            "a échoué" if status == STATUS_FAILED else "s'est terminée avec des erreurs"
+        sent = await post_alert(
+            "tasks.failed" if status == STATUS_FAILED else "tasks.partial",
+            source="tasks",
+            name=name,
+            error=(error or "")[:300],
         )
-        await send_alert(
-            f"Tâche « {name} » {label} : {(error or '')[:300]}", source="tasks"
-        )
+        if sent:
+            await _mark_alerted(name)
     except Exception:  # noqa: BLE001
         logger.warning("Alert for task %s not sent", name, exc_info=True)
 
@@ -191,3 +207,46 @@ def journaled(fn: TaskFn, name: str | None = None) -> TaskFn:
         return result
 
     return wrapper
+
+
+def _abandoned_job(result_data: bytes | None) -> tuple[str, str] | None:
+    """``(function, reason)`` of a job arq gave up on before running it."""
+    if not result_data:
+        return None
+    from arq.jobs import deserialize_result
+
+    try:
+        info = deserialize_result(result_data)
+    except Exception:  # noqa: BLE001
+        return None
+    name = run_name(info.function, dict(info.kwargs or {}))
+    return name, f"abandonnée avant exécution : {info.result!r}"[:2000]
+
+
+def install_abandoned_job_journal() -> None:
+    """Journal (and alert on) the jobs arq gives up on without running them.
+
+    A job expired in the queue, past its tries before it could start, or
+    whose function is unknown never reaches :func:`journaled`: arq only
+    stores a failed result, read by no one, and « État du système » kept the
+    task « ok » (review of 17/11/2026). ``Worker.finish_failed_job`` is the
+    one path of those cases (a job that ran and failed goes through
+    ``finish_job``): it is wrapped to record them. Idempotent.
+    """
+    from arq.worker import Worker
+
+    original = Worker.finish_failed_job
+    if getattr(original, "_journaled", False):
+        return
+
+    async def finish_failed_job(
+        self: Any, job_id: str, result_data: bytes | None
+    ) -> None:
+        await original(self, job_id, result_data)
+        abandoned = _abandoned_job(result_data)
+        if abandoned is not None:
+            name, reason = abandoned
+            await record_run(name, STATUS_FAILED, reason)
+
+    finish_failed_job._journaled = True  # type: ignore[attr-defined]
+    Worker.finish_failed_job = finish_failed_job  # type: ignore[method-assign]

@@ -1,0 +1,17 @@
+# Redémarrage des conteneurs « unhealthy » — à installer sur le serveur :
+#   sudo cp scripts/ops/ecommerce-autoheal.cron /etc/cron.d/ecommerce-autoheal
+#   sudo chown root:root /etc/cron.d/ecommerce-autoheal && sudo chmod 644 /etc/cron.d/ecommerce-autoheal
+#
+# Adapter le répertoire et l'utilisateur (doit être dans le groupe docker).
+# Essai sans risque : DRY_RUN=true ./scripts/ops/restart-unhealthy.sh
+
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# Webhook d'alerting — même valeur que ALERT_WEBHOOK_URL dans le .env racine.
+ALERT_WEBHOOK_URL=
+# Projet compose surveillé (défaut : nom du répertoire du dépôt).
+COMPOSE_PROJECT_NAME=
+
+# m    h  dom mon dow  user      command
+  */5  *  *   *   *    deploy    cd /opt/natimai-ecommerce && ./scripts/ops/restart-unhealthy.sh >> /var/log/ecommerce-autoheal.log 2>&1

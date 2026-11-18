@@ -134,7 +134,7 @@ async def test_money_after_a_release_takes_the_stock_again_or_alerts(
         alerts.append(message)
         return True
 
-    monkeypatch.setattr(handlers, "send_alert", _alert)
+    monkeypatch.setattr("app.core.alerting.send_alert", _alert)
     buyer = await _user(db_session)
 
     # 1. The unit is still there: taken again, then confirmed.
@@ -324,3 +324,52 @@ async def test_a_closed_or_paid_order_does_not_go_back(
         admin,
     )
     assert moved.changed is True
+
+
+@pytest.mark.asyncio
+async def test_a_refused_status_on_the_generic_put_saves_nothing(
+    db_session: AsyncSession,
+) -> None:
+    """Review of 17/11/2026: the other fields of the PUT were committed, then
+    the status change refused — half a write behind a 409."""
+    from sqlmodel import col, select
+
+    from app.api.routes.order import router as order_router
+    from app.core.errors import AppError
+    from app.features.order.models.order import Order, OrderUpdate
+    from app.features.order.models.order_status import OrderStatus
+
+    admin = await _user(db_session)
+    admin.is_superuser = True
+    db_session.add(admin)
+    await db_session.commit()
+    buyer = await _user(db_session)
+    order_id, _ = await _order(
+        db_session, buyer, order_status="Cancelled", payment_status="Cancelled"
+    )
+    paid = (
+        await db_session.exec(
+            select(OrderStatus).where(col(OrderStatus.name) == "Paid")
+        )
+    ).first()
+    if paid is None:
+        paid = OrderStatus(name="Paid")
+        db_session.add(paid)
+        await db_session.flush()
+    paid_id = paid.id
+    await db_session.commit()
+    await db_session.refresh(admin)
+
+    update = order_router.generate_update_endpoint()
+    with pytest.raises(AppError) as refused:
+        await update(
+            session=db_session,
+            id=order_id,
+            data=OrderUpdate(notes="ne doit pas rester", order_status_id=paid_id),
+            current_user=admin,
+        )
+    assert refused.value.code == "order.status.transition_refused"
+
+    db_session.expire_all()
+    order = await db_session.get(Order, order_id)
+    assert order is not None and order.notes != "ne doit pas rester"

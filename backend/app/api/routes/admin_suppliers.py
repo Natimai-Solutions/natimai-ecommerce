@@ -127,7 +127,7 @@ async def _load(session: SessionDep, code: str) -> Supplier:
         raise AppError(
             code="supplier.not_found",
             status_code=404,
-            message=f"Unknown supplier '{code}'",
+            message="Unknown supplier.",
             details={"supplier_name": code},
         )
     return supplier
@@ -140,10 +140,7 @@ async def _validate(session: SessionDep, supplier: Supplier) -> None:
             raise AppError(
                 code="supplier.adapter.unknown",
                 status_code=400,
-                message=(
-                    f"No integration registered under adapter_key "
-                    f"{supplier.adapter_key!r}. Available: {', '.join(sorted(ADAPTERS))}"
-                ),
+                message=("No integration under this adapter key."),
                 details={
                     "adapter_key": supplier.adapter_key,
                     "available": sorted(ADAPTERS),
@@ -155,10 +152,7 @@ async def _validate(session: SessionDep, supplier: Supplier) -> None:
             raise AppError(
                 code="supplier.purchase_orders.unsupported",
                 status_code=400,
-                message=(
-                    f"L'intégration {supplier.adapter_key} ne sait pas passer de "
-                    "commande fournisseur"
-                ),
+                message=("This integration cannot place supplier orders."),
                 details={"adapter_key": supplier.adapter_key},
             )
         feed_url = (supplier.settings or {}).get("feed_url")
@@ -166,7 +160,7 @@ async def _validate(session: SessionDep, supplier: Supplier) -> None:
             raise AppError(
                 code="supplier.feed.https_required",
                 status_code=400,
-                message="L'adresse du fichier doit commencer par https://",
+                message="The file address must start with https://",
                 details={"feed_url": str(feed_url)},
             )
         adapter_cls = ADAPTERS[str(supplier.adapter_key)]
@@ -176,7 +170,7 @@ async def _validate(session: SessionDep, supplier: Supplier) -> None:
             raise AppError(
                 code="supplier.settings.unknown_keys",
                 status_code=400,
-                message=f"Unknown settings for {supplier.adapter_key}: {', '.join(unknown)}",
+                message="Unknown settings for this integration.",
                 details={"unknown": unknown, "allowed": sorted(allowed)},
             )
         # Typed per adapter (R5 / C4): stored normalized, empty values dropped.
@@ -186,7 +180,7 @@ async def _validate(session: SessionDep, supplier: Supplier) -> None:
             raise AppError(
                 code="supplier.settings.invalid",
                 status_code=400,
-                message="Réglages du fournisseur invalides",
+                message="Invalid supplier settings.",
                 details={
                     "errors": [
                         {
@@ -215,7 +209,7 @@ async def _validate(session: SessionDep, supplier: Supplier) -> None:
             raise AppError(
                 code="supplier.origin_place.not_found",
                 status_code=400,
-                message=f"Place '{supplier.origin_place_id}' does not exist",
+                message="The origin place does not exist.",
                 details={"origin_place_id": str(supplier.origin_place_id)},
             )
 
@@ -256,7 +250,7 @@ async def create_supplier(
         raise AppError(
             code="supplier.code.conflict",
             status_code=409,
-            message=f"A supplier with code '{payload.code}' already exists",
+            message="A supplier already uses this code.",
             details={"code": payload.code},
         ) from exc
     await session.refresh(supplier)
@@ -406,7 +400,7 @@ async def inspect_supplier_feed(
         raise AppError(
             code="supplier.feed.not_a_feed",
             status_code=400,
-            message=f"{supplier.name} n'est pas un fournisseur par fichier en ligne",
+            message="This supplier is not an online-file supplier.",
             details={"supplier_name": code},
         )
     try:

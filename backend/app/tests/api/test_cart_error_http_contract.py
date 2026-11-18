@@ -76,7 +76,7 @@ def test_add_cart_item_product_not_found_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "cart.product.not_found",
-            "message": "Cet article n'est plus en vente.",
+            "message": "This item is no longer for sale.",
             "details": {"product_id": str(product_id)},
         }
     }
@@ -103,7 +103,7 @@ def test_update_cart_item_quantity_item_missing_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "cart.item.not_found",
-            "message": "Cette ligne n'est plus dans votre panier.",
+            "message": "This line is no longer in your cart.",
             "details": {"item_id": str(item_id)},
         }
     }
@@ -121,7 +121,7 @@ def test_quote_request_support_email_missing_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "cart.quote.unavailable",
-            "message": "EMAIL_SUPPORT is not configured",
+            "message": "Quote requests are unavailable at the moment.",
             "details": {"setting": "EMAIL_SUPPORT"},
         }
     }
@@ -145,7 +145,7 @@ def test_quote_request_no_active_cart_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "cart.active.not_found",
-            "message": "Votre panier est vide.",
+            "message": "Your cart is empty.",
             "details": {"user_id": str(current_user.id)},
         }
     }
@@ -175,7 +175,7 @@ def test_quote_request_empty_cart_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "cart.empty",
-            "message": "Votre panier est vide.",
+            "message": "Your cart is empty.",
             "details": {"cart_id": str(cart_id)},
         }
     }
@@ -198,7 +198,7 @@ def test_checkout_no_active_cart_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "cart.active.not_found",
-            "message": "Votre panier est vide.",
+            "message": "Your cart is empty.",
             "details": {"user_id": str(current_user.id)},
         }
     }
@@ -227,7 +227,7 @@ def test_checkout_empty_cart_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "cart.empty",
-            "message": "Votre panier est vide.",
+            "message": "Your cart is empty.",
             "details": {"cart_id": str(cart_id)},
         }
     }

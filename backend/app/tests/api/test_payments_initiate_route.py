@@ -242,5 +242,5 @@ async def test_payments_initiate_returns_400_when_provider_unsupported(
 
     assert exc_info.value.status_code == 400
     assert exc_info.value.code == "payment.provider.unsupported_for_initiation"
-    assert "does not support payment initiation" in exc_info.value.message
+    assert exc_info.value.message == "This payment method cannot be started online."
     session.rollback.assert_awaited_once()

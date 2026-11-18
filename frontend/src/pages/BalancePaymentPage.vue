@@ -58,6 +58,19 @@
             <div class="app-section__head">
               <h2 class="app-section__title">{{ $t('balance.method') }}</h2>
             </div>
+            <AppNotice
+              v-if="order.pending_manual_method_name"
+              tone="warning"
+              class="q-mb-md"
+              data-testid="balance-pending-manual"
+            >
+              {{
+                $t('balance.pending_manual', {
+                  method: order.pending_manual_method_name,
+                  amount: money(order.pending_manual_amount ?? '0'),
+                })
+              }}
+            </AppNotice>
             <AppNotice v-if="methods.length === 0" tone="warning">
               {{ $t('balance.no_methods') }}
             </AppNotice>

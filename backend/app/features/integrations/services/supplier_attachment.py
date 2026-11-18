@@ -65,7 +65,7 @@ def _not_linkable(product: Product, supplier_code: str | None, sku: str | None) 
         raise AppError(
             code="supplier.attach.missing_reference",
             status_code=400,
-            message="Choisissez le fournisseur et saisissez sa référence (SKU)",
+            message="Choose the supplier and enter its reference (SKU).",
             details={"product_id": str(product.id)},
         )
     if product.has_variants:
@@ -73,8 +73,7 @@ def _not_linkable(product: Product, supplier_code: str | None, sku: str | None) 
             code="supplier.attach.parent_product",
             status_code=400,
             message=(
-                "Un article à déclinaisons ne se rattache pas : rattachez "
-                "chacune de ses déclinaisons"
+                "An item with variants is not attached: attach each of its variants."
             ),
             details={"product_id": str(product.id)},
         )
@@ -97,10 +96,7 @@ async def _conflict(
         raise AppError(
             code="supplier.attach.conflict",
             status_code=409,
-            message=(
-                f"La référence {sku} de {supplier_code} est déjà portée par "
-                f"« {others[0].name} »"
-            ),
+            message=("This supplier reference is already attached to another item."),
             details={
                 "supplier_name": supplier_code,
                 "supplier_sku": sku,
@@ -131,7 +127,7 @@ async def attach_now(
         raise AppError(
             code="supplier.attach.inactive",
             status_code=400,
-            message=f"Le fournisseur {supplier.name} est désactivé",
+            message="This supplier is disabled.",
             details={"supplier_name": supplier_code},
         )
 
@@ -147,8 +143,8 @@ async def attach_now(
         return AttachOutcome(
             status="pending",
             message=(
-                f"Rattaché à {supplier.name} : l'article sera adopté (coût et "
-                f"stock) au prochain import de fichier contenant la référence {sku}."
+                f"Attached to {supplier.name}: the item will be adopted (cost and "
+                f"stock) at the next file import holding the reference {sku}."
             ),
             product=product,
         )
@@ -159,7 +155,7 @@ async def attach_now(
         raise AppError(
             code="supplier.attach.not_configured",
             status_code=400,
-            message=f"Les identifiants de {supplier.name} ne sont pas configurés",
+            message="This supplier's credentials are not configured.",
             details={"supplier_name": supplier_code},
         )
     try:
@@ -171,7 +167,7 @@ async def attach_now(
         raise AppError(
             code="supplier.attach.unreachable",
             status_code=502,
-            message=f"{supplier.name} n'a pas répondu : {exc}",
+            message="The supplier did not answer.",
             details={"supplier_name": supplier_code, "supplier_sku": sku},
         ) from exc
     found = pricing.get(sku)
@@ -179,7 +175,7 @@ async def attach_now(
         raise AppError(
             code="supplier.attach.unknown_sku",
             status_code=404,
-            message=f"{supplier.name} ne connaît pas la référence {sku}",
+            message="The supplier does not know this reference.",
             details={"supplier_name": supplier_code, "supplier_sku": sku},
         )
 
@@ -246,13 +242,13 @@ async def attach_now(
     return AttachOutcome(
         status="adopted",
         message=(
-            f"Rattaché à {supplier.name} : coût et stock repris"
+            f"Attached to {supplier.name}: cost and stock taken"
             + (
-                f" ({Decimal(str(quantity)).normalize():f} en stock)"
+                f" ({Decimal(str(quantity)).normalize():f} in stock)"
                 if quantity is not None
                 else ""
             )
-            + ". Les champs saisis à la main restent verrouillés."
+            + ". Fields entered by hand stay locked."
         ),
         product=updated,
     )
@@ -271,7 +267,7 @@ async def detach(session: AsyncSession, product: Product) -> Product:
         raise AppError(
             code="supplier.detach.not_linked",
             status_code=400,
-            message="Cet article n'est rattaché à aucun fournisseur",
+            message="This item is not attached to any supplier.",
             details={"product_id": str(product.id)},
         )
     product_id = product.id

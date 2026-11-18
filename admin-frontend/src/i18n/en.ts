@@ -213,6 +213,17 @@ const en: MessageSchema = {
     rates: 'Currency rates',
     no_rates: 'No currency rate entered.',
     rate_age: 'entered {n} d ago',
+    departures: 'Group departures waiting',
+    worker_down:
+      'No worker answers: the background tasks (e-mails, syncs, invoices) no longer run. Restart the worker container.',
+    task_overdue: 'Overdue',
+    failed_events: 'Abandoned events',
+    failed_events_hint:
+      'These events were never processed (none of their actions happened). Fix the cause then replay them, or dismiss those handled by hand.',
+    dismiss: 'Dismiss',
+    departures_hint:
+      'Cut-off passed, threshold not reached: close it (forcing) or push the date back. Until then, new orders go to the following departure (opened in advance for a recurring one); with none, to no departure.',
+    departure_past: 'cut-off passed {n} h ago',
     tasks: 'Background tasks',
     no_tasks: 'No task has run since the deployment.',
     col_task: 'Task',
@@ -519,6 +530,15 @@ const en: MessageSchema = {
     setup_customs_declaration_fees: 'Fees per customs declaration',
     setup_customs_declaration_fees_hint:
       '{n} clearance place(s) without a fee per declaration: nothing will be charged. Confirm it is intended.',
+    setup_import_routes: 'Import routes',
+    setup_import_routes_hint:
+      'Imported articles are on sale without an import route carrying a mode (fast, economy…): their price holds no freight.',
+    setup_import_routes_mode: 'Mode of routes into customs',
+    setup_import_routes_mode_hint:
+      '{n} active route(s) into a customs clearance place without a mode: their freight is billed nowhere. Choose their mode or switch them off.',
+    setup_import_fixed_cost: 'Import routes fixed fee',
+    setup_import_fixed_cost_hint:
+      '{n} import route(s) with a fee per shipment but no departure weight at threshold: that fee is billed nowhere.',
     setup_customs_rates: 'Customs rates',
     setup_customs_rates_hint:
       '{n} imported product(s) hidden: no customs rate found for their category.',
@@ -604,6 +624,11 @@ const en: MessageSchema = {
     zones: '{n} zone | {n} zones',
   },
   departures: {
+    mode: 'Import mode',
+    mode_hint: 'An order paid on this mode joins this departure; empty = every mode.',
+    mode_fast: 'Fast (air)',
+    mode_economy: 'Economy (sea)',
+    mode_eco: 'Eco-friendly',
     advance_confirm_title: 'Move “{name}” to “{status}”?',
     advance_confirm:
       '{n} order(s) follow this departure: they change status and each customer gets an e-mail.',
@@ -1247,6 +1272,12 @@ const en: MessageSchema = {
     ends_required: 'Origin and destination required.',
     eta: 'Lead time (days)',
     flat: 'Flat fee ({currency})',
+    fixed_basis_kg: 'Weight of a departure at its threshold (billable kg)',
+    fixed_basis_hint:
+      'The fee is shared by every order of the departure: it is spread over this weight, per billable kg.',
+    fixed_not_billed:
+      'Fee not billed: enter the weight of a departure at its threshold to spread it per kg.',
+    fixed_spread: 'Fee spread: +{share} {currency}/kg, i.e. {rate} {currency}/kg billed.',
     final_untyped: 'Final leg to the customer, not offered at checkout (e.g. dropshipping)',
     free_from_short: 'Free from ({currency} cart value)',
     free_from: 'Free shipping from ({currency}, cart value)',
@@ -1561,6 +1592,9 @@ const en: MessageSchema = {
     negative: '. A negative amount takes credit back.',
     next_leg: 'Next leg',
     no_cost_lines: '{n} line(s) without known cost, not counted',
+    import_mode: 'Import: {mode}',
+    billing: 'Billing',
+    tax_id: 'ID {id}',
     no_departure: '— None (regular order)',
     no_items: 'No items.',
     no_leg: 'No transport legs.',
@@ -1959,6 +1993,9 @@ const en: MessageSchema = {
     width: 'Width (cm)',
   },
   products: {
+    attach_pending:
+      'Attached: the item will be adopted (cost and stock) at the next file import holding the reference {sku}.',
+    attach_adopted: 'Attached: cost and stock taken from the supplier.',
     published_as_is_n: '{n} item(s) published as is.',
     back_to_enrichment: '{n} item(s) sent back to enrichment.',
     already_n: ', {n} already published',
@@ -2338,6 +2375,8 @@ const en: MessageSchema = {
     title: 'Supplier orders',
   },
   suppliers: {
+    lead_time: 'Lead time (days)',
+    lead_time_hint: 'Added to the delay shown for an article not in local stock.',
     allowlist_saved:
       '{name}: {n} reference(s) followed, {removed} item(s) removed from the storefront.',
     allowlist_cleared: '{name}: list cleared, the whole synchronised catalogue is followed.',

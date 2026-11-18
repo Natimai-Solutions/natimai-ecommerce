@@ -93,6 +93,15 @@ class GroupedDepartureBase(Base):
         ge=1,
         description="À la clôture, crée le départ suivant N jours plus tard",
     )
+    # The import mode the departure carries (rapide = air, economique = sea…):
+    # an order paid on a mode goes to the next departure of that mode. Null =
+    # any mode (a shop with one departure at a time). Functional audit D1.
+    service_level: str | None = Field(
+        default=None,
+        max_length=50,
+        index=True,
+        description="Mode d'import du départ (null = tous modes)",
+    )
     notes: str | None = Field(default=None, max_length=2000)
     # Real purchase orders placed for this departure (one per supplier):
     # [{supplier_name, order_number, ordered_at, total_amount, currency}].
@@ -133,6 +142,12 @@ class GroupedDeparture(GroupedDepartureBase, table=True):
     __tablename__ = "grouped_departures"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
+    # The following departure of a recurring one, once created: in advance
+    # when this one waits below its threshold past its cut-off (the new
+    # orders go there meanwhile), else at its close. Created once.
+    next_departure_id: uuid.UUID | None = Field(
+        default=None, foreign_key="grouped_departures.id", index=True
+    )
 
 
 class GroupedDepartureCreate(GroupedDepartureBase, BaseCreate):
@@ -153,6 +168,7 @@ class GroupedDepartureUpdate(BaseUpdate):
     min_amount: Decimal | None = None
     min_units: int | None = None
     recurrence_days: int | None = None
+    service_level: str | None = None
     notes: str | None = None
     consolidation_id: uuid.UUID | None = None
     supplier_orders: list[dict[str, Any]] | None = None
@@ -192,6 +208,7 @@ class GroupedDepartureSummary(SQLModel):
     estimated_delivery_at: datetime | None = None
     departure_at: datetime | None = None
     status: str
+    service_level: str | None = None
 
 
 class SupplierOrderEntry(SQLModel):

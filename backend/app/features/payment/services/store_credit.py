@@ -100,7 +100,7 @@ async def grant(
         raise AppError(
             code="store_credit.amount.invalid",
             status_code=400,
-            message="Le montant de l'avoir doit être différent de zéro",
+            message="The store credit amount must not be zero.",
             details={},
         )
     await lock_wallet(session, user_id)
@@ -108,7 +108,7 @@ async def grant(
         raise AppError(
             code="store_credit.insufficient",
             status_code=409,
-            message="Le solde d'avoir ne peut pas devenir négatif",
+            message="Insufficient store credit for this amount.",
             details={"user_id": str(user_id)},
         )
     entry = StoreCreditEntry(
@@ -144,7 +144,7 @@ async def apply_to_order(
         raise AppError(
             code="store_credit.insufficient",
             status_code=409,
-            message="Avoir insuffisant pour ce montant",
+            message="Insufficient store credit for this amount.",
             details={"available": str(available), "requested": str(amount)},
         )
     payment = Payment(

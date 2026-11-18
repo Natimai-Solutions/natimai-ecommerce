@@ -27,7 +27,7 @@ def anyio_backend() -> str:
 @pytest.fixture(autouse=True)
 def _no_alert_webhook(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
     alert = AsyncMock(return_value=True)
-    monkeypatch.setattr(invoice_service, "send_alert", alert)
+    monkeypatch.setattr("app.core.alerting.send_alert", alert)
     return alert
 
 

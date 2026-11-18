@@ -9,7 +9,8 @@ from arq.worker import Function, func
 from app.core.arq_pool import arq_redis_settings
 from app.core.logging_config import configure_logging
 from app.core.sentry import init_sentry
-from app.core.task_runs import journaled
+from app.core.task_runs import install_abandoned_job_journal, journaled
+from app.core.worker_watchdog import start_watchdog, stop_watchdog
 from app.features.system.audit import get_audit_cron_jobs, purge_audit_log_task
 from app.outbox.consumer import OUTBOX_HANDLER_MAX_TRIES, execute_outbox_handler
 from app.tasks.cart_tasks import (
@@ -83,7 +84,15 @@ logger = logging.getLogger(__name__)
 
 
 _NOT_JOURNALED = frozenset(
-    {"execute_outbox_handler", "send_queued_email_task", "example_handler"}
+    {
+        "execute_outbox_handler",
+        "send_queued_email_task",
+        "example_handler",
+        # One article, asked from its admin page: an article Icecat does not
+        # know marked « the » task failed and alerted, as if Icecat were down
+        # (review of 17/11/2026). The batch run, journaled, covers an outage.
+        "enrich_product_with_icecat_task",
+    }
 )
 
 
@@ -113,6 +122,10 @@ async def example_handler(_ctx: dict[str, Any], **_kwargs: Any) -> None:
     # ... logique du handler
     """Execute example handler."""
     pass
+
+
+# Jobs arq gives up on before running them are journaled too.
+install_abandoned_job_journal()
 
 
 class WorkerSettings:
@@ -203,6 +216,10 @@ class WorkerSettings:
     ]
 
     redis_settings = arq_redis_settings()
+    # A stuck worker (blocked loop, Redis lost) ends itself and Docker starts
+    # a fresh one: « unhealthy » alone restarted nothing (Z3).
+    on_startup = start_watchdog
+    on_shutdown = stop_watchdog
     job_timeout = 600  # Augmenté pour les tâches de sync qui peuvent prendre du temps
     keep_result = 3600
     # Défaut pour les tâches sans politique propre (sync fournisseurs, Icecat).

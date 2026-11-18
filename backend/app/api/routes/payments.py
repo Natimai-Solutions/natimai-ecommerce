@@ -440,7 +440,7 @@ async def payzen_ipn(session: SessionDep, request: Request) -> JSONResponse:
         raise AppError(
             code="payment.webhook.invalid_signature",
             status_code=400,
-            message="Invalid PayZen IPN",
+            message="Unauthenticated provider notification.",
             details={"provider_code": "payzen"},
         ) from e
 
@@ -452,7 +452,7 @@ async def payzen_ipn(session: SessionDep, request: Request) -> JSONResponse:
         raise AppError(
             code="payment.webhook.missing_order_id",
             status_code=400,
-            message="Missing order_id in PayZen IPN",
+            message="Provider notification without an order.",
             details={"provider_code": "payzen"},
         )
 
@@ -474,7 +474,7 @@ async def payzen_ipn(session: SessionDep, request: Request) -> JSONResponse:
         raise AppError(
             code="payment.webhook.payment_not_found",
             status_code=400,
-            message=f"Payment not found: {provider_order_reference}",
+            message="Payment of the provider notification not found.",
             details={
                 "provider_code": "payzen",
                 "provider_reference": provider_order_reference,
@@ -767,7 +767,7 @@ async def _validate_order_for_initiation(
         raise AppError(
             code="payment.order.not_found",
             status_code=404,
-            message="Order not found",
+            message="Order not found.",
             details={"order_id": str(order_id)},
         )
 
@@ -787,7 +787,7 @@ async def _validate_order_for_initiation(
         return AppError(
             code="payment.order.not_payable",
             status_code=409,
-            message=f"Order does not accept payments in status '{status_name}'",
+            message="This order no longer accepts payments.",
             details={"order_id": str(order_id), "order_status": status_name},
         )
 
@@ -813,7 +813,7 @@ async def _validate_order_for_initiation(
         raise AppError(
             code="payment.order.already_paid",
             status_code=409,
-            message="Order already has a settled payment",
+            message="This order is already paid.",
             details={
                 "order_id": str(order_id),
                 "payment_id": str(settled_payment.id),
@@ -835,7 +835,7 @@ async def _validate_order_for_initiation(
         raise AppError(
             code="payment.order.no_reference",
             status_code=409,
-            message="Order has no reference payment to validate against",
+            message="This order cannot be paid online: please contact us.",
             details={"order_id": str(order_id)},
         )
 
@@ -844,7 +844,7 @@ async def _validate_order_for_initiation(
         raise AppError(
             code="payment.currency.mismatch",
             status_code=409,
-            message="Payment currency does not match the order currency",
+            message="The currency does not match the order's.",
             details={
                 "order_id": str(order_id),
                 "expected_currency": reference_currency,
@@ -867,7 +867,7 @@ async def _validate_order_for_initiation(
         raise AppError(
             code="payment.amount.mismatch",
             status_code=409,
-            message="Payment amount does not match the amount due on the order",
+            message="The amount does not match what is left to pay on the order.",
             details={
                 "order_id": str(order_id),
                 "expected_amount": str(expected),
@@ -1012,8 +1012,7 @@ async def _check_deposit_order_method(
         code="payment.method.must_match",
         status_code=409,
         message=(
-            "Une commande avec acompte se règle avec un seul moyen de paiement : "
-            "utilisez celui de la commande."
+            "An order with a deposit is paid with a single payment method: use “{payment_method_name}”."
         ),
         details={
             "order_id": str(order.id),
@@ -1061,8 +1060,7 @@ async def _check_method_fee_amount(
             code="payment.method.fee_mismatch",
             status_code=409,
             message=(
-                "Ce moyen de paiement n'a pas les frais de la commande : "
-                "choisissez celui de la commande."
+                "This payment method does not carry the order's fee: choose the order's one."
             ),
             details={
                 "order_id": str(order.id),
@@ -1187,7 +1185,7 @@ async def _resolve_owned_document_payment(
         raise AppError(
             code="payment.not_found",
             status_code=404,
-            message=f"Payment {payment_id} not found",
+            message="Payment not found.",
             details={"payment_id": str(payment_id)},
         ) from e
 
@@ -1195,7 +1193,7 @@ async def _resolve_owned_document_payment(
         raise AppError(
             code="payment.not_found",
             status_code=404,
-            message="Paiement introuvable",
+            message="Payment not found.",
             details={"payment_id": str(payment_id)},
         )
 
@@ -1203,9 +1201,7 @@ async def _resolve_owned_document_payment(
         raise AppError(
             code="payment.not_document_validated",
             status_code=400,
-            message=(
-                f"Payment provider '{payment.provider_code}' is not document-validated"
-            ),
+            message=("This payment is not validated by a document."),
             details={
                 "payment_id": str(payment_id),
                 "provider_code": payment.provider_code,
@@ -1306,9 +1302,7 @@ async def confirm_document_uploaded(
         raise AppError(
             code="attachment.key_mismatch",
             status_code=400,
-            message=(
-                f"Uploaded file key '{body.file_key}' does not belong to payment '{payment.id}'"
-            ),
+            message=("This file does not belong to this payment."),
             details={"file_key": body.file_key},
         )
 
@@ -1439,7 +1433,7 @@ async def get_payment_status_by_token(
         raise AppError(
             code="payment.not_found",
             status_code=404,
-            message="Paiement introuvable",
+            message="Payment not found.",
             details={"payment_id": str(payment_id)},
         )
     return await _payment_status_response(session, payment)
@@ -1469,7 +1463,7 @@ async def _read_owned_payment(
         raise AppError(
             code="payment.not_found",
             status_code=404,
-            message=f"Payment {payment_id} not found",
+            message="Payment not found.",
             details={"payment_id": str(payment_id)},
         ) from exc
 
@@ -1477,7 +1471,7 @@ async def _read_owned_payment(
         raise AppError(
             code="payment.not_found",
             status_code=404,
-            message="Paiement introuvable",
+            message="Payment not found.",
             details={"payment_id": str(payment_id)},
         )
     return payment
@@ -1528,14 +1522,14 @@ async def confirm_my_payment(
             raise AppError(
                 code="payment.confirm.unsupported",
                 status_code=400,
-                message="Ce paiement n'a pas d'étape de confirmation.",
+                message="This payment has no confirmation step.",
                 details={"payment_id": str(payment_id)},
             ) from exc
         if not payment.provider_reference:
             raise AppError(
                 code="payment.confirm.no_reference",
                 status_code=400,
-                message="Référence du prestataire introuvable pour ce paiement.",
+                message="The provider's reference for this payment cannot be found.",
                 details={"payment_id": str(payment_id)},
             )
         try:
@@ -1548,7 +1542,7 @@ async def confirm_my_payment(
             raise AppError(
                 code="payment.confirm.failed",
                 status_code=502,
-                message="Le prestataire n'a pas confirmé le paiement.",
+                message="The provider did not confirm the payment.",
                 details={"payment_id": str(payment_id)},
             ) from exc
         await apply_provider_outcome(
@@ -1601,7 +1595,7 @@ async def process_provider_webhook(
         raise AppError(
             code="payment.webhook.invalid_signature",
             status_code=400,
-            message="Notification du prestataire non authentifiée",
+            message="Unauthenticated provider notification.",
             details={"provider_code": normalized_provider_code},
         ) from exc
 

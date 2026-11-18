@@ -1525,7 +1525,10 @@ async function onAttach() {
       supplier_name: form.supplier_name,
       supplier_sku: form.supplier_sku.trim(),
     });
-    linkNotice.value = res.message;
+    linkNotice.value =
+      res.status === 'pending'
+        ? t('products.attach_pending', { sku: form.supplier_sku.trim() })
+        : t('products.attach_adopted');
     managedAfterLink.value = !!res.product.is_supplier_managed;
     lockedFields.value = [...(res.product.overridden_fields ?? [])];
     emit('saved');

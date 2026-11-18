@@ -226,13 +226,13 @@ async def revoke_for_refund(
     if to_revoke < wanted:
         # Already spent or converted into store credit: the shop is told,
         # the points cannot go below zero.
-        from app.core.alerting import send_alert
+        from app.core.operator_messages import alert
 
-        await send_alert(
-            f"Remboursement de la commande {order.order_number or order.id} : "
-            f"{wanted - to_revoke} point(s) de fidélité déjà dépensés ou convertis "
-            "n'ont pas pu être repris.",
+        await alert(
+            "loyalty.points_not_reclaimed",
             source="loyalty",
+            order=order.order_number or order.id,
+            points=wanted - to_revoke,
         )
     if to_revoke <= 0:
         return 0
@@ -257,14 +257,14 @@ async def convert(
         raise AppError(
             code="loyalty.disabled",
             status_code=409,
-            message="Le programme de fidélité n'est pas actif",
+            message="The loyalty programme is not active.",
             details={},
         )
     if points < current.min_points_to_convert:
         raise AppError(
             code="loyalty.below_minimum",
             status_code=400,
-            message=f"Conversion possible à partir de {current.min_points_to_convert} points",
+            message="Conversion is possible from {min_points} points.",
             details={"min_points": current.min_points_to_convert},
         )
     await store_credit.lock_wallet(session, user_id)
@@ -273,7 +273,7 @@ async def convert(
         raise AppError(
             code="loyalty.insufficient",
             status_code=409,
-            message="Solde de points insuffisant",
+            message="Insufficient points balance.",
             details={"available": available, "requested": points},
         )
     amount = quantize_amount(Decimal(points) * current.point_value, current.currency)
@@ -314,7 +314,7 @@ async def adjust(
         raise AppError(
             code="loyalty.insufficient",
             status_code=409,
-            message="Le solde de points ne peut pas devenir négatif",
+            message="Insufficient points balance.",
             details={"user_id": str(user_id)},
         )
     entry = _add(

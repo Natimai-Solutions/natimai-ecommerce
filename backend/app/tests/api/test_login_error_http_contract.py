@@ -50,7 +50,7 @@ def test_login_access_token_invalid_credentials_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "login.credentials.invalid",
-            "message": "Email ou mot de passe incorrect.",
+            "message": "Incorrect e-mail or password.",
             "details": {"reason": "invalid_credentials"},
         }
     }
@@ -73,7 +73,7 @@ def test_login_access_token_inactive_user_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "login.user.inactive",
-            "message": "Utilisateur désactivé",
+            "message": "Disabled account.",
             "details": {"user_id": str(user.id)},
         }
     }
@@ -96,7 +96,7 @@ def test_refresh_access_token_decode_failure_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "login.refresh_token.invalid",
-            "message": "Refresh token invalide",
+            "message": "Invalid session: sign in again.",
             "details": {"reason": "decode_failed"},
         }
     }
@@ -137,7 +137,7 @@ def test_refresh_access_token_missing_session_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "login.refresh_token.invalid",
-            "message": "Refresh token invalide",
+            "message": "Invalid session: sign in again.",
             "details": {
                 "reason": "session_not_found",
                 "user_id": str(user_id),
@@ -196,7 +196,7 @@ def test_refresh_access_token_revoked_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "login.refresh_token.revoked",
-            "message": "Refresh token révoqué",
+            "message": "Session ended: sign in again.",
             "details": {
                 "user_id": str(user_id),
                 "jti": refresh_jti,
@@ -248,7 +248,7 @@ def test_refresh_access_token_expired_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "login.refresh_token.expired",
-            "message": "Refresh token expiré",
+            "message": "Session expired: sign in again.",
             "details": {
                 "user_id": str(user_id),
                 "jti": refresh_jti,

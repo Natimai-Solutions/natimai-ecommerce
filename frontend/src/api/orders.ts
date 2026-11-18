@@ -20,6 +20,9 @@ export interface Order {
   discount_code?: string | null;
   discount_amount?: string;
   shipping_address: string | null;
+  /** Who receives the parcel and their phone (orders since 18/11/2026). */
+  shipping_recipient?: string | null;
+  shipping_phone?: string | null;
   /** Last-leg delivery mode chosen at checkout: pickup | home_delivery | air_freight. */
   delivery_type: string | null;
   /** Grouped departure the order is attached to (null = classic order). */
@@ -83,6 +86,9 @@ export interface OrderTracking {
 /** One order for its detail page (`MyOrderDetail`): adds the payment method. */
 export interface OrderDetail extends Order {
   payment_method_name: string | null;
+  /** A transfer / cheque / cash payment announced and still waiting. */
+  pending_manual_method_name?: string | null;
+  pending_manual_amount?: string | null;
   /** Money already received (instalments included) and what is left to pay. */
   amount_paid?: string;
   amount_due?: string;
@@ -142,6 +148,9 @@ export interface OrderLine {
   manufacturer: string | null;
   /** The product page still exists (active product): the line can link to it. */
   product_available: boolean;
+  /** Import mode the line was paid on (rapide, économique…); null = no import leg. */
+  import_service_level?: string | null;
+  import_mode_label?: string | null;
 }
 
 export async function getMyOrderLines(orderId: string): Promise<OrderLine[]> {

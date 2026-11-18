@@ -99,7 +99,7 @@ def _not_found(payment_method_id: uuid.UUID) -> AppError:
     return AppError(
         code="payment.method.not_found",
         status_code=404,
-        message="Moyen de paiement introuvable",
+        message="Payment method not found.",
         details={"payment_method_id": str(payment_method_id)},
     )
 
@@ -154,7 +154,7 @@ async def _ensure_unique_name(
         raise AppError(
             code="payment.method.name_taken",
             status_code=409,
-            message=f"Un moyen de paiement s'appelle déjà « {name.strip()} »",
+            message="A payment method already has this name.",
             details={"name": name.strip()},
         )
 
@@ -165,8 +165,7 @@ def _check_instructions(kind: PaymentMethodType | None, text: str | None) -> Non
             code="payment.method.instructions_unsupported",
             status_code=400,
             message=(
-                "Ce type de paiement n'envoie pas d'instructions au client "
-                "(le paiement se fait chez le prestataire)"
+                "This type of payment sends no instructions to the customer (payment happens at the provider)."
             ),
         )
 
@@ -248,7 +247,7 @@ async def create_payment_method(
         raise AppError(
             code="payment.method.type_unknown",
             status_code=400,
-            message=f"Type de paiement inconnu : {payload.provider_code}",
+            message="Unknown payment type.",
             details={"provider_code": payload.provider_code},
         )
     _check_instructions(kind, clean_text(payload.instructions))
@@ -290,7 +289,7 @@ async def update_payment_method(
             raise AppError(
                 code="payment.method.name_required",
                 status_code=400,
-                message="Le nom du moyen de paiement est obligatoire",
+                message="The payment method name is required.",
             )
         await _ensure_unique_name(session, payload.name, exclude=method.id)
     if "instructions" in payload.model_fields_set:
@@ -319,8 +318,7 @@ async def delete_payment_method(
             code="payment.method.in_use",
             status_code=409,
             message=(
-                f"« {method.name} » a servi à {used} paiement(s) : "
-                "désactivez-le plutôt que de le supprimer"
+                "This payment method was used for {payments_count} payment(s): disable it instead of deleting it."
             ),
             details={"payments_count": used},
         )

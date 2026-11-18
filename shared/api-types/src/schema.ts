@@ -886,6 +886,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/system-status/failed-events/{event_id}/replay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replay Failed Event
+         * @description Give an event the poller gave up on back to it, attempts reset (its
+         *     cause fixed: a provider back, a setting entered). Once only: a second
+         *     click finds it pending already.
+         */
+        post: operations["admin-dashboard-replay_failed_event"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/system-status/failed-events/{event_id}/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dismiss Failed Event
+         * @description Close an event that is not to be processed any more (handled by hand,
+         *     obsolete): it leaves the page and the journal retention purges it.
+         */
+        post: operations["admin-dashboard-dismiss_failed_event"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/payments": {
         parameters: {
             query?: never;
@@ -6757,7 +6800,8 @@ export interface paths {
         /**
          * Next Departure
          * @description The departure new orders are attached to right now, or ``null``
-         *     (always ``null`` while the grouped-departures module is off).
+         *     (always ``null`` while the grouped-departures module is off). With
+         *     ``service_level``, the one an order paid on that import mode joins.
          */
         get: operations["grouped-departures-next_departure"];
         put?: never;
@@ -8298,6 +8342,8 @@ export interface components {
             company?: string | null;
             /** Phone */
             phone?: string | null;
+            /** Tax Id */
+            tax_id?: string | null;
             /**
              * Street
              * @description Street address
@@ -8351,6 +8397,8 @@ export interface components {
             company?: string | null;
             /** Phone */
             phone?: string | null;
+            /** Tax Id */
+            tax_id?: string | null;
             /** Street */
             street: string;
             /** City */
@@ -8377,6 +8425,8 @@ export interface components {
             company?: string | null;
             /** Phone */
             phone?: string | null;
+            /** Tax Id */
+            tax_id?: string | null;
             /** Street */
             street?: string | null;
             /** City */
@@ -8421,6 +8471,8 @@ export interface components {
             company?: string | null;
             /** Phone */
             phone?: string | null;
+            /** Tax Id */
+            tax_id?: string | null;
             /**
              * Street
              * @description Street address
@@ -8502,6 +8554,8 @@ export interface components {
             company?: string | null;
             /** Phone */
             phone?: string | null;
+            /** Tax Id */
+            tax_id?: string | null;
             /** Street */
             street?: string | null;
             /** City */
@@ -8565,6 +8619,8 @@ export interface components {
             company?: string | null;
             /** Phone */
             phone?: string | null;
+            /** Tax Id */
+            tax_id?: string | null;
             /**
              * Street
              * @description Street address
@@ -8968,6 +9024,16 @@ export interface components {
             currency?: string | null;
             /** Shipping Address */
             shipping_address?: string | null;
+            /** Shipping Recipient */
+            shipping_recipient?: string | null;
+            /** Shipping Phone */
+            shipping_phone?: string | null;
+            /** Billing Name */
+            billing_name?: string | null;
+            /** Billing Address */
+            billing_address?: string | null;
+            /** Billing Tax Id */
+            billing_tax_id?: string | null;
             /** Delivery Type */
             delivery_type?: string | null;
             /** Grouped Departure Id */
@@ -9056,6 +9122,10 @@ export interface components {
             line_margin?: number | null;
             /** Margin Pct */
             margin_pct?: number | null;
+            /** Import Service Level */
+            import_service_level?: string | null;
+            /** Import Mode Label */
+            import_mode_label?: string | null;
         };
         /**
          * AdminOrderListItem
@@ -10446,9 +10516,21 @@ export interface components {
             discount_label?: string | null;
             /**
              * Discount Error
-             * @description Pourquoi le code saisi n'a pas été appliqué (devis seulement)
+             * @description Why the code was not applied: English fallback text
              */
             discount_error?: string | null;
+            /**
+             * Discount Error Code
+             * @description Why the code was not applied, as a reason code the interfaces translate (checkout.discount.refused.<reason>; « throttled »)
+             */
+            discount_error_code?: string | null;
+            /**
+             * Discount Error Details
+             * @description Values of the reason's text (min_amount…)
+             */
+            discount_error_details?: {
+                [key: string]: string;
+            } | null;
             /**
              * Total Amount
              * @description Montant qui sera débité
@@ -10499,6 +10581,16 @@ export interface components {
              * @description Ignored. The fee is read server-side from the selected PaymentMethod: it is a property of the method, not something the caller gets to decide. Kept optional so existing clients that still send it are not rejected.
              */
             payment_fee_amount?: number | string | null;
+            /**
+             * Billing Address Id
+             * @description One of the customer's saved addresses to bill instead of the shipping one (company, tax id). Omitted: billed at the shipping address.
+             */
+            billing_address_id?: string | null;
+            /**
+             * Idempotency Key
+             * @description Chosen by the client once per order submission and sent again on every retry of it: a checkout whose order already exists (the first attempt went through but its response was lost) returns that order instead of creating a second one.
+             */
+            idempotency_key?: string | null;
             /**
              * Cgv Accepted
              * @description Explicit acceptance of the terms of sale. Required: the checkbox in the SPA is not proof — the acceptance is recorded on the order (cgv_accepted_at / cgv_version) so it is opposable, and an API call that bypasses the UI is refused.
@@ -10682,6 +10774,11 @@ export interface components {
              * @default false
              */
             payment_start_failed: boolean;
+            /**
+             * Replayed
+             * @default false
+             */
+            replayed: boolean;
             /** Server Url */
             server_url?: string | null;
             /** Public Key */
@@ -12001,6 +12098,28 @@ export interface components {
             timestamp: string;
         };
         /**
+         * FailedEvent
+         * @description An outbox event the poller gave up on: its handlers never ran.
+         */
+        FailedEvent: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Event Type */
+            event_type: string;
+            /** Attempts */
+            attempts: number;
+            /** Error */
+            error: string | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
          * FeedInspection
          * @description First rows of a supplier's feed, to build the column mapping (same
          *     shape as the inspection of an uploaded file).
@@ -12769,6 +12888,11 @@ export interface components {
              * @description À la clôture, crée le départ suivant N jours plus tard
              */
             recurrence_days?: number | null;
+            /**
+             * Service Level
+             * @description Mode d'import du départ (null = tous modes)
+             */
+            service_level?: string | null;
             /** Notes */
             notes?: string | null;
             /**
@@ -12870,6 +12994,11 @@ export interface components {
              * @description À la clôture, crée le départ suivant N jours plus tard
              */
             recurrence_days?: number | null;
+            /**
+             * Service Level
+             * @description Mode d'import du départ (null = tous modes)
+             */
+            service_level?: string | null;
             /** Notes */
             notes?: string | null;
             /**
@@ -12943,6 +13072,8 @@ export interface components {
             departure_at?: string | null;
             /** Status */
             status: string;
+            /** Service Level */
+            service_level?: string | null;
         };
         /**
          * GroupedDepartureUpdate
@@ -12969,6 +13100,8 @@ export interface components {
             min_units?: number | null;
             /** Recurrence Days */
             recurrence_days?: number | null;
+            /** Service Level */
+            service_level?: string | null;
             /** Notes */
             notes?: string | null;
             /** Consolidation Id */
@@ -13029,6 +13162,8 @@ export interface components {
             unit_price: number | string;
             /** Line Total */
             line_total: number | string;
+            /** Import Service Level */
+            import_service_level?: string | null;
         };
         /**
          * GuestQuoteRequestResponse
@@ -13953,9 +14088,34 @@ export interface components {
             currency?: string | null;
             /**
              * Shipping Address
-             * @description Adresse de livraison
+             * @description Adresse de livraison (société, rue, ville, pays), figée à la commande ; construite par le serveur depuis l'adresse enregistrée
              */
             shipping_address?: string | null;
+            /**
+             * Shipping Recipient
+             * @description Destinataire du colis, figé à la commande
+             */
+            shipping_recipient?: string | null;
+            /**
+             * Shipping Phone
+             * @description Téléphone du destinataire pour le transporteur
+             */
+            shipping_phone?: string | null;
+            /**
+             * Billing Name
+             * @description Nom facturé (société ou personne)
+             */
+            billing_name?: string | null;
+            /**
+             * Billing Address
+             * @description Adresse de facturation figée
+             */
+            billing_address?: string | null;
+            /**
+             * Billing Tax Id
+             * @description Identifiant de l'acheteur (n° TAHITI, SIRET, TVA)
+             */
+            billing_tax_id?: string | null;
             /**
              * Shipping Cost Breakdown
              * @description Snapshot detaille des couts de livraison par troncon au checkout (routes selectionnees, forfait/poids/valeur, ETA, empreinte carbone)
@@ -14066,6 +14226,10 @@ export interface components {
             pay_now_amount: string;
             /** Payment Method Id */
             payment_method_id?: string | null;
+            /** Pending Manual Method Name */
+            pending_manual_method_name?: string | null;
+            /** Pending Manual Amount */
+            pending_manual_amount?: string | null;
         };
         /**
          * MyOrderLine
@@ -14101,6 +14265,10 @@ export interface components {
              * @default false
              */
             product_available: boolean;
+            /** Import Service Level */
+            import_service_level?: string | null;
+            /** Import Mode Label */
+            import_mode_label?: string | null;
         };
         /**
          * MyOrderPublic
@@ -14190,9 +14358,34 @@ export interface components {
             currency?: string | null;
             /**
              * Shipping Address
-             * @description Adresse de livraison
+             * @description Adresse de livraison (société, rue, ville, pays), figée à la commande ; construite par le serveur depuis l'adresse enregistrée
              */
             shipping_address?: string | null;
+            /**
+             * Shipping Recipient
+             * @description Destinataire du colis, figé à la commande
+             */
+            shipping_recipient?: string | null;
+            /**
+             * Shipping Phone
+             * @description Téléphone du destinataire pour le transporteur
+             */
+            shipping_phone?: string | null;
+            /**
+             * Billing Name
+             * @description Nom facturé (société ou personne)
+             */
+            billing_name?: string | null;
+            /**
+             * Billing Address
+             * @description Adresse de facturation figée
+             */
+            billing_address?: string | null;
+            /**
+             * Billing Tax Id
+             * @description Identifiant de l'acheteur (n° TAHITI, SIRET, TVA)
+             */
+            billing_tax_id?: string | null;
             /**
              * Shipping Cost Breakdown
              * @description Snapshot detaille des couts de livraison par troncon au checkout (routes selectionnees, forfait/poids/valeur, ETA, empreinte carbone)
@@ -14512,9 +14705,34 @@ export interface components {
             currency?: string | null;
             /**
              * Shipping Address
-             * @description Adresse de livraison
+             * @description Adresse de livraison (société, rue, ville, pays), figée à la commande ; construite par le serveur depuis l'adresse enregistrée
              */
             shipping_address?: string | null;
+            /**
+             * Shipping Recipient
+             * @description Destinataire du colis, figé à la commande
+             */
+            shipping_recipient?: string | null;
+            /**
+             * Shipping Phone
+             * @description Téléphone du destinataire pour le transporteur
+             */
+            shipping_phone?: string | null;
+            /**
+             * Billing Name
+             * @description Nom facturé (société ou personne)
+             */
+            billing_name?: string | null;
+            /**
+             * Billing Address
+             * @description Adresse de facturation figée
+             */
+            billing_address?: string | null;
+            /**
+             * Billing Tax Id
+             * @description Identifiant de l'acheteur (n° TAHITI, SIRET, TVA)
+             */
+            billing_tax_id?: string | null;
             /**
              * Shipping Cost Breakdown
              * @description Snapshot detaille des couts de livraison par troncon au checkout (routes selectionnees, forfait/poids/valeur, ETA, empreinte carbone)
@@ -14973,9 +15191,34 @@ export interface components {
             currency?: string | null;
             /**
              * Shipping Address
-             * @description Adresse de livraison
+             * @description Adresse de livraison (société, rue, ville, pays), figée à la commande ; construite par le serveur depuis l'adresse enregistrée
              */
             shipping_address?: string | null;
+            /**
+             * Shipping Recipient
+             * @description Destinataire du colis, figé à la commande
+             */
+            shipping_recipient?: string | null;
+            /**
+             * Shipping Phone
+             * @description Téléphone du destinataire pour le transporteur
+             */
+            shipping_phone?: string | null;
+            /**
+             * Billing Name
+             * @description Nom facturé (société ou personne)
+             */
+            billing_name?: string | null;
+            /**
+             * Billing Address
+             * @description Adresse de facturation figée
+             */
+            billing_address?: string | null;
+            /**
+             * Billing Tax Id
+             * @description Identifiant de l'acheteur (n° TAHITI, SIRET, TVA)
+             */
+            billing_tax_id?: string | null;
             /**
              * Shipping Cost Breakdown
              * @description Snapshot detaille des couts de livraison par troncon au checkout (routes selectionnees, forfait/poids/valeur, ETA, empreinte carbone)
@@ -17965,6 +18208,11 @@ export interface components {
             shipping_modes: components["schemas"]["ShippingModePricePublic"][];
             /** Default Mode */
             default_mode: string | null;
+            /**
+             * Supplier Lead Days
+             * @default 0
+             */
+            supplier_lead_days: number;
         };
         /**
          * ProductSuggestResponse
@@ -18421,6 +18669,8 @@ export interface components {
             quantity: number;
             /** Unit Price */
             unit_price: number | string;
+            /** Import Service Level */
+            import_service_level?: string | null;
         };
         /**
          * QuoteLine
@@ -18435,6 +18685,8 @@ export interface components {
             quantity: number;
             /** Unit Price */
             unit_price: string;
+            /** Import Service Level */
+            import_service_level?: string | null;
         };
         /**
          * QuoteRequestResponse
@@ -19484,6 +19736,11 @@ export interface components {
              */
             price_per_kg?: number | string | null;
             /**
+             * Import Fixed Basis Kg
+             * @description Import route: billable weight (kg) of a departure at its threshold, over which the fixed cost (base_price) is spread per kg
+             */
+            import_fixed_basis_kg?: number | string | null;
+            /**
              * Weight Bands
              * @description Weight bands [{max_kg, price}] replacing price_per_kg × weight; null = linear per-kg pricing
              */
@@ -19676,6 +19933,11 @@ export interface components {
              * @description Price per kg
              */
             price_per_kg?: string | null;
+            /**
+             * Import Fixed Basis Kg
+             * @description Import route: billable weight (kg) of a departure at its threshold, over which the fixed cost (base_price) is spread per kg
+             */
+            import_fixed_basis_kg?: string | null;
             /**
              * Weight Bands
              * @description Weight bands [{max_kg, price}] replacing price_per_kg × weight; null = linear per-kg pricing
@@ -20324,6 +20586,8 @@ export interface components {
             base_price?: number | string | null;
             /** Price Per Kg */
             price_per_kg?: number | string | null;
+            /** Import Fixed Basis Kg */
+            import_fixed_basis_kg?: number | string | null;
             /** Weight Bands */
             weight_bands?: {
                 [key: string]: unknown;
@@ -21434,6 +21698,11 @@ export interface components {
              */
             sync_enabled: boolean;
             /**
+             * Lead Time Days
+             * @description Délai d'approvisionnement (jours) avant le départ, ajouté au délai affiché d'un article qui n'est pas en stock local
+             */
+            lead_time_days?: number | null;
+            /**
              * Sync Interval Hours
              * @description Cadence de la synchronisation catalogue planifiée, en heures (kind=api uniquement ; 0 = jamais planifiée, manuelle seulement)
              * @default 0
@@ -21640,6 +21909,11 @@ export interface components {
              */
             sync_enabled: boolean;
             /**
+             * Lead Time Days
+             * @description Délai d'approvisionnement (jours) avant le départ, ajouté au délai affiché d'un article qui n'est pas en stock local
+             */
+            lead_time_days?: number | null;
+            /**
              * Sync Interval Hours
              * @description Cadence de la synchronisation catalogue planifiée, en heures (kind=api uniquement ; 0 = jamais planifiée, manuelle seulement)
              * @default 0
@@ -21782,6 +22056,8 @@ export interface components {
             sync_enabled?: boolean | null;
             /** Sync Interval Hours */
             sync_interval_hours?: number | null;
+            /** Lead Time Days */
+            lead_time_days?: number | null;
             /** Default Categories */
             default_categories?: string[] | null;
             /** Price Currency */
@@ -21916,6 +22192,30 @@ export interface components {
             alert_webhook_configured: boolean;
             /** Email Provider Configured */
             email_provider_configured: boolean;
+            /**
+             * Departures Waiting
+             * @default []
+             */
+            departures_waiting: components["schemas"]["WaitingDeparture"][];
+            /**
+             * Departures Level
+             * @default ok
+             * @enum {string}
+             */
+            departures_level: "ok" | "warn" | "error";
+            /**
+             * Outbox Failed Events
+             * @default []
+             */
+            outbox_failed_events: components["schemas"]["FailedEvent"][];
+            /** Worker Alive */
+            worker_alive?: boolean | null;
+            /**
+             * Worker Level
+             * @default ok
+             * @enum {string}
+             */
+            worker_level: "ok" | "warn" | "error";
         };
         /** TaskRunPublic */
         TaskRunPublic: {
@@ -21940,6 +22240,13 @@ export interface components {
             consecutive_failures: number;
             /** Runs */
             runs: number;
+            /** Expected By */
+            expected_by?: string | null;
+            /**
+             * Overdue
+             * @default false
+             */
+            overdue: boolean;
         };
         /**
          * TaxRateAssignBody
@@ -22536,6 +22843,28 @@ export interface components {
             email: string;
             /** Code */
             code: string;
+        };
+        /**
+         * WaitingDeparture
+         * @description An open departure past its cut-off: its threshold is not reached, so
+         *     nothing closed it, and until the admin decides the new orders are
+         *     attached to no departure.
+         */
+        WaitingDeparture: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Order Cutoff At
+             * Format: date-time
+             */
+            order_cutoff_at: string;
+            /** Hours Past Cutoff */
+            hours_past_cutoff: number;
         };
         /**
          * WishlistAnonymousPublic
@@ -24303,6 +24632,68 @@ export interface operations {
             header?: never;
             path: {
                 failure_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReplayResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-dashboard-replay_failed_event": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                event_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReplayResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-dashboard-dismiss_failed_event": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                event_id: string;
             };
             cookie?: never;
         };
@@ -35621,7 +36012,9 @@ export interface operations {
     };
     "grouped-departures-next_departure": {
         parameters: {
-            query?: never;
+            query?: {
+                service_level?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -35635,6 +36028,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GroupedDepartureSummary"] | null;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

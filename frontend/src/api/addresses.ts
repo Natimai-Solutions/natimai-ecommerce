@@ -15,6 +15,8 @@ export interface Address {
   recipient_name?: string | null;
   company?: string | null;
   phone?: string | null;
+  /** Business id printed on the invoice (n° TAHITI, SIRET…). */
+  tax_id?: string | null;
   street: string;
   city: string;
   state: string | null;
@@ -31,6 +33,7 @@ export interface AddressInput {
   recipient_name?: string | null;
   company?: string | null;
   phone?: string | null;
+  tax_id?: string | null;
   street: string;
   city: string;
   state?: string | null;

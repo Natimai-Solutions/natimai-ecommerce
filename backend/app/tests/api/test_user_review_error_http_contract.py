@@ -49,7 +49,7 @@ def test_get_user_reviews_not_owned_returns_error_payload(client: TestClient) ->
     assert response.json() == {
         "error": {
             "code": "review.not_found",
-            "message": "Avis introuvable",
+            "message": "Review not found.",
             "details": {"user_id": str(owner_user_id)},
         }
     }
@@ -74,7 +74,7 @@ def test_get_user_review_not_found_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "review.not_found",
-            "message": f"Review '{review_id}' not found",
+            "message": "Review not found.",
             "details": {"review_id": str(review_id)},
         }
     }
@@ -107,7 +107,7 @@ def test_create_user_review_without_purchase_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "review.not_purchased",
-            "message": "Only a customer who bought this product can review it",
+            "message": "Only a customer who bought this product can review it.",
             "details": {"product_id": str(product_id)},
         }
     }
@@ -134,7 +134,7 @@ def test_get_user_review_for_product_not_found_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "review.not_found",
-            "message": "Review not found for this user and product",
+            "message": "Review not found.",
             "details": {
                 "user_id": str(current_user.id),
                 "product_id": str(product_id),

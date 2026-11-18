@@ -210,6 +210,7 @@ const fr = {
     alternatives: 'Alternatives',
   },
   guest: {
+    activation_link_sent: 'Un lien vient d’être envoyé à {email}.',
     title: 'Commander sans compte',
     hint: 'Un e-mail suffit : la confirmation et le suivi de la commande y arrivent.',
     email: 'E-mail',
@@ -226,6 +227,10 @@ const fr = {
     offer_failed: "Le lien n'a pas pu être envoyé : réessayez.",
   },
   checkout: {
+    choose_billing: 'Choisissez l’adresse de facturation.',
+    bill_to_other: 'Facturer à une autre adresse (société)',
+    billing_address: 'Adresse de facturation',
+    tax_id: 'N° {id}',
     delivery_load_failed: 'Les modes de livraison n’ont pas pu être chargés.',
     delivery_retry: 'Réessayer',
     edit_cart: 'Modifier le panier',
@@ -326,6 +331,8 @@ const fr = {
     method_unavailable:
       "Le moyen de paiement sélectionné n'est pas disponible pour le moment. Veuillez réessayer.",
     failed: 'Une erreur est survenue lors de la finalisation de la commande.',
+    already_placed:
+      'Cette commande vient d’être enregistrée (depuis un autre onglet ?) : retrouvez-la dans « Mes commandes ».',
   },
   delivery_mode: {
     pickup: 'Retrait sur place',
@@ -378,6 +385,8 @@ const fr = {
     cart_item_missing: 'Article introuvable dans le panier',
     cart_qty: 'Impossible de mettre à jour la quantité',
     cart_remove: 'Impossible de supprimer cet article',
+    cart_add: 'Impossible d’ajouter au panier',
+    cart_quote: 'Impossible d’envoyer la demande de devis',
     cart_clear: 'Impossible de vider le panier',
     cart_email: 'Veuillez renseigner un email client valide.',
     cart_empty: 'Le panier est vide.',
@@ -453,6 +462,9 @@ const fr = {
     title: 'Mon compte',
   },
   addresses: {
+    tax_id: 'N° TAHITI / SIRET',
+    tax_id_hint: 'Imprimé sur la facture de la société',
+    no_recipient: 'Destinataire à préciser',
     recipient: 'Destinataire',
     company: 'Société (facultatif)',
     phone: 'Téléphone (facultatif)',
@@ -496,6 +508,8 @@ const fr = {
     zone_unknown: 'Code postal non reconnu. Indiquez votre île ou zone de livraison.',
   },
   auth: {
+    reset_link_sent: 'Si un compte existe pour cette adresse, un lien de réinitialisation vient d’être envoyé.',
+    password_reset_done: 'Mot de passe réinitialisé. Vous pouvez vous connecter.',
     show_password: 'Afficher le mot de passe',
     hide_password: 'Masquer le mot de passe',
     activate_my_account: 'Activer mon compte',
@@ -554,6 +568,8 @@ const fr = {
     with_microsoft: 'Continuer avec Microsoft',
   },
   balance: {
+    pending_manual:
+      'Un paiement par « {method} » de {amount} est annoncé pour cette commande et pas encore reçu. Si vous l’avez déjà effectué, ne payez pas ici : il sera pris en compte à sa réception. Payer maintenant par un autre moyen l’annule.',
     start_failed:
       'Votre commande est enregistrée, mais le formulaire de paiement n’a pas pu s’ouvrir. Réessayez ci-dessous.',
     title_order: 'Payer la commande',
@@ -989,6 +1005,7 @@ const fr = {
     track_parcel: 'Suivre le colis',
     updated: 'Mis à jour le {date}',
     warranty_from: 'Garantie {n} mois à compter de la remise',
+    import_mode: 'Import : {mode}',
     warranty_until: "Garantie {n} mois, jusqu'au {date}",
   },
   wishlist: {

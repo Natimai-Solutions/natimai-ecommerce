@@ -211,6 +211,17 @@ const fr = {
     rates: 'Taux de change',
     no_rates: 'Aucun taux de change saisi.',
     rate_age: 'saisi il y a {n} j',
+    departures: 'Départs groupés en attente',
+    worker_down:
+      'Aucun worker ne répond : les tâches de fond (e-mails, synchronisations, factures) ne tournent plus. Redémarrez le conteneur worker.',
+    task_overdue: 'En retard',
+    failed_events: 'Événements abandonnés',
+    failed_events_hint:
+      'Ces événements n’ont jamais été traités (aucune de leurs actions n’a eu lieu). Corrigez la cause puis relancez-les, ou écartez ceux qui ont été réglés à la main.',
+    dismiss: 'Écarter',
+    departures_hint:
+      'Date limite passée, seuil non atteint : clôturez (en forçant) ou repoussez la date. D’ici là, les nouvelles commandes vont au départ suivant (ouvert d’avance pour un départ récurrent) ; sans départ suivant, à aucun.',
+    departure_past: 'limite dépassée depuis {n} h',
     tasks: 'Tâches de fond',
     no_tasks: 'Aucune tâche n’a encore tourné depuis le déploiement.',
     col_task: 'Tâche',
@@ -519,6 +530,15 @@ const fr = {
     setup_customs_declaration_fees: 'Frais par déclaration en douane',
     setup_customs_declaration_fees_hint:
       "{n} lieu(x) de dédouanement sans frais par déclaration : rien ne sera facturé. À confirmer si c'est voulu.",
+    setup_import_routes: 'Routes d’import',
+    setup_import_routes_hint:
+      'Des articles importés sont en vente sans route d’import portant un mode (rapide, économique…) : leur prix ne contient aucun fret.',
+    setup_import_routes_mode: 'Mode des routes vers la douane',
+    setup_import_routes_mode_hint:
+      '{n} route(s) active(s) vers un lieu de dédouanement sans mode : leur fret n’est facturé nulle part. Choisissez leur mode ou désactivez-les.',
+    setup_import_fixed_cost: 'Forfait des routes d’import',
+    setup_import_fixed_cost_hint:
+      '{n} route(s) d’import avec un forfait par expédition sans poids de départ au seuil : ce forfait n’est facturé nulle part.',
     setup_customs_rates: 'Taux de douane',
     setup_customs_rates_hint:
       '{n} produit(s) importé(s) masqué(s) : taux de douane introuvable pour leur catégorie.',
@@ -607,6 +627,11 @@ const fr = {
     zones: '{n} zone | {n} zones',
   },
   departures: {
+    mode: 'Mode d’import',
+    mode_hint: 'Une commande payée sur ce mode rejoint ce départ ; vide = tous modes.',
+    mode_fast: 'Rapide (avion)',
+    mode_economy: 'Économique (bateau)',
+    mode_eco: 'Écologique',
     advance_confirm_title: 'Passer « {name} » à « {status} » ?',
     advance_confirm:
       '{n} commande(s) suivent ce départ : elles changent de statut et chaque client reçoit un e-mail.',
@@ -1255,6 +1280,12 @@ const fr = {
     ends_required: 'Origine et destination requises.',
     eta: 'Délai (jours)',
     flat: 'Forfait ({currency})',
+    fixed_basis_kg: 'Poids d’un départ au seuil (kg facturés)',
+    fixed_basis_hint:
+      'Le forfait est partagé par toutes les commandes du départ : il est réparti sur ce poids, au kilo facturé.',
+    fixed_not_billed:
+      'Forfait non facturé : renseignez le poids d’un départ au seuil pour le répartir au kilo.',
+    fixed_spread: 'Forfait réparti : +{share} {currency}/kg, soit {rate} {currency}/kg facturé.',
     final_untyped: 'Tronçon final vers le client, non proposé au checkout (ex. dropshipping)',
     free_from_short: 'Gratuit dès ({currency} de panier)',
     free_from: 'Franco de port à partir de ({currency}, valeur du panier)',
@@ -1572,6 +1603,9 @@ const fr = {
     negative: ". Un montant négatif reprend de l'avoir.",
     next_leg: 'Tronçon suivant',
     no_cost_lines: '{n} ligne(s) sans coût connu, non comptée(s)',
+    import_mode: 'Import : {mode}',
+    billing: 'Facturation',
+    tax_id: 'N° {id}',
     no_departure: '— Aucun (commande classique)',
     no_items: 'Aucun article.',
     no_leg: 'Aucun tronçon de transport.',
@@ -1972,6 +2006,9 @@ const fr = {
     width: 'Larg. (cm)',
   },
   products: {
+    attach_pending:
+      'Rattaché : l’article sera adopté (coût et stock) au prochain import de fichier contenant la référence {sku}.',
+    attach_adopted: 'Rattaché : coût et stock repris du fournisseur.',
     published_as_is_n: '{n} article(s) publié(s) tel(s) quel(s).',
     back_to_enrichment: '{n} article(s) remis en attente d’enrichissement.',
     already_n: ', {n} déjà publié(s)',
@@ -2353,6 +2390,8 @@ const fr = {
     title: 'Commandes fournisseurs',
   },
   suppliers: {
+    lead_time: 'Délai d’approvisionnement (jours)',
+    lead_time_hint: 'Ajouté au délai affiché d’un article qui n’est pas en stock local.',
     allowlist_saved:
       '{name} : {n} référence(s) suivie(s), {removed} article(s) retiré(s) de la vitrine.',
     allowlist_cleared: '{name} : liste vidée, tout le catalogue synchronisé est suivi.',

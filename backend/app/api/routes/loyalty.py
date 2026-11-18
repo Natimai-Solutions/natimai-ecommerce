@@ -57,7 +57,7 @@ async def adjust_loyalty(
         raise AppError(
             code="user.not_found",
             status_code=404,
-            message="Client introuvable",
+            message="Customer not found.",
             details={"user_id": str(user_id)},
         )
     await loyalty.adjust(

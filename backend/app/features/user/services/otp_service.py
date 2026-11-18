@@ -48,7 +48,7 @@ async def create_otp(r: redis.Redis, email: str) -> str:
         raise AppError(
             code="otp.rate_limit",
             status_code=429,
-            message="Trop de demandes de code. Réessayez dans quelques minutes.",
+            message="Too many code requests. Try again in a few minutes.",
         )
 
     code = _generate_code()
@@ -72,7 +72,7 @@ async def verify_otp(r: redis.Redis, *, email: str, code: str) -> str:
         raise AppError(
             code="otp.expired",
             status_code=400,
-            message="Code expiré ou introuvable. Demandez un nouveau code.",
+            message="Code expired or not found. Ask for a new code.",
         )
 
     # INCR, not read-then-write: parallel guesses each take an attempt, so
@@ -86,7 +86,7 @@ async def verify_otp(r: redis.Redis, *, email: str, code: str) -> str:
         raise AppError(
             code="otp.too_many_attempts",
             status_code=400,
-            message="Trop de tentatives. Demandez un nouveau code.",
+            message="Too many attempts. Ask for a new code.",
         )
 
     data = json.loads(_as_str(raw))
@@ -94,7 +94,7 @@ async def verify_otp(r: redis.Redis, *, email: str, code: str) -> str:
         raise AppError(
             code="otp.invalid_code",
             status_code=400,
-            message="Code invalide.",
+            message="Invalid code.",
         )
 
     # Burn the code atomically: of two correct submissions, one token only.
@@ -102,7 +102,7 @@ async def verify_otp(r: redis.Redis, *, email: str, code: str) -> str:
         raise AppError(
             code="otp.expired",
             status_code=400,
-            message="Code expiré ou introuvable. Demandez un nouveau code.",
+            message="Code expired or not found. Ask for a new code.",
         )
     await r.delete(attempts_key)
     token = str(uuid.uuid4())
@@ -117,6 +117,6 @@ async def consume_signup_token(r: redis.Redis, token: str) -> str:
         raise AppError(
             code="otp.invalid_signup_token",
             status_code=400,
-            message="Session d'inscription expirée. Recommencez l'inscription.",
+            message="Sign-up session expired. Start again.",
         )
     return _as_str(raw)

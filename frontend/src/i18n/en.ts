@@ -210,6 +210,7 @@ const en: MessageSchema = {
     alternatives: 'Alternatives',
   },
   guest: {
+    activation_link_sent: 'A link has just been sent to {email}.',
     title: 'Order without an account',
     hint: 'An e-mail is enough: the order confirmation and tracking are sent there.',
     email: 'E-mail',
@@ -226,6 +227,10 @@ const en: MessageSchema = {
     offer_failed: 'The link could not be sent: try again.',
   },
   checkout: {
+    choose_billing: 'Choose the billing address.',
+    bill_to_other: 'Bill another address (company)',
+    billing_address: 'Billing address',
+    tax_id: 'ID {id}',
     delivery_load_failed: 'The delivery options could not be loaded.',
     delivery_retry: 'Try again',
     edit_cart: 'Edit the cart',
@@ -323,6 +328,8 @@ const en: MessageSchema = {
     method_unavailable:
       'The selected payment method is not available at the moment. Please try again.',
     failed: 'Something went wrong while placing the order.',
+    already_placed:
+      'This order has just been placed (from another tab?): find it in « My orders ».',
   },
   delivery_mode: {
     pickup: 'In-store pickup',
@@ -375,6 +382,8 @@ const en: MessageSchema = {
     cart_item_missing: 'Item not found in the cart',
     cart_qty: 'The quantity could not be updated',
     cart_remove: 'This item could not be removed',
+    cart_add: 'The item could not be added to the cart',
+    cart_quote: 'The quote request could not be sent',
     cart_clear: 'The cart could not be emptied',
     cart_email: 'Please enter a valid customer e-mail.',
     cart_empty: 'The cart is empty.',
@@ -449,6 +458,9 @@ const en: MessageSchema = {
     title: 'My account',
   },
   addresses: {
+    tax_id: 'Business ID (TAHITI no., SIRET)',
+    tax_id_hint: 'Printed on the company’s invoice',
+    no_recipient: 'Recipient to be added',
     recipient: 'Recipient',
     company: 'Company (optional)',
     phone: 'Phone (optional)',
@@ -492,6 +504,8 @@ const en: MessageSchema = {
     zone_unknown: 'Postal code not recognised. Tell us your island or delivery zone.',
   },
   auth: {
+    reset_link_sent: 'If an account exists for this address, a reset link has just been sent.',
+    password_reset_done: 'Password reset. You can sign in.',
     show_password: 'Show the password',
     hide_password: 'Hide the password',
     activate_my_account: 'Activate my account',
@@ -548,6 +562,8 @@ const en: MessageSchema = {
     with_microsoft: 'Continue with Microsoft',
   },
   balance: {
+    pending_manual:
+      'A « {method} » payment of {amount} is announced for this order and not received yet. If you already made it, do not pay here: it will be counted once received. Paying now another way cancels it.',
     start_failed: 'Your order is recorded, but the payment form could not open. Try again below.',
     title_order: 'Pay the order',
     amount_due: 'Amount due',
@@ -973,6 +989,7 @@ const en: MessageSchema = {
     track_parcel: 'Track the parcel',
     updated: 'Updated on {date}',
     warranty_from: '{n}-month warranty from handover',
+    import_mode: 'Import: {mode}',
     warranty_until: '{n}-month warranty, until {date}',
   },
   wishlist: {

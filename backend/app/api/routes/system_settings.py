@@ -235,7 +235,7 @@ async def _put_module_switch(session: Any, key: str, value: str) -> SystemSettin
         raise AppError(
             code="system_setting.invalid_value",
             status_code=http_status.HTTP_400_BAD_REQUEST,
-            message="Un interrupteur de module vaut « true » ou « false »",
+            message="Invalid value for this setting.",
             details={"key": key, "value": value},
         )
     await set_module(session, spec.key, parse_switch(lowered, False))

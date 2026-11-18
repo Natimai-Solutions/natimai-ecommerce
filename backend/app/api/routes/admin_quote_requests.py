@@ -151,7 +151,7 @@ async def _read_quote(session: SessionDep, quote_id: uuid.UUID) -> QuoteRequest:
         raise AppError(
             code="quote_request.not_found",
             status_code=404,
-            message=f"Quote request '{quote_id}' not found",
+            message="Quote request not found.",
             details={"quote_request_id": str(quote_id)},
         )
     return quote
@@ -262,7 +262,7 @@ async def issue_quote_request(
         raise AppError(
             code="quote.already_converted",
             status_code=409,
-            message="Ce devis a déjà été transformé en commande",
+            message="This quote has already been turned into an order.",
             details={
                 "quote_request_id": str(quote_id),
                 "order_id": str(quote.order_id),

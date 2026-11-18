@@ -804,6 +804,10 @@ const needsVariantChoice = computed(
     (!variantsOptional.value || partialSelection.value),
 );
 
+// The departure shown is the one of the chosen mode (functional audit, D1).
+watch(selectedModeKey, (level) => {
+  if (level) void departureStore.setMode(level);
+});
 const selectedMode = computed(
   () => shippingModes.value.find((m) => m.service_level === selectedModeKey.value) ?? null,
 );

@@ -169,6 +169,21 @@
               :label="$t('checkout.step_address')"
               :options="addressChoices"
             />
+            <!-- A company paying for goods delivered elsewhere is invoiced at
+                 its own address, with its tax id (decision of 18/11/2026). -->
+            <q-checkbox
+              v-if="addresses.length"
+              v-model="billToOther"
+              :label="$t('checkout.bill_to_other')"
+              data-testid="checkout-bill-to-other"
+              class="q-mt-sm"
+            />
+            <ChoiceList
+              v-if="billToOther && addresses.length"
+              v-model="billingAddressId"
+              :label="$t('checkout.billing_address')"
+              :options="billingChoices"
+            />
             <div v-if="addresses.length" class="step__links">
               <button type="button" class="text-link" @click="addressDialog = true">
                 {{ $t('checkout.add_address') }}
@@ -492,7 +507,7 @@
               class="promo__input"
               :disable="!isAuthenticated || quoteLoading"
               :error="!!quote?.discount_error"
-              :error-message="quote?.discount_error ?? undefined"
+              :error-message="discountErrorText ?? undefined"
               :hint="appliedDiscountHint"
               data-testid="checkout-discount-input"
             >
@@ -532,7 +547,7 @@ import { NOINDEX } from '@/utils/seo';
 import { useI18n } from 'vue-i18n';
 import { useDepartureLabels } from '@/composables/useDepartureLabels';
 import { useRoute, useRouter } from 'vue-router';
-import { countryLabel, formatMoney as formatInCurrency, orderRef } from '@app/utils';
+import { apiErrorText, countryLabel, formatMoney as formatInCurrency, orderRef } from '@app/utils';
 import { deliveryModeLabel } from '@/utils/deliveryMode';
 
 import AppNotice from '@app/ui/AppNotice.vue';
@@ -564,6 +579,7 @@ import {
 } from '@/api/cart';
 import { listMyAddresses, type Address } from '@/api/addresses';
 import { PENDING_PAYMENT_KEY, loadPayzenSmartForm, type SmartFormOptions } from '@/utils/payzen';
+import { checkoutKeyFor, forgetCheckoutKey, submissionSignature } from '@/utils/checkoutKey';
 
 const cartStore = useCartStore();
 const authStore = useAuthStore();
@@ -639,7 +655,23 @@ const cartEmpty = computed(() => cartStore.items.length === 0);
 // validation (the admin validation flow is a separate decision — A10); the
 // backend stores a free-text snapshot regardless.
 const addresses = ref<Address[]>([]);
+// Why the promo code was refused, in the interface language: the reason
+// code from the shared catalogue, else the server's English text.
+const discountErrorText = computed(() => {
+  const current = quote.value;
+  if (!current?.discount_error) return null;
+  return (
+    apiErrorText(
+      'checkout.discount.refused',
+      { ...(current.discount_error_details ?? {}), reason: current.discount_error_code },
+      locale.value,
+    ) ?? current.discount_error
+  );
+});
+
 const selectedAddressId = ref<string | null>(null);
+const billToOther = ref(false);
+const billingAddressId = ref<string | null>(null);
 const selectedAddress = computed(
   () => addresses.value.find((a) => a.id === selectedAddressId.value) ?? null,
 );
@@ -921,11 +953,36 @@ function methodIcon(providerCode: string): string {
 }
 
 // --- Options des listes de choix -------------------------------------------
+const billingChoices = computed<ChoiceOption[]>(() =>
+  addresses.value.map((a) => ({
+    value: a.id,
+    title: a.company || a.recipient_name || a.street,
+    caption: [
+      a.street,
+      `${a.postal_code} ${a.city}, ${countryLabel(a.country)}`,
+      a.tax_id ? t('checkout.tax_id', { id: a.tax_id }) : null,
+    ]
+      .filter(Boolean)
+      .join(' · '),
+    icon: 'ph:buildings',
+    testid: `checkout-billing-${a.id}`,
+  })),
+);
+
 const addressChoices = computed<ChoiceOption[]>(() =>
   addresses.value.map((a) => ({
     value: a.id,
-    title: a.street,
-    caption: `${a.postal_code} ${a.city}, ${countryLabel(a.country)}`,
+    // Who receives it is part of the choice (the order keeps it, and the
+    // carrier calls that phone): the card showed the street only.
+    title: a.recipient_name ? `${a.recipient_name} — ${a.street}` : a.street,
+    caption: [
+      a.company,
+      `${a.postal_code} ${a.city}, ${countryLabel(a.country)}`,
+      a.phone,
+      a.recipient_name ? null : t('addresses.no_recipient'),
+    ]
+      .filter(Boolean)
+      .join(' · '),
     icon: 'ph:map-pin',
     testid: `checkout-address-${a.id}`,
   })),
@@ -1030,6 +1087,21 @@ const paysByCard = computed(
   () =>
     !creditCoversEverything.value &&
     ['payzen', 'paypal'].includes(selectedMethod.value?.provider_code ?? ''),
+);
+
+// The departure shown is the one the order will join: the cart's import mode
+// when every line is on the same one (functional audit, D1).
+watch(
+  () => {
+    const modes = new Set(
+      cartStore.items.map((item) => item.import_service_level).filter((m): m is string => !!m),
+    );
+    return modes.size === 1 ? [...modes][0]! : null;
+  },
+  (mode) => {
+    if (!orderPlaced.value) void departureStore.setMode(mode);
+  },
+  { immediate: true },
 );
 
 onMounted(async () => {
@@ -1149,6 +1221,10 @@ async function startPayment() {
     errorMessage.value = t('checkout.choose_address');
     return;
   }
+  if (billToOther.value && !billingAddressId.value) {
+    errorMessage.value = t('checkout.choose_billing');
+    return;
+  }
 
   initiating.value = true;
   errorMessage.value = null;
@@ -1161,6 +1237,15 @@ async function startPayment() {
     //    so the order can be created from it (a quote rebuilds it server-side).
     if (!quoteRequestId.value) await syncCartToBackend();
 
+    // One key per submission: a retry of this same cart (after a timeout,
+    // a reload) gets the order back instead of placing a second one.
+    const idempotencyKey = checkoutKeyFor(
+      submissionSignature(
+        cartStore.detailedItems.map(({ item }) => item),
+        quoteRequestId.value,
+      ),
+    );
+
     // 2. Single call: create the order AND run the provider initiation in one
     //    transaction (empties the backend cart, publishes order.created). No
     //    separate /payments/initiate — one order, one payment.
@@ -1171,6 +1256,7 @@ async function startPayment() {
       pickup_place_id: selectedPickupPlace.value?.place_id ?? null,
       shipping_address: formatAddress(selectedAddress.value),
       shipping_address_id: selectedAddressId.value,
+      billing_address_id: billToOther.value ? billingAddressId.value : null,
       payment_method_id: creditCoversEverything.value ? null : (method?.id ?? null),
       return_url: returnUrl,
       cgv_accepted: cgvAccepted.value,
@@ -1178,13 +1264,23 @@ async function startPayment() {
       payment_plan: paymentPlan.value,
       quote_request_id: quoteRequestId.value,
       use_store_credit: useStoreCredit.value,
+      idempotency_key: idempotencyKey,
     });
+    forgetCheckoutKey();
     orderPlaced.value = true;
     placedOrderRef.value = orderRef(checkout.order_number, checkout.order_id);
     placedDepartureId.value = checkout.grouped_departure_id ?? null;
 
     // 3. Clear the local cart now that the order exists.
     cartStore.clearCart();
+
+    // A previous attempt of this submission had already placed the order
+    // (its response was lost): continue from that order's page, which
+    // offers « Payer » when something is still due.
+    if (checkout.replayed) {
+      await router.push({ name: 'order-balance', params: { id: checkout.order_id } });
+      return;
+    }
 
     // The order is placed but the card / PayPal form could not be opened
     // (the provider failed after the order was recorded): pay it from its
@@ -1260,6 +1356,13 @@ async function startPayment() {
       // The recap reads the quote: price it again, at the new prices (the
       // server cart was updated with the refusal — audit 2026-11).
       void loadQuote();
+    }
+    // Another tab (or a click before this one) placed the order of this cart.
+    if (apiErrorCode(err) === 'cart.already_checked_out') {
+      cartStore.clearCart();
+      forgetCheckoutKey();
+      errorMessage.value = t('checkout.already_placed');
+      return;
     }
     errorMessage.value = apiErrorMessage(err) ?? t('checkout.failed');
     cartNeedsFixing.value = CART_LINE_ERRORS.has(apiErrorCode(err) ?? '');

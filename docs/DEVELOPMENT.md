@@ -195,6 +195,32 @@ docker compose exec redis redis-cli                                  # Redis CLI
 - Map external/library exceptions to `AppError` at the route or service boundary so
   the client always gets the standard shape.
 
+### Languages: the API is language-agnostic
+
+The backend does not translate errors (decision of 18/11/2026). An error is a
+**code**, its **details** and an **English fallback message**; the interfaces
+translate the code.
+
+- **Catalogue**: `shared/utils/src/apiErrors/en.json` and `fr.json`, one entry
+  per code, the same codes in both. `{name}` placeholders are filled from
+  `details` (`apiErrorText(code, details, locale)` in `@app/utils`).
+- **Backend**: `message` is the catalogue's **English** text, word for word,
+  placeholders included: `AppError` fills them from `details`. Never French.
+  Put in `details` every value a placeholder names.
+- **Frontends**: show `apiErrorMessage(err)` (storefront, `@/utils/errors`) or
+  `extractApiError(err)` (admin, `@/api/errors`): the code translated in the
+  interface language, else the server's message. Never display
+  `error.message` directly, nor a success `message` of the API: success
+  texts live in the app's own i18n files.
+- **New error code**: add it to both catalogue files in the same change.
+  `backend/app/tests/test_api_error_catalog.py` fails otherwise (it also checks
+  that placeholders are details the raise provides, and that no message is
+  French).
+- **Out of scope**: what the server renders itself is translated server-side —
+  e-mails (`app/templates/email/{fr,en}`), PDFs (`app/templates/invoice/{fr,en}`),
+  catalogue content (`translations`). Records written in the data (ledger
+  reasons, journey reasons) and operator alerts are not API messages.
+
 ## Notification providers
 
 Transactional emails (and Slack) go through a provider abstraction
@@ -321,17 +347,21 @@ The most important variables; [`DEPLOYMENT.md`](DEPLOYMENT.md) has the
 ## Tests & coverage
 
 CI ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) runs on every
-pull request (only the jobs whose files changed) and on every push to `main`
-(everything):
+pull request that is ready for review (drafts run nothing; only the jobs whose
+files changed), once a week on `main` and on demand (everything). It does not
+run again on the merge: branch protection requires the branch to be up to date
+and the single required status is **CI verte**, which passes when every job
+succeeded or was skipped. `deploy.yml` accepts the green CI of the pull request
+that produced the deployed commit.
 
 - **backend**: `ruff` (lint + format), `mypy`, a single Alembic head, `pytest`
   **under coverage** against a throwaway PostgreSQL service. Coverage config
   lives in [`backend/pyproject.toml`](../backend/pyproject.toml); `fail_under`
   gates the build.
-- **api-types**: the committed `shared/api-types/src/schema.ts` is regenerated
-  from the application and compared.
 - **frontend**: `lint` + `typecheck` for both apps, unit tests of the shared
-  engine (`@app/utils`) via **vitest**, under coverage.
+  engine (`@app/utils`) via **vitest**, under coverage; and the API types
+  check: the committed `shared/api-types/src/schema.ts` is regenerated from the
+  application and compared.
 - **e2e**: the storefront and admin Playwright journeys against the compose stack.
 
 ```bash

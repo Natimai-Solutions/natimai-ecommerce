@@ -151,7 +151,7 @@ async def _my_order_or_error(
         raise AppError(
             code="order.not_found",
             status_code=http_status.HTTP_404_NOT_FOUND,
-            message=f"Order {order_id} not found",
+            message="Order not found.",
             details={"order_id": str(order_id)},
         ) from exc
     if order.user_id != current_user.id:
@@ -159,7 +159,7 @@ async def _my_order_or_error(
         raise AppError(
             code="order.not_found",
             status_code=http_status.HTTP_404_NOT_FOUND,
-            message=f"Order {order_id} not found",
+            message="Order not found.",
             details={"order_id": str(order_id)},
         )
     return order
@@ -186,6 +186,42 @@ class MyOrderDetail(MyOrderPublic):
     #: the method's fee`` (``payment_fee_amount`` comes with the order).
     #: Method of the latest payment (its fee is the one the order carries).
     payment_method_id: uuid.UUID | None = None
+    #: A manual payment (transfer, cheque, cash) announced and still waiting:
+    #: « Payer ma commande » warns before a card payment — the customer who
+    #: already sent the transfer would pay twice.
+    pending_manual_method_name: str | None = None
+    pending_manual_amount: Decimal | None = None
+
+
+#: Payment statuses of a payment announced and not settled yet.
+_WAITING_PAYMENT_STATUSES: frozenset[str] = frozenset({"Pending", "AwaitingValidation"})
+
+
+async def _pending_manual_payment(
+    session: SessionDep, order_id: uuid.UUID
+) -> tuple[str | None, Decimal | None]:
+    """Method name and amount of the latest manual payment still waiting."""
+    from app.features.payment.models.payment_status import PaymentStatus
+
+    row = (
+        await session.exec(
+            select(col(PaymentMethod.name), col(Payment.amount))
+            .join(Payment, col(Payment.payment_method_id) == col(PaymentMethod.id))
+            .join(
+                PaymentStatus,
+                col(PaymentStatus.id) == col(Payment.payment_status_id),
+            )
+            .where(
+                col(Payment.order_id) == order_id,
+                col(Payment.is_active).is_(True),
+                col(Payment.provider_code).startswith("manual_"),
+                col(PaymentStatus.name).in_(_WAITING_PAYMENT_STATUSES),
+            )
+            .order_by(col(Payment.created_at).desc().nulls_last())
+            .limit(1)
+        )
+    ).first()
+    return (row[0], row[1]) if row else (None, None)
 
 
 #: Order statuses from which a first payment can still be made online
@@ -269,6 +305,10 @@ async def get_my_order(
         session, order, item.order_status_name
     )
     item.payment_method_id = await _payment_method_id(session, order.id)
+    (
+        item.pending_manual_method_name,
+        item.pending_manual_amount,
+    ) = await _pending_manual_payment(session, order.id)
     return item
 
 
@@ -340,7 +380,7 @@ async def track_order_by_link(
         raise AppError(
             code="order.not_found",
             status_code=http_status.HTTP_404_NOT_FOUND,
-            message=f"Order {order_id} not found",
+            message="Order not found.",
             details={"order_id": str(order_id)},
         )
     try:
@@ -349,7 +389,7 @@ async def track_order_by_link(
         raise AppError(
             code="order.not_found",
             status_code=http_status.HTTP_404_NOT_FOUND,
-            message=f"Order {order_id} not found",
+            message="Order not found.",
             details={"order_id": str(order_id)},
         ) from exc
     if not tracking_link_still_valid(order.created_at):
@@ -358,7 +398,7 @@ async def track_order_by_link(
         raise AppError(
             code="order.not_found",
             status_code=http_status.HTTP_404_NOT_FOUND,
-            message=f"Order {order_id} not found",
+            message="Order not found.",
             details={"order_id": str(order_id)},
         )
     view = MyOrderPublic.model_validate(order)

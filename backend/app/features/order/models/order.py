@@ -4,7 +4,7 @@ from decimal import Decimal
 from enum import StrEnum
 from typing import Any
 
-from sqlalchemy import Sequence
+from sqlalchemy import Index, Sequence, text
 from sqlmodel import JSON, Column, Field, SQLModel
 
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
@@ -100,7 +100,34 @@ class OrderBase(Base):
     shipping_address: str | None = Field(
         default=None,
         max_length=500,
-        description="Adresse de livraison",
+        description=(
+            "Adresse de livraison (société, rue, ville, pays), figée à la "
+            "commande ; construite par le serveur depuis l'adresse enregistrée"
+        ),
+    )
+    shipping_recipient: str | None = Field(
+        default=None,
+        max_length=150,
+        description="Destinataire du colis, figé à la commande",
+    )
+    shipping_phone: str | None = Field(
+        default=None,
+        max_length=40,
+        description="Téléphone du destinataire pour le transporteur",
+    )
+    # Billing identity chosen at checkout, when it is not the shipping one
+    # (a company paying for goods delivered elsewhere). None = the invoice
+    # bills the account at the shipping address, as before.
+    billing_name: str | None = Field(
+        default=None, max_length=150, description="Nom facturé (société ou personne)"
+    )
+    billing_address: str | None = Field(
+        default=None, max_length=500, description="Adresse de facturation figée"
+    )
+    billing_tax_id: str | None = Field(
+        default=None,
+        max_length=40,
+        description="Identifiant de l'acheteur (n° TAHITI, SIRET, TVA)",
     )
     shipping_cost_breakdown: dict[str, Any] | None = Field(
         default=None,
@@ -206,6 +233,15 @@ class Order(OrderBase, table=True):
     """Represents order."""
 
     __tablename__ = "orders"
+    __table_args__ = (
+        Index(
+            "uq_orders_user_checkout_key",
+            "user_id",
+            "checkout_key",
+            unique=True,
+            postgresql_where=text("checkout_key IS NOT NULL"),
+        ),
+    )
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,
         primary_key=True,
@@ -221,6 +257,15 @@ class Order(OrderBase, table=True):
         unique=True,
         index=True,
         description="Numéro de commande lisible (CMD-AAAA-NNNNN)",
+    )
+    # Idempotency key of the checkout that created the order, unique per
+    # customer: a retry of the same submission (a timeout, a lost response)
+    # gets this order back instead of creating a second one. Server-side
+    # only, like order_number.
+    checkout_key: str | None = Field(
+        default=None,
+        max_length=64,
+        description="Clé d'idempotence du checkout (unique par client)",
     )
 
 

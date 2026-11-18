@@ -140,6 +140,15 @@ class SupplierBase(SQLModel):
         default=True,
         description="Autorise les synchronisations (planifiées et manuelles)",
     )
+    lead_time_days: int | None = Field(
+        default=None,
+        ge=0,
+        le=365,
+        description=(
+            "Délai d'approvisionnement (jours) avant le départ, ajouté au délai "
+            "affiché d'un article qui n'est pas en stock local"
+        ),
+    )
     sync_interval_hours: int = Field(
         default=0,
         ge=0,
@@ -301,6 +310,7 @@ class SupplierUpdate(SQLModel):
     is_domestic: bool | None = None
     sync_enabled: bool | None = None
     sync_interval_hours: int | None = Field(default=None, ge=0)
+    lead_time_days: int | None = Field(default=None, ge=0, le=365)
     default_categories: list[str] | None = None
     price_currency: str | None = None
     column_mapping: dict[str, str] | None = None

@@ -204,7 +204,7 @@ async def _load_active_routes(
         raise AppError(
             code="shipping.route.unknown_or_inactive",
             status_code=400,
-            message="Unknown or inactive shipping routes: " + ", ".join(missing),
+            message="This delivery mode is no longer available: choose another one.",
             details={"route_ids": missing},
         )
     return route_by_id
@@ -242,7 +242,7 @@ class ShippingRouteRouter(
                 raise AppError(
                     code="resource.not_found",
                     status_code=404,
-                    message="Shipping route not found",
+                    message="Item not found.",
                     details={"id": str(route_id)},
                 ) from exc
 
@@ -303,7 +303,7 @@ class ShippingRouteRouter(
                     raise AppError(
                         code="shipping.route.served_place_unknown",
                         status_code=400,
-                        message="Unknown or inactive places: " + ", ".join(missing),
+                        message="Unknown or inactive places.",
                         details={"place_ids": missing},
                     )
 
@@ -352,7 +352,7 @@ class ShippingRouteRouter(
                 raise AppError(
                     code="shipping.route.path_required",
                     status_code=400,
-                    message="At least one path is required",
+                    message="At least one path is required.",
                     details={"field": "paths"},
                 )
 
@@ -367,7 +367,7 @@ class ShippingRouteRouter(
                     raise AppError(
                         code="shipping.route.path_empty",
                         status_code=400,
-                        message="A path must contain at least one route",
+                        message="A path must contain at least one route.",
                         details={"path_index": path_index},
                     )
                 ordered_routes = [route_by_id[rid] for rid in path.route_ids]
@@ -501,7 +501,7 @@ class ShippingRouteRouter(
                 raise AppError(
                     code="shipping.route.not_found",
                     status_code=404,
-                    message="No route found between these places",
+                    message="No route found between these places.",
                     details={
                         "from_place_id": str(from_place_id),
                         "to_place_id": str(to_place_id),

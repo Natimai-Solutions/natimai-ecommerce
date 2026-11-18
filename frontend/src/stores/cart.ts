@@ -81,15 +81,16 @@ export const useCartStore = defineStore('cart', () => {
       void mirrorToServer();
     }, MIRROR_DELAY_MS);
   }
+  function localLines() {
+    return cart.value.items.map((item) => ({
+      product_id: item.product_id,
+      quantity: item.quantity,
+      import_service_level: item.import_service_level ?? null,
+    }));
+  }
   async function mirrorToServer() {
     const auth = useAuthStore();
-    const payload = {
-      items: cart.value.items.map((item) => ({
-        product_id: item.product_id,
-        quantity: item.quantity,
-        import_service_level: item.import_service_level ?? null,
-      })),
-    };
+    const payload = { items: localLines() };
     try {
       if (auth.isAuthenticated) {
         if (payload.items.length === 0) await clearMyCart();
@@ -172,6 +173,17 @@ export const useCartStore = defineStore('cart', () => {
       return;
     }
     try {
+      // The visitor's server cart first catches up with the local one: its
+      // mirror is debounced, and an article added just before the session
+      // came back was not on it yet — the merge answered without it and
+      // that answer replaced the local cart (review of 17/11/2026).
+      if (mirrorTimer !== null) {
+        clearTimeout(mirrorTimer);
+        mirrorTimer = null;
+      }
+      const local = localLines();
+      if (local.length === 0) await clearGuestCart(token);
+      else await replaceGuestCartItems(token, { items: local });
       const merged = await mergeGuestCart(token);
       adoptServerCart(merged);
       forgetGuestToken();
@@ -313,7 +325,7 @@ export const useCartStore = defineStore('cart', () => {
       requiresAuth.value = false;
       return true;
     } catch (err) {
-      handleError(err, "Impossible d'ajouter au panier");
+      handleError(err, gt('stores.cart_add'));
       return false;
     } finally {
       mutating.value = false;
@@ -419,12 +431,15 @@ export const useCartStore = defineStore('cart', () => {
           currency: cart.value.currency,
           items: detailedItems.value.map((entry) => ({
             product_id: entry.item.product_id,
-            product_name: entry.product?.name ?? `Produit ${entry.item.product_id.slice(0, 8)}`,
+            product_name:
+              entry.product?.name ??
+              gt('cart.product_n', { id: entry.item.product_id.slice(0, 8) }),
             product_image_url:
               entry.product?.image_url ?? entry.product?.supplier_image_url ?? null,
             quantity: entry.item.quantity,
             unit_price: entry.item.unit_price,
             line_total: entry.item.line_total,
+            import_service_level: entry.item.import_service_level ?? null,
           })),
         },
         payload.headers ?? {},
@@ -436,7 +451,7 @@ export const useCartStore = defineStore('cart', () => {
       void attachGuestEmail(customerEmail);
       return response;
     } catch (err) {
-      handleError(err, "Impossible d'envoyer la demande de devis");
+      handleError(err, gt('stores.cart_quote'));
       return null;
     } finally {
       quoteSubmitting.value = false;

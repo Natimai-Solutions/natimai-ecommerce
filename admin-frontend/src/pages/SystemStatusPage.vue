@@ -23,6 +23,14 @@
       >
         {{ $t(`system_status.level_${status.level}`) }}
       </AppNotice>
+      <AppNotice
+        v-if="status.worker_alive === false"
+        tone="error"
+        class="q-mb-md"
+        data-testid="system-status-worker"
+      >
+        {{ $t('system_status.worker_down') }}
+      </AppNotice>
 
       <div class="status-grid">
         <section class="app-panel">
@@ -79,6 +87,30 @@
           </dl>
         </section>
 
+        <section
+          v-if="status.departures_waiting?.length"
+          class="app-panel"
+          data-testid="system-status-departures"
+        >
+          <h2 class="admin-subtitle">{{ $t('system_status.departures') }}</h2>
+          <StatusTag
+            :tone="tone(status.departures_level ?? 'ok')"
+            :icon="toneIcon(tone(status.departures_level ?? 'ok'))"
+            :label="$t(`system_status.${status.departures_level ?? 'ok'}`)"
+          />
+          <p class="text-subtle">{{ $t('system_status.departures_hint') }}</p>
+          <ul class="status-list">
+            <li v-for="departure in status.departures_waiting" :key="departure.id">
+              <router-link to="/grouped-departures" class="admin-link">{{
+                departure.name
+              }}</router-link>
+              <span class="text-subtle">{{
+                $t('system_status.departure_past', { n: departure.hours_past_cutoff })
+              }}</span>
+            </li>
+          </ul>
+        </section>
+
         <section class="app-panel">
           <h2 class="admin-subtitle">{{ $t('system_status.rates') }}</h2>
           <p v-if="!status.currency_rates.length" class="text-subtle">
@@ -96,6 +128,49 @@
           </ul>
         </section>
       </div>
+
+      <template v-if="status.outbox_failed_events?.length">
+        <h2 class="admin-subtitle status-section">{{ $t('system_status.failed_events') }}</h2>
+        <p class="text-subtle">{{ $t('system_status.failed_events_hint') }}</p>
+        <q-markup-table flat bordered dense data-testid="system-status-failed-events">
+          <thead>
+            <tr>
+              <th class="text-left">{{ $t('system_status.col_event') }}</th>
+              <th class="text-left">{{ $t('system_status.col_failure') }}</th>
+              <th class="text-left">{{ $t('system_status.col_error') }}</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="row in status.outbox_failed_events" :key="row.id">
+              <td class="font-mono">{{ row.event_type }}</td>
+              <td>{{ formatDateTime(row.updated_at) }}</td>
+              <td class="status-error">{{ row.error ?? '' }}</td>
+              <td class="text-right">
+                <q-btn
+                  flat
+                  dense
+                  no-caps
+                  icon="ph:arrow-counter-clockwise"
+                  :label="$t('system_status.replay')"
+                  :loading="replaying === row.id"
+                  :disable="replaying !== null"
+                  @click="act(row.id, 'replay')"
+                />
+                <q-btn
+                  flat
+                  dense
+                  no-caps
+                  icon="ph:x"
+                  :label="$t('system_status.dismiss')"
+                  :disable="replaying !== null"
+                  @click="act(row.id, 'dismiss')"
+                />
+              </td>
+            </tr>
+          </tbody>
+        </q-markup-table>
+      </template>
 
       <template v-if="status.outbox_abandoned.length">
         <h2 class="admin-subtitle status-section">{{ $t('system_status.abandoned') }}</h2>
@@ -124,6 +199,7 @@
                   icon="ph:arrow-counter-clockwise"
                   :label="$t('system_status.replay')"
                   :loading="replaying === row.id"
+                  :disable="replaying !== null"
                   @click="replay(row.id)"
                 />
               </td>
@@ -148,7 +224,11 @@
             <StatusTag
               :tone="tone(props.row.level)"
               :icon="toneIcon(tone(props.row.level))"
-              :label="$t(`system_status.task_${props.row.last_status ?? 'running'}`)"
+              :label="
+                props.row.overdue
+                  ? $t('system_status.task_overdue')
+                  : $t(`system_status.task_${props.row.last_status ?? 'running'}`)
+              "
             />
           </q-td>
         </template>
@@ -173,7 +253,9 @@ import PageHeader from '@/components/PageHeader.vue';
 import { extractApiError } from '@/api/errors';
 import {
   getSystemStatus,
+  dismissFailedEvent,
   replayAbandonedDelivery,
+  replayFailedEvent,
   type SystemStatus,
   type TaskRun,
 } from '@/api/systemStatus';
@@ -223,10 +305,25 @@ async function load() {
 
 const replaying = ref<string | null>(null);
 async function replay(id: string) {
+  if (replaying.value) return; // one click, one replay
   replaying.value = id;
   error.value = null;
   try {
     await replayAbandonedDelivery(id);
+    await load();
+  } catch (err) {
+    error.value = extractApiError(err) ?? t('system_status.replay_failed');
+  } finally {
+    replaying.value = null;
+  }
+}
+
+async function act(id: string, action: 'replay' | 'dismiss') {
+  if (replaying.value) return;
+  replaying.value = id;
+  error.value = null;
+  try {
+    await (action === 'replay' ? replayFailedEvent(id) : dismissFailedEvent(id));
     await load();
   } catch (err) {
     error.value = extractApiError(err) ?? t('system_status.replay_failed');

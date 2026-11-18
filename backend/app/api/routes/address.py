@@ -29,6 +29,7 @@ class AddressMeCreate(SQLModel):
     recipient_name: str | None = Field(default=None, max_length=150)
     company: str | None = Field(default=None, max_length=150)
     phone: str | None = Field(default=None, max_length=40)
+    tax_id: str | None = Field(default=None, max_length=40)
     street: str
     city: str
     state: str | None = None
@@ -49,6 +50,7 @@ class AddressMeUpdate(SQLModel):
     recipient_name: str | None = Field(default=None, max_length=150)
     company: str | None = Field(default=None, max_length=150)
     phone: str | None = Field(default=None, max_length=40)
+    tax_id: str | None = Field(default=None, max_length=40)
     street: str | None = None
     city: str | None = None
     state: str | None = None
@@ -86,7 +88,7 @@ async def _resolve_address_place_id(
             raise AppError(
                 code="address.place.unknown",
                 status_code=400,
-                message=f"Unknown place '{place_id}'",
+                message="Unknown zone for this address.",
                 details={"place_id": str(place_id)},
             ) from exc
         return place_id
@@ -222,7 +224,7 @@ async def get_my_address(
         raise AppError(
             code="address.not_found",
             status_code=404,
-            message=f"Address '{address_id}' not found",
+            message="Address not found.",
             details={"address_id": str(address_id)},
         ) from exc
 
@@ -230,7 +232,7 @@ async def get_my_address(
         raise AppError(
             code="address.not_found",
             status_code=404,
-            message=f"Address '{address_id}' not found",
+            message="Address not found.",
             details={"address_id": str(address_id)},
         )
     return AddressPublic.model_validate(address)
@@ -253,7 +255,7 @@ async def update_my_address(
         raise AppError(
             code="address.not_found",
             status_code=404,
-            message=f"Address '{address_id}' not found",
+            message="Address not found.",
             details={"address_id": str(address_id)},
         ) from exc
 
@@ -261,7 +263,7 @@ async def update_my_address(
         raise AppError(
             code="address.not_found",
             status_code=404,
-            message=f"Address '{address_id}' not found",
+            message="Address not found.",
             details={"address_id": str(address_id)},
         )
 
@@ -308,7 +310,7 @@ async def delete_my_address(
         raise AppError(
             code="address.not_found",
             status_code=404,
-            message=f"Address '{address_id}' not found",
+            message="Address not found.",
             details={"address_id": str(address_id)},
         ) from exc
 
@@ -316,7 +318,7 @@ async def delete_my_address(
         raise AppError(
             code="address.not_found",
             status_code=404,
-            message=f"Address '{address_id}' not found",
+            message="Address not found.",
             details={"address_id": str(address_id)},
         )
     await crud_address.delete(session=session, id=address_id, record=address)
@@ -342,7 +344,7 @@ async def get_user_addresses(
         raise AppError(
             code="address.not_found",
             status_code=404,
-            message="Adresse introuvable",
+            message="Address not found.",
             details={"user_id": str(user_id)},
         )
 
@@ -368,7 +370,7 @@ async def get_user_address(
         raise AppError(
             code="address.not_found",
             status_code=404,
-            message="Adresse introuvable",
+            message="Address not found.",
             details={"user_id": str(user_id)},
         )
 
@@ -378,7 +380,7 @@ async def get_user_address(
         raise AppError(
             code="address.not_found",
             status_code=404,
-            message=f"Address '{address_id}' not found",
+            message="Address not found.",
             details={"address_id": str(address_id)},
         ) from exc
 
@@ -386,7 +388,7 @@ async def get_user_address(
         raise AppError(
             code="address.not_found",
             status_code=404,
-            message=f"Address '{address_id}' not found",
+            message="Address not found.",
             details={"address_id": str(address_id)},
         )
 
@@ -409,7 +411,7 @@ async def create_user_address(
         raise AppError(
             code="address.not_found",
             status_code=404,
-            message="Adresse introuvable",
+            message="Address not found.",
             details={"user_id": str(user_id)},
         )
 
@@ -432,7 +434,7 @@ async def update_user_address(
         raise AppError(
             code="address.not_found",
             status_code=404,
-            message="Adresse introuvable",
+            message="Address not found.",
             details={"user_id": str(user_id)},
         )
 
@@ -442,7 +444,7 @@ async def update_user_address(
         raise AppError(
             code="address.not_found",
             status_code=404,
-            message=f"Address '{address_id}' not found",
+            message="Address not found.",
             details={"address_id": str(address_id)},
         ) from exc
 
@@ -450,7 +452,7 @@ async def update_user_address(
         raise AppError(
             code="address.not_found",
             status_code=404,
-            message=f"Address '{address_id}' not found",
+            message="Address not found.",
             details={"address_id": str(address_id)},
         )
 
@@ -479,7 +481,7 @@ async def delete_user_address(
         raise AppError(
             code="address.not_found",
             status_code=404,
-            message="Adresse introuvable",
+            message="Address not found.",
             details={"user_id": str(user_id)},
         )
 
@@ -489,7 +491,7 @@ async def delete_user_address(
         raise AppError(
             code="address.not_found",
             status_code=404,
-            message=f"Address '{address_id}' not found",
+            message="Address not found.",
             details={"address_id": str(address_id)},
         ) from exc
 
@@ -497,7 +499,7 @@ async def delete_user_address(
         raise AppError(
             code="address.not_found",
             status_code=404,
-            message=f"Address '{address_id}' not found",
+            message="Address not found.",
             details={"address_id": str(address_id)},
         )
 
@@ -529,7 +531,7 @@ async def admin_validate_address(
         raise AppError(
             code="address.not_found",
             status_code=404,
-            message=f"Address '{address_id}' not found",
+            message="Address not found.",
             details={"address_id": str(address_id)},
         ) from exc
 
@@ -589,7 +591,7 @@ async def get_user_addresses_by_type(
         raise AppError(
             code="address.not_found",
             status_code=404,
-            message="Adresse introuvable",
+            message="Address not found.",
             details={"user_id": str(user_id)},
         )
 
@@ -599,9 +601,7 @@ async def get_user_addresses_by_type(
         raise AppError(
             code="address.type.invalid",
             status_code=400,
-            message=(
-                "Invalid address type. Must be one of: " + ", ".join(ordered_allowed)
-            ),
+            message=("Invalid address type."),
             details={
                 "address_type": address_type,
                 "allowed": ordered_allowed,

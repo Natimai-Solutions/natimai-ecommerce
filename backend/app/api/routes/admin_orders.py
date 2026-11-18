@@ -51,6 +51,7 @@ from app.features.product.models.product import Product
 from app.features.product.models.tax_rate import TaxRate
 from app.features.product.services.margin import compute_margin, line_unit_cost
 from app.features.product.services.pricing import PricingContext
+from app.features.shipping.services.import_routes import import_mode_labels
 from app.features.user.models.user import User
 from app.handlers.order import request_balance
 from app.utils.csv_export import csv_amount, csv_response
@@ -121,6 +122,10 @@ class AdminOrderLineItem(BaseModel):
     line_margin: float | None = None
     #: Margin / line excl. tax (taux de marque).
     margin_pct: float | None = None
+    #: Import mode the customer paid for (ship by it) and its label; None =
+    #: no import leg on the line.
+    import_service_level: str | None = None
+    import_mode_label: str | None = None
 
 
 class OrderMarginSummary(BaseModel):
@@ -182,6 +187,14 @@ class AdminOrderDetail(BaseModel):
     #: Currency of every amount of the order (frozen at checkout).
     currency: str | None = None
     shipping_address: str | None = None
+    #: Who receives the parcel and their phone, frozen at checkout (orders
+    #: placed before 18/11/2026 carry them inside ``shipping_address``).
+    shipping_recipient: str | None = None
+    shipping_phone: str | None = None
+    #: Billing identity chosen at checkout (None: billed at the shipping address).
+    billing_name: str | None = None
+    billing_address: str | None = None
+    billing_tax_id: str | None = None
     delivery_type: str | None = None
     grouped_departure_id: uuid.UUID | None = None
     notes: str | None = None
@@ -356,7 +369,7 @@ async def list_orders(
         raise AppError(
             code="query.order_by_not_allowed",
             status_code=400,
-            message="Tri non autorisé",
+            message="Sorting not allowed on this field.",
             details={"sort_by": sort_by, "allowed": sorted(ORDER_SORTS)},
         )
     filters: dict[str, Any] = {
@@ -597,7 +610,7 @@ async def change_order_status(
         raise AppError(
             code="order.status.unknown",
             status_code=400,
-            message=f"Statut inconnu '{body.status}'",
+            message="Unknown status.",
             details={"status": body.status, "known": list(ALL_ORDER_STATUSES)},
         )
     order = await session.get(Order, order_id)
@@ -605,7 +618,7 @@ async def change_order_status(
         raise AppError(
             code="order.not_found",
             status_code=404,
-            message="Commande introuvable",
+            message="Order not found.",
             details={"order_id": str(order_id)},
         )
     try:
@@ -621,14 +634,11 @@ async def change_order_status(
         raise AppError(
             code="order.status.transition_refused",
             status_code=409,
-            # Without the status codes (« Cancelled », « Paid »): the admin
-            # reads French labels everywhere else.
             message=(
-                "Cette commande est annulée ou remboursée : elle ne peut plus "
-                "changer de statut."
+                "This order is cancelled or refunded: its status can no longer change."
                 if exc.old in ("Cancelled", "Refunded")
-                else "Cette commande a déjà été payée ou expédiée : elle ne peut "
-                "pas revenir en attente de paiement."
+                else "This order is already paid or shipped: it cannot go back "
+                "to awaiting payment."
             ),
             details={"from": exc.old, "to": exc.new},
         ) from exc
@@ -651,7 +661,7 @@ async def get_order_detail(
         raise AppError(
             code="order.not_found",
             status_code=404,
-            message=f"Order '{order_id}' not found",
+            message="Order not found.",
             details={"order_id": str(order_id)},
         ) from exc
 
@@ -694,6 +704,9 @@ async def get_order_detail(
     except Exception:  # noqa: BLE001 - a missing parameter never hides an order
         commission_pct = None
 
+    mode_labels = await import_mode_labels(
+        session, (line.import_service_level for line in lines)
+    )
     line_items: list[AdminOrderLineItem] = []
     margin_totals = {"excl": Decimal("0"), "cost": Decimal("0"), "fees": Decimal("0")}
     lines_without_cost = 0
@@ -738,6 +751,8 @@ async def get_order_detail(
                     if figures is not None and figures.margin_pct is not None
                     else None
                 ),
+                import_service_level=line.import_service_level,
+                import_mode_label=mode_labels.get(line.import_service_level or ""),
             )
         )
     margin_summary: OrderMarginSummary | None = None
@@ -834,6 +849,11 @@ async def get_order_detail(
         discount_amount=float(getattr(order, "discount_amount", None) or 0),
         total_amount=float(order.total_amount),
         shipping_address=order.shipping_address,
+        shipping_recipient=order.shipping_recipient,
+        shipping_phone=order.shipping_phone,
+        billing_name=order.billing_name,
+        billing_address=order.billing_address,
+        billing_tax_id=order.billing_tax_id,
         delivery_type=getattr(order, "delivery_type", None),
         grouped_departure_id=order.grouped_departure_id,
         notes=order.notes,
@@ -881,7 +901,7 @@ async def record_order_counter_payment(
         raise AppError(
             code="order.not_found",
             status_code=404,
-            message="Commande introuvable",
+            message="Order not found.",
             details={"order_id": str(order_id)},
         )
     try:
@@ -922,7 +942,7 @@ async def request_order_balance(
         raise AppError(
             code="order.not_found",
             status_code=404,
-            message="Commande introuvable",
+            message="Order not found.",
             details={"order_id": str(order_id)},
         )
     due = balance_amount(order)
@@ -930,7 +950,7 @@ async def request_order_balance(
         raise AppError(
             code="order.balance.not_due",
             status_code=409,
-            message="Aucun solde à demander sur cette commande",
+            message="There is no balance to request on this order.",
             details={"order_id": str(order_id), "payment_plan": order.payment_plan},
         )
     sent = await request_balance(session, order)

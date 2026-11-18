@@ -34,14 +34,14 @@ async def _ensure_icecat_enabled(session: SessionDep) -> None:
         raise AppError(
             code="icecat.disabled",
             status_code=400,
-            message="Icecat enrichment is disabled in settings",
+            message="Icecat enrichment is switched off.",
             details={"setting": "ICECAT_ENABLED"},
         )
     if not await module_enabled(session, "icecat"):
         raise AppError(
             code="icecat.disabled",
             status_code=400,
-            message="Icecat enrichment is switched off in the admin",
+            message="Icecat enrichment is switched off.",
             details={"setting": "module.icecat"},
         )
 
@@ -113,7 +113,7 @@ async def enrich_product(
         raise AppError(
             code="icecat.enrich.queue_failed",
             status_code=500,
-            message="Failed to queue enrichment job (see the server log)",
+            message="The enrichment could not be queued (see the server log).",
             details={
                 "product_id": request.product_id,
             },
@@ -151,7 +151,7 @@ async def batch_enrich_products(
         raise AppError(
             code="icecat.batch.queue_failed",
             status_code=500,
-            message="Failed to queue batch enrichment job (see the server log)",
+            message="The enrichment batch could not be queued (see the server log).",
             details={
                 "limit": request.limit,
             },
@@ -201,7 +201,7 @@ async def test_icecat_enrichment(
         raise AppError(
             code="icecat.test.failed",
             status_code=500,
-            message="Icecat API test failed (see the server log)",
+            message="The Icecat API test failed (see the server log).",
             details={
                 "vendor_part_number": request.vendor_part_number,
                 "manufacturer": request.manufacturer,
@@ -281,7 +281,7 @@ async def search_by_upc(
         raise AppError(
             code="icecat.search.upc.failed",
             status_code=500,
-            message="UPC search failed (see the server log)",
+            message="The UPC search failed (see the server log).",
             details={
                 "upc": upc,
             },
@@ -335,7 +335,7 @@ async def search_by_ean(
         raise AppError(
             code="icecat.search.ean.failed",
             status_code=500,
-            message="EAN search failed (see the server log)",
+            message="The EAN search failed (see the server log).",
             details={
                 "ean": ean,
             },

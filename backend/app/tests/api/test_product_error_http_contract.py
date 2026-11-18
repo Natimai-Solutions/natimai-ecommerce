@@ -47,7 +47,7 @@ def test_get_one_product_missing_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "product.not_found",
-            "message": "Product not found",
+            "message": "Product not found.",
             "details": {
                 "product_id": str(product_id),
                 "reason": "record_not_found",
@@ -78,7 +78,7 @@ def test_get_one_product_not_enriched_returns_error_payload(
     assert response.json() == {
         "error": {
             "code": "product.not_found",
-            "message": "Product not found",
+            "message": "Product not found.",
             "details": {
                 "product_id": str(product_id),
                 "reason": "not_enriched",

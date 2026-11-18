@@ -56,14 +56,9 @@ async def watch_outbox_backlog_task(
     except Exception:  # noqa: BLE001
         first = True
     if first:
-        from app.core.alerting import send_alert
+        from app.core.operator_messages import alert
 
-        await send_alert(
-            f"File d'événements bloquée : un événement attend depuis {minutes} min "
-            "(paiements, factures, e-mails ne sont plus traités). Vérifiez le "
-            "service outbox-poller.",
-            source="outbox",
-        )
+        await alert("outbox.stuck", source="outbox", minutes=minutes)
     return {"status": "error", "message": f"outbox stuck for {minutes} min"}
 
 
