@@ -203,11 +203,12 @@ async def test_a_partial_refund_keeps_the_order_on_its_way(
 
 
 @pytest.mark.asyncio
-async def test_a_partially_refunded_deposit_order_still_stops_its_balance(
+async def test_a_partially_refunded_deposit_order_follows_its_departure_too(
     db_session: AsyncSession,
 ) -> None:
-    """Its balance does not deduct refunds: the status stays what keeps the
-    full balance from being asked."""
+    """Its balance (total − deposit) stays right — the refund lowers what is
+    owed and what was paid alike — and the credit note of a refund made
+    before the invoice follows the invoice: the order keeps its status."""
     from app.handlers import payment as payment_handlers
 
     order_id, payment_id = await _order_in(db_session, "DepositPaid", plan="deposit")
@@ -220,4 +221,4 @@ async def test_a_partially_refunded_deposit_order_still_stops_its_balance(
             "fully_refunded": False,
         },
     )
-    assert await _status_of(db_session, order_id) == "PartiallyRefunded"
+    assert await _status_of(db_session, order_id) == "DepositPaid"

@@ -19,6 +19,12 @@ takes a tag as its `ref`.
 
 ### Added
 
+- A deposit order partially refunded keeps its status too and follows its
+  departure: its balance (total − deposit) stays right, the refund lowering
+  what is owed and what was paid alike. A refund made before the invoice
+  (issued with the balance) had no invoice to correct, so its credit note
+  was skipped and the invoice billed the whole total: issuing the invoice
+  now credits every completed refund without a note.
 - A recurring departure left open below its threshold past its cut-off
   opens its following departure in advance: the new orders go there while
   the admin decides (they were attached to no departure). The link

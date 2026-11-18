@@ -42,7 +42,6 @@ from app.features.payment.services.deposit import (
     KIND_DEPOSIT,
     KIND_FULL,
     ORDER_STATUS_DEPOSIT_PAID,
-    PLAN_DEPOSIT,
 )
 from app.features.payment.services.gift_cards import issue_for_order
 from app.features.payment.services.gift_cards import (
@@ -733,6 +732,7 @@ async def on_payment_captured_issue_invoice(
 
     invoice = await issue_invoice_for_order(session, order_id=order_id)
     logger.info("Invoice %s available for order %s", invoice.invoice_number, order_id)
+    await _credit_refunds_made_before_the_invoice(session, order_id=order_id)
 
     # Issuing is not delivering. The invoice used to sit in the database until
     # the customer thought to look for it; the law expects it to be handed
@@ -794,17 +794,14 @@ async def on_payment_refunded(session: AsyncSession, payload: dict[str, Any]) ->
         payload.get("amount"),
     )
     _payment, order = await _load_payment_and_order(session, payload)
-    if (
-        not fully
-        and order is not None
-        and getattr(order, "payment_plan", None) != PLAN_DEPOSIT
-    ):
+    if not fully and order is not None:
         # A partial refund (one article missing, a gesture) does not end the
         # order: it moved to « PartiallyRefunded » whatever its progress and
         # stopped following its departure (review of 17/11/2026). The refund
-        # shows on the payment (« PartiallyRefunded ») and its credit note.
-        # A deposit order keeps the old rule: its balance does not deduct
-        # refunds, and that status is what stops it being asked.
+        # shows on the payment (« PartiallyRefunded ») and its credit note. A
+        # deposit order too: its balance (total − deposit) stays right — the
+        # refund lowers what is owed and what was paid alike — and the
+        # credit note of a refund made before the invoice follows the invoice.
         logger.info(
             "Order %s keeps its status after a partial refund of payment %s",
             order.id,
@@ -961,6 +958,11 @@ async def on_payment_refunded_issue_credit_note(
     # Issuing is not delivering (same rule as the invoice): a dedicated event
     # e-mails the document and retries on its own. Issuance is idempotent, so
     # a replay re-publishes for the same note; ``emailed_at`` stops the mail.
+    await _publish_credit_note_issued(session, credit_note)
+    await session.commit()
+
+
+async def _publish_credit_note_issued(session: AsyncSession, credit_note: Any) -> None:
     await outbox_registry.publish(
         session=session,
         event_type=EVENT_CREDIT_NOTE_ISSUED,
@@ -977,7 +979,48 @@ async def on_payment_refunded_issue_credit_note(
         },
         correlation_id=credit_note.order_id,
     )
-    await session.commit()
+
+
+async def _credit_refunds_made_before_the_invoice(
+    session: AsyncSession, *, order_id: uuid.UUID
+) -> int:
+    """Credit notes for the refunds that preceded the invoice.
+
+    A deposit order is invoiced once, with its balance: a refund made before
+    (an article missing, refunded on the deposit) had no invoice to correct,
+    its credit note was skipped, and the invoice then billed the whole total
+    (review of 18/11/2026). Each completed refund without a note gets one
+    now. Idempotent per refund. Does not commit.
+    """
+    from sqlmodel import col, select
+
+    from app.features.invoice.models.credit_note import CreditNote
+    from app.features.payment.models.refund import Refund
+
+    credited = select(CreditNote.refund_id).where(col(CreditNote.order_id) == order_id)
+    refunds = (
+        await session.exec(
+            select(Refund.id)
+            .where(
+                col(Refund.order_id) == order_id,
+                col(Refund.status) == "completed",
+                col(Refund.id).not_in(credited),
+            )
+            .order_by(col(Refund.created_at).asc().nulls_last())
+        )
+    ).all()
+    issued = 0
+    for refund_id in refunds:
+        try:
+            note = await issue_credit_note_for_refund(
+                session, refund_id=refund_id, commit=False
+            )
+        except CreditNoteIssuanceError as exc:
+            logger.error("Earlier refund %s not credited: %s", refund_id, exc)
+            continue
+        await _publish_credit_note_issued(session, note)
+        issued += 1
+    return issued
 
 
 @outbox_handler("payment.rejected")

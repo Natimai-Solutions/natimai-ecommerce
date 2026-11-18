@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.invoice.models.credit_note import CreditNote
@@ -351,4 +352,63 @@ async def test_a_refund_after_a_mismatched_capture_does_not_wait_forever(
             "order_id": str(order_id),
             "payment_id": str(payment_id),
         },
+    )
+
+
+@pytest.mark.asyncio
+async def test_refunds_made_before_the_invoice_are_credited_with_it(
+    db_session: AsyncSession,
+) -> None:
+    """Review of 18/11/2026: a deposit order is invoiced with its balance; a
+    refund made before had no invoice to correct, its credit note was skipped
+    and the invoice billed the whole total. Issuing the invoice now credits
+    every completed refund that has no note yet — once."""
+    from app.handlers import payment as payment_handlers
+    from app.outbox.models import OutboxEvent
+
+    order_id, payment_id = await _seed(db_session)
+    already = await _refund(
+        db_session, order_id=order_id, payment_id=payment_id, amount="1000.00"
+    )
+    await issue_credit_note_for_refund(db_session, refund_id=already)
+    earlier = await _refund(
+        db_session, order_id=order_id, payment_id=payment_id, amount="2500.00"
+    )
+    pending = Refund(
+        payment_id=payment_id,
+        order_id=order_id,
+        amount=Decimal("700.00"),
+        currency="XPF",
+        status="pending",
+    )
+    db_session.add(pending)
+    await db_session.commit()
+
+    issued = await payment_handlers._credit_refunds_made_before_the_invoice(
+        db_session, order_id=order_id
+    )
+    await db_session.commit()
+
+    assert issued == 1
+    notes = {
+        n.refund_id: n.total_incl_tax
+        for n in (
+            await db_session.exec(
+                select(CreditNote).where(col(CreditNote.order_id) == order_id)
+            )
+        ).all()
+    }
+    assert notes == {already: Decimal("1000.00"), earlier: Decimal("2500.00")}
+    events = (
+        await db_session.exec(
+            select(OutboxEvent).where(col(OutboxEvent.type) == "credit_note.issued")
+        )
+    ).all()
+    assert len(events) == 1
+    # Twice: nothing more.
+    assert (
+        await payment_handlers._credit_refunds_made_before_the_invoice(
+            db_session, order_id=order_id
+        )
+        == 0
     )

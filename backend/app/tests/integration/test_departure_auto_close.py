@@ -174,19 +174,19 @@ async def test_a_recurring_departure_below_its_threshold_opens_the_next_one(
     result = await close_due_departures(db_session, now=now)
     assert result["below_threshold"] == ["Avion décembre"]
 
-    late = await db_session.get(GroupedDeparture, late_id)
-    assert late is not None and late.status == "open"
-    assert late.next_departure_id is not None
+    waiting = await db_session.get(GroupedDeparture, late_id)
+    assert waiting is not None and waiting.status == "open"
+    assert waiting.next_departure_id is not None
     following = await crud_grouped_departure.get_next_open(db_session, now=now)
-    assert following is not None and following.id == late.next_departure_id
+    assert following is not None and following.id == waiting.next_departure_id
     assert following.order_cutoff_at > now
     following_id = following.id
 
     # Next ticks and the forced close reuse it.
     await close_due_departures(db_session, now=now)
-    late = await db_session.get(GroupedDeparture, late_id)
-    assert late is not None
-    closed = await close_departure(db_session, departure=late, force=True)
+    to_close = await db_session.get(GroupedDeparture, late_id)
+    assert to_close is not None
+    closed = await close_departure(db_session, departure=to_close, force=True)
     await db_session.commit()
     assert closed.closed and closed.next_departure_id == following_id
     successors = (
