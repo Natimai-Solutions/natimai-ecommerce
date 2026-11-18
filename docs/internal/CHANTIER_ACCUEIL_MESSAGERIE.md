@@ -120,12 +120,22 @@ Texte court + lien, daté, traduit, fermable par le visiteur (mémorisé en
 `localStorage` sous try/catch, clé = id + version). Usage : « Départ bateau
 le 3/12, commandez avant le 28/11 », soldes, fermeture exceptionnelle.
 
-Emplacement : `NextDepartureBanner` occupe déjà une bande sous l'en-tête.
-Trois options (§10, attendue 1) : l'annonce remplace la bande du départ pendant sa
-période, **dans le même emplacement à hauteur réservée** (recommandé : une
-seule bande, un seul niveau) ; ou les deux s'empilent ; ou l'annonce passe
-au-dessus de l'en-tête — l'en-tête est fixe (`view="hHh"`), elle doit alors
-vivre dans `q-header` et le décalage se vérifie au rendu SSR.
+Emplacement (**décidé le 18/11/2026 : au-dessus de l'en-tête**) :
+
+- l'en-tête est fixe (`view="hHh"`) : l'annonce vit **dans `q-header`**, au
+  premier rang, pour que Quasar compte sa hauteur dans le décalage de la
+  page ; à vérifier au rendu SSR (offsets posés au montage) et sur mobile
+  390 px (une ligne, texte tronqué avec le lien toujours visible) ;
+- elle se ferme par une croix ; fermée, elle libère sa hauteur sans saut
+  du contenu (transition sur la hauteur) ;
+- couleurs par une classe `surface-*` et vérifiées dans les deux thèmes ;
+- `NextDepartureBanner` reste à sa place, sous l'en-tête : les deux bandes
+  ont des rôles différents (message de la boutique / information
+  logistique) ;
+- **toutes les pages** de la vitrine l'affichent (pas seulement l'accueil),
+  sauf le tunnel de commande où elle se masque pour ne pas distraire ;
+- une seule annonce active à la fois (409 sur un chevauchement de dates,
+  comme le héros).
 
 ### R5. Réassurance (S)
 
@@ -329,8 +339,9 @@ connexion et à la déconnexion.
 Un client doit pouvoir **écrire facilement** à la boutique et retrouver la
 réponse au même endroit, en distinguant :
 
-- **Service client** : une commande, une livraison, un paiement, un retour,
-  un produit reçu ;
+- **Service client** : une commande, une livraison, un paiement, un compte ;
+- **Support technique** : installation, panne, garantie, retour d'un
+  produit défectueux ;
 - **Service commercial** : un devis, un achat en volume, une demande
   professionnelle, une question avant achat.
 
@@ -354,8 +365,13 @@ Ce qui existe :
 - **Notifications en application** : un modèle `notifications` /
   `user_notifications` (`features/user/models/notification.py`, types
   fermés, `is_read` / `read_at`) existe **sans route ni écran**, seulement
-  dans l'export RGPD. À trancher (§10, attendue 4) : il porte le badge de non-lus de
-  la messagerie, ou il est retiré — pas deux mécanismes.
+  dans l'export RGPD. Recommandation (§10) : le **retirer** dans le lot MSG1
+  (modèle, CRUD, entrée de l'export, migration qui supprime les deux tables
+  après avoir vérifié qu'elles sont vides en production). Le badge de la
+  messagerie se calcule directement sur les conversations
+  (`last_staff_message_at > customer_read_at`), sans table intermédiaire.
+  Un centre de notifications (une cloche « Votre commande est expédiée »,
+  « Réponse reçue »…) pourra être reconçu plus tard s'il est voulu.
 - **Modules activables** (`features/system/modules.py`, `module_required`
   → 404 sur un module coupé, `SECTION_MODULES` dans `MyAccountPage.vue`) :
   la messagerie sera un module.
@@ -411,6 +427,40 @@ Pièges déjà payés ailleurs, à ne pas refaire :
 
 ## 6. Messagerie — proposition fonctionnelle
 
+### Canaux et motifs (décidé le 18/11/2026)
+
+Trois **canaux** (qui répond) et, dans chacun, une liste fermée de
+**motifs** (de quoi il s'agit). Le client choisit le motif ; le canal s'en
+déduit, il ne le choisit pas.
+
+| Canal | Motifs | Répond (lot ROLE) |
+|---|---|---|
+| **Service client** (`customer_service`) | Suivi de commande · Livraison et départs · Paiement et facture · Mon compte | rôle *Service client* |
+| **Support technique** (`technical`) | Installation et utilisation · Panne ou produit défectueux · Garantie et retour | rôle *Service client* (et un futur rôle *Technicien* si l'équipe se spécialise) |
+| **Commercial** (`sales`) | Question avant achat · Demande de devis · Achat professionnel ou en volume · Groupe tarifaire | rôle *Commercial* |
+
+Pourquoi ce découpage :
+
+- un magasin de matériel informatique reçoit des questions **techniques**
+  (« la carte Wi-Fi n'est pas reconnue ») qui n'ont ni le même interlocuteur
+  ni le même délai qu'une question de livraison ; les séparer permet de les
+  router et de les mesurer ;
+- pas de canal *Comptabilité* : les questions de facture et d'avoir sont
+  peu nombreuses et vont au service client (motif « Paiement et facture ») ;
+- pas de canal *Retours* : tant que le RMA (§3 du plan) n'existe pas, un
+  retour est un échange avec le support technique ; le motif « Garantie et
+  retour » prépare le branchement du futur RMA (« Ouvrir un retour ») ;
+- les **motifs** servent au tri, aux filtres, aux statistiques (délai par
+  motif) et aux réponses types ; un motif qui grossit pourra devenir un
+  canal sans reprise de données.
+
+Les raccourcis fixent le motif : fiche produit → « Question avant achat » ;
+commande → « Suivi de commande » (ou « Panne ou produit défectueux » une
+fois livrée) ; panier → « Demande de devis » ; *Mon groupe* → « Groupe
+tarifaire ». L'équipe peut changer le canal et le motif d'une conversation
+(événement tracé dans le fil). Les membres de l'équipe reçoivent les
+canaux de leur rôle par défaut, ajustables un par un (`messaging_agents`).
+
 ### Côté client (vitrine)
 
 - **Point d'entrée visible partout** : un bouton « Nous écrire » dans
@@ -418,8 +468,8 @@ Pièges déjà payés ailleurs, à ne pas refaire :
   plus des **raccourcis contextuels** qui ouvrent le fil pré-rempli :
   - fiche produit → « Une question sur ce produit ? » (canal *commercial*,
     produit joint) ;
-  - *Mes commandes* → « Un problème avec cette commande ? » (canal
-    *client*, commande jointe) ;
+  - *Mes commandes* → « Un problème avec cette commande ? » (service
+    client ou support technique selon le motif, commande jointe) ;
   - panier → « Demander un devis » (canal *commercial*, panier joint ; exige
     aussi le module `quotes`) ;
   - *Mon groupe* (`AccountGroup.vue`) → « Parler à un commercial ».
@@ -429,7 +479,7 @@ Pièges déjà payés ailleurs, à ne pas refaire :
   jointes, « Ma question est réglée », « Télécharger la conversation »
   (texte), « Garder un an de plus » (§7, conservation).
 - **Visiteur non connecté** : page **`/contact`** (comble M8 de l'audit)
-  avec le choix « Service client » / « Service commercial », nom, e-mail,
+  avec le choix du motif (qui fixe le canal, §6), nom, e-mail,
   téléphone et société facultatifs, sujet, message ; Turnstile si configuré
   + pot de miel + limites de fréquence.
   - **Aucun e-mail n'est envoyé à l'adresse saisie** (ni accusé de
@@ -513,10 +563,16 @@ Pièges déjà payés ailleurs, à ne pas refaire :
   pas, c'est le premier manque relevé côté équipe. Ces notes portent sur la
   conversation ; ce ne sont pas les notes de commande du plan (§4,
   historique de la commande).
-- **Option priorité** (§10, attendue 5) : pastille « prioritaire » et tri en tête de
-  « À traiter » pour les clients d'un groupe tarifaire marqué prioritaire,
-  calculée **à la lecture** en une requête par page (modèle FenuaPro), sans
-  colonne écrite : un changement de groupe se prend en compte de lui-même.
+- **Priorité** (recommandée, §10) : une case « Prioritaire dans la
+  messagerie » sur la fiche d'un groupe tarifaire (`price_groups`). Les
+  conversations des clients de ce groupe portent une pastille
+  « prioritaire » et passent en tête de « À traiter » ; le délai affiché
+  et le digest les comptent à part. Calculée **à la lecture**, en une
+  requête par page (modèle FenuaPro), sans colonne écrite sur la
+  conversation : un client qui change de groupe change de rang de
+  lui-même. Exemple : 30 conversations en attente, dont 2 d'un revendeur
+  du groupe « Professionnels » → ces 2 en premier, les 28 autres par
+  ancienneté.
 - **Rôles « Service client » et « Service commercial »** (demandés et
   grille validée le 18/11/2026, lot ROLE, §11). Aujourd'hui tout compte de l'admin est
   superuser : il voit et fait tout (remboursements, réglages, fournisseurs).
@@ -528,10 +584,10 @@ Pièges déjà payés ailleurs, à ne pas refaire :
 
   | | Service client | Service commercial | Superuser |
   |---|---|---|---|
-  | Canal de la messagerie | *client* | *commercial* | tous |
+  | Canaux de la messagerie | service client, support technique | commercial | tous |
   | Commandes, clients | lecture | lecture | tout |
   | Demandes de devis | lecture | lecture, émission | tout |
-  | Remboursement, avoir | non (une note demande au superuser) | non | oui |
+  | Remboursement, avoir | non (une note interne demande au superuser) | non | oui |
   | Réglages, prix, fournisseurs | non | non | oui |
 
   Conditions : 2FA exigée pour ces rôles comme pour les superusers ; l'app
@@ -563,8 +619,8 @@ Pièges déjà payés ailleurs, à ne pas refaire :
   `email_log` (`EMAIL_BODY_DAYS`) — à dire dans la politique de
   confidentialité ou à ne pas journaliser.
 - **Équipe** : e-mail au titulaire, sinon aux membres du canal, sinon à
-  l'adresse du canal (*client* → `email_support`, *commercial* →
-  `email_contact`), sinon aux superusers ; jamais pour une
+  l'adresse du canal (service client et support technique →
+  `email_support`, commercial → `email_contact`), sinon aux superusers ; jamais pour une
   conversation réglée. Digest du matin (compteurs seuls). Le tout dans la
   **langue de l'opérateur** (`operator_messages.py`, `operator_locale`) ;
   facultatif : alerte Slack (fournisseur déjà présent).
@@ -576,7 +632,11 @@ Pièges déjà payés ailleurs, à ne pas refaire :
   (`QuoteRequestStatus`, filet `EMAIL_FAILED`, `/issue`, `…/accept`
   inchangés) ; `admin_comment` devient une note interne. Ferme le volet
   « devis » de Z18 (accusé de réception et réponse).
-- **Demandes de groupe** (à décider, §10) : `admin_comment` y est déjà la
+- **Demandes de groupe** (recommandé, §10) : la demande faite depuis *Mon
+  groupe* ouvre une conversation **commerciale** rattachée
+  (`context_type = group_request`) : le commercial peut y demander un
+  justificatif (n° Tahiti, extrait K-bis) et le client l'y déposer en pièce
+  jointe, au lieu d'échanger par e-mail. `admin_comment` y est déjà la
   réponse montrée au client ; il devient un **message visible** de la
   conversation, jamais une note, et reste affiché dans *Mon groupe*. Le
   message de décision tient lieu de l'e-mail de décision (M14, volet
@@ -591,7 +651,8 @@ Pièges déjà payés ailleurs, à ne pas refaire :
 ```
 conversations
   id, number (C-2026-00042, lisible au téléphone ; jamais un moyen d'accès)
-  channel           customer_service | sales           (liste fermée)
+  channel           customer_service | technical | sales   (liste fermée)
+  topic             motif, liste fermée par canal (§6)
   status            open | pending | resolved
   subject
   customer_id       FK users, NULL pour un visiteur
@@ -748,7 +809,17 @@ PDF / JPEG / PNG). À faire :
   `filename*`) ;
 - WebP : ajouter sa signature (`RIFF….WEBP`) à `_MAGIC`, et **refuser un
   type sans signature connue** (aujourd'hui « no opinion » = accepté) ;
-  HEIC (photos d'iPhone) : refus 415 explicite ou conversion (§10, attendue 6) ;
+  **HEIC / HEIF** (photos d'iPhone, décidé : conversion) : détecté par sa
+  signature (`ftypheic`, `ftypmif1`…), décodé par `pillow-heif` (roues avec
+  `libheif` incluse : à ajouter aux dépendances, vérifier `pip-audit` et
+  l'image Docker), converti en JPEG après le scan antivirus, dimension
+  plafonnée (2 560 px, qualité 85) ;
+- **toute image est réencodée** (JPEG, PNG, WebP, HEIC), comme les médias de
+  la boutique : orientation appliquée puis **métadonnées supprimées** — une
+  photo de téléphone porte souvent la **position GPS** du domicile ; le
+  fichier stocké est la version réencodée, l'original est jeté ; la limite
+  de 5 Mo s'applique à l'envoi, avant conversion ; garde contre les bombes
+  de décompression (plafond de pixels, comme `media/service.py`) ;
 - l'URL présignée PUT ne borne pas la taille : supprimer l'objet refusé
   (taille, type) du stockage ;
 - téléchargement seulement si `av_scanned and av_clean` (409 scan en
@@ -830,21 +901,37 @@ Photos d'un colis abîmé = cas d'usage n° 1 du service client.
   l'adresse affichée sur `/contact` et celle qui reçoit les alertes du canal
   commercial.
 - **Rôles** : grille du §6 validée.
+- **Bandeau d'annonce** : au-dessus de l'en-tête, sur toutes les pages sauf
+  le tunnel de commande ; le bandeau du prochain départ reste sous
+  l'en-tête (R4).
+- **Canaux** : laissés à l'appréciation du chantier → trois canaux (service
+  client, support technique, commercial) et des motifs (§6, « Canaux et
+  motifs »).
+- **HEIC** : converti en JPEG, et toute image réencodée sans métadonnées
+  (§7, pièces jointes).
+
+### Recommandées, retenues sauf avis contraire
+
+Expliquées le 18/11/2026 ; à corriger ici si la réponse est non.
+
+1. **Demandes de changement de groupe en conversation** (§6). Aujourd'hui,
+   un client demande depuis *Mon groupe* à passer « Professionnel » ;
+   l'admin accepte ou refuse avec un commentaire que le client lit, mais ils
+   ne peuvent pas échanger (« envoyez-nous votre n° Tahiti »). La demande
+   ouvrirait une conversation commerciale : justificatifs en pièce jointe,
+   décision annoncée dans le fil (remplace l'e-mail de décision manquant,
+   M14).
+2. **Retrait des notifications en application dormantes** (§4). Deux tables
+   prévues pour une « cloche » de notifications n'ont jamais été branchées
+   (ni route, ni écran) ; le badge de la messagerie n'en a pas besoin. On
+   les supprime pour ne pas garder du code mort, présent dans l'export RGPD.
+3. **Priorité par groupe tarifaire** (§6). Une case sur le groupe : les
+   messages de ses clients passent en tête de la file de l'équipe.
 
 ### Attendues
 
-1. **Bandeau d'annonce et prochain départ** : même emplacement (l'annonce
-   remplace le départ pendant sa période, recommandé), empilés, ou annonce
-   au-dessus de l'en-tête ?
-2. **Canaux** : *client* et *commercial* seulement, ou aussi *retours* /
-   *comptabilité* (factures, avoirs) ?
-3. **Demandes de changement de groupe** : leur rattacher aussi une
-   conversation (`admin_comment` → message visible) ?
-4. **Notifications en application** (`notifications` /
-   `user_notifications`, dormantes) : support du badge de la messagerie, ou
-   retrait ?
-5. **Priorité** : des groupes tarifaires prioritaires dans la file ?
-6. **HEIC** (photos d'iPhone) : refus explicite ou conversion ?
+Aucune pour démarrer. Restent hors code : la relecture juridique des durées
+de conservation et la mention dans la politique de confidentialité.
 
 ---
 
@@ -857,14 +944,14 @@ les identifiants M· de l'audit fonctionnel.
 |---|---|---|
 | **A1** | Accueil : sections ordonnables / masquables / titrées (R1), route d'ordre en une transaction, migration de reprise, **audience par section** (tous, visiteurs, connectés, groupes tarifaires, langue — R8), `GET /homepage` (version visiteur) + `GET /homepage/personal` (sections ciblées et prix du client) | M à L |
 | **A2** | Sélections de produits nommées (R2) et catégories choisies (R3), sélecteur admin | M |
-| **A3** | Annonce, réassurance, marques (après BR), bloc libre (R4 à R7) | M |
+| **A3** | Annonce au-dessus de l'en-tête sur toutes les pages, réassurance, marques (après BR), bloc libre (R4 à R7) | M |
 | **A4** | Aperçu et programmation (R10), SEO de l'accueil (R11) | S à M |
 | **A5** | Sections personnelles (R9) et héros par audience | M |
-| **MSG1** | Messagerie, socle : module, modèle, horaires et délai affiché (fixe puis mesuré), API client et admin, onglet « Messages », écran admin, sondage, e-mails de non-lus et préférence, pièces jointes (service générique), conservation et RGPD | L |
+| **MSG1** | Messagerie, socle : module, modèle, trois canaux et leurs motifs, horaires et délai affiché (fixe puis mesuré), API client et admin, onglet « Messages », écran admin, sondage, e-mails de non-lus et préférence, pièces jointes (service générique, images réencodées sans métadonnées, HEIC converti), conservation et RGPD, retrait des notifications en application dormantes | L |
 | **MSG2** | Page `/contact` publique (M8 de l'audit), anti-spam, réponse au visiteur avec lien d'inscription, rattachement à un compte par adresse prouvée, purge à 6 mois | M |
 | **MSG3** | Raccourcis contextuels (produit, commande, panier, groupe), panneau client et objet rattaché dans le fil | M |
-| **MSG4** | Notes internes, réponses types, transfert, libération automatique, digest, priorité si retenue | M |
-| **MSG5** | Demandes de devis rattachées à une conversation (Z18 volet devis), demandes de groupe si voulu (M14 volet groupe) ; « Émettre le devis » / « Ouvrir un retour » | M |
+| **MSG4** | Notes internes, réponses types, transfert, libération automatique, digest, priorité par groupe tarifaire | M |
+| **MSG5** | Demandes de devis rattachées à une conversation (Z18 volet devis), demandes de groupe tarifaire avec justificatifs (M14 volet groupe) ; « Émettre le devis » / « Ouvrir un retour » | M |
 | **ROLE** | Rôles « Service client » et « Service commercial » : premiers rôles fins (groupes de sécurité, gardes par liste d'autorisation, 2FA, menu admin filtré) | M à L |
 | **BR** | Marques : `Product.brand_id`, alias, reprise depuis `manufacturer`, écran admin, filtre et facette, page marque (M9 de l'audit) | M à L |
 
