@@ -55,6 +55,8 @@ export interface ShippingRoute {
   eta_days: number | null;
   price_per_kg: string | null;
   base_price: string | null;
+  /** Route d'import : poids facturé d'un départ au seuil (répartition du forfait). */
+  import_fixed_basis_kg?: string | null;
   weight_bands: WeightBand[] | null;
   free_shipping_threshold: string | null;
   is_to_customer: boolean;
@@ -75,6 +77,7 @@ export interface ShippingRouteCreate {
   eta_days?: number | null;
   price_per_kg?: string | null;
   base_price?: string | null;
+  import_fixed_basis_kg?: string | null;
   weight_bands?: WeightBand[] | null;
   free_shipping_threshold?: string | null;
   is_to_customer?: boolean;

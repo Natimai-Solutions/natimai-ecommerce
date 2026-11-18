@@ -138,3 +138,62 @@ async def test_a_line_is_billed_on_the_mode_chosen_on_the_page(
     assert await replace("rapide") == (page["rapide"], "rapide")
     # A mode that is not on offer falls back on the default one, freight in.
     assert await replace("teleportation") == (page["rapide"], "rapide")
+
+
+@pytest.mark.asyncio
+async def test_the_fixed_cost_of_an_import_route_is_spread_per_kg(
+    db_session: AsyncSession,
+) -> None:
+    """Decision of 18/11/2026: the forwarder's fixed fee per shipment was
+    billed nowhere (not in the article price, skipped at checkout). Spread
+    over the weight of a departure at its threshold: 15 000 F over 200 kg =
+    75 F per billable kg, on top of the 700 F/kg — everywhere the freight is."""
+    from sqlmodel import col, select
+
+    from app.features.shipping.services.import_routes import forget_import_routes
+
+    user_id, product_id = await _seed(db_session)
+    rapide = (
+        await db_session.exec(
+            select(ShippingRoute).where(col(ShippingRoute.service_level) == "rapide")
+        )
+    ).one()
+    rapide.base_price = Decimal("15000")
+    db_session.add(rapide)
+    await db_session.commit()
+    forget_import_routes(db_session)
+
+    # Without the weight it is spread over, the fixed cost is not billed.
+    page, _ = await _page_prices(db_session, product_id)
+    assert page["rapide"] == Decimal("11400.00")
+
+    rapide = (
+        await db_session.exec(
+            select(ShippingRoute).where(col(ShippingRoute.service_level) == "rapide")
+        )
+    ).one()
+    rapide.import_fixed_basis_kg = Decimal("200")
+    db_session.add(rapide)
+    await db_session.commit()
+    forget_import_routes(db_session)
+
+    # 2 kg × (700 + 75) = 1 550 F of freight on a 10 000 F article.
+    page, _ = await _page_prices(db_session, product_id)
+    assert page["rapide"] == Decimal("11550.00")
+    product = await db_session.get(Product, product_id)
+    assert product is not None
+    assert await calculate_sale_price(db_session, product) == page["rapide"]
+    context = await PricingContext.load(db_session)
+    assert context.price(product) == page["rapide"]
+    assert context.unit_cost(product) == Decimal("11550.00")
+    # The sea route has no fixed cost: unchanged.
+    assert page["economique"] == Decimal("10300.00")
+
+    user = await db_session.get(User, user_id)
+    assert user is not None
+    cart = await add_cart_item(
+        session=db_session,
+        current_user=user,
+        payload=CartItemAddRequest(product_id=product_id, quantity=1),
+    )
+    assert cart.items[0].unit_price == page["rapide"]

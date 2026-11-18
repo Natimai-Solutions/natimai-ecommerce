@@ -19704,6 +19704,11 @@ export interface components {
              */
             price_per_kg?: number | string | null;
             /**
+             * Import Fixed Basis Kg
+             * @description Import route: billable weight (kg) of a departure at its threshold, over which the fixed cost (base_price) is spread per kg
+             */
+            import_fixed_basis_kg?: number | string | null;
+            /**
              * Weight Bands
              * @description Weight bands [{max_kg, price}] replacing price_per_kg × weight; null = linear per-kg pricing
              */
@@ -19896,6 +19901,11 @@ export interface components {
              * @description Price per kg
              */
             price_per_kg?: string | null;
+            /**
+             * Import Fixed Basis Kg
+             * @description Import route: billable weight (kg) of a departure at its threshold, over which the fixed cost (base_price) is spread per kg
+             */
+            import_fixed_basis_kg?: string | null;
             /**
              * Weight Bands
              * @description Weight bands [{max_kg, price}] replacing price_per_kg × weight; null = linear per-kg pricing
@@ -20544,6 +20554,8 @@ export interface components {
             base_price?: number | string | null;
             /** Price Per Kg */
             price_per_kg?: number | string | null;
+            /** Import Fixed Basis Kg */
+            import_fixed_basis_kg?: number | string | null;
             /** Weight Bands */
             weight_bands?: {
                 [key: string]: unknown;

@@ -13,7 +13,7 @@ from typing import Literal
 
 from fastapi import APIRouter
 from pydantic import BaseModel
-from sqlmodel import col
+from sqlmodel import col, or_
 
 from app.api.deps import CurrentSuperUser, SessionDep
 from app.api.routes.admin_dashboard import _count
@@ -26,6 +26,7 @@ from app.features.product.services.publication import (
     customs_rate_condition,
     weight_condition,
 )
+from app.features.shipping.models.route import ShippingRoute
 from app.features.system.legal_identity import (
     load_legal_identity,
     missing_for_invoicing,
@@ -142,6 +143,45 @@ async def get_setup_checklist(
             status="todo" if blocked_weight else "done",
             count=blocked_weight,
             to="/products",
+        )
+    )
+
+    # The import freight is priced on the routes carrying a service level:
+    # with none, an imported article's price holds no freight at all, and the
+    # checkout skips the import leg as « already in the price » — the freight
+    # was billed nowhere, without a word (review of 17/11/2026).
+    import_route_on = (
+        col(ShippingRoute.is_active).is_(True),
+        col(ShippingRoute.service_level).is_not(None),
+    )
+    imported_count = await _count(session, Product, *imported)
+    import_routes_count = await _count(session, ShippingRoute, *import_route_on)
+    items.append(
+        SetupChecklistItem(
+            key="import_routes",
+            status="todo" if imported_count and not import_routes_count else "done",
+            to="/logistics-routes",
+        )
+    )
+    # Its fixed cost (the forwarder's fee per shipment) is spread per kg over
+    # the weight of a departure at its threshold; without that weight it is
+    # billed nowhere (decision of 18/11/2026).
+    unspread_fixed = await _count(
+        session,
+        ShippingRoute,
+        *import_route_on,
+        col(ShippingRoute.base_price) > 0,
+        or_(
+            col(ShippingRoute.import_fixed_basis_kg).is_(None),
+            col(ShippingRoute.import_fixed_basis_kg) <= 0,
+        ),
+    )
+    items.append(
+        SetupChecklistItem(
+            key="import_fixed_cost",
+            status="todo" if unspread_fixed else "done",
+            count=unspread_fixed,
+            to="/logistics-routes",
         )
     )
 

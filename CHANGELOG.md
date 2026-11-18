@@ -19,6 +19,16 @@ takes a tag as its `ref`.
 
 ### Added
 
+- The fixed fee of an import route (the forwarder's fee per shipment,
+  `base_price`) was billed nowhere: neither in the article price nor at
+  checkout. It is now spread per billable kg (actual or volumetric weight,
+  whichever is higher) over the weight of a departure at its threshold,
+  entered on the route (`import_fixed_basis_kg`, migration `f7a8b9c0d1e2`):
+  rate = price per kg + fee ÷ that weight, the same on the product page, the
+  cart, the order line's cost and the cached catalogue price. The route form
+  shows the resulting rate. The setup checklist blocks while imported
+  articles have no import route carrying a mode, or an import route has a
+  fee and no weight to spread it over. Decision of 18/11/2026.
 - A stuck worker restarts (Z3, decision of 18/11/2026): the worker ends
   itself when its event loop is blocked for 5 minutes or Redis is unreachable
   for 3 (`app/core/worker_watchdog.py`), so Docker starts a fresh one; a

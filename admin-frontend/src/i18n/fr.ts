@@ -530,6 +530,12 @@ const fr = {
     setup_customs_declaration_fees: 'Frais par déclaration en douane',
     setup_customs_declaration_fees_hint:
       "{n} lieu(x) de dédouanement sans frais par déclaration : rien ne sera facturé. À confirmer si c'est voulu.",
+    setup_import_routes: 'Routes d’import',
+    setup_import_routes_hint:
+      'Des articles importés sont en vente sans route d’import portant un mode (rapide, économique…) : leur prix ne contient aucun fret.',
+    setup_import_fixed_cost: 'Forfait des routes d’import',
+    setup_import_fixed_cost_hint:
+      '{n} route(s) d’import avec un forfait par expédition sans poids de départ au seuil : ce forfait n’est facturé nulle part.',
     setup_customs_rates: 'Taux de douane',
     setup_customs_rates_hint:
       '{n} produit(s) importé(s) masqué(s) : taux de douane introuvable pour leur catégorie.',
@@ -1266,6 +1272,12 @@ const fr = {
     ends_required: 'Origine et destination requises.',
     eta: 'Délai (jours)',
     flat: 'Forfait ({currency})',
+    fixed_basis_kg: 'Poids d’un départ au seuil (kg facturés)',
+    fixed_basis_hint:
+      'Le forfait est partagé par toutes les commandes du départ : il est réparti sur ce poids, au kilo facturé.',
+    fixed_not_billed:
+      'Forfait non facturé : renseignez le poids d’un départ au seuil pour le répartir au kilo.',
+    fixed_spread: 'Forfait réparti : +{share} {currency}/kg, soit {rate} {currency}/kg facturé.',
     final_untyped: 'Tronçon final vers le client, non proposé au checkout (ex. dropshipping)',
     free_from_short: 'Gratuit dès ({currency} de panier)',
     free_from: 'Franco de port à partir de ({currency}, valeur du panier)',

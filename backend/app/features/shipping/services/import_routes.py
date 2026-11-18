@@ -43,6 +43,9 @@ class ImportRoute:
     customer_label: str | None = None
     eta_days: int | None = None
     is_default_import: bool = False
+    #: Fixed cost of one shipment and the weight it is spread over.
+    base_price: Decimal = Decimal("0")
+    fixed_basis_kg: Decimal | None = None
 
 
 def _snapshot(route: ShippingRoute) -> ImportRoute:
@@ -55,7 +58,31 @@ def _snapshot(route: ShippingRoute) -> ImportRoute:
         customer_label=route.customer_label,
         eta_days=getattr(route, "eta_days", None),
         is_default_import=bool(route.is_default_import),
+        base_price=Decimal(route.base_price or 0),
+        fixed_basis_kg=(
+            Decimal(route.import_fixed_basis_kg)
+            if route.import_fixed_basis_kg is not None
+            else None
+        ),
     )
+
+
+def fixed_cost_per_kg(route: Any) -> Decimal:
+    """The share of the shipment's fixed cost each billable kg carries:
+    ``base_price / basis``, 0 when either is missing."""
+    fixed = Decimal(getattr(route, "base_price", None) or 0)
+    basis = getattr(route, "fixed_basis_kg", None)
+    if basis is None:
+        basis = getattr(route, "import_fixed_basis_kg", None)
+    if fixed <= 0 or basis is None or Decimal(basis) <= 0:
+        return Decimal("0")
+    return fixed / Decimal(basis)
+
+
+def import_freight_rate(route: Any) -> Decimal:
+    """Freight per billable kg of an import route: its price per kg plus the
+    share of its fixed cost (``ImportRoute`` or ``ShippingRoute``)."""
+    return Decimal(getattr(route, "price_per_kg", None) or 0) + fixed_cost_per_kg(route)
 
 
 async def import_routes(session: AsyncSession) -> list[ImportRoute]:

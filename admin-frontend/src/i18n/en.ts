@@ -530,6 +530,12 @@ const en: MessageSchema = {
     setup_customs_declaration_fees: 'Fees per customs declaration',
     setup_customs_declaration_fees_hint:
       '{n} clearance place(s) without a fee per declaration: nothing will be charged. Confirm it is intended.',
+    setup_import_routes: 'Import routes',
+    setup_import_routes_hint:
+      'Imported articles are on sale without an import route carrying a mode (fast, economy…): their price holds no freight.',
+    setup_import_fixed_cost: 'Import routes fixed fee',
+    setup_import_fixed_cost_hint:
+      '{n} import route(s) with a fee per shipment but no departure weight at threshold: that fee is billed nowhere.',
     setup_customs_rates: 'Customs rates',
     setup_customs_rates_hint:
       '{n} imported product(s) hidden: no customs rate found for their category.',
@@ -1258,6 +1264,12 @@ const en: MessageSchema = {
     ends_required: 'Origin and destination required.',
     eta: 'Lead time (days)',
     flat: 'Flat fee ({currency})',
+    fixed_basis_kg: 'Weight of a departure at its threshold (billable kg)',
+    fixed_basis_hint:
+      'The fee is shared by every order of the departure: it is spread over this weight, per billable kg.',
+    fixed_not_billed:
+      'Fee not billed: enter the weight of a departure at its threshold to spread it per kg.',
+    fixed_spread: 'Fee spread: +{share} {currency}/kg, i.e. {rate} {currency}/kg billed.',
     final_untyped: 'Final leg to the customer, not offered at checkout (e.g. dropshipping)',
     free_from_short: 'Free from ({currency} cart value)',
     free_from: 'Free shipping from ({currency}, cart value)',
