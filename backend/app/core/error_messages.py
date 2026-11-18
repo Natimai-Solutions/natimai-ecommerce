@@ -12,6 +12,8 @@ from __future__ import annotations
 EN: dict[str, str] = {
     "cart.already_checked_out": "This order has just been placed.",
     "checkout.delivery_type.required": "Choose a delivery mode.",
+    "checkout.billing_address.not_found": "Billing address not found.",
+    "shipping_route.import_mode_required": "A route into a customs clearance place is an import route: choose its mode (fast, economy…).",
     "order.status.transition_refused": "This order's status cannot change that way: a cancelled or refunded order is closed, and a paid or shipped one does not go back to awaiting payment.",
     "cart.quantity.too_large": "Too many units of one item: request a quote for a larger quantity.",
     "cart.stock.insufficient": "Not enough stock for an item of your cart: adjust its quantity.",

@@ -26,7 +26,6 @@ Détail : [`AUDIT_FONCTIONNEL_2026-11.md`](AUDIT_FONCTIONNEL_2026-11.md) (identi
 
 Cinq relectures indépendantes des changements de novembre ; ce qui a été corrigé est au CHANGELOG. Reste, par ordre d'importance :
 
-- **Deux définitions de « route d'import »** : le prix lit les routes avec `service_level`, le checkout exclut des frais de port celles dont la destination dédouane. Fait : la liste de mise en route bloque des articles importés sans route d'import portant un mode, et le forfait de la route d'import est réparti au kilo. Reste, si voulu : un seul prédicat (une route vers un lieu de dédouanement sans mode serait facturée comme un transport normal) — S.
 - **Fermeture automatique des départs** : sous le seuil, un départ reste ouvert et les nouvelles commandes ne s'attachent à aucun jusqu'à la décision de l'admin (alerte hebdomadaire, et désormais signalé sur l'écran d'état). **À décider** : rattacher plutôt ces commandes au départ suivant (le créer d'avance pour un départ récurrent) — S.
 - **Écran d'état, reste** : un travail abandonné par arq sans appel de la fonction (délai d'attente dans la file, `max_tries` atteint avant l'exécution) ne laisse pas de ligne ; seuls les crons en retard le trahissent — S.
 - **Remboursement partiel d'une commande avec acompte** : elle passe encore à `PartiallyRefunded` (et ne suit plus son départ), car son solde ne déduit pas les remboursements et c'est ce statut qui empêche de le demander en entier. Déduire les remboursements du solde, puis la traiter comme une commande payée en une fois — S à M.

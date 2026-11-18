@@ -13,7 +13,7 @@ from typing import Literal
 
 from fastapi import APIRouter
 from pydantic import BaseModel
-from sqlmodel import col, or_
+from sqlmodel import col, or_, select
 
 from app.api.deps import CurrentSuperUser, SessionDep
 from app.api.routes.admin_dashboard import _count
@@ -160,6 +160,27 @@ async def get_setup_checklist(
         SetupChecklistItem(
             key="import_routes",
             status="todo" if imported_count and not import_routes_count else "done",
+            to="/logistics-routes",
+        )
+    )
+    # A route into customs without a mode was billed nowhere (neither in the
+    # price nor at checkout); saving one is refused now, those saved before
+    # are listed here (decision of 18/11/2026).
+    customs_place_ids = select(col(Place.id)).where(
+        col(Place.customs_clearance).is_(True)
+    )
+    modeless_into_customs = await _count(
+        session,
+        ShippingRoute,
+        col(ShippingRoute.is_active).is_(True),
+        col(ShippingRoute.service_level).is_(None),
+        col(ShippingRoute.to_place_id).in_(customs_place_ids),
+    )
+    items.append(
+        SetupChecklistItem(
+            key="import_routes_mode",
+            status="todo" if modeless_into_customs else "done",
+            count=modeless_into_customs,
             to="/logistics-routes",
         )
     )

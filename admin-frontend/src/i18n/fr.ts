@@ -533,6 +533,9 @@ const fr = {
     setup_import_routes: 'Routes d’import',
     setup_import_routes_hint:
       'Des articles importés sont en vente sans route d’import portant un mode (rapide, économique…) : leur prix ne contient aucun fret.',
+    setup_import_routes_mode: 'Mode des routes vers la douane',
+    setup_import_routes_mode_hint:
+      '{n} route(s) active(s) vers un lieu de dédouanement sans mode : leur fret n’est facturé nulle part. Choisissez leur mode ou désactivez-les.',
     setup_import_fixed_cost: 'Forfait des routes d’import',
     setup_import_fixed_cost_hint:
       '{n} route(s) d’import avec un forfait par expédition sans poids de départ au seuil : ce forfait n’est facturé nulle part.',

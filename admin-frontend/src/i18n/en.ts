@@ -533,6 +533,9 @@ const en: MessageSchema = {
     setup_import_routes: 'Import routes',
     setup_import_routes_hint:
       'Imported articles are on sale without an import route carrying a mode (fast, economy…): their price holds no freight.',
+    setup_import_routes_mode: 'Mode of routes into customs',
+    setup_import_routes_mode_hint:
+      '{n} active route(s) into a customs clearance place without a mode: their freight is billed nowhere. Choose their mode or switch them off.',
     setup_import_fixed_cost: 'Import routes fixed fee',
     setup_import_fixed_cost_hint:
       '{n} import route(s) with a fee per shipment but no departure weight at threshold: that fee is billed nowhere.',

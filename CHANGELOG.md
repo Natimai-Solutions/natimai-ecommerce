@@ -19,6 +19,13 @@ takes a tag as its `ref`.
 
 ### Added
 
+- A route into a customs clearance place must carry a mode (rapide,
+  économique…): saving one without is refused
+  (`shipping_route.import_mode_required`). The article price holds the
+  freight of the routes with a mode while the checkout leaves out every route
+  ending where customs clear: such a route's freight was billed nowhere. An
+  inactive route is exempt (an old one can still be switched off); the active
+  ones saved before are listed by the setup checklist. Decision of 18/11/2026.
 - The fixed fee of an import route (the forwarder's fee per shipment,
   `base_price`) was billed nowhere: neither in the article price nor at
   checkout. It is now spread per billable kg (actual or volumetric weight,

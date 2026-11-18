@@ -26,6 +26,41 @@ async def _prices_follow_the_routes(session: AsyncSession, reason: str) -> None:
     await schedule_price_refresh(reason=reason)
 
 
+async def _require_mode_into_customs(
+    session: AsyncSession,
+    *,
+    to_place_id: Any,
+    service_level: str | None,
+    is_active: bool | None = True,
+) -> None:
+    """A route into a customs clearance place is an import route: it needs a
+    mode (rapide, économique…).
+
+    The article price holds the freight of the routes carrying a mode, while
+    the checkout leaves out of the shipping fees every route ending where
+    customs clear. A route into customs without a mode fell between the two:
+    its freight was billed nowhere (review of 17/11/2026, decision of
+    18/11/2026: refuse it when it is saved).
+    """
+    # An inactive route carries nothing: switching an old one off stays possible.
+    if service_level or to_place_id is None or is_active is False:
+        return
+    from app.core.errors import AppError
+    from app.features.place.models import Place
+
+    place = await session.get(Place, to_place_id)
+    if place is not None and place.customs_clearance:
+        raise AppError(
+            code="shipping_route.import_mode_required",
+            status_code=400,
+            message=(
+                f"Une route vers « {place.name} », lieu de dédouanement, est une "
+                "route d'import : choisissez son mode (rapide, économique…)."
+            ),
+            details={"to_place_id": str(to_place_id), "field": "service_level"},
+        )
+
+
 class ShippingRouteCrud(
     CrudBase[ShippingRoute, ShippingRouteCreate, ShippingRouteUpdate]
 ):
@@ -35,6 +70,36 @@ class ShippingRouteCrud(
     # route: a route written (its price per kg, the default flag, a service
     # level) moves them. Refreshed in the background, best effort — the
     # nightly run catches up.
+    async def before_create(
+        self, session: AsyncSession, *, data: Any, user: Any = None
+    ) -> None:
+        await _require_mode_into_customs(
+            session,
+            to_place_id=getattr(data, "to_place_id", None),
+            service_level=getattr(data, "service_level", None),
+            is_active=getattr(data, "is_active", True),
+        )
+
+    async def before_update(
+        self,
+        session: AsyncSession,
+        *,
+        data: Any,
+        record: Any = None,
+        id: uuid.UUID | None = None,
+        user: Any = None,
+    ) -> None:
+        current = record or (await session.get(ShippingRoute, id) if id else None)
+        sent = data.model_dump(exclude_unset=True) if data is not None else {}
+        await _require_mode_into_customs(
+            session,
+            to_place_id=sent.get("to_place_id", getattr(current, "to_place_id", None)),
+            service_level=sent.get(
+                "service_level", getattr(current, "service_level", None)
+            ),
+            is_active=sent.get("is_active", getattr(current, "is_active", True)),
+        )
+
     async def create(self, session: AsyncSession, **kwargs: Any) -> ShippingRoute:
         record = await super().create(session, **kwargs)
         await _prices_follow_the_routes(session, "shipping_route:create")
