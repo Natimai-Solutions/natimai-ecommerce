@@ -9,7 +9,7 @@ from arq.worker import Function, func
 from app.core.arq_pool import arq_redis_settings
 from app.core.logging_config import configure_logging
 from app.core.sentry import init_sentry
-from app.core.task_runs import journaled
+from app.core.task_runs import install_abandoned_job_journal, journaled
 from app.core.worker_watchdog import start_watchdog, stop_watchdog
 from app.features.system.audit import get_audit_cron_jobs, purge_audit_log_task
 from app.outbox.consumer import OUTBOX_HANDLER_MAX_TRIES, execute_outbox_handler
@@ -122,6 +122,10 @@ async def example_handler(_ctx: dict[str, Any], **_kwargs: Any) -> None:
     # ... logique du handler
     """Execute example handler."""
     pass
+
+
+# Jobs arq gives up on before running them are journaled too.
+install_abandoned_job_journal()
 
 
 class WorkerSettings:

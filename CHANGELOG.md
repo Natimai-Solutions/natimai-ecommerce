@@ -19,6 +19,10 @@ takes a tag as its `ref`.
 
 ### Added
 
+- A job arq gives up on before running it (expired in the queue, past its
+  tries before it could start, unknown function) is journaled as failed and
+  alerts, like a job that ran and failed: arq only stored a result read by
+  no one, and « État du système » kept the task « ok ». Review of 17/11/2026.
 - A departure carries an import mode (`grouped_departures.service_level`,
   optional): an order whose lines share one mode joins the next departure of
   that mode, else one carrying no mode — an order paid by sea went with the
