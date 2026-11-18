@@ -86,7 +86,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           SHA: ${{ steps.sha.outputs.sha }}
-        # La CI ne tourne plus à la fusion (minutes comptées) : le commit
+        # La CI ne tourne plus à la fusion (la PR l'a passée) : le commit
         # déployé est vert si un run de CI l'a validé lui-même (passage
         # hebdomadaire, lancement manuel), ou si la PR qui l'a produit avait
         # une CI verte sur son dernier commit. La protection de branche

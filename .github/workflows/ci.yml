@@ -1,6 +1,7 @@
 name: CI
 
-# Minutes comptées (dépôt privé, 18/11/2026) :
+# Moins de runs inutiles (18/11/2026 ; dépôt public, minutes non facturées,
+# mais des retours plus rapides et moins de bruit) :
 # - une PR en brouillon ne lance rien : la CI part quand elle passe « prête »
 #   (ready_for_review) puis à chaque push sur une PR prête ;
 # - un nouveau push sur une PR annule le run précédent encore en cours ;
@@ -255,7 +256,7 @@ jobs:
 
   # Lint, typecheck et tests partagés des deux interfaces, plus la dérive du
   # schéma TypeScript de l'API : un seul job, une seule installation pnpm
-  # (le contrôle des types était un job à part, une minute facturée de plus).
+  # (le contrôle des types était un job à part, refaisant la même installation).
   frontend:
     name: Frontend — lint, typecheck, tests & types de l'API
     runs-on: ubuntu-latest

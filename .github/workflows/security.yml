@@ -1,14 +1,13 @@
 # Sécurité en continu (R8 / U1) : secrets commis, dépendances vulnérables,
 # analyse statique, images Docker.
 #
-# Minutes comptées (dépôt privé, 18/11/2026) :
-# - sur une PR prête (pas en brouillon) : gitleaks à chaque fois, les audits
-#   de dépendances quand un manifeste ou un verrou change, la construction des
-#   images et Trivy quand un Dockerfile ou un verrou change ; les trois
-#   premiers dans un seul job (chacun coûtait au moins une minute) ;
-# - tout, CodeQL compris, au passage hebdomadaire (les bases de
-#   vulnérabilités évoluent sans qu'une ligne du dépôt ne change) et à la
-#   demande ; plus de passage à la fusion sur main.
+# Quand (18/11/2026) :
+# - sur une PR prête (pas en brouillon) : gitleaks, CodeQL, la construction
+#   des images et Trivy à chaque fois ; les audits de dépendances quand un
+#   manifeste ou un verrou change ; gitleaks et les audits dans un seul job ;
+# - tout au passage hebdomadaire (les bases de vulnérabilités évoluent sans
+#   qu'une ligne du dépôt ne change) et à la demande ; plus de passage à la
+#   fusion sur main (la PR, à jour de main, l'a passé).
 #
 # Ce qui bloque la fusion : un secret détecté, une vulnérabilité connue dans
 # une dépendance Python ou JavaScript de production (niveau « moderate » ou
@@ -53,7 +52,6 @@ jobs:
     outputs:
       python: ${{ steps.filter.outputs.python }}
       javascript: ${{ steps.filter.outputs.javascript }}
-      images: ${{ steps.filter.outputs.images }}
     steps:
       - uses: actions/checkout@v7
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4
@@ -69,18 +67,9 @@ jobs:
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
               - '.github/workflows/security.yml'
-            images:
-              - '**/Dockerfile'
-              - '**/.dockerignore'
-              - 'backend/pyproject.toml'
-              - 'backend/uv.lock'
-              - '**/package.json'
-              - 'pnpm-lock.yaml'
-              - 'infra/**'
-              - '.github/workflows/security.yml'
 
-  # gitleaks, pip-audit et pnpm audit dans un seul job : chacun coûtait au
-  # moins une minute facturée pour quelques secondes de travail.
+  # gitleaks, pip-audit et pnpm audit dans un seul job : trois runners
+  # démarrés pour quelques secondes de travail chacun.
   secrets-and-deps:
     name: Secrets commis et dépendances
     runs-on: ubuntu-latest
@@ -156,10 +145,10 @@ jobs:
 
   codeql:
     name: CodeQL (${{ matrix.language }})
-    # Hebdomadaire et à la demande : l'analyse prend plusieurs minutes par
-    # langage, trop pour chaque push d'une PR.
+    needs: changes
+    # Sur une PR prête (le job `changes` est sauté sur un brouillon).
     if: >-
-      github.event_name != 'pull_request'
+      !cancelled() && (github.event_name != 'pull_request' || needs.changes.result == 'success')
       && (github.event.repository.visibility == 'public' || vars.CODEQL_ENABLED == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -186,11 +175,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: changes
-    # Une image ne change de contenu vulnérable qu'avec son Dockerfile ou ses
-    # dépendances : sur une PR, seulement quand l'un d'eux change.
+    # Sur chaque PR prête : le code copié dans l'image compte aussi (Trivy lit
+    # les dépendances installées, pas seulement l'image de base).
     if: >-
-      !cancelled() && (github.event_name != 'pull_request'
-      || (needs.changes.result == 'success' && needs.changes.outputs.images == 'true'))
+      !cancelled() && (github.event_name != 'pull_request' || needs.changes.result == 'success')
     strategy:
       fail-fast: false
       matrix:

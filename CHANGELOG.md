@@ -19,13 +19,12 @@ takes a tag as its `ref`.
 
 ### Changed
 
-- CI minutes: draft pull requests run nothing; a new push cancels the running
+- Fewer CI runs: draft pull requests run nothing; a new push cancels the running
   CI of the same PR; CI and Security no longer run again on the merge to `main`
   (weekly run and manual runs instead; `deploy.yml` accepts the green CI of the
   merged PR's head); the API types check runs inside the frontend job;
   gitleaks, pip-audit and pnpm audit run in one job, the audits only when a
-  manifest or lockfile changed; image builds and Trivy run on a PR only when a
-  Dockerfile or lockfile changed; CodeQL is weekly; every job has a
+  manifest or lockfile changed; every job has a
   `timeout-minutes`; Dependabot opens at most two grouped PRs a month
   (JavaScript + Python, Docker + actions). The single required status is
   « CI verte ».
