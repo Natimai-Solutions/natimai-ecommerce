@@ -11,7 +11,7 @@ Deux sujets :
 2. **Messagerie** entre un client et la boutique (service client, service
    commercial), sur le modèle de FenuaPro et de Natimai Paie (§4 à §9).
 
-Les décisions attendues sont au §10, le découpage en lots au §11. Trois
+Les décisions (prises le 18/11/2026 et attendues) sont au §10, le découpage en lots au §11. Trois
 défauts du code actuel, trouvés pendant la relecture, sont au §12 et inscrits
 au plan de travail : ils se corrigent indépendamment de ce chantier.
 
@@ -88,8 +88,8 @@ chacune avec son titre, son nombre d'articles et sa source :
 - **manuelle** : liste ordonnée de produits choisis dans un sélecteur (avec
   recherche par nom / SKU). Les vedettes actuelles deviennent la première
   sélection manuelle, reprise par migration ;
-- **par règle** : catégorie (sous-catégories comprises), fabricant (voir
-  R6), « nouveautés » (date d'arrivée), « en promotion », « plus consultés »
+- **par règle** : catégorie (sous-catégories comprises), marque (après le
+  lot BR, R6), « nouveautés » (date d'arrivée), « en promotion », « plus consultés »
   (l'existant), « meilleures ventes » ;
 - tri et plafond (4 à 24), affichage carrousel ou grille.
 
@@ -121,7 +121,7 @@ Texte court + lien, daté, traduit, fermable par le visiteur (mémorisé en
 le 3/12, commandez avant le 28/11 », soldes, fermeture exceptionnelle.
 
 Emplacement : `NextDepartureBanner` occupe déjà une bande sous l'en-tête.
-Trois options (§10.1) : l'annonce remplace la bande du départ pendant sa
+Trois options (§10, attendue 1) : l'annonce remplace la bande du départ pendant sa
 période, **dans le même emplacement à hauteur réservée** (recommandé : une
 seule bande, un seul niveau) ; ou les deux s'empilent ; ou l'annonce passe
 au-dessus de l'en-tête — l'en-tête est fixe (`view="hHh"`), elle doit alors
@@ -134,20 +134,34 @@ Bande de 3 à 4 pictogrammes + texte court (« Livraison dans les îles »,
 répond » → messagerie, §6). Icônes prises dans une **liste fermée** des
 icônes de la vitrine (pas de saisie d'URL d'icône).
 
-### R6. Fabricants / marques (S, après une décision)
+### R6. Marques (S, après le lot BR)
 
-Bande de logos choisis (ordre manuel), chaque logo menant au catalogue
-filtré. Prérequis à trancher (§10.9) : aujourd'hui **aucun produit n'est
-rattaché à une marque** — le catalogue filtre et calcule ses facettes sur la
-chaîne libre `Product.manufacturer` — et `Brand` n'a qu'un `image_url`
-externe, sans lien à la médiathèque (`features/product/models/brand.py`).
-Deux voies :
+Bande de logos de marques choisies (ordre manuel), chaque logo menant à la
+page de la marque ou au catalogue filtré.
 
-- **légère** : la bande référence des valeurs de `manufacturer` et mène à
-  `/catalogue?manufacturer=…` ; le logo est un `media_id` posé ligne par
-  ligne dans la section ;
-- **complète** : `Product.brand_id` (reprise depuis `manufacturer`, avec
-  normalisation des variantes de casse) et `Brand.media_id`.
+**Décidé le 18/11/2026 : rattacher les produits à des fiches marque.** Ce
+n'est pas le cas aujourd'hui, contrairement à ce qu'on pouvait croire :
+
+- une table `brands` (nom, description, `image_url` externe) et une route
+  générique `/brand` existent, mais **sans écran admin** et **sans lien aux
+  produits** (aucun `brand_id` sur `Product`) ;
+- le catalogue filtre et calcule ses facettes sur la chaîne libre
+  `Product.manufacturer`, remplie par les fournisseurs (Ingram, import de
+  fichier) et Icecat — d'où des variantes (« HP », « HP Inc. », « hp »).
+
+Le lot **BR** (§11) pose le rattachement ; R6 vient ensuite :
+
+- `Product.brand_id` (FK `brands`), `Brand.slug`, `Brand.media_id`
+  (médiathèque : WebP, `srcset`), traductions de la description ;
+- une table d'**alias** (`brand_aliases` : « HP Inc. », « Hewlett-Packard » →
+  HP) appliquée à chaque synchro fournisseur et import ; un fabricant inconnu
+  crée une marque **à valider** dans l'admin plutôt qu'une marque publiée ;
+- reprise : marques créées depuis les valeurs distinctes de `manufacturer`,
+  regroupées par alias proposés (casse, suffixes « Inc. », « Corp. »),
+  relues par l'admin avant application ;
+- écran admin *Marques* (fiche, logo, alias, fusion de deux marques) ;
+- catalogue : filtre et facette par `brand_id` (`manufacturer` gardé comme
+  donnée brute du fournisseur) ; page marque indexable (M9 de l'audit).
 
 ### R7. Bloc de contenu libre (S)
 
@@ -160,10 +174,24 @@ admin) le nettoie aussi.
 ### R8. Ciblage par audience (M)
 
 Chaque section porte une **audience** : tous, visiteurs, clients connectés,
-un ou plusieurs **groupes tarifaires** (`price_group_id` : les pros voient
-« Commander en volume / Demander un devis », les particuliers une
-promotion). Plus une **langue** facultative pour un bloc qui n'a de sens
-qu'en une langue.
+un ou plusieurs **groupes tarifaires** (`price_group_id`). Plus une
+**langue** facultative pour un bloc qui n'a de sens qu'en une langue.
+
+Exemple, avec deux groupes : « Particuliers » (défaut) et « Professionnels »
+(−10 %, accordé sur demande depuis *Mon groupe*). En décembre :
+
+| Section | Visiteur / particulier | Client du groupe « Professionnels » |
+|---|---|---|
+| Héros | « Noël : −15 % sur les écrans » | « Équipez vos bureaux pour 2027 : devis sous 24 h » |
+| Bannière | Cartes cadeaux | Paiement à 30 jours sur facture |
+| Sélection | « Idées cadeaux » (casques, consoles) | « Consommables par 10 » (toner, papier, câbles) |
+| Prix des cartes | écran à 45 000 F | le même écran à 40 500 F |
+| Bloc | « Comment ça marche » | « Parler à votre commercial » (messagerie, canal commercial) |
+
+Le visiteur et le particulier ne voient jamais les sections du groupe pro ;
+le pro voit les siennes **à la place** (ou en plus, selon le réglage de
+chaque section). La dernière ligne de prix est déjà due aujourd'hui et ne
+fonctionne pas (§12.1).
 
 Impact SSR : le rendu serveur est toujours **anonyme** (la session n'est
 restaurée que dans le navigateur, `boot/auth.ts`). Règle proposée : le
@@ -229,7 +257,7 @@ Généraliser `homepage_blocks` plutôt que créer une seconde table : le socle
 ```
 homepage_blocks
   kind            hero | banner | announcement | category_grid
-                  | product_collection | manufacturer_strip | reassurance | rich_text
+                  | product_collection | brand_strip | reassurance | rich_text
                   | builtin (featured, popular… = sections d'aujourd'hui)
   title, subtitle, cta_label, cta_link, media_id, image_url, alt   (existants)
   position, is_published, starts_at, ends_at, translations         (existants)
@@ -238,11 +266,11 @@ homepage_blocks
   is_active                                                        (existant)
 
 homepage_block_items          (lignes ordonnées des sections manuelles)
-  block_id, position, product_id | category_id | manufacturer, label?, media_id?
+  block_id, position, product_id | category_id | brand_id, label?, media_id?
 ```
 
 - `config` validé **par type** (union discriminée) : une règle de sélection
-  ne référence que des champs déclarés (`category_id`, `manufacturer`,
+  ne référence que des champs déclarés (`category_id`, `brand_id`,
   `sort ∈ {newest, popular, price_asc…}`), jamais un filtre libre venu du
   client. Un **seul validateur de lien** pour `cta_link`, les liens de
   `config` et des items ; il refuse aussi `/\…` (lu comme relatif au
@@ -326,7 +354,7 @@ Ce qui existe :
 - **Notifications en application** : un modèle `notifications` /
   `user_notifications` (`features/user/models/notification.py`, types
   fermés, `is_read` / `read_at`) existe **sans route ni écran**, seulement
-  dans l'export RGPD. À trancher (§10.10) : il porte le badge de non-lus de
+  dans l'export RGPD. À trancher (§10, attendue 8) : il porte le badge de non-lus de
   la messagerie, ou il est retiré — pas deux mécanismes.
 - **Modules activables** (`features/system/modules.py`, `module_required`
   → 404 sur un module coupé, `SECTION_MODULES` dans `MyAccountPage.vue`) :
@@ -411,11 +439,22 @@ Pièges déjà payés ailleurs, à ne pas refaire :
     **réponse d'un membre de l'équipe**, déclenchée à la main ; son sujet
     vient du gabarit (« Votre demande C-… »), jamais du sujet saisi, et il
     ne cite pas le message du visiteur.
+  - **Réponse au visiteur (décidé le 18/11/2026)** : l'e-mail contient la
+    **réponse de l'équipe** et un lien **« Continuer la conversation sur le
+    site »**. Ce lien mène à l'inscription, adresse pré-remplie et non
+    modifiable ; l'inscription faite par ce lien **vaut preuve d'adresse**
+    (le lien n'a été envoyé qu'à elle) : le compte naît vérifié et la
+    conversation lui est rattachée, puis s'ouvre dans *Mon compte →
+    Messages*. Si l'adresse a déjà un compte entre-temps, le lien mène à la
+    connexion et rattache après connexion. Sans inscription, le visiteur
+    peut réécrire par `/contact` : sa nouvelle demande rejoint la même
+    conversation (même adresse, conversation non réglée), côté équipe
+    seulement.
   - **Rattachement à un compte** : écrire `customer_id`, jamais lire « par
     e-mail ». Seulement pour un compte `is_verified AND NOT is_guest`, et
-    seulement au moment où l'adresse est **prouvée** (code de l'inscription,
-    reprise d'un compte invité, lien de réinitialisation). Une session
-    invitée (`POST /signup/guest`) ne prouve rien (§12.2).
+    seulement au moment où l'adresse est **prouvée** (lien ci-dessus, code
+    de l'inscription, reprise d'un compte invité, lien de réinitialisation).
+    Une session invitée (`POST /signup/guest`) ne prouve rien (§12.2).
 - Horaires et délai de réponse affichés (« réponse sous 1 jour ouvré, du
   lundi au vendredi, 8 h – 17 h, heure de Tahiti »), réglables.
 - **Module `messaging`** (Admin → Modules) : coupé, l'onglet, le bouton de
@@ -456,15 +495,35 @@ Pièges déjà payés ailleurs, à ne pas refaire :
   pas, c'est le premier manque relevé côté équipe. Ces notes portent sur la
   conversation ; ce ne sont pas les notes de commande du plan (§4,
   historique de la commande).
-- **Option priorité** (§10.11) : pastille « prioritaire » et tri en tête de
+- **Option priorité** (§10, attendue 9) : pastille « prioritaire » et tri en tête de
   « À traiter » pour les clients d'un groupe tarifaire marqué prioritaire,
   calculée **à la lecture** en une requête par page (modèle FenuaPro), sans
   colonne écrite : un changement de groupe se prend en compte de lui-même.
-- **Canaux** affectables aux membres de l'équipe. Tant que l'admin n'a que
-  `is_superuser` (rôles fins = §4 du plan), tout superuser voit tout ; la
-  table d'agents sert seulement au routage des notifications. `staff_read_at`
-  est **commun à l'équipe** : une conversation lue par un membre l'est pour
-  tous (choix assumé, comme Paie).
+- **Rôles « Service client » et « Service commercial »** (demandés le
+  18/11/2026, lot ROLE, §11). Aujourd'hui tout compte de l'admin est
+  superuser : il voit et fait tout (remboursements, réglages, fournisseurs).
+  Pour qu'un employé réponde aux messages sans ces droits, il faut des rôles
+  fins (§4 du plan). Le dépôt en a déjà le modèle, éteint
+  (`ENABLE_GROUP_PERMISSIONS`) : groupes de sécurité et la garde
+  `get_current_logistics_admin` (liste d'autorisation : un compte hors
+  groupe est refusé). Proposition, première application des rôles fins :
+
+  | | Service client | Service commercial | Superuser |
+  |---|---|---|---|
+  | Canal de la messagerie | *client* | *commercial* | tous |
+  | Commandes, clients | lecture | lecture | tout |
+  | Demandes de devis | lecture | lecture, émission | tout |
+  | Remboursement, avoir | non (une note demande au superuser) | non | oui |
+  | Réglages, prix, fournisseurs | non | non | oui |
+
+  Conditions : 2FA exigée pour ces rôles comme pour les superusers ; l'app
+  admin n'affiche que les écrans permis (menu et routes) ; chaque route
+  ouverte à un rôle est gardée côté serveur par liste d'autorisation, jamais
+  par le seul menu ; un transfert ne vise qu'un membre qui a le canal.
+  En attendant le lot ROLE, la messagerie fonctionne avec les seuls
+  superusers et la table d'agents sert au routage des notifications.
+- `staff_read_at` est **commun à l'équipe** : une conversation lue par un
+  membre l'est pour tous (choix assumé, comme Paie).
 - Depuis une conversation commerciale rattachée à une demande de devis :
   **« Émettre le devis »** ouvre la fiche admin de la demande, où l'émission
   (`/issue`) existe déjà ; sans demande, il attend le devis créé par l'admin
@@ -480,10 +539,9 @@ Pièges déjà payés ailleurs, à ne pas refaire :
   `user_preferences`, migration, interrupteur dans `AccountPreferences.vue`,
   i18n fr / en), **lue** par l'envoi et testée (envoi coupé quand elle est à
   false).
-- **Visiteur sans compte** : la réponse part **avec** le contenu (il n'a pas
-  d'autre accès), ou avec un lien vers le fil (§10.4). Cet e-mail part en
-  `resendable=False` quand il porte un lien (c'est un secret, comme les
-  liens de réinitialisation et d'invitation) ; son corps reste 90 jours dans
+- **Visiteur sans compte** : la réponse part **avec** le contenu et le lien
+  d'inscription (§6, visiteur). Cet e-mail part en `resendable=False` (le
+  lien est un secret, comme les liens de réinitialisation et d'invitation) ; son corps reste 90 jours dans
   `email_log` (`EMAIL_BODY_DAYS`) — à dire dans la politique de
   confidentialité ou à ne pas journaliser.
 - **Équipe** : e-mail au titulaire, sinon aux membres du canal, sinon à
@@ -495,12 +553,12 @@ Pièges déjà payés ailleurs, à ne pas refaire :
 - **Règles de vague** (Paie) : ne lire que les conversations dont le dernier
   message a moins de 7 jours ; une nouvelle vague = un `last_*_message_at`
   postérieur à la fois à `*_read_at` et à `*_notified_at`.
-- **Demandes de devis** : une demande **ouvre une conversation**
+- **Demandes de devis (décidé le 18/11/2026)** : une demande **ouvre une conversation**
   commerciale rattachée à la `quote_request`, sans la remplacer
   (`QuoteRequestStatus`, filet `EMAIL_FAILED`, `/issue`, `…/accept`
   inchangés) ; `admin_comment` devient une note interne. Ferme le volet
   « devis » de Z18 (accusé de réception et réponse).
-- **Demandes de groupe** (si voulu, §10.5) : `admin_comment` y est déjà la
+- **Demandes de groupe** (à décider, §10) : `admin_comment` y est déjà la
   réponse montrée au client ; il devient un **message visible** de la
   conversation, jamais une note, et reste affiché dans *Mon groupe*. Le
   message de décision tient lieu de l'e-mail de décision (M14, volet
@@ -520,7 +578,7 @@ conversations
   subject
   customer_id       FK users, NULL pour un visiteur
   guest_name, guest_email, guest_phone, guest_company, guest_locale   (visiteur seulement)
-  guest_token_hash, guest_token_expires_at             (si lien visiteur, §10.4)
+  guest_token_hash, guest_token_expires_at             (lien d'inscription du visiteur)
   context_type      order | product | cart | quote_request | group_request | NULL
   context_id        UUID
   assigned_to_id, assigned_at
@@ -567,12 +625,27 @@ canned_replies
 
 ### Conservation et RGPD
 
-- **Échéance** = `last_message_at` + durée du canal (§10.6) ; `retain_until`
-  = prolongation choisie par le client (« Garder un an de plus »), retenue
-  si elle est plus tardive. Seules les conversations `resolved` sont
-  purgées. Un e-mail de préavis **sans contenu** part 30 jours avant
-  (`deletion_notice_at`) ; la suppression attend la fin du préavis. Fils de
-  visiteurs jamais réglés (spam compris) : durée courte à part.
+- **Durées (décidé le 18/11/2026, à confirmer par la relecture
+  juridique)** :
+  - conversation d'un **visiteur** jamais rattachée à un compte : **6 mois**
+    après le dernier message, réglée ou non (spam compris) ;
+  - conversation d'un **client** : **5 ans** après le dernier message. C'est
+    la durée de la prescription de droit commun en matière civile et
+    commerciale (art. 2224 du code civil, L110-4 du code de commerce) :
+    l'échange peut servir de preuve dans un litige sur une commande. Pour
+    rester proportionné, la conversation passe en **archive** à sa
+    résolution + 1 an : retirée de la file et des recherches de l'équipe,
+    consultable seulement par un superuser avec un motif journalisé, et
+    toujours visible du client dans *Mon compte*. Variante plus courte à
+    soumettre au juriste : 5 ans pour une conversation rattachée à une
+    commande, un devis ou une facture, 3 ans pour les autres ;
+  - **compte supprimé** : effacement RGPD (ci-dessous), qui prime.
+- **Échéance** = `last_message_at` + durée ; `retain_until` = prolongation
+  choisie par le client (« Garder un an de plus »), retenue si elle est plus
+  tardive. Seules les conversations `resolved` d'un client sont purgées
+  (celles d'un visiteur le sont à 6 mois en tout état). Un e-mail de préavis
+  **sans contenu** part 30 jours avant pour un client (`deletion_notice_at`) ;
+  la suppression attend la fin du préavis. Pas de préavis pour un visiteur.
 - **Purge** : objets des pièces jointes dans le stockage d'abord, puis
   pièces, messages, conversation.
 - **Export** (`privacy.py`, qui exclut des champs par leur nom — une note
@@ -605,14 +678,17 @@ Toutes les routes derrière `Depends(module_required("messaging"))`.
   identique ; aucun e-mail au titulaire du compte. (L'énumération reste
   possible ailleurs : `/signup/send-otp` et `/signup/guest` disent qu'une
   adresse a un compte — hors périmètre.)
-- **Lien visiteur** (si retenu, §10.4) : jeton aléatoire
+- **Lien visiteur** (décidé : inscription) : jeton aléatoire
   (`secrets.token_urlsafe(32)`), stocké en condensat SHA-256 sur la
   conversation, expiration (30 j), **remplacé à chaque e-mail de l'équipe**
-  (un seul lien valide) et effacé à la résolution. Ce n'est pas un JWT (non
-  révocable). Il donne accès à **cette seule** conversation — lecture,
-  réponse, pièces jointes saines, jamais les notes, jamais un compte — et
-  reste limité en fréquence par conversation et par IP. Le numéro `C-…`
-  n'ouvre jamais rien, ni sur le site ni au téléphone.
+  (un seul lien valide), **à usage unique**. Ce n'est pas un JWT (non
+  révocable). Il ne lit pas la conversation : il ouvre l'inscription
+  (`GET /contact/continue/{token}` → adresse et nom à pré-remplir ;
+  `POST /signup` avec le jeton → compte vérifié + rattachement), ou le
+  rattachement après connexion si l'adresse a un compte (le compte connecté
+  doit avoir **cette** adresse). Limité en fréquence par IP ; l'e-mail qui
+  le porte part en `resendable=False`. Le numéro `C-…` n'ouvre jamais rien,
+  ni sur le site ni au téléphone.
 - **Admin** (`CurrentSuperUser`, 2FA déjà exigée) : `/admin/conversations`
   (onglets, filtres, recherche, pagination serveur), `claim`, `release`,
   `transfer`, `resolve`, `notes`, `canned-replies` (CRUD), `summary`
@@ -647,7 +723,7 @@ PDF / JPEG / PNG). À faire :
   `filename*`) ;
 - WebP : ajouter sa signature (`RIFF….WEBP`) à `_MAGIC`, et **refuser un
   type sans signature connue** (aujourd'hui « no opinion » = accepté) ;
-  HEIC (photos d'iPhone) : refus 415 explicite ou conversion (§10.12) ;
+  HEIC (photos d'iPhone) : refus 415 explicite ou conversion (§10, attendue 10) ;
 - l'URL présignée PUT ne borne pas la taille : supprimer l'objet refusé
   (taille, type) du stockage ;
 - téléchargement seulement si `av_scanned and av_clean` (409 scan en
@@ -707,33 +783,42 @@ Photos d'un colis abîmé = cas d'usage n° 1 du service client.
 
 ---
 
-## 10. Décisions attendues
+## 10. Décisions
+
+### Prises le 18/11/2026
+
+- **Visiteur sans compte** : réponse par e-mail (contenu + lien) ; le lien
+  mène à l'inscription, qui rattache la conversation au nouveau compte (§6).
+- **Demande de devis** : ouvre une conversation commerciale rattachée à la
+  demande (§6, lot MSG5).
+- **Conservation** : 6 mois pour un visiteur, 5 ans pour un client avec
+  archive après 1 an (§7) — **à confirmer par la relecture juridique**, avec
+  la mention dans la politique de confidentialité.
+- **Rôles** « Service client » et « Service commercial » voulus (§6, lot
+  ROLE).
+- **Marques** : rattacher les produits à des fiches marque (R6, lot BR).
+
+### Attendues
 
 1. **Bandeau d'annonce et prochain départ** : même emplacement (l'annonce
    remplace le départ pendant sa période, recommandé), empilés, ou annonce
    au-dessus de l'en-tête ?
-2. **Ciblage par groupe tarifaire** (R8) : dès le premier lot, ou après ?
+2. **Ciblage par groupe tarifaire** (R8, exemple au §2) : dès le premier
+   lot, ou après ?
 3. **Canaux** : *client* et *commercial* seulement, ou aussi *retours* /
    *comptabilité* (factures, avoirs) ?
-4. **Visiteur sans compte** : réponse par e-mail seulement (contenu dans
-   l'e-mail), ou lien vers le fil pour continuer sur le site ?
-5. **Demandes de devis et de groupe** : leur rattacher une conversation
-   (devis : `admin_comment` → note interne ; groupe : `admin_comment` →
-   message visible) — oui / non, et pour lesquelles ?
-6. **Durée de conservation** des conversations réglées, par canal
-   (proposition : 3 ans, à valider avec la relecture juridique), et mention
-   dans la politique de confidentialité.
-7. **Horaires et délai de réponse** affichés : lesquels ?
-8. **Qui répond** : tous les superusers, ou des personnes nommées par canal
-   (table d'agents) ? Et quelle adresse la page contact affiche-t-elle
-   (`email_support`, `email_contact`, `legal_support_email`) ?
-9. **Marques** (R6) : voie légère (`manufacturer`) ou rattachement des
-   produits à `Brand` ?
-10. **Notifications en application** (`notifications` /
-    `user_notifications`, dormantes) : support du badge de la messagerie, ou
-    retrait ?
-11. **Priorité** : des groupes tarifaires prioritaires dans la file ?
-12. **HEIC** (photos d'iPhone) : refus explicite ou conversion ?
+4. **Demandes de changement de groupe** : leur rattacher aussi une
+   conversation (`admin_comment` → message visible) ?
+5. **Horaires et délai de réponse** affichés : lesquels ?
+6. **Adresse** affichée sur la page contact (`email_support`,
+   `email_contact`, `legal_support_email`) ?
+7. **Rôles** : la grille du §6 convient-elle (lecture des commandes,
+   émission des devis par le commercial, pas de remboursement) ?
+8. **Notifications en application** (`notifications` /
+   `user_notifications`, dormantes) : support du badge de la messagerie, ou
+   retrait ?
+9. **Priorité** : des groupes tarifaires prioritaires dans la file ?
+10. **HEIC** (photos d'iPhone) : refus explicite ou conversion ?
 
 ---
 
@@ -746,18 +831,21 @@ les identifiants M· de l'audit fonctionnel.
 |---|---|---|
 | **A1** | Accueil : sections ordonnables / masquables / titrées (R1), route d'ordre en une transaction, migration de reprise, endpoint unique `GET /homepage` + `GET /homepage/personal` (prix du client) | M |
 | **A2** | Sélections de produits nommées (R2) et catégories choisies (R3), sélecteur admin | M |
-| **A3** | Annonce, réassurance, fabricants, bloc libre (R4 à R7) | M |
+| **A3** | Annonce, réassurance, marques (après BR), bloc libre (R4 à R7) | M |
 | **A4** | Aperçu et programmation (R10), SEO de l'accueil (R11) | S à M |
 | **A5** | Ciblage par audience et sections personnelles (R8, R9) | M |
 | **MSG1** | Messagerie, socle : module, modèle, API client et admin, onglet « Messages », écran admin, sondage, e-mails de non-lus et préférence, pièces jointes (service générique), conservation et RGPD | L |
-| **MSG2** | Page `/contact` publique (M8 de l'audit), anti-spam, rattachement à un compte par adresse prouvée, lien visiteur si retenu | S à M |
+| **MSG2** | Page `/contact` publique (M8 de l'audit), anti-spam, réponse au visiteur avec lien d'inscription, rattachement à un compte par adresse prouvée, purge à 6 mois | M |
 | **MSG3** | Raccourcis contextuels (produit, commande, panier, groupe), panneau client et objet rattaché dans le fil | M |
 | **MSG4** | Notes internes, réponses types, transfert, libération automatique, digest, priorité si retenue | M |
-| **MSG5** | Demandes de devis et de groupe rattachées à une conversation (Z18 volet devis, M14 volet groupe) ; « Émettre le devis » / « Ouvrir un retour » | M |
+| **MSG5** | Demandes de devis rattachées à une conversation (Z18 volet devis), demandes de groupe si voulu (M14 volet groupe) ; « Émettre le devis » / « Ouvrir un retour » | M |
+| **ROLE** | Rôles « Service client » et « Service commercial » : premiers rôles fins (groupes de sécurité, gardes par liste d'autorisation, 2FA, menu admin filtré) | M à L |
+| **BR** | Marques : `Product.brand_id`, alias, reprise depuis `manufacturer`, écran admin, filtre et facette, page marque (M9 de l'audit) | M à L |
 
 Ordre conseillé : correctifs du §12 d'abord, puis **A1 → MSG1 → MSG2 → A2 →
-MSG3 → MSG4**, puis le reste selon les retours. A1 et MSG1 sont
-indépendants et peuvent avancer en parallèle.
+MSG5 → ROLE → MSG3 → MSG4**, BR quand on veut la bande de marques (R6) et
+les pages marque. A1, MSG1 et BR sont indépendants et peuvent avancer en
+parallèle. ROLE peut attendre : sans lui, les superusers répondent.
 
 ---
 
