@@ -19,6 +19,13 @@ takes a tag as its `ref`.
 
 ### Changed
 
+- Messages to the operator — the alerts posted to `ALERT_WEBHOOK_URL`, the
+  staff notifications of payment events, the quote request e-mailed to the
+  support — are written in the operator's language: the new setting
+  `operator_locale` (Settings → Display; `OPERATOR_LOCALE`), the shop's
+  default language when empty. They were French only. Each message is a key
+  of `app/core/operator_messages.py`, in English and French.
+
 - The API is language-agnostic (decision of 18/11/2026): an error is a code,
   its details and an English fallback message — every `AppError` message is
   now the English text of the shared catalogue
