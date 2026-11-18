@@ -925,8 +925,17 @@ function methodIcon(providerCode: string): string {
 const addressChoices = computed<ChoiceOption[]>(() =>
   addresses.value.map((a) => ({
     value: a.id,
-    title: a.street,
-    caption: `${a.postal_code} ${a.city}, ${countryLabel(a.country)}`,
+    // Who receives it is part of the choice (the order keeps it, and the
+    // carrier calls that phone): the card showed the street only.
+    title: a.recipient_name ? `${a.recipient_name} — ${a.street}` : a.street,
+    caption: [
+      a.company,
+      `${a.postal_code} ${a.city}, ${countryLabel(a.country)}`,
+      a.phone,
+      a.recipient_name ? null : t('addresses.no_recipient'),
+    ]
+      .filter(Boolean)
+      .join(' · '),
     icon: 'ph:map-pin',
     testid: `checkout-address-${a.id}`,
   })),

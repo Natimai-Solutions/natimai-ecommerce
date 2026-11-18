@@ -456,7 +456,19 @@ async def _order_summary(
         "lines": lines,
         # A pickup is collected at the shop: the customer's own address was
         # printed as if the parcel were delivered there.
-        "shipping_address": "" if pickup is not None else order.shipping_address or "",
+        "shipping_address": (
+            ""
+            if pickup is not None
+            else ", ".join(
+                part
+                for part in (
+                    order.shipping_recipient,
+                    order.shipping_address,
+                    order.shipping_phone,
+                )
+                if part
+            )
+        ),
         "pickup_place": pickup or "",
         "delivery_label": labels.get(delivery, delivery.replace("_", " ")),
         "departure_name": departure.name if departure else "",

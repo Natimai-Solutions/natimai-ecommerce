@@ -19,6 +19,19 @@ takes a tag as its `ref`.
 
 ### Added
 
+- The order's address is built by the server from the saved address
+  (`shipping_address_id`): company, street, city, country; the recipient and
+  the phone have their own columns (`orders.shipping_recipient`,
+  `orders.shipping_phone`, migration `d5e6f7a8b9c0`). The storefront used to
+  compose the text, recipient and phone inside, and the invoice took it as
+  the buyer's address. The order pages and the e-mail show the three; the
+  address cards (checkout, account) show the recipient, the company and the
+  phone, and say when the recipient is missing. Review of 17/11/2026.
+- A partial refund no longer moves a fully paid order to
+  « PartiallyRefunded » whatever its progress (it then followed its departure
+  no more): the order keeps its status, the refund shows on the payment and
+  its credit note. A deposit order keeps the old rule until its balance
+  deducts refunds. Review of 17/11/2026.
 - « État du système » tells a stopped worker (no health key in Redis) and a
   scheduled task that missed its next run by more than 20 minutes (« En
   retard », worked out from its cron), instead of « ok » on the last success.

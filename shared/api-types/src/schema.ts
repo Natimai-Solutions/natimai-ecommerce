@@ -9011,6 +9011,10 @@ export interface components {
             currency?: string | null;
             /** Shipping Address */
             shipping_address?: string | null;
+            /** Shipping Recipient */
+            shipping_recipient?: string | null;
+            /** Shipping Phone */
+            shipping_phone?: string | null;
             /** Delivery Type */
             delivery_type?: string | null;
             /** Grouped Departure Id */
@@ -14034,9 +14038,19 @@ export interface components {
             currency?: string | null;
             /**
              * Shipping Address
-             * @description Adresse de livraison
+             * @description Adresse de livraison (société, rue, ville, pays), figée à la commande ; construite par le serveur depuis l'adresse enregistrée
              */
             shipping_address?: string | null;
+            /**
+             * Shipping Recipient
+             * @description Destinataire du colis, figé à la commande
+             */
+            shipping_recipient?: string | null;
+            /**
+             * Shipping Phone
+             * @description Téléphone du destinataire pour le transporteur
+             */
+            shipping_phone?: string | null;
             /**
              * Shipping Cost Breakdown
              * @description Snapshot detaille des couts de livraison par troncon au checkout (routes selectionnees, forfait/poids/valeur, ETA, empreinte carbone)
@@ -14275,9 +14289,19 @@ export interface components {
             currency?: string | null;
             /**
              * Shipping Address
-             * @description Adresse de livraison
+             * @description Adresse de livraison (société, rue, ville, pays), figée à la commande ; construite par le serveur depuis l'adresse enregistrée
              */
             shipping_address?: string | null;
+            /**
+             * Shipping Recipient
+             * @description Destinataire du colis, figé à la commande
+             */
+            shipping_recipient?: string | null;
+            /**
+             * Shipping Phone
+             * @description Téléphone du destinataire pour le transporteur
+             */
+            shipping_phone?: string | null;
             /**
              * Shipping Cost Breakdown
              * @description Snapshot detaille des couts de livraison par troncon au checkout (routes selectionnees, forfait/poids/valeur, ETA, empreinte carbone)
@@ -14597,9 +14621,19 @@ export interface components {
             currency?: string | null;
             /**
              * Shipping Address
-             * @description Adresse de livraison
+             * @description Adresse de livraison (société, rue, ville, pays), figée à la commande ; construite par le serveur depuis l'adresse enregistrée
              */
             shipping_address?: string | null;
+            /**
+             * Shipping Recipient
+             * @description Destinataire du colis, figé à la commande
+             */
+            shipping_recipient?: string | null;
+            /**
+             * Shipping Phone
+             * @description Téléphone du destinataire pour le transporteur
+             */
+            shipping_phone?: string | null;
             /**
              * Shipping Cost Breakdown
              * @description Snapshot detaille des couts de livraison par troncon au checkout (routes selectionnees, forfait/poids/valeur, ETA, empreinte carbone)
@@ -15058,9 +15092,19 @@ export interface components {
             currency?: string | null;
             /**
              * Shipping Address
-             * @description Adresse de livraison
+             * @description Adresse de livraison (société, rue, ville, pays), figée à la commande ; construite par le serveur depuis l'adresse enregistrée
              */
             shipping_address?: string | null;
+            /**
+             * Shipping Recipient
+             * @description Destinataire du colis, figé à la commande
+             */
+            shipping_recipient?: string | null;
+            /**
+             * Shipping Phone
+             * @description Téléphone du destinataire pour le transporteur
+             */
+            shipping_phone?: string | null;
             /**
              * Shipping Cost Breakdown
              * @description Snapshot detaille des couts de livraison par troncon au checkout (routes selectionnees, forfait/poids/valeur, ETA, empreinte carbone)

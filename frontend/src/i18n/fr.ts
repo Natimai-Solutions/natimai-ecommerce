@@ -457,6 +457,7 @@ const fr = {
     title: 'Mon compte',
   },
   addresses: {
+    no_recipient: 'Destinataire à préciser',
     recipient: 'Destinataire',
     company: 'Société (facultatif)',
     phone: 'Téléphone (facultatif)',

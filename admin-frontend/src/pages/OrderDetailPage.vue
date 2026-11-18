@@ -593,7 +593,15 @@
                 <dd class="order-panel__wrap">{{ order.user_email }}</dd>
               </template>
               <dt>{{ $t('order.delivery') }}</dt>
-              <dd class="order-panel__wrap">{{ order.shipping_address || '—' }}</dd>
+              <dd class="order-panel__wrap" data-testid="order-shipping">
+                <div v-if="order.shipping_recipient" class="text-weight-medium">
+                  {{ order.shipping_recipient }}
+                </div>
+                {{ order.shipping_address || '—' }}
+                <div v-if="order.shipping_phone" class="font-mono">
+                  {{ order.shipping_phone }}
+                </div>
+              </dd>
               <template v-if="order.notes">
                 <dt>{{ $t('order.notes') }}</dt>
                 <dd class="order-panel__wrap">{{ order.notes }}</dd>

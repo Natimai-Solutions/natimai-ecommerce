@@ -122,3 +122,102 @@ async def test_an_order_is_refunded_only_once_every_payment_is(
     events = await _refund_events(db_session)
     assert events[-1]["fully_refunded"] is True
     assert len(events) == 3
+
+
+async def _order_in(
+    session: AsyncSession, status_name: str, *, plan: str
+) -> tuple[uuid.UUID, uuid.UUID]:
+    user = User(
+        email=f"c+{uuid.uuid4().hex[:8]}@test.local",
+        is_active=True,
+        hashed_password="x",
+    )
+    status = (
+        await session.exec(
+            select(OrderStatus).where(col(OrderStatus.name) == status_name)
+        )
+    ).first() or OrderStatus(name=status_name)
+    session.add_all([user, status])
+    await session.flush()
+    order = Order(
+        user_id=user.id,
+        order_status_id=status.id,
+        total_amount=Decimal("10000"),
+        currency="XPF",
+        payment_plan=plan,
+        deposit_amount=Decimal("3000") if plan == "deposit" else Decimal("0"),
+    )
+    session.add(order)
+    await session.flush()
+    payment = Payment(
+        order_id=order.id, user_id=user.id, amount=Decimal("10000"), currency="XPF"
+    )
+    session.add(payment)
+    await session.flush()
+    ids = (order.id, payment.id)
+    await session.commit()
+    return ids
+
+
+async def _status_of(session: AsyncSession, order_id: uuid.UUID) -> str:
+    session.expire_all()
+    order = await session.get(Order, order_id)
+    assert order is not None
+    status = await session.get(OrderStatus, order.order_status_id)
+    assert status is not None
+    return status.name
+
+
+@pytest.mark.asyncio
+async def test_a_partial_refund_keeps_the_order_on_its_way(
+    db_session: AsyncSession,
+) -> None:
+    """Review of 17/11/2026: a partial refund (one article missing) moved the
+    order to « PartiallyRefunded » whatever its progress; it then followed
+    its departure no more. The refund shows on the payment."""
+    from app.handlers import payment as payment_handlers
+
+    order_id, payment_id = await _order_in(db_session, "InTransit", plan="full")
+    await payment_handlers.on_payment_refunded(
+        db_session,
+        {
+            "order_id": str(order_id),
+            "payment_id": str(payment_id),
+            "amount": "2000",
+            "fully_refunded": False,
+        },
+    )
+    assert await _status_of(db_session, order_id) == "InTransit"
+
+    # A full refund still ends it.
+    await payment_handlers.on_payment_refunded(
+        db_session,
+        {
+            "order_id": str(order_id),
+            "payment_id": str(payment_id),
+            "amount": "8000",
+            "fully_refunded": True,
+        },
+    )
+    assert await _status_of(db_session, order_id) == "Refunded"
+
+
+@pytest.mark.asyncio
+async def test_a_partially_refunded_deposit_order_still_stops_its_balance(
+    db_session: AsyncSession,
+) -> None:
+    """Its balance does not deduct refunds: the status stays what keeps the
+    full balance from being asked."""
+    from app.handlers import payment as payment_handlers
+
+    order_id, payment_id = await _order_in(db_session, "DepositPaid", plan="deposit")
+    await payment_handlers.on_payment_refunded(
+        db_session,
+        {
+            "order_id": str(order_id),
+            "payment_id": str(payment_id),
+            "amount": "1000",
+            "fully_refunded": False,
+        },
+    )
+    assert await _status_of(db_session, order_id) == "PartiallyRefunded"

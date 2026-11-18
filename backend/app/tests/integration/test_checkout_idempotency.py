@@ -247,3 +247,52 @@ async def test_a_double_click_on_the_same_cart_gets_the_order_back(
 
     assert second.replayed is True and second.order_id == first.order_id
     assert await _orders_of(db_session, user_id) == 1
+
+
+@pytest.mark.asyncio
+async def test_the_order_address_is_built_by_the_server(
+    db_session: AsyncSession,
+) -> None:
+    """Review of 17/11/2026: the storefront composed the order's address text
+    (recipient and phone inside, capped at 500) and the invoice took it as
+    the buyer's address. Built from the saved address now; the recipient and
+    the phone have their own columns."""
+    from app.features.user.models.address import Address
+
+    user_id, product_id = await _seed(db_session)
+    address = Address(
+        user_id=user_id,
+        type="shipping",
+        recipient_name="Teva Tane",
+        company="Atelier Moana",
+        phone="+689 87 00 00 00",
+        street="4 allée des Tiare",
+        postal_code="98713",
+        city="Papeete",
+        country="PF",
+    )
+    db_session.add(address)
+    await db_session.flush()
+    address_id = address.id
+    await db_session.commit()
+    await _fill_cart(db_session, user_id, product_id)
+    user = await db_session.get(User, user_id)
+    assert user is not None
+
+    placed = await checkout_my_cart(
+        db_session,
+        user,
+        CheckoutRequest(
+            shipping_address="whatever the browser typed",
+            shipping_address_id=address_id,
+            cgv_accepted=True,
+        ),
+    )
+
+    order = await db_session.get(Order, placed.order_id)
+    assert order is not None
+    assert (
+        order.shipping_address == "Atelier Moana, 4 allée des Tiare, 98713 Papeete, PF"
+    )
+    assert order.shipping_recipient == "Teva Tane"
+    assert order.shipping_phone == "+689 87 00 00 00"

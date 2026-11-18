@@ -20,6 +20,9 @@ export interface Order {
   discount_code?: string | null;
   discount_amount?: string;
   shipping_address: string | null;
+  /** Who receives the parcel and their phone (orders since 18/11/2026). */
+  shipping_recipient?: string | null;
+  shipping_phone?: string | null;
   /** Last-leg delivery mode chosen at checkout: pickup | home_delivery | air_freight. */
   delivery_type: string | null;
   /** Grouped departure the order is attached to (null = classic order). */

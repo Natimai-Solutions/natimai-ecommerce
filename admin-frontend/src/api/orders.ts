@@ -136,6 +136,9 @@ export interface AdminOrderDetail {
   discount_amount?: number;
   total_amount: number;
   shipping_address: string | null;
+  /** Destinataire et téléphone figés au checkout (absents avant le 18/11/2026). */
+  shipping_recipient?: string | null;
+  shipping_phone?: string | null;
   /** Last-leg mode chosen at checkout (home_delivery, pickup…). */
   delivery_type: string | null;
   grouped_departure_id: string | null;

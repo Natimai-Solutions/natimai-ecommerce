@@ -100,7 +100,20 @@ class OrderBase(Base):
     shipping_address: str | None = Field(
         default=None,
         max_length=500,
-        description="Adresse de livraison",
+        description=(
+            "Adresse de livraison (société, rue, ville, pays), figée à la "
+            "commande ; construite par le serveur depuis l'adresse enregistrée"
+        ),
+    )
+    shipping_recipient: str | None = Field(
+        default=None,
+        max_length=150,
+        description="Destinataire du colis, figé à la commande",
+    )
+    shipping_phone: str | None = Field(
+        default=None,
+        max_length=40,
+        description="Téléphone du destinataire pour le transporteur",
     )
     shipping_cost_breakdown: dict[str, Any] | None = Field(
         default=None,

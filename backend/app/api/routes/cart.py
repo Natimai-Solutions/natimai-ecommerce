@@ -623,6 +623,50 @@ def _compute_checkout_declared_value_and_weight(
     return declared_value, total_weight_kg
 
 
+def address_text(address: Any) -> str:
+    """The postal part of a saved address, as the order keeps it."""
+    parts = [
+        getattr(address, "company", None),
+        getattr(address, "street", None),
+        " ".join(
+            p
+            for p in (
+                getattr(address, "postal_code", None),
+                getattr(address, "city", None),
+            )
+            if p
+        ),
+        getattr(address, "state", None),
+        getattr(address, "country", None),
+    ]
+    return ", ".join(str(p).strip() for p in parts if p and str(p).strip())
+
+
+async def _order_address_snapshot(
+    session: SessionDep,
+    *,
+    user_id: uuid.UUID,
+    address_id: uuid.UUID | None,
+    typed: str | None,
+) -> tuple[str | None, str | None, str | None]:
+    """``(address, recipient, phone)`` frozen on the order.
+
+    Built here from the customer's saved address: the storefront used to
+    compose the text (recipient and phone included, capped at 500 characters)
+    and the invoice took it, as is, for the buyer's address (review of
+    17/11/2026). The typed text stays for a caller without a saved address.
+    """
+    if address_id is not None:
+        address = await session.get(Address, address_id)
+        if address is not None and address.user_id == user_id:
+            return (
+                address_text(address)[:500] or None,
+                address.recipient_name or None,
+                address.phone or None,
+            )
+    return (typed, None, None)
+
+
 async def _resolve_tracking_address_for_checkout(
     session: SessionDep,
     *,
@@ -3770,6 +3814,12 @@ async def checkout_my_cart(
         )
 
         order_status = await _get_or_create_order_pending_status(session)
+        address_snapshot, recipient, recipient_phone = await _order_address_snapshot(
+            session,
+            user_id=user_id,
+            address_id=payload.shipping_address_id,
+            typed=payload.shipping_address,
+        )
         # Human-readable reference allocated up-front (server-side only — the
         # field is not part of OrderCreate, cf. Order.order_number).
         order_number = await allocate_order_number(session)
@@ -3787,7 +3837,9 @@ async def checkout_my_cart(
                 discount_code=applied_discount.code if applied_discount else None,
                 discount_amount=quote.discount_amount,
                 currency=cart.currency,
-                shipping_address=payload.shipping_address,
+                shipping_address=address_snapshot,
+                shipping_recipient=recipient,
+                shipping_phone=recipient_phone,
                 shipping_cost_breakdown=shipping_cost_breakdown_payload,
                 notes=payload.notes,
                 delivery_type=payload.delivery_type,

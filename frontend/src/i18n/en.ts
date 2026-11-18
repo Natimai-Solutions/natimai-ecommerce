@@ -453,6 +453,7 @@ const en: MessageSchema = {
     title: 'My account',
   },
   addresses: {
+    no_recipient: 'Recipient to be added',
     recipient: 'Recipient',
     company: 'Company (optional)',
     phone: 'Phone (optional)',

@@ -341,7 +341,13 @@
                       : $t('tracking.delivery')
                   }}
                 </dt>
-                <dd>{{ order.shipping_address }}</dd>
+                <dd>
+                  <span v-if="order.shipping_recipient" class="tracking-recipient">
+                    {{ order.shipping_recipient }}<br />
+                  </span>
+                  {{ order.shipping_address }}
+                  <span v-if="order.shipping_phone"><br />{{ order.shipping_phone }}</span>
+                </dd>
               </template>
             </dl>
 

@@ -42,6 +42,7 @@ from app.features.payment.services.deposit import (
     KIND_DEPOSIT,
     KIND_FULL,
     ORDER_STATUS_DEPOSIT_PAID,
+    PLAN_DEPOSIT,
 )
 from app.features.payment.services.gift_cards import issue_for_order
 from app.features.payment.services.gift_cards import (
@@ -792,13 +793,31 @@ async def on_payment_refunded(session: AsyncSession, payload: dict[str, Any]) ->
         fully,
         payload.get("amount"),
     )
-    await _sync_order_status(
-        session,
-        payload=payload,
-        target_status_name=(
-            ORDER_STATUS_REFUNDED if fully else ORDER_STATUS_PARTIALLY_REFUNDED
-        ),
-    )
+    _payment, order = await _load_payment_and_order(session, payload)
+    if (
+        not fully
+        and order is not None
+        and getattr(order, "payment_plan", None) != PLAN_DEPOSIT
+    ):
+        # A partial refund (one article missing, a gesture) does not end the
+        # order: it moved to « PartiallyRefunded » whatever its progress and
+        # stopped following its departure (review of 17/11/2026). The refund
+        # shows on the payment (« PartiallyRefunded ») and its credit note.
+        # A deposit order keeps the old rule: its balance does not deduct
+        # refunds, and that status is what stops it being asked.
+        logger.info(
+            "Order %s keeps its status after a partial refund of payment %s",
+            order.id,
+            payload.get("payment_id"),
+        )
+    else:
+        await _sync_order_status(
+            session,
+            payload=payload,
+            target_status_name=(
+                ORDER_STATUS_REFUNDED if fully else ORDER_STATUS_PARTIALLY_REFUNDED
+            ),
+        )
     # Loyalty points earned on the order go back in proportion (R8 / confort).
     refund_order_id = _parse_order_id(payload)
     if refund_order_id is not None:

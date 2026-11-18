@@ -187,6 +187,10 @@ class AdminOrderDetail(BaseModel):
     #: Currency of every amount of the order (frozen at checkout).
     currency: str | None = None
     shipping_address: str | None = None
+    #: Who receives the parcel and their phone, frozen at checkout (orders
+    #: placed before 18/11/2026 carry them inside ``shipping_address``).
+    shipping_recipient: str | None = None
+    shipping_phone: str | None = None
     delivery_type: str | None = None
     grouped_departure_id: uuid.UUID | None = None
     notes: str | None = None
@@ -844,6 +848,8 @@ async def get_order_detail(
         discount_amount=float(getattr(order, "discount_amount", None) or 0),
         total_amount=float(order.total_amount),
         shipping_address=order.shipping_address,
+        shipping_recipient=order.shipping_recipient,
+        shipping_phone=order.shipping_phone,
         delivery_type=getattr(order, "delivery_type", None),
         grouped_departure_id=order.grouped_departure_id,
         notes=order.notes,
