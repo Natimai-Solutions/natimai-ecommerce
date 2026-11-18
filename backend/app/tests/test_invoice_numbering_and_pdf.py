@@ -181,7 +181,8 @@ def _make_invoice() -> Invoice:
         sequence_number=1,
         order_id=uuid.uuid4(),
         user_id=uuid.uuid4(),
-        issued_at=datetime(2026, 8, 25, tzinfo=UTC),
+        # Noon at the shop (Tahiti, UTC−10): the date is printed on its clock.
+        issued_at=datetime(2026, 8, 25, 22, 0, tzinfo=UTC),
         currency="XPF",
         total_excl_tax=Decimal("407500"),
         total_tax=Decimal("65200"),

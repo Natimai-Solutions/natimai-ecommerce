@@ -207,6 +207,10 @@ NOT_YET_ORDERED_FROM_SUPPLIER: frozenset[str] = frozenset(
         "PaymentReview",
         "Paid",
         "DepositPaid",
+        # A partial refund or a supplier shortage leaves the rest of the
+        # order to buy: its units are still ours (safe side, see B4).
+        "PartiallyRefunded",
+        "Backordered",
     }
 )
 

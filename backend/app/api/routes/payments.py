@@ -46,6 +46,7 @@ from app.features.payment.services.document_payment import (
     mark_document_uploaded,
 )
 from app.features.payment.services.eligibility import (
+    check_payment_method_eligible,
     get_eligible_payment_methods,
 )
 from app.features.payment.services.payment_initiation import (
@@ -850,6 +851,16 @@ async def _validate_order_for_initiation(
             },
         )
 
+    if kind == KIND_FULL and payment_method_id is not None:
+        await _rebill_method_fee(
+            session,
+            order,
+            order_payments,
+            payment_method_id,
+            currency,
+            settled_amounts,
+        )
+
     # The part may already be partly settled by a store credit.
     expected = quantize_amount(remaining_amount(order, kind, settled_amounts), currency)
     if quantize_amount(amount, currency) != expected:
@@ -864,6 +875,16 @@ async def _validate_order_for_initiation(
             },
         )
     if payment_method_id is not None:
+        if kind != KIND_FULL:
+            await _check_deposit_order_method(
+                session,
+                order=order,
+                order_payments=order_payments,
+                payment_method_id=payment_method_id,
+                amount=amount,
+                current_user=current_user,
+                kind=kind,
+            )
         await _check_method_fee_amount(
             session, order, order_payments, payment_method_id, currency, kind
         )
@@ -872,6 +893,135 @@ async def _validate_order_for_initiation(
         # take it again before this attempt, or refuse it (audit 2026-11, B2).
         await reserve_released_order_stock(session, order_id=order_id)
     return kind
+
+
+async def _rebill_method_fee(
+    session: SessionDep,
+    order: Order,
+    order_payments: list[tuple[Any, str | None]],
+    payment_method_id: uuid.UUID,
+    currency: str,
+    settled_amounts: Any,
+) -> None:
+    """Bill the order the fee of the method it is now paid with.
+
+    An order still entirely unpaid (card refused, PayPal abandoned) can be
+    paid with another method: its total follows that method's fee, up or
+    down. It used to be refused (« ce moyen n'a pas les frais de la
+    commande ») on the very page that says « choisissez un autre moyen »
+    (relecture du 17/11/2026). Nothing is invoiced yet — the invoice is
+    issued at capture, from these totals.
+
+    The method the order is billed for is the one of its latest payment:
+    paying again with it keeps the fee the customer was quoted, whatever the
+    method's fee became since.
+
+    Only the full payment of an order: a deposit order keeps its split and
+    the rule of ``_check_method_fee_amount``. Flushes, no commit — a refused
+    initiation rolls the change back with the rest.
+    """
+    billed_method_id = next(
+        (
+            method_id
+            for payment, _status in reversed(order_payments)
+            if (method_id := getattr(payment, "payment_method_id", None)) is not None
+        ),
+        None,
+    )
+    if billed_method_id == payment_method_id:
+        return
+    method = await session.get(PaymentMethod, payment_method_id)
+    if method is None:
+        # Unknown method: initiate_payment_for_method reports it.
+        return
+    # Two attempts at once must not both move the total.
+    await session.refresh(order, with_for_update=True)
+    billed = quantize_amount(
+        Decimal(getattr(order, "payment_fee_amount", None) or 0), currency
+    )
+    fee = quantize_amount(Decimal(method.fee or 0), currency)
+    delta = fee - billed
+    if delta == 0:
+        return
+    new_total = quantize_amount(Decimal(order.total_amount) + delta, currency)
+    if new_total - settled_amounts.get(KIND_FULL, Decimal(0)) <= 0:
+        # A credit already covers the order without this fee: nothing left
+        # to initiate on. The fee check below answers.
+        return
+    order.payment_fee_amount = fee
+    order.total_fees_amount = quantize_amount(
+        Decimal(getattr(order, "total_fees_amount", None) or 0) + delta, currency
+    )
+    order.total_amount = new_total
+    session.add(order)
+    await session.flush()
+    logger.info(
+        "Order %s re-billed for payment method %s: fee %s → %s, total %s",
+        order.id,
+        payment_method_id,
+        billed,
+        fee,
+        new_total,
+    )
+
+
+async def _check_deposit_order_method(
+    session: SessionDep,
+    *,
+    order: Order,
+    order_payments: list[tuple[Any, str | None]],
+    payment_method_id: uuid.UUID,
+    amount: Decimal,
+    current_user: Any,
+    kind: str,
+) -> None:
+    """A deposit order is paid with one method, deposit and balance alike.
+
+    Its fee is spread over both parts: another method would need the split
+    recomputed, sometimes with the deposit already cashed. The balance
+    follows the method that settled the deposit; a deposit retried follows
+    the order's method. When that method can no longer be used (switched
+    off, not offered to the customer any more, amount above its ceiling) the
+    fee rule of ``_check_method_fee_amount`` decides alone, so the customer
+    is not left without a way to pay.
+    """
+    with_method = [
+        (payment, status)
+        for payment, status in order_payments
+        if getattr(payment, "payment_method_id", None) is not None
+    ]
+    if kind == KIND_BALANCE:
+        settled = [
+            row for row in with_method if row[1] in _SETTLED_PAYMENT_STATUS_NAMES
+        ]
+        with_method = settled or with_method
+    if not with_method:
+        return
+    reference_id = with_method[-1][0].payment_method_id
+    if reference_id == payment_method_id:
+        return
+    if not await check_payment_method_eligible(
+        session,
+        payment_method_id=reference_id,
+        price_group_id=getattr(current_user, "price_group_id", None),
+        amount=amount,
+    ):
+        return
+    reference = await session.get(PaymentMethod, reference_id)
+    raise AppError(
+        code="payment.method.must_match",
+        status_code=409,
+        message=(
+            "Une commande avec acompte se règle avec un seul moyen de paiement : "
+            "utilisez celui de la commande."
+        ),
+        details={
+            "order_id": str(order.id),
+            "payment_method_id": str(reference_id),
+            "payment_method_name": getattr(reference, "name", None),
+            "kind": kind,
+        },
+    )
 
 
 async def _check_method_fee_amount(

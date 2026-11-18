@@ -552,6 +552,31 @@ async def next_part_due(
     return kind, max(_ZERO, remaining_amount(order, kind, settled) - partial)
 
 
+async def online_part_due(
+    session: AsyncSession, *, order: Any
+) -> tuple[str | None, Decimal]:
+    """The part the customer can pay online now, as ``POST /payments/initiate``
+    expects it: the whole of what is left of the part. Nothing once instalments
+    were received on it at the counter — the online payment is for the whole
+    part, it would be refused (amount mismatch) or paid twice; the shop
+    records the rest."""
+    rows = await crud_payment.list_with_status_by_order_id(session, order_id=order.id)
+    settled, _pending = settled_by_kind(
+        [(p, s) for p, s in rows if s in SETTLED_PAYMENT_STATUSES]
+    )
+    kind = next_payment_kind(order, settled)
+    if kind is None:
+        return None, _ZERO
+    pending_ids = [
+        p.id
+        for p, s in rows
+        if s not in SETTLED_PAYMENT_STATUSES and (p.kind or "full") == kind
+    ]
+    if any((await received_by_payment(session, pending_ids)).values()):
+        return None, _ZERO
+    return kind, max(_ZERO, remaining_amount(order, kind, settled))
+
+
 @dataclass(slots=True)
 class OrderPaymentSummary:
     """Money in and money due on an order, receipts included."""
@@ -600,6 +625,7 @@ __all__ = [
     "EVENT_PARTIALLY_RECEIVED",
     "EVENT_RECEIPT_CANCELLED",
     "next_part_due",
+    "online_part_due",
     "PROVIDER_BY_METHOD",
     "OrderPaymentSummary",
     "ReceiptOutcome",

@@ -74,6 +74,11 @@ async def test_payment_captured_handler_syncs_order_paid(
     # which an AsyncMock session cannot serve — mock it at the service boundary.
     confirm_stock = AsyncMock(return_value=(0, []))
     monkeypatch.setattr(handlers, "secure_order_stock", confirm_stock)
+    # Closing the other waiting payments needs real rows (covered on a
+    # database in integration/test_deposit_flow.py).
+    monkeypatch.setattr(
+        handlers, "_close_superseded_payments", AsyncMock(return_value=False)
+    )
     # The order's current status: still before payment.
     session.get = AsyncMock(return_value=_make_status("Pending"))
 

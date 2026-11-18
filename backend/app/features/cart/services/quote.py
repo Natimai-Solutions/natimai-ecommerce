@@ -28,7 +28,11 @@ from app.core.config import settings
 from app.core.errors import AppError
 from app.features.cart.models.quote_request import QuoteRequest, QuoteRequestStatus
 from app.features.invoice.services.invoice_service import _seller_identity
-from app.features.invoice.services.numbering import allocate_quote_number
+from app.features.invoice.services.numbering import (
+    allocate_quote_number,
+    fiscal_year_of,
+    shop_local,
+)
 from app.features.invoice.services.pdf import (
     PdfRenderingUnavailableError,
     quote_pdf_filename,
@@ -104,7 +108,9 @@ async def issue_quote(
     currency = quote_currency(quote)
     now = datetime.now(UTC)
     if not quote.quote_number:
-        quote.quote_number = await allocate_quote_number(session, fiscal_year=now.year)
+        quote.quote_number = await allocate_quote_number(
+            session, fiscal_year=fiscal_year_of(now)
+        )
     references: dict[uuid.UUID, str] = {}
     for line in body.lines:
         if line.product_id and line.product_id not in references:
@@ -131,7 +137,7 @@ async def issue_quote(
     valid_until = body.valid_until or (now.date() + timedelta(days=QUOTE_VALIDITY_DAYS))
     quote.quote_snapshot = {
         "quote_number": quote.quote_number,
-        "issued_at": now.strftime("%d/%m/%Y"),
+        "issued_at": shop_local(now).strftime("%d/%m/%Y"),
         "valid_until": valid_until.strftime("%d/%m/%Y"),
         "currency": currency,
         "seller": await _seller_identity(session),

@@ -387,3 +387,31 @@ async def test_public_endpoints_expose_only_published_departures(
     # /next is the same resolver as the checkout attachment.
     nxt = await next_departure(db_session)
     assert nxt is not None and nxt.id == visible.id
+
+
+@pytest.mark.asyncio
+async def test_the_next_departure_opens_in_the_future_with_one_suffix(
+    db_session: AsyncSession,
+) -> None:
+    """Relecture du 17/11/2026: a recurring departure closed several periods
+    late opened a successor already past its cut-off (closed in turn, its
+    overdue reminders posted), and each generation added « (suivant) »."""
+    from app.features.departure.services import spawn_next_departure
+
+    real_now = NOW  # the frozen clock of this module
+    late = GroupedDeparture(
+        name="Hebdo (suivant)",
+        order_cutoff_at=real_now - timedelta(days=30),
+        status="closed",
+        is_published=True,
+        recurrence_days=7,
+    )
+    db_session.add(late)
+    await db_session.flush()
+
+    nxt = await spawn_next_departure(db_session, late)
+
+    assert nxt.name == "Hebdo (suivant)"
+    assert nxt.order_cutoff_at > real_now
+    assert nxt.order_cutoff_at <= real_now + timedelta(days=7)
+    await db_session.rollback()

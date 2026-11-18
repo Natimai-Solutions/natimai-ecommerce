@@ -1138,19 +1138,40 @@ async function onAddToCart() {
   cartError.value = cartStore.error ?? t('product.add_failed');
 }
 
+let shippingModesFor: string | null = null;
+
 async function loadShippingModes(productId: string): Promise<void> {
+  shippingModesFor = productId;
   try {
     const data = await getProductShippingModes(productId);
+    // A variant picked meanwhile asked for its own modes.
+    if (shippingModesFor !== productId) return;
+    const kept = selectedModeKey.value;
     shippingModes.value = data.shipping_modes;
     // Price shown for the default service level (resolved server-side, which
     // prefers the user's preferred_shipping_mode). The delivery mode is chosen
-    // per order at checkout, not per product.
-    selectedModeKey.value = data.default_mode;
+    // per order at checkout, not per product. The mode already picked is kept
+    // when the variant offers it too.
+    selectedModeKey.value =
+      kept && data.shipping_modes.some((m) => m.service_level === kept) ? kept : data.default_mode;
   } catch {
+    if (shippingModesFor !== productId) return;
     shippingModes.value = [];
     selectedModeKey.value = null;
   }
 }
+
+// The mode prices are those of ONE product: a variant has its own (its
+// supplement). They stayed the parent's, so the page and the cart line showed
+// the parent's price while the order billed the variant's (relecture du
+// 17/11/2026).
+watch(
+  () => effectiveProduct.value?.id ?? null,
+  (id) => {
+    if (typeof window === 'undefined' || !id || id === shippingModesFor) return;
+    void loadShippingModes(id);
+  },
+);
 
 async function loadKeySpecs(productId: string): Promise<void> {
   try {

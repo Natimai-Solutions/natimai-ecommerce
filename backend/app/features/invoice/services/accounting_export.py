@@ -30,6 +30,7 @@ from decimal import Decimal
 from typing import Any
 
 from app.features.invoice.models.invoice import Invoice
+from app.features.invoice.services.numbering import shop_local
 from app.utils.csv_export import safe_cell
 
 FEC_COLUMNS = [
@@ -69,8 +70,8 @@ def _amount(value: Decimal | str | int) -> str:
 
 
 def _date(value: datetime.datetime) -> str:
-    """Dates FEC : AAAAMMJJ."""
-    return value.strftime("%Y%m%d")
+    """Dates FEC : AAAAMMJJ, à l'heure de la boutique (comme le numéro)."""
+    return shop_local(value).strftime("%Y%m%d")
 
 
 def invoice_to_fec_rows(invoice: Invoice) -> list[dict[str, str]]:

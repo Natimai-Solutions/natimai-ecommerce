@@ -179,6 +179,22 @@
             </div>
           </section>
 
+          <AppNotice
+            v-if="deliveryLoadFailed"
+            tone="warning"
+            class="q-mb-md"
+            data-testid="checkout-delivery-failed"
+          >
+            {{ $t('checkout.delivery_load_failed') }}
+            <q-btn
+              flat
+              dense
+              no-caps
+              color="primary"
+              :label="$t('checkout.delivery_retry')"
+              @click="loadDeliveryOptions()"
+            />
+          </AppNotice>
           <section v-if="deliveryOptions.length > 0" class="step">
             <h2 class="step__title">
               <span class="step__num font-mono">2</span>{{ $t('checkout.step_delivery') }}
@@ -642,6 +658,9 @@ interface DeliveryChoice {
   pickupPlace: PickupPlaceInfo | null;
 }
 const deliveryOptions = ref<DeliveryChoice[]>([]);
+/** The delivery modes could not be read: the order is not payable without
+ * them (the API asks for one), and the customer can ask again. */
+const deliveryLoadFailed = ref(false);
 const selectedDeliveryKey = ref<string | null>(null);
 const selectedDelivery = computed(
   () => deliveryOptions.value.find((d) => d.value === selectedDeliveryKey.value) ?? null,
@@ -981,6 +1000,7 @@ const summaryOpen = ref(false);
 
 const payBlocker = computed<string | null>(() => {
   if (!selectedAddressId.value) return t('checkout.blocker_address');
+  if (deliveryLoadFailed.value) return t('checkout.delivery_load_failed');
   if (deliveryOptions.value.length > 0 && !selectedDelivery.value) {
     return t('checkout.blocker_delivery');
   }
@@ -1092,11 +1112,15 @@ async function loadDeliveryOptions() {
     if (!deliveryOptions.value.some((d) => d.value === selectedDeliveryKey.value)) {
       selectedDeliveryKey.value = deliveryOptions.value[0]?.value ?? null;
     }
+    deliveryLoadFailed.value = false;
   } catch {
-    // Non-blocking: the delivery section is hidden if options can't be loaded.
+    // Blocking, with a retry: the section used to disappear, « Payer » stayed
+    // enabled and the API answered « choisissez un mode de livraison » with
+    // nothing to choose (relecture du 17/11/2026).
     deliveryOptions.value = [];
     selectedDeliveryKey.value = null;
     customsDeclarationFee.value = '0';
+    deliveryLoadFailed.value = true;
   }
 }
 

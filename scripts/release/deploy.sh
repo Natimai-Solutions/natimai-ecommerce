@@ -64,6 +64,8 @@ echo "→ Sauvegarde de la base avant migration"
 mkdir -p backups
 PRE_DUMP="backups/pre_deploy_${IMAGE_TAG:0:12}_$(date +%Y%m%d_%H%M%S).dump"
 if "${COMPOSE[@]}" ps --status running --services 2>/dev/null | grep -qx postgres; then
+  # Le dump contient les données des clients : lisible par son seul propriétaire.
+  (umask 077; : > "$PRE_DUMP.part")
   "${COMPOSE[@]}" exec -T postgres sh -c 'pg_dump -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-fastapi_ecommerce}" -Fc' \
     > "$PRE_DUMP.part"
   if head -c 5 "$PRE_DUMP.part" | grep -q PGDMP; then
@@ -74,9 +76,30 @@ if "${COMPOSE[@]}" ps --status running --services 2>/dev/null | grep -qx postgre
     echo "✗ Sauvegarde avant migration invalide : déploiement arrêté." >&2
     exit 1
   fi
+elif [[ -n "$PREVIOUS_TAG" ]]; then
+  # Une version tourne déjà : une base arrêtée ou injoignable n'est pas un
+  # premier déploiement, et migrer sans dump enlève le filet.
+  echo "✗ La base n'est pas démarrée alors qu'une version est déployée ($PREVIOUS_TAG) :" >&2
+  echo "  pas de sauvegarde possible, déploiement arrêté." >&2
+  exit 1
 else
   echo "  (base pas encore démarrée : premier déploiement, rien à sauvegarder)"
 fi
+
+rollback() {
+  # La version cassée restait en service. Les migrations sont additives :
+  # l'ancien code tourne sur le schéma migré. Si ce n'est pas le cas,
+  # restaurer le dump pris avant la migration.
+  if [[ "${AUTO_ROLLBACK:-true}" == "false" || -z "$PREVIOUS_TAG" ]]; then
+    echo "  (pas de retour arrière : aucune version précédente connue, ou AUTO_ROLLBACK=false)" >&2
+    return
+  fi
+  echo "→ Retour à la version précédente $PREVIOUS_TAG" >&2
+  IMAGE_TAG="$PREVIOUS_TAG" "${COMPOSE[@]}" up -d --no-build --remove-orphans >&2 \
+    || echo "✗ Le retour arrière a échoué lui aussi : intervention manuelle." >&2
+  echo "  Base sauvegardée avant migration : ${PRE_DUMP:-aucune}" >&2
+  echo "  (./scripts/backup/restore.sh --production <dump> si le schéma doit revenir)" >&2
+}
 
 echo "→ Migrations et données initiales"
 # Toujours AVANT le nouveau code (alembic upgrade head + initial_data,
@@ -84,7 +107,16 @@ echo "→ Migrations et données initiales"
 "${COMPOSE[@]}" run --rm --no-build migrate
 
 echo "→ Mise en service"
-"${COMPOSE[@]}" up -d --no-build --remove-orphans
+# Une API qui ne démarre pas fait échouer « up » lui-même (les frontends en
+# dépendent, « service_healthy ») : sans ce test le script s'arrêtait ici,
+# avant le contrôle de santé qui portait le retour arrière.
+if ! "${COMPOSE[@]}" up -d --no-build --remove-orphans; then
+  echo "✗ La mise en service a échoué." >&2
+  "${COMPOSE[@]}" ps >&2 || true
+  "${COMPOSE[@]}" logs --tail 80 api >&2 || true
+  rollback
+  exit 1
+fi
 
 if [[ -n "${API_URL:-}" ]]; then
   echo "→ Contrôle de santé $API_URL"
@@ -97,15 +129,7 @@ if [[ -n "${API_URL:-}" ]]; then
       echo "✗ L'API ne répond pas « ready » après 5 min." >&2
       "${COMPOSE[@]}" ps >&2
       "${COMPOSE[@]}" logs --tail 80 api >&2
-      if [[ "${AUTO_ROLLBACK:-true}" != "false" && -n "$PREVIOUS_TAG" ]]; then
-        # La version cassée restait en service. Les migrations sont
-        # additives : l'ancien code tourne sur le schéma migré. Si ce n'est
-        # pas le cas, restaurer le dump pris avant la migration.
-        echo "→ Retour à la version précédente $PREVIOUS_TAG" >&2
-        IMAGE_TAG="$PREVIOUS_TAG" "${COMPOSE[@]}" up -d --no-build --remove-orphans >&2
-        echo "  Base sauvegardée avant migration : ${PRE_DUMP:-aucune}" >&2
-        echo "  (./scripts/backup/restore.sh --production <dump> si le schéma doit revenir)" >&2
-      fi
+      rollback
       exit 1
     fi
     sleep 10
@@ -119,6 +143,8 @@ docker image prune -f >/dev/null
 echo "$IMAGE_TAG" > .deployed_tag
 # Les dumps d'avant déploiement : les 5 derniers suffisent (la sauvegarde
 # quotidienne garde l'historique).
-ls -1t backups/pre_deploy_*.dump 2>/dev/null | tail -n +6 | xargs -r rm -f
+# « || true » : sans aucun dump (premier déploiement) le motif ne correspond à
+# rien et, sous pipefail, un déploiement réussi sortait en erreur.
+{ ls -1t backups/pre_deploy_*.dump 2>/dev/null || true; } | tail -n +6 | xargs -r rm -f
 
 echo "✓ Déployé : $IMAGE_TAG"

@@ -39,7 +39,7 @@ from app.features.payment.services.deposit import (
     balance_due,
 )
 from app.features.payment.services.receipts import (
-    next_part_due,
+    online_part_due,
     order_payment_summary,
 )
 from app.features.shipping.crud import (
@@ -181,7 +181,10 @@ class MyOrderDetail(MyOrderPublic):
     #: November 2026): ``POST /payments/initiate`` accepted it, no screen did.
     pay_now_kind: str | None = None
     pay_now_amount: Decimal = Decimal("0")
-    #: Method chosen at checkout (its fee is the one the order carries).
+    #: A ``full`` payment made with another method is re-billed that method's
+    #: fee: the amount to pay is then ``pay_now_amount − payment_fee_amount +
+    #: the method's fee`` (``payment_fee_amount`` comes with the order).
+    #: Method of the latest payment (its fee is the one the order carries).
     payment_method_id: uuid.UUID | None = None
 
 
@@ -201,7 +204,7 @@ async def _pay_now(
 ) -> tuple[str | None, Decimal]:
     """What the customer can pay online right now, as the initiation route
     will accept it."""
-    kind, amount = await next_part_due(session, order=order)
+    kind, amount = await online_part_due(session, order=order)
     if kind is None or amount <= 0:
         return None, Decimal("0")
     if kind == KIND_BALANCE:
@@ -214,14 +217,16 @@ async def _pay_now(
 async def _payment_method_id(
     session: SessionDep, order_id: uuid.UUID
 ) -> uuid.UUID | None:
-    """The method of the order's first payment: the one chosen at checkout."""
+    """The method of the order's latest payment: the one its fee is billed
+    for (the checkout's, or the one of a later attempt — see
+    ``_rebill_method_fee`` in payments.py)."""
     result = await session.exec(
         select(Payment.payment_method_id)
         .where(
             col(Payment.order_id) == order_id,
             col(Payment.payment_method_id).is_not(None),
         )
-        .order_by(col(Payment.created_at).asc().nulls_last())
+        .order_by(col(Payment.created_at).desc().nulls_last())
         .limit(1)
     )
     return result.first()

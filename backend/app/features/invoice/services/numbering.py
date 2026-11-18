@@ -33,11 +33,11 @@ _CREDIT_NOTE_COUNTER_TABLE = "credit_note_counters"
 _QUOTE_COUNTER_TABLE = "quote_counters"
 
 
-def fiscal_year_of(moment: datetime) -> int:
-    """The fiscal year of a document issued at ``moment``: the calendar year
-    on the shop's clock (``SHOP_TIMEZONE``), not in UTC. At Tahiti (UTC−10) a
-    document issued on 31 December after 14:00 local time took the next
-    year's number (functional audit, November 2026)."""
+def shop_local(moment: datetime) -> datetime:
+    """``moment`` on the shop's clock (``SHOP_TIMEZONE``): the date a document
+    prints and exports. The number followed the local year while the date
+    stayed in UTC — « FA-2026-… » dated 01/01/2027, and a date one day ahead
+    every afternoon at Tahiti (relecture du 17/11/2026)."""
     from app.core.config import settings
 
     try:
@@ -45,7 +45,15 @@ def fiscal_year_of(moment: datetime) -> int:
     except (ZoneInfoNotFoundError, ValueError):
         zone = ZoneInfo("UTC")
     aware = moment if moment.tzinfo is not None else moment.replace(tzinfo=UTC)
-    return aware.astimezone(zone).year
+    return aware.astimezone(zone)
+
+
+def fiscal_year_of(moment: datetime) -> int:
+    """The fiscal year of a document issued at ``moment``: the calendar year
+    on the shop's clock (``SHOP_TIMEZONE``), not in UTC. At Tahiti (UTC−10) a
+    document issued on 31 December after 14:00 local time took the next
+    year's number (functional audit, November 2026)."""
+    return shop_local(moment).year
 
 
 def _format_number(counter: int, *, prefix: str, fiscal_year: int) -> str:

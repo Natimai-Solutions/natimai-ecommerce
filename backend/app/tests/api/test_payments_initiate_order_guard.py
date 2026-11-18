@@ -423,7 +423,9 @@ async def test_initiate_refuses_a_method_without_the_billed_fee(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Audit 2026-11, S9: quoted with a free method (the order total holds no
-    fee), paid with a charged one — its fee was never billed."""
+    fee), paid with a charged one — its fee was never billed. The order is
+    now re-billed that fee (relecture du 17/11/2026): the old amount no
+    longer settles it."""
     user = _make_user()
     order = SimpleNamespace(
         id=uuid4(),
@@ -431,6 +433,7 @@ async def test_initiate_refuses_a_method_without_the_billed_fee(
         order_status_id=uuid4(),
         total_amount=Decimal("25000.00"),
         payment_fee_amount=Decimal("0.00"),
+        total_fees_amount=Decimal("0.00"),
     )
     session = _make_session(
         order=order,
@@ -447,8 +450,58 @@ async def test_initiate_refuses_a_method_without_the_billed_fee(
             current_user=cast(Any, user),
         )
 
-    assert exc_info.value.code == "payment.method.fee_mismatch"
+    assert exc_info.value.code == "payment.amount.mismatch"
+    assert exc_info.value.details["expected_amount"] == "25500"
     service_mock.assert_not_awaited()
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("billed", "method_fee", "total"),
+    [("0", "500", "25500"), ("500", "0", "24500")],
+)
+async def test_an_unpaid_order_is_rebilled_the_fee_of_the_method_it_is_paid_with(
+    monkeypatch: pytest.MonkeyPatch, billed: str, method_fee: str, total: str
+) -> None:
+    """Card refused, the customer pays by transfer (or the reverse): the
+    total follows the fee of the new method instead of a refusal."""
+    user = _make_user()
+    order = SimpleNamespace(
+        id=uuid4(),
+        user_id=user.id,
+        order_status_id=uuid4(),
+        total_amount=Decimal("25000.00"),
+        payment_fee_amount=Decimal(billed),
+        total_fees_amount=Decimal("1000") + Decimal(billed),
+    )
+    session = _make_session(
+        order=order,
+        order_status=SimpleNamespace(name="PaymentFailed"),
+        method_fee=Decimal(method_fee),
+    )
+    _patch_order_payments(monkeypatch, [_order_payment(currency="XPF")])
+    service_mock = _patch_initiation_service(monkeypatch)
+    service_mock.return_value = SimpleNamespace(
+        payment=SimpleNamespace(id=uuid4()),
+        provider_code="manual_transfer",
+        provider_reference=None,
+        form_token=None,
+        server_url=None,
+        public_key=None,
+        redirect_url=None,
+        instructions=None,
+    )
+
+    await initiate_payment(
+        session=session,
+        request=_make_request(order_id=order.id, amount=Decimal(total)),
+        current_user=cast(Any, user),
+    )
+
+    assert order.total_amount == Decimal(total)
+    assert order.payment_fee_amount == Decimal(method_fee)
+    assert order.total_fees_amount == Decimal("1000") + Decimal(method_fee)
+    service_mock.assert_awaited_once()
 
 
 @pytest.mark.anyio

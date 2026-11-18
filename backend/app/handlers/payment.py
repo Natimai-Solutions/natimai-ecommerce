@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.alerting import send_alert
@@ -24,7 +25,11 @@ from app.features.order.crud.order_crud import crud_order
 from app.features.order.crud.order_status_crud import crud_order_status
 from app.features.order.models.order import Order
 from app.features.order.models.order_status import OrderStatus, OrderStatusCreate
-from app.features.order.services.status import EVENT_ORDER_STATUS_CHANGED
+from app.features.order.services.status import (
+    EVENT_ORDER_STATUS_CHANGED,
+    OrderStatusTransitionError,
+    check_status_transition,
+)
 from app.features.payment.crud.payment import crud_payment
 from app.features.payment.models.payment import Payment
 from app.features.payment.services.authorizations import (
@@ -183,6 +188,28 @@ async def _sync_order_status(
             target_status_name,
         )
         return
+
+    # The lifecycle holds for payment events too (relecture du 17/11/2026):
+    # an infected document on a delivered order made it payable again, a
+    # replayed partial refund reopened a refunded one. A cancelled order that
+    # gets its money back does become « Refunded ».
+    current = (
+        await session.get(OrderStatus, order.order_status_id)
+        if order.order_status_id
+        else None
+    )
+    old_name = current.name if current is not None else None
+    if not (old_name == "Cancelled" and target_status_name == "Refunded"):
+        try:
+            check_status_transition(old_name, target_status_name)
+        except OrderStatusTransitionError:
+            logger.warning(
+                "Order %s stays « %s »: payment event asked for « %s »",
+                order_uuid,
+                old_name,
+                target_status_name,
+            )
+            return
 
     status_id = await _get_or_create_order_status_id(session, name=target_status_name)
     order.order_status_id = status_id
@@ -440,6 +467,14 @@ async def on_payment_captured(session: AsyncSession, payload: dict[str, Any]) ->
         return
     payment, order = await _load_payment_and_order(session, payload)
     kind = _payment_kind(payment)
+    if (
+        payment is not None
+        and order is not None
+        and await _close_superseded_payments(session, order_id=order.id, paid=payment)
+    ):
+        # Its commit expired both rows: read them again before going on.
+        await session.refresh(payment)
+        await session.refresh(order)
     if kind == KIND_BALANCE and order is not None:
         # The goods were bought and reserved on the deposit; the balance only
         # settles the order. « DepositPaid » becomes « Paid »; a fulfilment
@@ -456,6 +491,85 @@ async def on_payment_captured(session: AsyncSession, payload: dict[str, Any]) ->
     await _advance_order_on_payment(session, payload=payload, order=order, kind=kind)
     # The stock reserved at checkout is now definitively consumed.
     await _secure_stock_on_payment(session, payload=payload, confirm=True)
+
+
+#: A payment still waiting for the customer (card form, PayPal) or for the
+#: shop (transfer, cheque, cash announced at checkout).
+_WAITING_PAYMENT_STATUSES = frozenset({"Pending", "AwaitingValidation"})
+
+
+async def _close_superseded_payments(
+    session: AsyncSession, *, order_id: uuid.UUID, paid: Payment
+) -> bool:
+    """The part is paid: the other payments still waiting on it are closed.
+
+    A transfer announced at checkout, then the order paid by card from « Payer
+    ma commande » — the transfer stayed « en attente de validation » on a
+    settled order, at an amount that is not the order's any more once the
+    method changed (relecture du 17/11/2026). One on which money was already
+    received at the counter is left to the admin. Commits when it closed
+    something (and returns True: the caller's rows are expired); publishes
+    nothing (no « paiement échoué » for the customer).
+    """
+    from app.features.payment.crud.payment_status import crud_payment_status
+    from app.features.payment.models.payment_status import PaymentStatus
+    from app.features.payment.services.receipts import received_by_payment
+
+    kind = _payment_kind(paid)
+    paid_id = paid.id
+    waiting = [
+        payment
+        for payment, status_name in await crud_payment.list_with_status_by_order_id(
+            session, order_id=order_id
+        )
+        if payment.id != paid_id
+        and (status_name is None or status_name in _WAITING_PAYMENT_STATUSES)
+        and _payment_kind(payment) == kind
+        and getattr(payment, "is_active", True)
+    ]
+    if not waiting:
+        return False
+    received = await received_by_payment(session, [p.id for p in waiting])
+    cancelled = await crud_payment_status.get_by_name(session, name="Cancelled")
+    if cancelled is None:
+        cancelled = PaymentStatus(
+            name="Cancelled", description="Order cancelled before any payment"
+        )
+        session.add(cancelled)
+        await session.flush()
+    closed = 0
+    for payment in waiting:
+        if received.get(payment.id):
+            logger.warning(
+                "Payment %s of order %s keeps its receipts although the part "
+                "was paid by payment %s: to settle by hand",
+                payment.id,
+                order_id,
+                paid_id,
+            )
+            continue
+        locked = (
+            await session.exec(
+                select(Payment)
+                .where(col(Payment.id) == payment.id)
+                .with_for_update()
+                .execution_options(populate_existing=True)
+            )
+        ).one()
+        # Decided on the locked row: a notification may have settled it.
+        if locked.payment_status_id == payment.payment_status_id:
+            locked.payment_status_id = cancelled.id
+            session.add(locked)
+            closed += 1
+    if closed:
+        await session.commit()
+        logger.info(
+            "Order %s: %d waiting payment(s) closed, the part is paid by %s",
+            order_id,
+            closed,
+            paid_id,
+        )
+    return closed > 0
 
 
 async def _secure_stock_on_payment(

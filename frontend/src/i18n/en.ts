@@ -226,6 +226,8 @@ const en: MessageSchema = {
     offer_failed: 'The link could not be sent: try again.',
   },
   checkout: {
+    delivery_load_failed: 'The delivery options could not be loaded.',
+    delivery_retry: 'Try again',
     edit_cart: 'Edit the cart',
     back_to_cart: 'Cart',
     title_done: 'Order placed',
@@ -565,6 +567,10 @@ const en: MessageSchema = {
     pay: 'Pay {amount}',
     request_saved: 'Your payment request has been recorded.',
     see_order: 'See the order',
+    method_fee: 'fee {amount}',
+    fee_changed: 'The total follows the fee of the payment method chosen.',
+    not_payable:
+      'This order cannot be paid online at the moment. Check its tracking page or contact us.',
     settled: 'This order is fully paid.',
     summary: 'Summary',
     summary_title: 'Summary',

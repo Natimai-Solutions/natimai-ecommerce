@@ -14,8 +14,12 @@
     <AppNotice v-else-if="errorMessage && !order" tone="error">{{ errorMessage }}</AppNotice>
 
     <template v-else-if="order">
-      <AppNotice v-if="nothingDue" tone="success" data-testid="balance-settled">
-        {{ $t('balance.settled') }}
+      <AppNotice
+        v-if="nothingDue"
+        :tone="fullyPaid ? 'success' : 'info'"
+        data-testid="balance-settled"
+      >
+        {{ fullyPaid ? $t('balance.settled') : $t('balance.not_payable') }}
         <template #action>
           <q-btn
             flat
@@ -84,8 +88,11 @@
           <h2 class="balance__summary-title">{{ $t('balance.summary_title') }}</h2>
           <div class="app-kv">
             <span>{{ $t('balance.total') }}</span>
-            <span class="font-mono">{{ money(order.total_amount) }}</span>
+            <span class="font-mono" data-testid="balance-total">{{ money(totalAmount) }}</span>
           </div>
+          <p v-if="feeDelta !== 0" class="text-caption q-my-xs" data-testid="balance-fee-changed">
+            {{ $t('balance.fee_changed') }}
+          </p>
           <div v-if="payingBalance" class="app-kv">
             <span>{{ $t('balance.deposit_paid') }}</span>
             <span class="font-mono">{{ money(order.deposit_amount) }}</span>
@@ -156,11 +163,53 @@ const orderLabel = computed(() =>
  * left, page reloaded during the card form) had no way to be paid at all —
  * the cart was already emptied (functional audit, November 2026).
  */
-const dueAmount = computed(() => order.value?.pay_now_amount ?? '0');
+const baseDueAmount = computed(() => order.value?.pay_now_amount ?? '0');
+const billedFee = computed(() => Number.parseFloat(order.value?.payment_fee_amount ?? '0') || 0);
+function feeOf(method: PaymentMethod): number {
+  return Number.parseFloat(method.fee ?? '0') || 0;
+}
+/**
+ * An order still entirely unpaid can change its payment method: the API
+ * re-bills it that method's fee, so the amount follows the method picked.
+ * A deposit or a balance keeps the amount of the order.
+ */
+const rebillable = computed(() => order.value?.pay_now_kind === 'full');
+const selectedMethod = computed(
+  () => methods.value.find((m) => m.id === selectedMethodId.value) ?? null,
+);
+const feeDelta = computed(() =>
+  rebillable.value &&
+  selectedMethod.value &&
+  // The method the order is billed for keeps the fee it was quoted.
+  selectedMethod.value.id !== order.value?.payment_method_id
+    ? feeOf(selectedMethod.value) - billedFee.value
+    : 0,
+);
+const dueAmount = computed(() => {
+  if (feeDelta.value === 0) return baseDueAmount.value;
+  const decimals = (baseDueAmount.value.split('.')[1] ?? '').length;
+  return (Number.parseFloat(baseDueAmount.value) + feeDelta.value).toFixed(decimals);
+});
+const totalAmount = computed(() => {
+  const total = order.value?.total_amount ?? '0';
+  if (feeDelta.value === 0) return total;
+  const decimals = (total.split('.')[1] ?? '').length;
+  return (Number.parseFloat(total) + feeDelta.value).toFixed(decimals);
+});
+/** The API refuses these for a deposit (other fee) or a balance (dearer). */
+function methodRefused(method: PaymentMethod): boolean {
+  if (rebillable.value || method.id === order.value?.payment_method_id) return false;
+  const fee = feeOf(method);
+  return payingBalance.value ? fee > billedFee.value : fee !== billedFee.value;
+}
 const payingBalance = computed(() => order.value?.pay_now_kind === 'balance');
 const nothingDue = computed(
-  () => !order.value?.pay_now_kind || !(Number.parseFloat(dueAmount.value) > 0),
+  () => !order.value?.pay_now_kind || !(Number.parseFloat(baseDueAmount.value) > 0),
 );
+
+/** Nothing to pay online is not « paid »: a cancelled order, one under review
+ * or one settled at the counter by instalments said « intégralement réglée ». */
+const fullyPaid = computed(() => !(Number.parseFloat(order.value?.amount_due ?? '0') > 0));
 
 function money(raw: string): string {
   return orderMoney(raw, order.value?.currency, currencyStore.reference);
@@ -170,7 +219,12 @@ const methodChoices = computed<ChoiceOption[]>(() =>
   methods.value.map((m) => ({
     value: m.id,
     title: m.name,
-    caption: m.description,
+    caption:
+      rebillable.value && feeOf(m) > 0
+        ? [m.description, t('balance.method_fee', { amount: money(String(feeOf(m))) })]
+            .filter(Boolean)
+            .join(' — ')
+        : m.description,
     testid: `balance-method-${m.provider_code}`,
   })),
 );
@@ -233,7 +287,14 @@ onMounted(async () => {
   try {
     order.value = await getMyOrder(orderId.value);
     if (!nothingDue.value) {
-      methods.value = await listMyPaymentMethods(Number.parseFloat(dueAmount.value));
+      const eligible = await listMyPaymentMethods(Number.parseFloat(baseDueAmount.value));
+      // A deposit order is paid with one method, deposit and balance alike
+      // (its fee is spread over both parts). The others come back only when
+      // that method can no longer be used.
+      const own = rebillable.value
+        ? undefined
+        : eligible.find((m) => m.id === order.value?.payment_method_id);
+      methods.value = own ? [own] : eligible.filter((m) => !methodRefused(m));
       // The order's own method first: its fee is the one the order carries.
       const chosen = methods.value.find((m) => m.id === order.value?.payment_method_id);
       selectedMethodId.value = chosen?.id ?? methods.value[0]?.id ?? null;

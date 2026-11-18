@@ -226,6 +226,8 @@ const fr = {
     offer_failed: "Le lien n'a pas pu être envoyé : réessayez.",
   },
   checkout: {
+    delivery_load_failed: 'Les modes de livraison n’ont pas pu être chargés.',
+    delivery_retry: 'Réessayer',
     edit_cart: 'Modifier le panier',
     back_to_cart: 'Panier',
     title_done: 'Commande enregistrée',
@@ -573,6 +575,10 @@ const fr = {
     pay: 'Régler {amount}',
     request_saved: 'Votre demande de règlement a bien été enregistrée.',
     see_order: 'Voir la commande',
+    method_fee: 'frais {amount}',
+    fee_changed: 'Le total suit les frais du moyen de paiement choisi.',
+    not_payable:
+      'Cette commande ne peut pas être réglée en ligne pour le moment. Consultez son suivi ou contactez-nous.',
     settled: 'Cette commande est intégralement réglée.',
     summary: 'Récapitulatif',
     summary_title: 'Récapitulatif',

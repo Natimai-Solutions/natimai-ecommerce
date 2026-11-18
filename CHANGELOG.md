@@ -9,6 +9,9 @@ takes a tag as its `ref`.
 
 ### Security
 
+- `pnpm audit` ignores GHSA-fc5q-39xc-vjpf (`picomatch` ≤ 4.0.7, ReDoS) until
+  a patched version exists: build tooling only, no fix published. To remove
+  then (see the work plan, §9).
 - An account linked to Google / Microsoft that also has a chosen password
   needs that password to be erased, a recent sign-in no longer stands for it
   (`users.has_password`, migration `e1f2a3b4c5d6`; unknown for the accounts
@@ -132,6 +135,19 @@ takes a tag as its `ref`.
 
 ### Changed
 
+- An order with a deposit is paid with a single payment method, deposit and
+  balance alike (`payment.method.must_match`): its fee is spread over both
+  parts. Another method is accepted only when that one can no longer be used
+  (switched off, no longer offered, amount above its ceiling).
+- The payment that settles a part closes the other payments still waiting on
+  it (a transfer announced at checkout, then the order paid by card): they
+  stayed « en attente de validation » on a settled order.
+- « Payer ma commande »: an order still entirely unpaid can be paid with
+  another payment method — it is re-billed that method's fee (total and fees
+  follow, up or down) instead of « ce moyen n'a pas les frais de la
+  commande ». The page shows the fee of each method and the new total. A
+  deposit or a balance keeps the order's amount: only the accepted methods
+  are listed.
 - Front: a Vitest design guard (`shared/ui/src/design-guard.test.ts`) over
   both apps and `shared/ui` refuses Material colours, `bg-white`, colours picked
   from `$q.dark`, hard-coded colours and `!important` outside the token files,
@@ -193,6 +209,43 @@ takes a tag as its `ref`.
 
 ### Fixed
 
+- Relecture du 17/11/2026 of the November changes (five independent reviews):
+  - « Payer » is no longer offered online once instalments were received on
+    the part due (the amount offered was refused by the initiation); the page
+    says « not payable online » instead of « fully paid » for a cancelled
+    order or one under review.
+  - The order line records the import mode it is really priced on; « price
+    unavailable » follows the caller's language.
+  - Invoices, credit notes, quotes, the FEC and the CSV export are dated on
+    the shop's clock, like their number (« FA-2026-… » was dated 01/01/2027,
+    and every afternoon at Tahiti printed the next day).
+  - A background task stopped by its timeout or by the worker is journaled as
+    failed and alerts; a task alternating success and failure alerts at most
+    once an hour.
+  - Payment events follow the order lifecycle (an infected document on a
+    delivered order made it payable again; a replayed partial refund reopened
+    a refunded one). « PaymentReview » can go back to « à payer ».
+  - The next departure of a recurring one opens with a cut-off in the future
+    and a single « (suivant) » suffix; shortages and unpaid orders of an
+    automatic close are logged.
+  - `deploy.sh`: the rollback also runs when `docker compose up` itself fails
+    (an API that does not start), a deployed shop whose database is stopped is
+    not migrated without a dump, the dump is owner-readable only, and a first
+    deployment no longer ends in error on the dump rotation.
+  - Supplier units of a partially refunded or backordered order stay held;
+    a refunded gift card whose credit was entirely spent is deactivated.
+  - `has_password` is filled for existing accounts where it can be deduced
+    (migration `f2a3b4c5d6e7`).
+  - Storefront: a variant shows and carries its own import-mode prices (the
+    cart line showed the parent's); the checkout says when the delivery modes
+    could not be loaded and offers to retry instead of a dead end. Admin: the
+    dates of a departure no longer move forward a day at each save for a
+    browser east of the shop.
+- Checkout by card or PayPal answered 500 on an order already committed: the
+  response and the log read rows expired by the second commit (or by the
+  rollback when the provider failed). The values are read once before the
+  provider call (relecture du 17/11/2026 ; introduced with the deferred
+  provider call, never released).
 - Checkout: the card / PayPal provider is called once the order is committed,
   no longer inside the transaction that holds the stock rows locked (a slow
   provider, up to 30 s, made every other checkout of the same products wait;

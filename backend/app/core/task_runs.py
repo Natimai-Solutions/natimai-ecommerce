@@ -14,6 +14,7 @@ recording is logged and swallowed.
 
 from __future__ import annotations
 
+import asyncio
 import functools
 import logging
 from collections.abc import Awaitable, Callable
@@ -26,6 +27,8 @@ logger = logging.getLogger(__name__)
 
 #: A task that keeps failing is reported again after this long.
 REALERT_AFTER = timedelta(hours=6)
+#: A task that fails again right after a success stays quiet this long.
+FLAPPING_QUIET = timedelta(hours=1)
 
 STATUS_OK = "ok"
 STATUS_PARTIAL = "partial"
@@ -117,10 +120,13 @@ async def _record_end(name: str, status: str, error: str | None, result: Any) ->
             last = row.last_alert_at
             if last is not None and last.tzinfo is None:
                 last = last.replace(tzinfo=UTC)
+            # A new incident alerts at once — unless one was sent within the
+            # hour: a task that alternates success and failure alerted on
+            # every other run.
             alert = (
-                row.consecutive_failures == 1
-                or last is None
+                last is None
                 or (now - last >= REALERT_AFTER)
+                or (row.consecutive_failures == 1 and now - last >= FLAPPING_QUIET)
             )
             if alert:
                 row.last_alert_at = now
@@ -166,6 +172,17 @@ def journaled(fn: TaskFn, name: str | None = None) -> TaskFn:
             logger.warning("Task start of %s not recorded", key, exc_info=True)
         try:
             result = await fn(ctx, *args, **kwargs)
+        except asyncio.CancelledError:
+            # arq enforces its job timeout by cancelling the task (and a
+            # stopping worker does the same): not an ``Exception``, so the run
+            # stayed « ok » from its last success and nobody was told.
+            try:
+                await asyncio.shield(
+                    record_run(key, STATUS_FAILED, "interrompue (délai ou arrêt)")
+                )
+            except BaseException:  # noqa: BLE001 - the cancellation goes on
+                logger.warning("Cancelled run of %s not recorded", key)
+            raise
         except Exception as exc:
             await record_run(key, STATUS_FAILED, f"{type(exc).__name__}: {exc}")
             raise

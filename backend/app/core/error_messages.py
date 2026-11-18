@@ -17,6 +17,7 @@ EN: dict[str, str] = {
     "cart.stock.insufficient": "Not enough stock for an item of your cart: adjust its quantity.",
     "cart.stock.unavailable": "An item of your cart is no longer available from the supplier.",
     "payment.method.fee_mismatch": "This payment method does not carry the order's fee: choose the order's one.",
+    "payment.method.must_match": "An order with a deposit is paid with a single payment method: use the order's one.",
     "payment.order.cancelled": "This order is cancelled: it can no longer be paid.",
     "payment.order.out_of_stock": "An item of this order is no longer in stock: it can no longer be paid.",
     "product.price_unavailable": "The price of this item is not available at the moment.",
