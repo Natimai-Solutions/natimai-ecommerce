@@ -12,6 +12,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.db import engine
 from app.features.messaging.notify import notify_unread, release_stale
+from app.features.messaging.retention import retention_sweep
 from app.features.system.modules import module_enabled
 
 logger = logging.getLogger(__name__)
@@ -40,8 +41,19 @@ async def release_stale_conversations_task(
     return {"status": "ok", "released": released}
 
 
+async def messaging_retention_task(
+    _ctx: dict[str, Any], **_kwargs: Any
+) -> dict[str, Any]:
+    """Deletion notices, then deletions (runs even with the module off: the
+    retention promise holds for conversations already written)."""
+    async with AsyncSession(engine) as session:
+        result = await retention_sweep(session)
+    return {"status": "ok", **result}
+
+
 def get_messaging_cron_jobs() -> list[Any]:
-    """Every five minutes; the release at 07:20 in Tahiti (17:20 UTC)."""
+    """Every five minutes; the release at 07:20 in Tahiti (17:20 UTC); the
+    retention at 03:40 in Tahiti (13:40 UTC)."""
     return [
         cron(
             notify_unread_messages_task,  # type: ignore[arg-type]
@@ -55,5 +67,12 @@ def get_messaging_cron_jobs() -> list[Any]:
             minute=20,
             second=0,
             name="release_stale_conversations",
+        ),
+        cron(
+            messaging_retention_task,  # type: ignore[arg-type]
+            hour=13,
+            minute=40,
+            second=0,
+            name="messaging_retention",
         ),
     ]

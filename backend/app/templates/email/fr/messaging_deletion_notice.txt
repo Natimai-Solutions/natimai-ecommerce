@@ -1,0 +1,10 @@
+Bonjour{% if full_name %} {{ full_name }}{% endif %},
+
+Votre conversation {{ number }} avec {{ shop_name }}, réglée depuis longtemps,
+arrive au terme de sa durée de conservation. Elle sera supprimée à partir du
+{{ deletion_date }}.
+
+Pour la garder, ouvrez-la dans Mon compte → Messages : vous pouvez la
+télécharger ou la garder un an de plus.
+
+L'équipe {{ shop_name }}

@@ -140,6 +140,28 @@ class ConversationMessage(SQLModel, table=True):
     created_at: datetime.datetime = Field(index=True)
 
 
+class ConversationAttachment(SQLModel, table=True):
+    """A file joined to a message. Only clean files are stored (scanned at
+    upload); images are re-encoded without their metadata."""
+
+    __tablename__ = "conversation_attachments"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    conversation_id: uuid.UUID = Field(
+        foreign_key="conversations.id", index=True, ondelete="CASCADE"
+    )
+    message_id: uuid.UUID = Field(
+        foreign_key="conversation_messages.id", index=True, ondelete="CASCADE"
+    )
+    #: Name shown to the reader (sanitised); never part of the storage key.
+    filename: str = Field(max_length=255)
+    mime: str = Field(max_length=100)
+    size: int
+    sha256: str = Field(max_length=64)
+    object_key: str = Field(max_length=500)
+    created_at: datetime.datetime
+
+
 __all__ = [
     "BODY_MAX",
     "CHANNELS",
@@ -148,6 +170,7 @@ __all__ = [
     "SUBJECT_MAX",
     "TOPIC_CHANNEL",
     "Conversation",
+    "ConversationAttachment",
     "ConversationMessage",
     "ConversationStatus",
     "MessageKind",

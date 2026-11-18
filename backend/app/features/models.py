@@ -20,7 +20,11 @@ from app.features.inventory.models.stock_movement import InventoryStockMovement
 from app.features.invoice.models.credit_note import CreditNote, CreditNoteCounter
 from app.features.invoice.models.invoice import Invoice, InvoiceCounter
 from app.features.media.models import MediaAsset
-from app.features.messaging.models import Conversation, ConversationMessage
+from app.features.messaging.models import (
+    Conversation,
+    ConversationAttachment,
+    ConversationMessage,
+)
 from app.features.notification.models.email_log import EmailLog
 from app.features.order.models.order import Order
 from app.features.order.models.order_line import OrderLine
@@ -69,7 +73,6 @@ from app.features.user.models.address import Address
 from app.features.user.models.group import Group
 from app.features.user.models.group_security import GroupSecurity
 from app.features.user.models.group_upgrade_request import GroupUpgradeRequest
-from app.features.user.models.notification import Notification, UserNotification
 from app.features.user.models.oauth_link import UserOAuthLink
 from app.features.user.models.refresh_token import UserRefreshToken
 from app.features.user.models.review import Review
@@ -80,6 +83,7 @@ from app.features.user.models.wishlist import Wishlist, WishlistItem
 
 __all__ = [
     "Conversation",
+    "ConversationAttachment",
     "ConversationMessage",
     "CategoryLink",
     "ProductLink",
@@ -103,7 +107,6 @@ __all__ = [
     "GroupSecurity",
     "Inventory",
     "InventoryStockMovement",
-    "Notification",
     "Order",
     "OrderLine",
     "OrderStatus",
@@ -141,7 +144,6 @@ __all__ = [
     "GroupUpgradeRequest",
     "UserOAuthLink",
     "UserGroup",
-    "UserNotification",
     "UserPreference",
     "UserRefreshToken",
     "Wishlist",

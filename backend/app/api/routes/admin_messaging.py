@@ -12,19 +12,28 @@ import datetime
 import uuid
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy import func, or_
 from sqlmodel import col, select
 
 from app.api.deps import CurrentSuperUser, SessionDep, module_required
-from app.api.routes.messaging import ConversationSummary, _summary
+from app.api.routes.messaging import (
+    AttachmentPublic,
+    ConversationSummary,
+    _summary,
+    attachments_of,
+    file_response,
+)
 from app.core.datetimes import utcnow
+from app.core.errors import AppError
+from app.features.messaging import attachments as files
 from app.features.messaging import service
 from app.features.messaging.models import (
     BODY_MAX,
     CHANNELS,
     Conversation,
+    ConversationAttachment,
     ConversationMessage,
     ConversationStatus,
     MessageKind,
@@ -63,6 +72,7 @@ class StaffMessage(BaseModel):
     data: dict[str, object] = {}
     created_at: datetime.datetime
     author_name: str = ""
+    attachments: list[AttachmentPublic] = []
 
 
 class StaffConversationDetail(StaffConversation):
@@ -264,6 +274,7 @@ async def get_conversation(
         **(await _staff_view(session, conversation)).model_dump()
     )
     detail.context_label = await _context_label(session, conversation)
+    attached = await attachments_of(session, [m.id for m in messages])
     detail.messages = [
         StaffMessage(
             id=m.id,
@@ -273,6 +284,7 @@ async def get_conversation(
             data=dict(m.data or {}),
             created_at=m.created_at,
             author_name=names.get(m.author_id, "") if m.author_id else "",
+            attachments=attached.get(m.id, []),
         )
         for m in messages
     ]
@@ -313,6 +325,66 @@ async def post_staff_message(
     )
     await session.commit()
     return await _detail(session, conversation_id, admin)
+
+
+@router.post(
+    "/{conversation_id}/attachments",
+    response_model=StaffConversationDetail,
+    status_code=201,
+)
+async def post_staff_file(
+    conversation_id: uuid.UUID,
+    session: SessionDep,
+    admin: CurrentSuperUser,
+    file: Annotated[UploadFile, File()],
+    body: Annotated[str, Form(max_length=BODY_MAX)] = "",
+    kind: Annotated[Literal["message", "note"], Form()] = "message",
+) -> StaffConversationDetail:
+    """Send a file to the customer (takes a free conversation), or join it to
+    an internal note."""
+    conversation = await _get(session, conversation_id)
+    prepared = await files.prepare(await file.read(files.MAX_BYTES + 1))
+    now = utcnow()
+    if kind == "message":
+        await service.claim(session, conversation, admin, implicit=True, now=now)
+    message = await service.add_message(
+        session,
+        conversation,
+        side=MessageSide.STAFF,
+        body=body,
+        author_id=admin.id,
+        kind=MessageKind(kind),
+        now=now,
+        with_file=True,
+    )
+    await files.store(
+        session,
+        conversation,
+        message_id=message.id,
+        filename=file.filename,
+        prepared=prepared,
+        now=now,
+    )
+    await session.commit()
+    return await _detail(session, conversation_id, admin)
+
+
+@router.get("/{conversation_id}/attachments/{attachment_id}")
+async def get_staff_file(
+    conversation_id: uuid.UUID,
+    attachment_id: uuid.UUID,
+    session: SessionDep,
+    _admin: CurrentSuperUser,
+) -> Response:
+    attachment = await session.get(ConversationAttachment, attachment_id)
+    if attachment is None or attachment.conversation_id != conversation_id:
+        raise AppError(
+            code="messaging.attachment.not_found",
+            status_code=404,
+            message="File not found.",
+            details={},
+        )
+    return file_response(attachment, await files.read(attachment))
 
 
 @router.post("/{conversation_id}/read", status_code=204)

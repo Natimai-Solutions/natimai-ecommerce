@@ -78,7 +78,22 @@
           </span>
         </div>
         <StatusTag :tone="statusTone(current.status)" :label="statusLabel(current.status)" />
+        <q-btn flat round dense icon="ph:dots-three-vertical" :aria-label="$t('messaging.more')">
+          <q-menu>
+            <q-list dense style="min-width: 220px">
+              <q-item v-close-popup clickable @click="onDownload">
+                <q-item-section avatar><q-icon name="ph:download-simple" /></q-item-section>
+                <q-item-section>{{ $t('messaging.download') }}</q-item-section>
+              </q-item>
+              <q-item v-close-popup clickable data-testid="messaging-keep" @click="onKeep">
+                <q-item-section avatar><q-icon name="ph:archive" /></q-item-section>
+                <q-item-section>{{ $t('messaging.keep') }}</q-item-section>
+              </q-item>
+            </q-list>
+          </q-menu>
+        </q-btn>
       </div>
+      <AppNotice v-if="notice" tone="success" dense class="q-mb-md">{{ notice }}</AppNotice>
 
       <ol class="messages__list" aria-live="polite">
         <li
@@ -95,7 +110,23 @@
             }}
             · {{ formatDateTime(message.created_at) }}
           </span>
-          <p class="message__body">{{ message.body }}</p>
+          <p v-if="message.body" class="message__body">{{ message.body }}</p>
+          <ul v-if="message.attachments?.length" class="message__files">
+            <li v-for="file in message.attachments" :key="file.id">
+              <button
+                type="button"
+                class="text-link message__file"
+                @click="onDownloadFile(file.id, file.filename)"
+              >
+                <q-icon
+                  :name="file.mime === 'application/pdf' ? 'ph:file-pdf' : 'ph:image'"
+                  size="16px"
+                />
+                {{ file.filename }}
+                <span class="message__size">{{ fileSize(file.size) }}</span>
+              </button>
+            </li>
+          </ul>
         </li>
       </ol>
 
@@ -113,7 +144,31 @@
           "
           data-testid="messaging-reply"
         />
+        <q-chip
+          v-if="pendingFile"
+          removable
+          icon="ph:paperclip"
+          class="self-start"
+          @remove="pendingFile = null"
+        >
+          {{ pendingFile.name }}
+        </q-chip>
+        <input
+          ref="fileInput"
+          type="file"
+          class="hidden"
+          accept="application/pdf,image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"
+          @change="onPickFile"
+        />
         <div class="row q-gutter-sm justify-end">
+          <q-btn
+            flat
+            no-caps
+            icon="ph:paperclip"
+            :label="$t('messaging.attach')"
+            data-testid="messaging-attach"
+            @click="fileInput?.click()"
+          />
           <q-btn
             v-if="current.status !== 'resolved'"
             flat
@@ -131,7 +186,7 @@
             color="primary"
             icon-right="ph:paper-plane-right"
             :label="$t('messaging.send')"
-            :disable="!reply.trim()"
+            :disable="!reply.trim() && !pendingFile"
             :loading="sending"
             data-testid="messaging-send"
           />
@@ -196,13 +251,17 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
-import { formatDateTime } from '@app/utils';
+import { formatDate, formatDateTime } from '@app/utils';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
 import type { StatusTone } from '@app/ui/statusTone';
 
 import {
+  downloadMyConversation,
+  downloadMyFile,
+  postMyFile,
   getMyConversation,
+  keepMyConversation,
   listMyConversations,
   markConversationRead,
   openConversation,
@@ -228,6 +287,7 @@ const loading = ref(true);
 const sending = ref(false);
 const resolving = ref(false);
 const error = ref<string | null>(null);
+const notice = ref<string | null>(null);
 const reply = ref('');
 const composing = ref(false);
 const draft = reactive({
@@ -412,13 +472,48 @@ async function onCreate() {
   }
 }
 
+const fileInput = ref<HTMLInputElement | null>(null);
+const pendingFile = ref<File | null>(null);
+/** Same cap as the server (5 MB): refused before the upload. */
+const MAX_FILE_BYTES = 5 * 1024 * 1024;
+
+function onPickFile(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0] ?? null;
+  input.value = '';
+  if (file && file.size > MAX_FILE_BYTES) {
+    error.value = t('messaging.file_too_large', { mb: 5 });
+    return;
+  }
+  pendingFile.value = file;
+}
+
+function fileSize(bytes: number): string {
+  return bytes >= 1024 * 1024
+    ? t('messaging.size_mb', { n: (bytes / 1024 / 1024).toFixed(1) })
+    : t('messaging.size_kb', { n: Math.max(1, Math.round(bytes / 1024)) });
+}
+
+async function onDownloadFile(attachmentId: string, filename: string) {
+  const conversation = current.value;
+  if (!conversation) return;
+  try {
+    await downloadMyFile(conversation.id, attachmentId, filename);
+  } catch (err) {
+    error.value = apiErrorMessage(err) ?? t('messaging.load_failed');
+  }
+}
+
 async function onReply() {
   const conversation = current.value;
-  if (!conversation || !reply.value.trim()) return;
+  if (!conversation || (!reply.value.trim() && !pendingFile.value)) return;
   sending.value = true;
   error.value = null;
   try {
-    current.value = await postMyMessage(conversation.id, reply.value);
+    current.value = pendingFile.value
+      ? await postMyFile(conversation.id, pendingFile.value, reply.value)
+      : await postMyMessage(conversation.id, reply.value);
+    pendingFile.value = null;
     reply.value = '';
   } catch (err) {
     error.value = apiErrorMessage(err) ?? t('messaging.send_failed');
@@ -438,6 +533,27 @@ async function onResolve() {
     error.value = apiErrorMessage(err) ?? t('messaging.send_failed');
   } finally {
     resolving.value = false;
+  }
+}
+
+async function onDownload() {
+  const conversation = current.value;
+  if (!conversation) return;
+  try {
+    await downloadMyConversation(conversation.id, conversation.number);
+  } catch (err) {
+    error.value = apiErrorMessage(err) ?? t('messaging.load_failed');
+  }
+}
+
+async function onKeep() {
+  const conversation = current.value;
+  if (!conversation) return;
+  try {
+    const until = await keepMyConversation(conversation.id);
+    notice.value = t('messaging.kept', { date: formatDate(until) });
+  } catch (err) {
+    error.value = apiErrorMessage(err) ?? t('messaging.send_failed');
   }
 }
 
@@ -552,6 +668,27 @@ onBeforeUnmount(stopPolling);
   font-size: 12px;
   color: var(--n-ink-3);
   margin-bottom: 4px;
+}
+
+.message__files {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.message__file {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+}
+
+.message__size {
+  color: var(--n-ink-3);
+  font-size: 12px;
 }
 
 .message__body {

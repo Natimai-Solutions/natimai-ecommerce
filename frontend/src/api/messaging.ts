@@ -50,3 +50,51 @@ export async function resolveMyConversation(id: string): Promise<ConversationSum
   const { data } = await api.post<ConversationSummary>(`/me/conversations/${id}/resolve`);
   return data;
 }
+
+/** « Garder un an de plus » : repousse la suppression d'un an. */
+export async function keepMyConversation(id: string): Promise<string> {
+  const { data } = await api.post<{ retain_until: string }>(`/me/conversations/${id}/keep`);
+  return data.retain_until;
+}
+
+/** La conversation en texte (messages seulement), téléchargée par le navigateur. */
+export async function downloadMyConversation(id: string, number: string): Promise<void> {
+  const { data } = await api.get<Blob>(`/me/conversations/${id}/export`, {
+    responseType: 'blob',
+  });
+  const url = URL.createObjectURL(data);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${number}.txt`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+/** Envoie un fichier (photo, PDF) avec un texte facultatif. */
+export async function postMyFile(id: string, file: File, body = ''): Promise<ConversationDetail> {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('body', body);
+  const { data } = await api.post<ConversationDetail>(`/me/conversations/${id}/attachments`, form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return data;
+}
+
+/** Télécharge un fichier de la conversation. */
+export async function downloadMyFile(
+  conversationId: string,
+  attachmentId: string,
+  filename: string,
+): Promise<void> {
+  const { data } = await api.get<Blob>(
+    `/me/conversations/${conversationId}/attachments/${attachmentId}`,
+    { responseType: 'blob' },
+  );
+  const url = URL.createObjectURL(data);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}

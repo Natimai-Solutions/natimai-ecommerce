@@ -639,6 +639,14 @@ const en: MessageSchema = {
     see_catalogue: 'Browse the catalogue',
   },
   messaging: {
+    size_kb: '{n} KB',
+    size_mb: '{n} MB',
+    attach: 'Attach a photo or a PDF',
+    file_too_large: 'The file is larger than {mb} MB.',
+    download: 'Download (text)',
+    keep: 'Keep one more year',
+    kept: 'Conversation kept until {date}.',
+    more: 'More actions',
     about: {
       group_request: 'About your price group request',
       order: 'About your order',

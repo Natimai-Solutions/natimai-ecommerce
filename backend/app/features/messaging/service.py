@@ -183,16 +183,18 @@ async def add_message(
     kind: MessageKind = MessageKind.MESSAGE,
     data: dict[str, Any] | None = None,
     now: datetime.datetime | None = None,
+    with_file: bool = False,
 ) -> ConversationMessage:
     """Add a message, a note or an event (no commit). Only a message moves
-    the conversation."""
+    the conversation. ``with_file``: the text may be empty (a photo alone)."""
     now = now or utcnow()
+    text = body if kind == MessageKind.EVENT or with_file else clean_body(body)
     message = ConversationMessage(
         conversation_id=conversation.id,
         author_id=author_id,
         side=side.value,
         kind=kind.value,
-        body=body if kind == MessageKind.EVENT else clean_body(body),
+        body=(text or "").strip() if with_file else text,
         data=data or {},
         created_at=now,
     )

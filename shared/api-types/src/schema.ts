@@ -4872,6 +4872,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/conversations/{conversation_id}/attachments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Staff File
+         * @description Send a file to the customer (takes a free conversation), or join it to
+         *     an internal note.
+         */
+        post: operations["admin-messaging-post_staff_file"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/conversations/{conversation_id}/attachments/{attachment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Staff File */
+        get: operations["admin-messaging-get_staff_file"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/conversations/{conversation_id}/read": {
         parameters: {
             query?: never;
@@ -5086,6 +5124,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/conversations/{conversation_id}/attachments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post My File
+         * @description Send a file (a photo, a PDF) with an optional text.
+         */
+        post: operations["messaging-post_my_file"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/conversations/{conversation_id}/attachments/{attachment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get My File
+         * @description Download a file of the conversation (never one of an internal note).
+         */
+        get: operations["messaging-get_my_file"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/conversations/{conversation_id}/read": {
         parameters: {
             query?: never;
@@ -5117,6 +5195,46 @@ export interface paths {
          * @description « My question is settled » (writing again reopens it).
          */
         post: operations["messaging-resolve_my_conversation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/conversations/{conversation_id}/keep": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Keep My Conversation
+         * @description « Keep one more year »: pushes the deletion date back a year.
+         */
+        post: operations["messaging-keep_my_conversation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/conversations/{conversation_id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export My Conversation
+         * @description The conversation as a text file (messages only).
+         */
+        get: operations["messaging-export_my_conversation"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -10040,6 +10158,20 @@ export interface components {
             /** Expires In */
             expires_in: number;
         };
+        /** AttachmentPublic */
+        AttachmentPublic: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Filename */
+            filename: string;
+            /** Mime */
+            mime: string;
+            /** Size */
+            size: number;
+        };
         /**
          * AvailabilityMode
          * @description Whether a product can be ordered beyond the stock known at checkout.
@@ -10065,6 +10197,22 @@ export interface components {
              * @default 50
              */
             limit: number;
+        };
+        /** Body_admin-messaging-post_staff_file */
+        "Body_admin-messaging-post_staff_file": {
+            /** File */
+            file: string;
+            /**
+             * Body
+             * @default
+             */
+            body: string;
+            /**
+             * Kind
+             * @default message
+             * @enum {string}
+             */
+            kind: "message" | "note";
         };
         /** Body_login-login_access_token */
         "Body_login-login_access_token": {
@@ -10106,6 +10254,16 @@ export interface components {
             kind: string;
             /** Alt */
             alt?: string | null;
+        };
+        /** Body_messaging-post_my_file */
+        "Body_messaging-post_my_file": {
+            /** File */
+            file: string;
+            /**
+             * Body
+             * @default
+             */
+            body: string;
         };
         /** Body_suppliers-import_catalog_file */
         "Body_suppliers-import_catalog_file": {
@@ -14166,6 +14324,14 @@ export interface components {
              */
             count: number;
         };
+        /** KeptUntil */
+        KeptUntil: {
+            /**
+             * Retain Until
+             * Format: date-time
+             */
+            retain_until: string;
+        };
         /**
          * LastLegOption
          * @description Priced last-leg (zone C) delivery option for the current cart.
@@ -14509,6 +14675,11 @@ export interface components {
              * @default
              */
             author_name: string;
+            /**
+             * Attachments
+             * @default []
+             */
+            attachments: components["schemas"]["AttachmentPublic"][];
         };
         /** MessagingInfo */
         MessagingInfo: {
@@ -21820,6 +21991,11 @@ export interface components {
              * @default
              */
             author_name: string;
+            /**
+             * Attachments
+             * @default []
+             */
+            attachments: components["schemas"]["AttachmentPublic"][];
         };
         /** StaffMessageCreate */
         StaffMessageCreate: {
@@ -32614,6 +32790,73 @@ export interface operations {
             };
         };
     };
+    "admin-messaging-post_staff_file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_admin-messaging-post_staff_file"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffConversationDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-messaging-get_staff_file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+                attachment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "admin-messaging-read_conversation": {
         parameters: {
             query?: never;
@@ -32973,6 +33216,73 @@ export interface operations {
             };
         };
     };
+    "messaging-post_my_file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_messaging-post_my_file"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "messaging-get_my_file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+                attachment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "messaging-read_my_conversation": {
         parameters: {
             query?: never;
@@ -33020,6 +33330,68 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ConversationSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "messaging-keep_my_conversation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeptUntil"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "messaging-export_my_conversation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
                 };
             };
             /** @description Validation Error */

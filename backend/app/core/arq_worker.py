@@ -36,6 +36,7 @@ from app.tasks.inventory_tasks import (
 )
 from app.tasks.messaging_tasks import (
     get_messaging_cron_jobs,
+    messaging_retention_task,
     notify_unread_messages_task,
     release_stale_conversations_task,
 )
@@ -187,6 +188,7 @@ class WorkerSettings:
         # Messagerie : avis de messages non lus, libération des conversations
         notify_unread_messages_task,
         release_stale_conversations_task,
+        messaging_retention_task,
         # ... tes autres handlers
     ]
 

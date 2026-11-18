@@ -109,7 +109,7 @@ async def test_a_customer_attaches_only_their_own_order(
 ) -> None:
     alice = await _user(db_session, "alice")
     bob = await _user(db_session, "bob")
-    status = OrderStatus(name="Pending", code=f"pending-{uuid.uuid4().hex[:6]}")
+    status = OrderStatus(name=f"Pending {uuid.uuid4().hex[:6]}")
     db_session.add(status)
     await db_session.flush()
     order = Order(user_id=bob.id, order_status_id=status.id)
@@ -356,3 +356,236 @@ async def test_business_hours_and_response_steps() -> None:
     assert step_of(7.9, hours.per_day) == ("hours", 8)
     assert step_of(9, hours.per_day) == ("business_days", 1)
     assert step_of(12, hours.per_day) == ("business_days", 2)
+
+
+async def test_export_holds_messages_never_notes_and_erasure_removes_all(
+    db_session: AsyncSession,
+) -> None:
+    from app.features.messaging.retention import (
+        erase_conversations,
+        export_conversations,
+    )
+
+    alice = await _user(db_session, "alice")
+    agent = await _user(db_session, "agent", staff=True)
+    conversation_id = await _open(db_session, alice)
+    await _fresh(db_session, agent)
+    await staff_routes.post_staff_message(
+        conversation_id,
+        staff_routes.StaffMessageCreate(body="Note secrète", kind="note"),
+        db_session,
+        agent,
+    )
+    await _fresh(db_session, alice)
+    alice_id = alice.id
+    exported = await export_conversations(db_session, alice_id)
+    assert [m["body"] for m in exported[0]["messages"]] == ["Où est-il ?"]
+    assert "Note secrète" not in str(exported)
+
+    await erase_conversations(db_session, alice_id)
+    await db_session.commit()
+    assert await export_conversations(db_session, alice_id) == []
+
+
+async def test_retention_notice_then_deletion_and_keeping_longer(
+    db_session: AsyncSession,
+    sent: list[dict[str, Any]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.features.messaging import retention
+
+    async def queue_email(_session: Any, **kwargs: Any) -> uuid.UUID:
+        sent.append(kwargs)
+        return uuid.uuid4()
+
+    monkeypatch.setattr(retention, "queue_email", queue_email)
+    alice = await _user(db_session, "alice")
+    kept_id = await _open(db_session, alice)
+    gone_id = await _open(db_session, alice)
+    for conversation_id in (kept_id, gone_id):
+        await _fresh(db_session, alice)
+        await routes.resolve_my_conversation(conversation_id, db_session, alice)
+    guest = Conversation(
+        number=f"C-T-{uuid.uuid4().hex[:6]}",
+        channel="sales",
+        topic="pre_sale",
+        subject="Visiteur",
+        guest_email="visiteur@example.com",
+        last_message_at=utcnow(),
+    )
+    db_session.add(guest)
+    guest_id = guest.id
+    await db_session.commit()
+
+    five_years = utcnow() + datetime.timedelta(days=1826)
+    # A month before the date: a notice (no content), nothing deleted.
+    result = await retention.retention_sweep(
+        db_session, now=five_years - datetime.timedelta(days=20)
+    )
+    assert result == {"guests": 1, "notices": 2, "deleted": 0}
+    notices = [m for m in sent if m["event_type"] == "messaging.deletion_notice"]
+    assert len(notices) == 2 and "Où est-il" not in notices[0]["text"]
+    assert await db_session.get(Conversation, guest_id) is None
+
+    # The customer keeps one: a year more, the notice cancelled.
+    await _fresh(db_session, alice)
+    kept = await routes.keep_my_conversation(kept_id, db_session, alice)
+    assert kept.retain_until > five_years
+
+    result = await retention.retention_sweep(
+        db_session, now=five_years + datetime.timedelta(days=15)
+    )
+    assert result["deleted"] == 1
+    db_session.expire_all()
+    assert await db_session.get(Conversation, gone_id) is None
+    assert await db_session.get(Conversation, kept_id) is not None
+
+
+async def test_the_customer_downloads_messages_only(db_session: AsyncSession) -> None:
+    alice = await _user(db_session, "alice")
+    agent = await _user(db_session, "agent", staff=True)
+    conversation_id = await _open(db_session, alice)
+    await _fresh(db_session, agent)
+    await staff_routes.post_staff_message(
+        conversation_id,
+        staff_routes.StaffMessageCreate(body="Interne", kind="note"),
+        db_session,
+        agent,
+    )
+    await _fresh(db_session, alice)
+    exported = await routes.export_my_conversation(conversation_id, db_session, alice)
+    text = bytes(exported.body).decode()
+    assert "Où est-il ?" in text and "Interne" not in text
+
+
+def _photo(fmt: str = "JPEG", *, gps: bool = True) -> bytes:
+    import io
+
+    from PIL import Image
+
+    image = Image.new("RGB", (4000, 3000), (120, 30, 30))
+    buffer = io.BytesIO()
+    if fmt == "HEIF":
+        from pillow_heif import register_heif_opener
+
+        register_heif_opener()
+        image.resize((400, 300)).save(buffer, format="HEIF")
+        return buffer.getvalue()
+    exif = Image.Exif()
+    if gps:
+        exif[0x8825] = {1: "S", 2: (17.0, 32.0, 0.0), 3: "W", 4: (149.0, 34.0, 0.0)}
+        exif[0x010F] = "Apple"
+    image.save(buffer, format=fmt, exif=exif.tobytes())
+    return buffer.getvalue()
+
+
+def _upload(data: bytes, name: str) -> Any:
+    import io
+
+    from fastapi import UploadFile
+
+    return UploadFile(file=io.BytesIO(data), filename=name)
+
+
+@pytest.fixture
+def local_files(tmp_path: Any, monkeypatch: pytest.MonkeyPatch) -> Any:
+    from app.features.attachment.storage.factory import reset_file_storage_cache
+
+    monkeypatch.setattr(settings, "FILE_STORAGE_BACKEND", "local")
+    monkeypatch.setattr(settings, "FILE_STORAGE_LOCAL_ROOT", str(tmp_path))
+    reset_file_storage_cache()
+    yield tmp_path
+    reset_file_storage_cache()
+
+
+@pytest.mark.usefixtures("local_files")
+async def test_photos_lose_their_metadata_and_notes_keep_their_files(
+    db_session: AsyncSession,
+) -> None:
+    import io
+
+    from PIL import Image
+
+    alice = await _user(db_session, "alice")
+    agent = await _user(db_session, "agent", staff=True)
+    conversation_id = await _open(db_session, alice)
+
+    await _fresh(db_session, alice)
+    detail = await routes.post_my_file(
+        conversation_id,
+        db_session,
+        alice,
+        file=_upload(_photo(), "../../colis abîmé.jpg"),
+        body="",
+    )
+    sent_file = detail.messages[-1].attachments[0]
+    assert sent_file.mime == "image/jpeg" and sent_file.filename == "colis abîmé.jpg"
+    await _fresh(db_session, alice)
+    response = await routes.get_my_file(
+        conversation_id, sent_file.id, db_session, alice
+    )
+    stored = Image.open(io.BytesIO(bytes(response.body)))
+    assert max(stored.size) == 2560  # re-encoded, reduced
+    assert not stored.getexif()  # no GPS, no camera
+    assert (
+        "filename*=UTF-8''colis%20ab%C3%AEm%C3%A9.jpg"
+        in response.headers["content-disposition"]
+    )
+
+    # An iPhone photo becomes a JPEG.
+    await _fresh(db_session, alice)
+    detail = await routes.post_my_file(
+        conversation_id, db_session, alice, file=_upload(_photo("HEIF"), "IMG_1.HEIC")
+    )
+    assert detail.messages[-1].attachments[0].mime == "image/jpeg"
+    assert detail.messages[-1].attachments[0].filename == "IMG_1.jpg"
+
+    # Anything else is refused on its bytes, whatever its name.
+    await _fresh(db_session, alice)
+    with pytest.raises(AppError) as refused:
+        await routes.post_my_file(
+            conversation_id, db_session, alice, file=_upload(b"MZ\x90\x00", "photo.jpg")
+        )
+    assert refused.value.status_code == 415
+
+    # A file joined to an internal note never reaches the customer.
+    await _fresh(db_session, agent)
+    staff_view = await staff_routes.post_staff_file(
+        conversation_id,
+        db_session,
+        agent,
+        file=_upload(b"%PDF-1.4 bon de livraison", "bl.pdf"),
+        body="BL du transporteur",
+        kind="note",
+    )
+    note_file = staff_view.messages[-1].attachments[0]
+    assert staff_view.assigned_to_id is None  # a note does not take it
+    await _fresh(db_session, alice)
+    with pytest.raises(AppError) as hidden:
+        await routes.get_my_file(conversation_id, note_file.id, db_session, alice)
+    assert hidden.value.status_code == 404
+    await _fresh(db_session, alice)
+    seen = await routes.get_my_conversation(conversation_id, db_session, alice)
+    assert all(a.id != note_file.id for m in seen.messages for a in m.attachments)
+
+
+async def test_erasing_an_account_removes_its_files(
+    db_session: AsyncSession, local_files: Any
+) -> None:
+    from app.features.messaging.retention import erase_conversations
+
+    alice = await _user(db_session, "alice")
+    conversation_id = await _open(db_session, alice)
+    await _fresh(db_session, alice)
+    await routes.post_my_file(
+        conversation_id,
+        db_session,
+        alice,
+        file=_upload(_photo("PNG", gps=False), "a.png"),
+    )
+    stored = [p for p in local_files.rglob("*") if p.is_file()]
+    assert len(stored) == 1
+    await _fresh(db_session, alice)
+    await erase_conversations(db_session, alice.id)
+    await db_session.commit()
+    assert [p for p in local_files.rglob("*") if p.is_file()] == []

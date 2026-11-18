@@ -648,6 +648,14 @@ const fr = {
     see_catalogue: 'Voir le catalogue',
   },
   messaging: {
+    size_kb: '{n} Ko',
+    size_mb: '{n} Mo',
+    attach: 'Joindre une photo ou un PDF',
+    file_too_large: 'Le fichier dépasse {mb} Mo.',
+    download: 'Télécharger (texte)',
+    keep: 'Garder un an de plus',
+    kept: "Conversation conservée jusqu'au {date}.",
+    more: "Plus d'actions",
     about: {
       group_request: 'À propos de votre demande de groupe tarifaire',
       order: 'À propos de votre commande',

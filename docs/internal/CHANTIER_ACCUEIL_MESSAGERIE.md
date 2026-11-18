@@ -935,7 +935,6 @@ les identifiants M· de l'audit fonctionnel.
 | **A3** | Annonce au-dessus de l'en-tête sur toutes les pages, réassurance, marques (après BR), bloc libre (R4 à R7) | M |
 | **A4** | Aperçu et programmation (R10), SEO de l'accueil (R11) | S à M |
 | **A5** | Sections personnelles (R9) et héros par audience | M |
-| **MSG1** | Messagerie, socle : module, modèle, trois canaux et leurs motifs, horaires et délai affiché (fixe puis mesuré), API client et admin, onglet « Messages », écran admin, sondage, e-mails de non-lus et préférence, pièces jointes (service générique, images réencodées sans métadonnées, HEIC converti), conservation et RGPD, retrait des notifications en application dormantes | L |
 | **MSG2** | Page `/contact` publique (M8 de l'audit), anti-spam, réponse au visiteur avec lien d'inscription, rattachement à un compte par adresse prouvée, purge à 6 mois | M |
 | **MSG3** | Raccourcis contextuels (produit, commande, panier, groupe), panneau client et objet rattaché dans le fil | M |
 | **MSG4** | Notes internes, réponses types, transfert, libération automatique, digest, priorité par groupe tarifaire | M |
@@ -944,20 +943,21 @@ les identifiants M· de l'audit fonctionnel.
 | **BR** | Marques : `Product.brand_id`, alias, reprise depuis `manufacturer`, écran admin, filtre et facette, page marque (M9 de l'audit) | M à L |
 
 Livré le 18/11/2026 : correctifs du §12, **A1** (sections ordonnables,
-masquables, titrées, public par section, page du client) ; **MSG1, première
-partie** : module, modèle, trois canaux et motifs, API client et équipe,
+masquables, titrées, public par section, page du client) ; **MSG1** (socle de la
+messagerie : module, modèle, trois canaux et motifs, API client et équipe,
 onglet « Messages » et bouton d'en-tête, écran *Messagerie*, notes internes,
 prise en charge / libération / règlement / transfert / déplacement, avis de
-non-lus et préférence, libération automatique, horaires et délai affiché
-(le délai mesuré est calculé au plus une fois par heure et par processus,
-pas chaque nuit). Reste de MSG1 : **pièces jointes** (service générique,
-images réencodées, HEIC), **conservation et RGPD** (préavis, purge, export,
-« garder un an de plus », téléchargement du fil), **retrait des notifications
-en application dormantes**. La table d'agents (canaux par membre) passe au
-lot ROLE. Ordre conseillé pour la suite : fin de **MSG1 → MSG2 → A2 →
+non-lus et préférence, libération automatique, horaires et délai affiché,
+pièces jointes, conservation et RGPD, retrait des notifications dormantes).
+Écarts avec la conception : le délai mesuré est calculé au plus une fois par
+heure et par processus (pas chaque nuit) ; les pièces jointes sont envoyées
+au serveur et scannées à l'envoi (pas d'URL présignée ni de colonnes de scan :
+seul un fichier sain est stocké) ; l'effacement d'un compte supprime ses
+conversations (la commande et sa facture font foi) ; la table d'agents
+(canaux par membre) passe au lot ROLE. Ordre conseillé pour la suite : **MSG2 → A2 →
 MSG5 → ROLE → MSG3 → MSG4**, BR quand on veut la bande de marques (R6) et
-les pages marque. MSG1 et BR sont indépendants et peuvent avancer en
-parallèle. ROLE peut attendre : sans lui, les superusers répondent.
+les pages marque, en parallèle.
+ROLE peut attendre : sans lui, les superusers répondent.
 
 ---
 

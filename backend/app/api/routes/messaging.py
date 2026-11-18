@@ -9,10 +9,12 @@ missing (404), and a customer never gets an internal note or an event.
 from __future__ import annotations
 
 import datetime
+import urllib.parse
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 from sqlmodel import col, select
 
@@ -20,6 +22,7 @@ from app.api.deps import CurrentUser, SessionDep, module_required
 from app.core.datetimes import utcnow
 from app.core.errors import AppError
 from app.core.rate_limit import hit_rate_limit
+from app.features.messaging import attachments as files
 from app.features.messaging import service
 from app.features.messaging.info import public_info
 from app.features.messaging.models import (
@@ -27,9 +30,12 @@ from app.features.messaging.models import (
     CONTEXT_TYPES,
     SUBJECT_MAX,
     Conversation,
+    ConversationAttachment,
     ConversationMessage,
+    MessageKind,
     MessageSide,
 )
+from app.features.messaging.retention import keep_longer, thread_text
 from app.features.user.models.user import User
 
 router = APIRouter(
@@ -59,6 +65,13 @@ class MessagingInfo(BaseModel):
     contact_email: str | None = None
 
 
+class AttachmentPublic(BaseModel):
+    id: uuid.UUID
+    filename: str
+    mime: str
+    size: int
+
+
 class MessagePublic(BaseModel):
     """A message as the customer sees it."""
 
@@ -68,6 +81,7 @@ class MessagePublic(BaseModel):
     created_at: datetime.datetime
     #: Name of the team member who wrote it (customer side: empty).
     author_name: str = ""
+    attachments: list[AttachmentPublic] = []
 
 
 class ConversationSummary(BaseModel):
@@ -102,6 +116,10 @@ class MessageCreate(BaseModel):
 
 class UnreadCount(BaseModel):
     count: int
+
+
+class KeptUntil(BaseModel):
+    retain_until: datetime.datetime
 
 
 def _summary(conversation: Conversation) -> ConversationSummary:
@@ -140,6 +158,7 @@ async def customer_messages(
     session: SessionDep, messages: list[ConversationMessage]
 ) -> list[MessagePublic]:
     names = await _authors(session, messages)
+    files = await attachments_of(session, [m.id for m in messages])
     return [
         MessagePublic(
             id=m.id,
@@ -147,9 +166,47 @@ async def customer_messages(
             body=m.body,
             created_at=m.created_at,
             author_name=names.get(m.author_id, "") if m.author_id else "",
+            attachments=files.get(m.id, []),
         )
         for m in messages
     ]
+
+
+async def attachments_of(
+    session: SessionDep, message_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, list[AttachmentPublic]]:
+    if not message_ids:
+        return {}
+    rows = await session.exec(
+        select(ConversationAttachment)
+        .where(col(ConversationAttachment.message_id).in_(message_ids))
+        .order_by(col(ConversationAttachment.created_at))
+    )
+    result: dict[uuid.UUID, list[AttachmentPublic]] = {}
+    for row in rows.all():
+        result.setdefault(row.message_id, []).append(
+            AttachmentPublic(
+                id=row.id, filename=row.filename, mime=row.mime, size=row.size
+            )
+        )
+    return result
+
+
+def file_response(attachment: ConversationAttachment, data: bytes) -> Response:
+    """A stored file, downloaded (never rendered inline by the browser)."""
+    quoted = urllib.parse.quote(attachment.filename)
+    return Response(
+        content=data,
+        media_type=attachment.mime,
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{files.ascii_filename(attachment.filename)}"; '
+                f"filename*=UTF-8''{quoted}"
+            ),
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "private, no-store",
+        },
+    )
 
 
 async def _own(
@@ -281,6 +338,75 @@ async def post_my_message(
     return await _detail(session, conversation_id, user_id)
 
 
+@router.post(
+    "/me/conversations/{conversation_id}/attachments",
+    response_model=ConversationDetail,
+    status_code=201,
+)
+async def post_my_file(
+    conversation_id: uuid.UUID,
+    session: SessionDep,
+    current_user: CurrentUser,
+    file: Annotated[UploadFile, File()],
+    body: Annotated[str, Form(max_length=BODY_MAX)] = "",
+) -> ConversationDetail:
+    """Send a file (a photo, a PDF) with an optional text."""
+    user_id = current_user.id
+    conversation = await _own(session, conversation_id, user_id)
+    await _limit(f"msg-file:{user_id}", limit=20, window_seconds=3600)
+    prepared = await files.prepare(await file.read(files.MAX_BYTES + 1))
+    now = utcnow()
+    message = await service.add_message(
+        session,
+        conversation,
+        side=MessageSide.CUSTOMER,
+        body=body,
+        author_id=user_id,
+        now=now,
+        with_file=True,
+    )
+    await files.store(
+        session,
+        conversation,
+        message_id=message.id,
+        filename=file.filename,
+        prepared=prepared,
+        now=now,
+    )
+    await session.commit()
+    return await _detail(session, conversation_id, user_id)
+
+
+@router.get("/me/conversations/{conversation_id}/attachments/{attachment_id}")
+async def get_my_file(
+    conversation_id: uuid.UUID,
+    attachment_id: uuid.UUID,
+    session: SessionDep,
+    current_user: CurrentUser,
+) -> Response:
+    """Download a file of the conversation (never one of an internal note)."""
+    await _own(session, conversation_id, current_user.id)
+    attachment = await session.get(ConversationAttachment, attachment_id)
+    message = (
+        await session.get(ConversationMessage, attachment.message_id)
+        if attachment
+        else None
+    )
+    if (
+        attachment is None
+        or attachment.conversation_id != conversation_id
+        or message is None
+        or message.kind != MessageKind.MESSAGE.value
+    ):
+        raise AppError(
+            code="messaging.attachment.not_found",
+            status_code=404,
+            message="File not found.",
+            details={},
+        )
+    return file_response(attachment, await files.read(attachment))
+
+
 @router.post("/me/conversations/{conversation_id}/read", status_code=204)
 async def read_my_conversation(
     conversation_id: uuid.UUID, session: SessionDep, current_user: CurrentUser
@@ -303,6 +429,35 @@ async def resolve_my_conversation(
     await session.commit()
     await session.refresh(conversation)
     return _summary(conversation)
+
+
+@router.post("/me/conversations/{conversation_id}/keep", response_model=KeptUntil)
+async def keep_my_conversation(
+    conversation_id: uuid.UUID, session: SessionDep, current_user: CurrentUser
+) -> KeptUntil:
+    """« Keep one more year »: pushes the deletion date back a year."""
+    conversation = await _own(session, conversation_id, current_user.id)
+    kept = await keep_longer(session, conversation, now=utcnow())
+    await session.commit()
+    return KeptUntil(retain_until=kept)
+
+
+@router.get(
+    "/me/conversations/{conversation_id}/export",
+    response_class=PlainTextResponse,
+)
+async def export_my_conversation(
+    conversation_id: uuid.UUID, session: SessionDep, current_user: CurrentUser
+) -> PlainTextResponse:
+    """The conversation as a text file (messages only)."""
+    conversation = await _own(session, conversation_id, current_user.id)
+    text = await thread_text(session, conversation)
+    return PlainTextResponse(
+        text,
+        headers={
+            "Content-Disposition": f'attachment; filename="{conversation.number}.txt"'
+        },
+    )
 
 
 __all__ = ["router"]

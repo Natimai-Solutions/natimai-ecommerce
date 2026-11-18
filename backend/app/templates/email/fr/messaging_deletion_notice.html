@@ -1,0 +1,9 @@
+{% extends "_layout.html" %}
+{% block title %}Conversation {{ number }} — {{ shop_name }}{% endblock %}
+{% block heading %}Votre conversation sera supprimée{% endblock %}
+{% block content %}
+      <p>Bonjour{% if full_name %} {{ full_name }}{% endif %},</p>
+      <p>Votre conversation <strong>{{ number }}</strong> avec {{ shop_name }}, réglée depuis longtemps, arrive au terme de sa durée de conservation. Elle sera supprimée à partir du <strong>{{ deletion_date }}</strong>.</p>
+      <p>Pour la garder, ouvrez-la dans Mon compte → Messages : vous pouvez la télécharger ou la garder un an de plus.</p>
+      <p>L'équipe {{ shop_name }}</p>
+{% endblock %}

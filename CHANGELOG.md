@@ -82,6 +82,18 @@ takes a tag as its `ref`.
   and the response time shown (24 h, or measured: 80th percentile in
   business hours over 90 days) are settings (*Messaging* category).
   `EMAIL_CONTACT` defaults to `contact@natimai.solutions`.
+- Messaging, files and retention: a customer or the team joins a photo or a
+  PDF to a message (5 MB, at most 20 per conversation). The type is read
+  from the bytes (PDF, JPEG, PNG, WebP, HEIC), the file is scanned by the
+  antivirus before being stored, and an image is re-encoded without its
+  metadata (no GPS position, no camera); an iPhone HEIC photo becomes a JPEG
+  (new dependency `pillow-heif`). A file joined to an internal note never
+  reaches the customer. Retention: a visitor's conversation is deleted six
+  months after its last message, a customer's resolved conversation five
+  years after (settings), with a notice e-mailed 30 days before; the
+  customer can download a conversation as text or keep it one more year.
+  The account export holds the conversations' messages (never a note), the
+  account erasure deletes the conversations and their files.
 
 - Homepage sections: the homepage is an ordered list of sections set in the
   admin (*Site homepage*) — hero, banners, category tiles, « favourites »
@@ -408,6 +420,11 @@ takes a tag as its `ref`.
   metadata.
 
 ### Removed
+
+- The in-app notification tables (`notifications`, `user_notifications`,
+  migration `f4b5c6d7e8f9`): no route, no screen, nothing wrote them; only
+  the account export read them. The migration refuses to drop them if they
+  hold rows.
 
 - The « Order and payment » e-mail switch of the account preferences
   (`user_preferences.notification_email_enabled`, migration `c1d2e3f4a5b6`):

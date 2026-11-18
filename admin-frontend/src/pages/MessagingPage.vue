@@ -214,7 +214,20 @@
                 }}
                 · {{ formatDateTime(message.created_at) }}
               </span>
-              <p class="msg__body">{{ message.body }}</p>
+              <p v-if="message.body" class="msg__body">{{ message.body }}</p>
+              <div v-if="message.attachments?.length" class="msg__files">
+                <q-btn
+                  v-for="file in message.attachments"
+                  :key="file.id"
+                  flat
+                  dense
+                  no-caps
+                  size="sm"
+                  :icon="file.mime === 'application/pdf' ? 'ph:file-pdf' : 'ph:image'"
+                  :label="file.filename"
+                  @click="onDownloadFile(file.id, file.filename)"
+                />
+              </div>
             </template>
           </li>
         </ol>
@@ -240,7 +253,30 @@
             :label="composeKind === 'note' ? $t('messaging.note_hint') : $t('messaging.reply_hint')"
             data-testid="conversation-draft"
           />
-          <div class="row justify-end">
+          <q-chip
+            v-if="pendingFile"
+            removable
+            icon="ph:paperclip"
+            class="self-start"
+            @remove="pendingFile = null"
+          >
+            {{ pendingFile.name }}
+          </q-chip>
+          <input
+            ref="fileInput"
+            type="file"
+            class="hidden"
+            accept="application/pdf,image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"
+            @change="onPickFile"
+          />
+          <div class="row justify-end q-gutter-sm">
+            <q-btn
+              flat
+              no-caps
+              icon="ph:paperclip"
+              :label="$t('messaging.attach')"
+              @click="fileInput?.click()"
+            />
             <q-btn
               type="submit"
               unelevated
@@ -248,7 +284,7 @@
               :color="composeKind === 'note' ? 'warning' : 'primary'"
               icon-right="ph:paper-plane-right"
               :label="composeKind === 'note' ? $t('messaging.add_note') : $t('messaging.send')"
-              :disable="!draft.trim()"
+              :disable="!draft.trim() && !pendingFile"
               :loading="sending"
               data-testid="conversation-send"
             />
@@ -282,6 +318,8 @@ import {
   CHANNEL_TOPICS,
   conversationAction,
   conversationTeam,
+  downloadStaffFile,
+  postStaffFile,
   getConversation,
   listConversations,
   moveConversation,
@@ -478,13 +516,40 @@ async function onMove(topic: string) {
   }
 }
 
+const fileInput = ref<HTMLInputElement | null>(null);
+const pendingFile = ref<File | null>(null);
+
+function onPickFile(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0] ?? null;
+  input.value = '';
+  if (file && file.size > 5 * 1024 * 1024) {
+    error.value = t('messaging.file_too_large', { mb: 5 });
+    return;
+  }
+  pendingFile.value = file;
+}
+
+async function onDownloadFile(attachmentId: string, filename: string) {
+  const conversation = current.value;
+  if (!conversation) return;
+  try {
+    await downloadStaffFile(conversation.id, attachmentId, filename);
+  } catch (err) {
+    error.value = extractApiError(err) ?? t('common.load_failed');
+  }
+}
+
 async function onSend() {
   const conversation = current.value;
-  if (!conversation || !draft.value.trim()) return;
+  if (!conversation || (!draft.value.trim() && !pendingFile.value)) return;
   sending.value = true;
   error.value = null;
   try {
-    current.value = await postStaffMessage(conversation.id, draft.value, composeKind.value);
+    current.value = pendingFile.value
+      ? await postStaffFile(conversation.id, pendingFile.value, draft.value, composeKind.value)
+      : await postStaffMessage(conversation.id, draft.value, composeKind.value);
+    pendingFile.value = null;
     draft.value = '';
     composeKind.value = 'message';
     void loadQueue();
@@ -621,6 +686,13 @@ onBeforeUnmount(() => {
   font-size: 12px;
   color: var(--n-ink-3);
   margin-bottom: 4px;
+}
+
+.msg__files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
 }
 
 .msg__body {

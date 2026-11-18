@@ -1101,6 +1101,8 @@ const fr = {
     empty: "Aucune section : l'accueil n'affiche que le titre par défaut.",
   },
   messaging: {
+    attach: 'Joindre',
+    file_too_large: 'Le fichier dépasse {mb} Mo.',
     add_note: 'Ajouter la note',
     back: 'File',
     channel: {

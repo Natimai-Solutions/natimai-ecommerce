@@ -100,3 +100,38 @@ export const CHANNEL_TOPICS: Record<string, string[]> = {
   technical: ['setup_usage', 'fault', 'warranty_return'],
   sales: ['pre_sale', 'quote', 'volume', 'price_group'],
 };
+
+export async function postStaffFile(
+  id: string,
+  file: File,
+  body: string,
+  kind: 'message' | 'note',
+): Promise<StaffConversationDetail> {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('body', body);
+  form.append('kind', kind);
+  const { data } = await api.post<StaffConversationDetail>(
+    `/admin/conversations/${id}/attachments`,
+    form,
+    { headers: { 'Content-Type': 'multipart/form-data' } },
+  );
+  return data;
+}
+
+export async function downloadStaffFile(
+  conversationId: string,
+  attachmentId: string,
+  filename: string,
+): Promise<void> {
+  const { data } = await api.get<Blob>(
+    `/admin/conversations/${conversationId}/attachments/${attachmentId}`,
+    { responseType: 'blob' },
+  );
+  const url = URL.createObjectURL(data);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}

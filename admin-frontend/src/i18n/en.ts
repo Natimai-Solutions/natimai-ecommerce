@@ -1094,6 +1094,8 @@ const en: MessageSchema = {
     empty: 'No section: the homepage only shows the default title.',
   },
   messaging: {
+    attach: 'Attach',
+    file_too_large: 'The file is larger than {mb} MB.',
     add_note: 'Add the note',
     back: 'Queue',
     channel: {

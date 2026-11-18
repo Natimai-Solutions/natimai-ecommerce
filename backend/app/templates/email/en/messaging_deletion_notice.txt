@@ -1,0 +1,9 @@
+Hello{% if full_name %} {{ full_name }}{% endif %},
+
+Your conversation {{ number }} with {{ shop_name }}, settled long ago, reaches
+the end of its retention period. It will be deleted from {{ deletion_date }}.
+
+To keep it, open it in My account → Messages: you can download it or keep it
+one more year.
+
+The {{ shop_name }} team
