@@ -25,7 +25,6 @@ Détail : [`AUDIT_FONCTIONNEL_2026-11.md`](AUDIT_FONCTIONNEL_2026-11.md) (identi
 
 Cinq relectures indépendantes des changements de novembre ; ce qui a été corrigé est au CHANGELOG. Reste, par ordre d'importance :
 
-- **Tests manquants** : parité fiche / panier / ligne de commande / facture du fret, verrou du panier (deux requêtes réellement concurrentes), `deploy.sh`. Faits : checkout par carte et checkout idempotent sur une vraie base (`test_checkout_idempotency.py`), écran d'état et rejeu (`test_system_status.py`).
 
 ### Exploitation (sur le serveur, hors code)
 

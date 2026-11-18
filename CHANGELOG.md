@@ -19,6 +19,11 @@ takes a tag as its `ref`.
 
 ### Added
 
+- Tests: the freight from the product page to the invoice (one freight,
+  billed once), two checkouts truly in parallel on one cart (two sessions:
+  one order), and `scripts/release/deploy.sh` run for real with fake
+  docker/curl (dump before migrating, rollback when the new version does not
+  start or is never ready, no migration without a dump).
 - A job arq gives up on before running it (expired in the queue, past its
   tries before it could start, unknown function) is journaled as failed and
   alerts, like a job that ran and failed: arq only stored a result read by

@@ -14,6 +14,7 @@ import uuid
 from decimal import Decimal
 
 import pytest
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.routes.cart import add_cart_item, replace_my_cart_items
@@ -242,3 +243,77 @@ async def test_the_delay_shown_adds_the_supplier_lead_time(
     modes = await get_product_shipping_modes(product_id, db_session, None)
     assert modes.supplier_lead_days == 0
     assert {m.service_level: m.eta_days for m in modes.shipping_modes}["rapide"] == 3
+
+
+@pytest.mark.asyncio
+async def test_one_freight_from_the_product_page_to_the_invoice(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Functional audit D1 and review of 17/11/2026: the freight-inclusive
+    price of the mode chosen on the page is the price of the cart line, of
+    the order line, and of the invoice line — one freight, billed once."""
+    from typing import Any
+
+    from app.api.routes import cart as cart_routes
+    from app.api.routes.cart import checkout_my_cart
+    from app.features.cart.models.cart import CheckoutRequest
+    from app.features.inventory.models.inventory import Inventory
+    from app.features.invoice.services.invoice_service import issue_invoice_for_order
+    from app.features.order.models.order import Order
+    from app.features.order.models.order_line import OrderLine
+
+    async def nothing(*_args: Any, **_kwargs: Any) -> dict[Any, Any]:
+        return {}
+
+    monkeypatch.setattr(cart_routes, "refresh_supplier_availability", nothing)
+    user_id, product_id = await _seed(db_session)
+    db_session.add(
+        Inventory(
+            product_id=product_id, quantity=Decimal("10"), compute_from_movements=False
+        )
+    )
+    await db_session.commit()
+    page, _ = await _page_prices(db_session, product_id)
+    sea_price = page["economique"]  # 10 000 + 2 kg × 150
+
+    user = await db_session.get(User, user_id)
+    assert user is not None
+    cart = await replace_my_cart_items(
+        session=db_session,
+        current_user=user,
+        payload=CartReplaceRequest(
+            items=[
+                CartItemAddRequest(
+                    product_id=product_id, quantity=2, import_service_level="economique"
+                )
+            ]
+        ),
+    )
+    assert cart.items[0].unit_price == sea_price
+
+    user = await db_session.get(User, user_id)
+    assert user is not None
+    placed = await checkout_my_cart(
+        db_session,
+        user,
+        CheckoutRequest(shipping_address="Papeete", cgv_accepted=True),
+    )
+    order = await db_session.get(Order, placed.order_id)
+    assert order is not None
+    line = (
+        await db_session.exec(
+            select(OrderLine).where(col(OrderLine.order_id) == placed.order_id)
+        )
+    ).one()
+    assert line.unit_price == sea_price
+    assert line.import_service_level == "economique"
+    # The import leg is in the price: no shipping fee on top of it.
+    assert order.shipping_fee_amount == Decimal("0")
+    assert order.total_amount == sea_price * 2
+
+    order_total = order.total_amount
+    invoice = await issue_invoice_for_order(db_session, order_id=placed.order_id)
+    await db_session.refresh(invoice)
+    assert invoice.total_incl_tax == order_total
+    invoiced = invoice.snapshot["lines"][0]
+    assert Decimal(str(invoiced["quantity"])) == Decimal("2")

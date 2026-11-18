@@ -449,3 +449,56 @@ async def test_a_company_billing_address_goes_on_the_invoice(
     assert buyer["tax_id"] == "C12345"
     # Shipping stays the home address.
     assert order.shipping_recipient == "Teva Tane"
+
+
+@pytest.mark.asyncio
+async def test_two_checkouts_at_once_on_one_cart_make_one_order(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Two submissions really in flight together (two sessions, two
+    connections), without an idempotency key: the cart row lock lets one
+    through; the other finds the cart ordered (`cart.already_checked_out`)."""
+    import asyncio
+
+    from app.core.errors import AppError
+
+    user_id, product_id = await _seed(db_session)
+    await _fill_cart(db_session, user_id, product_id)
+
+    engine = db_session.bind
+    started = asyncio.Event()
+    from app.features.inventory.services.stock_release import lock_stock_rows
+
+    real_lock = lock_stock_rows
+
+    async def slow_lock(*args: Any, **kwargs: Any) -> Any:
+        # Hold the first transaction open while the second one arrives.
+        started.set()
+        await asyncio.sleep(0.5)
+        return await real_lock(*args, **kwargs)
+
+    monkeypatch.setattr(cart_routes, "lock_stock_rows", slow_lock)
+
+    async def attempt(wait: bool) -> Any:
+        if wait:
+            await started.wait()
+        async with AsyncSession(engine) as session:
+            user = await session.get(User, user_id)
+            assert user is not None
+            try:
+                return await checkout_my_cart(
+                    session,
+                    user,
+                    CheckoutRequest(shipping_address="Papeete", cgv_accepted=True),
+                )
+            except AppError as exc:
+                return exc
+
+    first, second = await asyncio.gather(attempt(False), attempt(True))
+
+    outcomes = [first, second]
+    placed = [o for o in outcomes if not isinstance(o, AppError)]
+    refused = [o for o in outcomes if isinstance(o, AppError)]
+    assert len(placed) == 1, outcomes
+    assert [e.code for e in refused] == ["cart.already_checked_out"]
+    assert await _orders_of(db_session, user_id) == 1
