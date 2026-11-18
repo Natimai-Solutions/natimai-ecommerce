@@ -220,7 +220,7 @@ const fr = {
       'Ces événements n’ont jamais été traités (aucune de leurs actions n’a eu lieu). Corrigez la cause puis relancez-les, ou écartez ceux qui ont été réglés à la main.',
     dismiss: 'Écarter',
     departures_hint:
-      'Date limite passée, seuil non atteint : clôturez (en forçant) ou repoussez la date. D’ici là, les nouvelles commandes ne sont rattachées à aucun départ.',
+      'Date limite passée, seuil non atteint : clôturez (en forçant) ou repoussez la date. D’ici là, les nouvelles commandes vont au départ suivant (ouvert d’avance pour un départ récurrent) ; sans départ suivant, à aucun.',
     departure_past: 'limite dépassée depuis {n} h',
     tasks: 'Tâches de fond',
     no_tasks: 'Aucune tâche n’a encore tourné depuis le déploiement.',

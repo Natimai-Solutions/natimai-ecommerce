@@ -133,6 +133,12 @@ class GroupedDeparture(GroupedDepartureBase, table=True):
     __tablename__ = "grouped_departures"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
+    # The following departure of a recurring one, once created: in advance
+    # when this one waits below its threshold past its cut-off (the new
+    # orders go there meanwhile), else at its close. Created once.
+    next_departure_id: uuid.UUID | None = Field(
+        default=None, foreign_key="grouped_departures.id", index=True
+    )
 
 
 class GroupedDepartureCreate(GroupedDepartureBase, BaseCreate):

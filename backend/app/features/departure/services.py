@@ -206,7 +206,9 @@ async def close_departure(
         departure.status = "closed"
         session.add(departure)
         if departure.recurrence_days:
-            next_id = (await spawn_next_departure(session, departure)).id
+            # Opened in advance while this one waited below its threshold:
+            # not a second one.
+            next_id = (await ensure_next_departure(session, departure)).id
 
     return CloseResult(
         departure_id=departure.id,
@@ -250,6 +252,11 @@ async def close_due_departures(
             session, departure=departure, force=False, check_stock=False
         )
         (closed if result.closed else waiting).append(name)
+        if not result.closed and departure.recurrence_days:
+            # Left open below its threshold for the admin to decide: the new
+            # orders go to the following departure meanwhile — they were
+            # attached to none (decision of 18/11/2026, option B).
+            await ensure_next_departure(session, departure)
         if result.closed and (result.shortages or result.unpaid_order_ids):
             # The admin route returns these « to arbitrate »; nobody reads
             # the answer of a cron.
@@ -264,6 +271,21 @@ async def close_due_departures(
 
 
 _NEXT_SUFFIX = " (suivant)"
+
+
+async def ensure_next_departure(
+    session: AsyncSession, departure: GroupedDeparture
+) -> GroupedDeparture:
+    """The following departure of a recurring one, created once."""
+    if departure.next_departure_id is not None:
+        existing = await session.get(GroupedDeparture, departure.next_departure_id)
+        if existing is not None and existing.is_active:
+            return existing
+    nxt = await spawn_next_departure(session, departure)
+    departure.next_departure_id = nxt.id
+    session.add(departure)
+    await session.flush()
+    return nxt
 
 
 async def spawn_next_departure(

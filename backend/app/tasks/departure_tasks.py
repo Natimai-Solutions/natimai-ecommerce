@@ -64,8 +64,9 @@ async def _alert_below_threshold(names: list[str]) -> None:
         await send_alert(
             "Date limite passée, seuil non atteint : "
             + ", ".join(f"« {n} »" for n in fresh)
-            + ". Clôturez (en forçant) ou repoussez la date depuis « Départs groupés » ;"
-            " d'ici là les nouvelles commandes ne sont rattachées à aucun départ.",
+            + ". Clôturez (en forçant) ou repoussez la date depuis « Départs groupés ». "
+            "D'ici là, les nouvelles commandes vont au départ suivant (ouvert d'avance "
+            "pour un départ récurrent) ; sans départ suivant, à aucun.",
             source="departures",
         )
 

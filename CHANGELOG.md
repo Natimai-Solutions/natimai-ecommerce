@@ -19,6 +19,11 @@ takes a tag as its `ref`.
 
 ### Added
 
+- A recurring departure left open below its threshold past its cut-off
+  opens its following departure in advance: the new orders go there while
+  the admin decides (they were attached to no departure). The link
+  (`grouped_departures.next_departure_id`, migration `a8b9c0d1e2f3`) keeps a
+  later close from opening a second one. Decision of 18/11/2026 (option B).
 - A route into a customs clearance place must carry a mode (rapide,
   économique…): saving one without is refused
   (`shipping_route.import_mode_required`). The article price holds the

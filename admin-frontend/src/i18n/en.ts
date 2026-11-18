@@ -222,7 +222,7 @@ const en: MessageSchema = {
       'These events were never processed (none of their actions happened). Fix the cause then replay them, or dismiss those handled by hand.',
     dismiss: 'Dismiss',
     departures_hint:
-      'Cut-off passed, threshold not reached: close it (forcing) or push the date back. Until then, new orders are attached to no departure.',
+      'Cut-off passed, threshold not reached: close it (forcing) or push the date back. Until then, new orders go to the following departure (opened in advance for a recurring one); with none, to no departure.',
     departure_past: 'cut-off passed {n} h ago',
     tasks: 'Background tasks',
     no_tasks: 'No task has run since the deployment.',
