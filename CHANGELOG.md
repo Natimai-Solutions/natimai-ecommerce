@@ -104,6 +104,15 @@ takes a tag as its `ref`.
   through it creates a verified account, or signing in with the account of
   that very address, and the visitor's conversations of that address are
   attached to the account (`/contact/suite/<token>`).
+- Quote and price-group requests in the messaging (lot MSG5): a quote
+  request (account or visitor) opens a sales conversation attached to it —
+  an acknowledgement where the answer comes; issuing the quote posts « your
+  quote is ready » there (no second e-mail), the quote's internal comment is
+  written as an internal note. A price-group request opens a conversation
+  for the proofs, and the approval or refusal (with its reason) is posted
+  there, the customer being told by the usual « a reply is waiting » e-mail.
+  *My quotes* links each request to its conversation; the back-office
+  conversation links to the order, quote request or group request.
 
 - Homepage sections: the homepage is an ordered list of sections set in the
   admin (*Site homepage*) — hero, banners, category tiles, « favourites »

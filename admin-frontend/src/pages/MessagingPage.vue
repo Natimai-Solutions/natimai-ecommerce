@@ -124,7 +124,13 @@
                 &lt;{{ current.customer_email }}&gt;</template
               >
               <template v-if="current.context_label">
-                · {{ $t(`messaging.context.${current.context_type}`) }} {{ current.context_label }}
+                ·
+                <router-link v-if="contextLink" :to="contextLink" class="text-link">
+                  {{ $t(`messaging.context.${current.context_type}`) }} {{ current.context_label }}
+                </router-link>
+                <template v-else>
+                  {{ $t(`messaging.context.${current.context_type}`) }} {{ current.context_label }}
+                </template>
               </template>
             </p>
           </div>
@@ -358,6 +364,19 @@ const composeKind = ref<'message' | 'note'>('message');
 const sending = ref(false);
 let threadTimer: ReturnType<typeof setInterval> | null = null;
 let queueTimer: ReturnType<typeof setInterval> | null = null;
+
+/** The admin screen of what the conversation refers to. */
+const contextLink = computed(() => {
+  const conversation = current.value;
+  if (!conversation?.context_id) return null;
+  return (
+    {
+      order: `/orders/${conversation.context_id}`,
+      quote_request: '/quote-requests',
+      group_request: '/group-upgrade-requests',
+    }[conversation.context_type ?? ''] ?? null
+  );
+});
 
 const selectedId = computed(() =>
   typeof route.params.id === 'string' && route.params.id ? route.params.id : null,

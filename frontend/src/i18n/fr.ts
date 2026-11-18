@@ -1012,6 +1012,7 @@ const fr = {
     title: 'Demande de devis envoyée',
   },
   quotes: {
+    talk: 'Échanger avec nous',
     hint: 'Demandez un devis depuis votre panier ; une fois établi, il se commande à ses prix.',
     load_failed: 'Impossible de charger vos devis.',
     none: 'Aucune demande de devis',

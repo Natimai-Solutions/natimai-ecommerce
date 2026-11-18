@@ -57,6 +57,14 @@
           >
             PDF
           </button>
+          <router-link
+            v-if="quote.conversation_id"
+            class="text-link"
+            :to="{ name: 'account', query: { tab: 'messages', c: quote.conversation_id } }"
+            data-testid="quote-conversation"
+          >
+            {{ $t('quotes.talk') }}
+          </router-link>
           <q-btn
             v-if="quote.can_order"
             unelevated

@@ -36,6 +36,7 @@ from app.features.cart.services.quote import (
     quote_pdf_response,
     send_quote_email,
 )
+from app.features.messaging.links import quote_commented, quote_issued
 
 router = APIRouter(
     prefix="/admin/quote-requests",
@@ -233,7 +234,11 @@ async def update_quote_request(
             quote.handled_by_id = None
 
     if body.admin_comment is not None:
-        quote.admin_comment = body.admin_comment.strip() or None
+        comment = body.admin_comment.strip() or None
+        if comment and comment != quote.admin_comment:
+            # Internal: written in the quote's conversation as a note (MSG5).
+            await quote_commented(session, quote, staff=admin, comment=comment)
+        quote.admin_comment = comment
 
     session.add(quote)
     await session.commit()
@@ -252,7 +257,7 @@ async def issue_quote_request(
     quote_id: uuid.UUID,
     body: QuoteIssueBody,
     session: SessionDep,
-    _admin: CurrentSuperUser,
+    admin: CurrentSuperUser,
 ) -> QuoteIssueResponse:
     """Émettre (ou ré-émettre) le devis : lignes au prix consenti, livraison,
     validité, message ; numéro DEV alloué la première fois ; PDF envoyé au
@@ -269,6 +274,7 @@ async def issue_quote_request(
             },
         )
     await issue_quote(session, quote, body)
+    await quote_issued(session, quote, staff=admin)
     await session.commit()
     quote = await _read_quote(session, quote_id)
     sent = await send_quote_email(session, quote) if body.send_email else False

@@ -995,6 +995,7 @@ const en: MessageSchema = {
     title: 'Quote request sent',
   },
   quotes: {
+    talk: 'Talk with us',
     hint: 'Request a quote from your cart; once issued, it can be ordered at its prices.',
     load_failed: 'Your quotes could not be loaded.',
     none: 'No quote requests',

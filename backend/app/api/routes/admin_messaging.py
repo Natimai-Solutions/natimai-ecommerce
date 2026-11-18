@@ -27,6 +27,7 @@ from app.api.routes.messaging import (
 )
 from app.core.datetimes import utcnow
 from app.core.errors import AppError
+from app.features.cart.models.quote_request import QuoteRequest
 from app.features.messaging import attachments as files
 from app.features.messaging import guests, service
 from app.features.messaging.models import (
@@ -40,6 +41,9 @@ from app.features.messaging.models import (
     MessageSide,
 )
 from app.features.order.models.order import Order
+from app.features.product.models.price_group import PriceGroup
+from app.features.product.models.product import Product
+from app.features.user.models.group_upgrade_request import GroupUpgradeRequest
 from app.features.user.models.user import User
 
 router = APIRouter(
@@ -153,9 +157,24 @@ async def _get(session: SessionDep, conversation_id: uuid.UUID) -> Conversation:
 
 
 async def _context_label(session: SessionDep, conversation: Conversation) -> str | None:
-    if conversation.context_type == "order" and conversation.context_id:
+    """What the conversation refers to, as the team reads it."""
+    if not conversation.context_id:
+        return None
+    if conversation.context_type == "order":
         order = await session.get(Order, conversation.context_id)
         return (order.order_number or str(order.id)[:8]) if order else None
+    if conversation.context_type == "quote_request":
+        quote = await session.get(QuoteRequest, conversation.context_id)
+        return (quote.quote_number or quote.email) if quote else None
+    if conversation.context_type == "product":
+        product = await session.get(Product, conversation.context_id)
+        return product.name if product else None
+    if conversation.context_type == "group_request":
+        request = await session.get(GroupUpgradeRequest, conversation.context_id)
+        group = (
+            await session.get(PriceGroup, request.price_group_id) if request else None
+        )
+        return group.label if group else None
     return None
 
 

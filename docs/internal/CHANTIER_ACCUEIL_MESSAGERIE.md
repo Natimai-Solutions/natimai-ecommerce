@@ -936,7 +936,6 @@ les identifiants M· de l'audit fonctionnel.
 | **A5** | Sections personnelles (R9) et héros par audience | M |
 | **MSG3** | Raccourcis contextuels (produit, commande, panier, groupe), panneau client et objet rattaché dans le fil | M |
 | **MSG4** | Notes internes, réponses types, transfert, libération automatique, digest, priorité par groupe tarifaire | M |
-| **MSG5** | Demandes de devis rattachées à une conversation (Z18 volet devis), demandes de groupe tarifaire avec justificatifs (M14 volet groupe) ; « Émettre le devis » / « Ouvrir un retour » | M |
 | **ROLE** | Rôles « Service client » et « Service commercial » : premiers rôles fins (groupes de sécurité, gardes par liste d'autorisation, 2FA, menu admin filtré) | M à L |
 | **BR** | Marques : `Product.brand_id`, alias, reprise depuis `manufacturer`, écran admin, filtre et facette, page marque (M9 de l'audit) | M à L |
 
@@ -958,7 +957,8 @@ prouvée) : un visiteur qui réécrit rejoint sa conversation encore ouverte
 sur la même adresse. **A2** (sélections de produits par source, catégories choisies) ; écart :
 les « coups de cœur » restent une section à part, réglée fiche produit par
 fiche produit (pas de reprise en sélection manuelle) — une sélection
-manuelle les remplace si on le souhaite. Ordre conseillé pour la suite : **MSG5 → ROLE → MSG3 → MSG4**, BR quand on veut la bande de marques (R6) et
+manuelle les remplace si on le souhaite. **MSG5** (demandes de devis et de groupe en conversations ; « Ouvrir un retour »
+attend le RMA). Ordre conseillé pour la suite : **ROLE → MSG3 → MSG4**, BR quand on veut la bande de marques (R6) et
 les pages marque, en parallèle.
 ROLE peut attendre : sans lui, les superusers répondent.
 

@@ -86,6 +86,7 @@ from app.features.inventory.models.stock_movement import (
 )
 from app.features.inventory.services.availability import supplier_available_quantity
 from app.features.inventory.services.stock_release import lock_stock_rows
+from app.features.messaging.links import conversation_about, open_for_quote
 from app.features.notification.email_renderer import render_email
 from app.features.notification.mailer import send_email
 from app.features.order.crud.order_crud import crud_order
@@ -2382,6 +2383,8 @@ async def create_quote_request(
         ),
         user=current_user,
     )
+    # The customer gets a conversation where the answer will come (MSG5).
+    await open_for_quote(session, quote_request, customer=current_user)
 
     email_delivered = await _send_quote_support_email(
         session=session,
@@ -2431,6 +2434,8 @@ class MyQuoteItem(BaseModel):
     order_id: uuid.UUID | None
     #: Issued, in date, not converted, made of catalogue products.
     can_order: bool
+    #: The sales conversation about this request (messaging), if any.
+    conversation_id: uuid.UUID | None = None
 
 
 def _my_quote_item(quote: QuoteRequest, *, user: User) -> MyQuoteItem:
@@ -2538,7 +2543,13 @@ async def list_my_quotes(
             .order_by(col(QuoteRequest.created_at).desc())
         )
     ).all()
-    return [_my_quote_item(q, user=current_user) for q in rows]
+    items = [_my_quote_item(q, user=current_user) for q in rows]
+    for item in items:
+        conversation = await conversation_about(session, "quote_request", item.id)
+        # Only the customer's own conversation (a visitor's stays theirs).
+        if conversation is not None and conversation.customer_id == current_user.id:
+            item.conversation_id = conversation.id
+    return items
 
 
 @router.get("/quote-requests/me/{quote_id}/pdf")
@@ -2682,6 +2693,8 @@ async def create_guest_quote_request(
         ),
         user=None,
     )
+    # A visitor's conversation: answered by e-mail, nothing sent before (MSG5).
+    await open_for_quote(session, quote_request, customer=None)
     # Capturé AVANT le commit : celui-ci expire l'instance, et relire un
     # attribut expiré depuis du code asynchrone lève MissingGreenlet.
     quote_request_id = quote_request.id

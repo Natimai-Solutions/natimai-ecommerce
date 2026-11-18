@@ -15472,6 +15472,8 @@ export interface components {
             order_id: string | null;
             /** Can Order */
             can_order: boolean;
+            /** Conversation Id */
+            conversation_id?: string | null;
         };
         /**
          * MyReview

@@ -21,6 +21,7 @@ from sqlmodel import col, select
 from app.api.deps import CurrentSuperUser, CurrentUser, SessionDep, module_required
 from app.core.errors import AppError
 from app.features.base.models import Message
+from app.features.messaging.links import group_decided, open_for_group_request
 from app.features.product.models.price_group import PriceGroup
 from app.features.user.models.group_upgrade_request import (
     GroupUpgradeRequest,
@@ -132,6 +133,11 @@ async def submit_upgrade_request(
         created_at=datetime.now(UTC),
     )
     session.add(req)
+    await session.flush()
+    # A sales conversation for the proofs and the decision (MSG5).
+    await open_for_group_request(
+        session, req, customer=current_user, group_label=group.label
+    )
     await session.commit()
     await session.refresh(req)
     logger.info(
@@ -260,6 +266,21 @@ class AdminReviewBody(BaseModel):
     comment: str | None = None
 
 
+async def _post_decision(
+    session: SessionDep, req: GroupUpgradeRequest, staff: User, *, approved: bool
+) -> None:
+    """The decision in the request's conversation (MSG5)."""
+    group = await session.get(PriceGroup, req.price_group_id)
+    await group_decided(
+        session,
+        req,
+        staff=staff,
+        approved=approved,
+        group_label=group.label if group else "",
+        comment=req.admin_comment,
+    )
+
+
 @router.post(
     "/admin/group-upgrade-requests/{request_id}/approve",
     response_model=GroupUpgradeRequestPublic,
@@ -299,6 +320,7 @@ async def approve_upgrade_request(
     req.reviewed_at = datetime.now(UTC)
     req.admin_comment = payload.comment
     session.add(req)
+    await _post_decision(session, req, current_user, approved=True)
 
     await session.commit()
     await session.refresh(req)
@@ -339,6 +361,7 @@ async def reject_upgrade_request(
     req.reviewed_at = datetime.now(UTC)
     req.admin_comment = payload.comment
     session.add(req)
+    await _post_decision(session, req, current_user, approved=False)
 
     await session.commit()
     await session.refresh(req)
