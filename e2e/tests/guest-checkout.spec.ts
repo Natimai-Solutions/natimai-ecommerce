@@ -61,6 +61,6 @@ test('a known address is asked to sign in', async ({ page }) => {
   await page.getByTestId('guest-email').fill(CUSTOMER_EMAIL)
   await page.getByTestId('guest-name').fill('Quelqu’un')
   await page.getByTestId('guest-submit').click()
-  await expect(page.getByTestId('guest-form')).toContainText('connectez-vous')
+  await expect(page.getByTestId('guest-form')).toContainText('Un compte existe déjà avec cet e-mail')
   await expect(page.locator('[data-testid^="checkout-address-"]')).toHaveCount(0)
 })

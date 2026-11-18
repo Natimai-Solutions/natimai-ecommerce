@@ -60,7 +60,7 @@ test('a visitor signs up with the e-mailed code, signs in and resets a forgotten
     await page.context().clearCookies()
 
     await signIn(page, EMAIL, 'pas-le-bon-mot-de-passe')
-    await expect(page.getByText('Email ou mot de passe incorrect.')).toBeVisible()
+    await expect(page.getByText('E-mail ou mot de passe incorrect.')).toBeVisible()
     await expect(page).toHaveURL(/connexion/)
 
     await signIn(page, EMAIL, PASSWORD)
@@ -83,7 +83,7 @@ test('a visitor signs up with the e-mailed code, signs in and resets a forgotten
     await expect(page.getByTestId('reset-submit')).toBeHidden()
 
     await signIn(page, EMAIL, 'pas-le-bon-mot-de-passe')
-    await expect(page.getByText('Email ou mot de passe incorrect.')).toBeVisible()
+    await expect(page.getByText('E-mail ou mot de passe incorrect.')).toBeVisible()
     await signIn(page, EMAIL, NEW_PASSWORD)
     await expect(page).not.toHaveURL(/connexion/)
   })
