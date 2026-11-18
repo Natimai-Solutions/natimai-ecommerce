@@ -44,6 +44,17 @@
             maxlength="150"
           />
           <q-input
+            v-if="addressForm.company"
+            v-model="addressForm.tax_id"
+            :label="$t('addresses.tax_id')"
+            :hint="$t('addresses.tax_id_hint')"
+            outlined
+            dense
+            class="q-mb-sm"
+            maxlength="40"
+            data-testid="address-tax-id"
+          />
+          <q-input
             v-model="addressForm.phone"
             type="tel"
             :label="$t('addresses.phone')"
@@ -225,6 +236,7 @@ const addressForm = reactive<AddressInput>({
   recipient_name: '',
   company: '',
   phone: '',
+  tax_id: '',
   street: '',
   city: '',
   state: '',
@@ -455,6 +467,7 @@ function reset(address: Address | null | undefined) {
     editingId.value = address.id;
     addressForm.recipient_name = address.recipient_name ?? authStore.profile?.full_name ?? '';
     addressForm.company = address.company ?? '';
+    addressForm.tax_id = address.tax_id ?? '';
     addressForm.phone = address.phone ?? authStore.profile?.phone ?? '';
     addressForm.street = address.street;
     addressForm.city = address.city;
@@ -471,6 +484,7 @@ function reset(address: Address | null | undefined) {
     editingId.value = null;
     addressForm.recipient_name = authStore.profile?.full_name ?? '';
     addressForm.company = '';
+    addressForm.tax_id = '';
     addressForm.phone = authStore.profile?.phone ?? '';
     addressForm.street = '';
     addressForm.city = '';
@@ -498,6 +512,7 @@ async function saveAddress() {
     const payload: AddressInput = {
       recipient_name: addressForm.recipient_name?.trim() || null,
       company: addressForm.company?.trim() || null,
+      tax_id: (addressForm.company?.trim() && addressForm.tax_id?.trim()) || null,
       phone: addressForm.phone?.trim() || null,
       street: addressForm.street,
       city: addressForm.city,

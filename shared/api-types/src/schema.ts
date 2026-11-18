@@ -8341,6 +8341,8 @@ export interface components {
             company?: string | null;
             /** Phone */
             phone?: string | null;
+            /** Tax Id */
+            tax_id?: string | null;
             /**
              * Street
              * @description Street address
@@ -8394,6 +8396,8 @@ export interface components {
             company?: string | null;
             /** Phone */
             phone?: string | null;
+            /** Tax Id */
+            tax_id?: string | null;
             /** Street */
             street: string;
             /** City */
@@ -8420,6 +8424,8 @@ export interface components {
             company?: string | null;
             /** Phone */
             phone?: string | null;
+            /** Tax Id */
+            tax_id?: string | null;
             /** Street */
             street?: string | null;
             /** City */
@@ -8464,6 +8470,8 @@ export interface components {
             company?: string | null;
             /** Phone */
             phone?: string | null;
+            /** Tax Id */
+            tax_id?: string | null;
             /**
              * Street
              * @description Street address
@@ -8545,6 +8553,8 @@ export interface components {
             company?: string | null;
             /** Phone */
             phone?: string | null;
+            /** Tax Id */
+            tax_id?: string | null;
             /** Street */
             street?: string | null;
             /** City */
@@ -8608,6 +8618,8 @@ export interface components {
             company?: string | null;
             /** Phone */
             phone?: string | null;
+            /** Tax Id */
+            tax_id?: string | null;
             /**
              * Street
              * @description Street address
@@ -9015,6 +9027,12 @@ export interface components {
             shipping_recipient?: string | null;
             /** Shipping Phone */
             shipping_phone?: string | null;
+            /** Billing Name */
+            billing_name?: string | null;
+            /** Billing Address */
+            billing_address?: string | null;
+            /** Billing Tax Id */
+            billing_tax_id?: string | null;
             /** Delivery Type */
             delivery_type?: string | null;
             /** Grouped Departure Id */
@@ -10550,6 +10568,11 @@ export interface components {
              * @description Ignored. The fee is read server-side from the selected PaymentMethod: it is a property of the method, not something the caller gets to decide. Kept optional so existing clients that still send it are not rejected.
              */
             payment_fee_amount?: number | string | null;
+            /**
+             * Billing Address Id
+             * @description One of the customer's saved addresses to bill instead of the shipping one (company, tax id). Omitted: billed at the shipping address.
+             */
+            billing_address_id?: string | null;
             /**
              * Idempotency Key
              * @description Chosen by the client once per order submission and sent again on every retry of it: a checkout whose order already exists (the first attempt went through but its response was lost) returns that order instead of creating a second one.
@@ -14052,6 +14075,21 @@ export interface components {
              */
             shipping_phone?: string | null;
             /**
+             * Billing Name
+             * @description Nom facturé (société ou personne)
+             */
+            billing_name?: string | null;
+            /**
+             * Billing Address
+             * @description Adresse de facturation figée
+             */
+            billing_address?: string | null;
+            /**
+             * Billing Tax Id
+             * @description Identifiant de l'acheteur (n° TAHITI, SIRET, TVA)
+             */
+            billing_tax_id?: string | null;
+            /**
              * Shipping Cost Breakdown
              * @description Snapshot detaille des couts de livraison par troncon au checkout (routes selectionnees, forfait/poids/valeur, ETA, empreinte carbone)
              */
@@ -14161,6 +14199,10 @@ export interface components {
             pay_now_amount: string;
             /** Payment Method Id */
             payment_method_id?: string | null;
+            /** Pending Manual Method Name */
+            pending_manual_method_name?: string | null;
+            /** Pending Manual Amount */
+            pending_manual_amount?: string | null;
         };
         /**
          * MyOrderLine
@@ -14302,6 +14344,21 @@ export interface components {
              * @description Téléphone du destinataire pour le transporteur
              */
             shipping_phone?: string | null;
+            /**
+             * Billing Name
+             * @description Nom facturé (société ou personne)
+             */
+            billing_name?: string | null;
+            /**
+             * Billing Address
+             * @description Adresse de facturation figée
+             */
+            billing_address?: string | null;
+            /**
+             * Billing Tax Id
+             * @description Identifiant de l'acheteur (n° TAHITI, SIRET, TVA)
+             */
+            billing_tax_id?: string | null;
             /**
              * Shipping Cost Breakdown
              * @description Snapshot detaille des couts de livraison par troncon au checkout (routes selectionnees, forfait/poids/valeur, ETA, empreinte carbone)
@@ -14634,6 +14691,21 @@ export interface components {
              * @description Téléphone du destinataire pour le transporteur
              */
             shipping_phone?: string | null;
+            /**
+             * Billing Name
+             * @description Nom facturé (société ou personne)
+             */
+            billing_name?: string | null;
+            /**
+             * Billing Address
+             * @description Adresse de facturation figée
+             */
+            billing_address?: string | null;
+            /**
+             * Billing Tax Id
+             * @description Identifiant de l'acheteur (n° TAHITI, SIRET, TVA)
+             */
+            billing_tax_id?: string | null;
             /**
              * Shipping Cost Breakdown
              * @description Snapshot detaille des couts de livraison par troncon au checkout (routes selectionnees, forfait/poids/valeur, ETA, empreinte carbone)
@@ -15105,6 +15177,21 @@ export interface components {
              * @description Téléphone du destinataire pour le transporteur
              */
             shipping_phone?: string | null;
+            /**
+             * Billing Name
+             * @description Nom facturé (société ou personne)
+             */
+            billing_name?: string | null;
+            /**
+             * Billing Address
+             * @description Adresse de facturation figée
+             */
+            billing_address?: string | null;
+            /**
+             * Billing Tax Id
+             * @description Identifiant de l'acheteur (n° TAHITI, SIRET, TVA)
+             */
+            billing_tax_id?: string | null;
             /**
              * Shipping Cost Breakdown
              * @description Snapshot detaille des couts de livraison par troncon au checkout (routes selectionnees, forfait/poids/valeur, ETA, empreinte carbone)

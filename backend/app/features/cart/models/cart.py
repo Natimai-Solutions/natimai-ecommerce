@@ -319,6 +319,14 @@ class CheckoutRequest(SQLModel):
             "still send it are not rejected."
         ),
     )
+    billing_address_id: uuid.UUID | None = Field(
+        default=None,
+        description=(
+            "One of the customer's saved addresses to bill instead of the "
+            "shipping one (company, tax id). Omitted: billed at the shipping "
+            "address."
+        ),
+    )
     idempotency_key: str | None = Field(
         default=None,
         min_length=8,

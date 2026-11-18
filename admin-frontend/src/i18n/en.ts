@@ -1573,6 +1573,8 @@ const en: MessageSchema = {
     next_leg: 'Next leg',
     no_cost_lines: '{n} line(s) without known cost, not counted',
     import_mode: 'Import: {mode}',
+    billing: 'Billing',
+    tax_id: 'ID {id}',
     no_departure: '— None (regular order)',
     no_items: 'No items.',
     no_leg: 'No transport legs.',

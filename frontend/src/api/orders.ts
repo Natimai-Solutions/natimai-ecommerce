@@ -86,6 +86,9 @@ export interface OrderTracking {
 /** One order for its detail page (`MyOrderDetail`): adds the payment method. */
 export interface OrderDetail extends Order {
   payment_method_name: string | null;
+  /** A transfer / cheque / cash payment announced and still waiting. */
+  pending_manual_method_name?: string | null;
+  pending_manual_amount?: string | null;
   /** Money already received (instalments included) and what is left to pay. */
   amount_paid?: string;
   amount_due?: string;

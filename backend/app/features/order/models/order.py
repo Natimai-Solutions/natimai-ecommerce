@@ -115,6 +115,20 @@ class OrderBase(Base):
         max_length=40,
         description="Téléphone du destinataire pour le transporteur",
     )
+    # Billing identity chosen at checkout, when it is not the shipping one
+    # (a company paying for goods delivered elsewhere). None = the invoice
+    # bills the account at the shipping address, as before.
+    billing_name: str | None = Field(
+        default=None, max_length=150, description="Nom facturé (société ou personne)"
+    )
+    billing_address: str | None = Field(
+        default=None, max_length=500, description="Adresse de facturation figée"
+    )
+    billing_tax_id: str | None = Field(
+        default=None,
+        max_length=40,
+        description="Identifiant de l'acheteur (n° TAHITI, SIRET, TVA)",
+    )
     shipping_cost_breakdown: dict[str, Any] | None = Field(
         default=None,
         sa_column=Column(JSON),

@@ -139,6 +139,10 @@ export interface AdminOrderDetail {
   /** Destinataire et téléphone figés au checkout (absents avant le 18/11/2026). */
   shipping_recipient?: string | null;
   shipping_phone?: string | null;
+  /** Facturation choisie au checkout (sinon : le compte, à l'adresse de livraison). */
+  billing_name?: string | null;
+  billing_address?: string | null;
+  billing_tax_id?: string | null;
   /** Last-leg mode chosen at checkout (home_delivery, pickup…). */
   delivery_type: string | null;
   grouped_departure_id: string | null;

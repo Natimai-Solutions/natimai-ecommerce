@@ -602,6 +602,18 @@
                   {{ order.shipping_phone }}
                 </div>
               </dd>
+              <template v-if="order.billing_address">
+                <dt>{{ $t('order.billing') }}</dt>
+                <dd class="order-panel__wrap" data-testid="order-billing">
+                  <div v-if="order.billing_name" class="text-weight-medium">
+                    {{ order.billing_name }}
+                  </div>
+                  {{ order.billing_address }}
+                  <div v-if="order.billing_tax_id" class="font-mono">
+                    {{ $t('order.tax_id', { id: order.billing_tax_id }) }}
+                  </div>
+                </dd>
+              </template>
               <template v-if="order.notes">
                 <dt>{{ $t('order.notes') }}</dt>
                 <dd class="order-panel__wrap">{{ order.notes }}</dd>

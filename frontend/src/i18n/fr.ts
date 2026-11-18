@@ -226,6 +226,10 @@ const fr = {
     offer_failed: "Le lien n'a pas pu être envoyé : réessayez.",
   },
   checkout: {
+    choose_billing: 'Choisissez l’adresse de facturation.',
+    bill_to_other: 'Facturer à une autre adresse (société)',
+    billing_address: 'Adresse de facturation',
+    tax_id: 'N° {id}',
     delivery_load_failed: 'Les modes de livraison n’ont pas pu être chargés.',
     delivery_retry: 'Réessayer',
     edit_cart: 'Modifier le panier',
@@ -457,6 +461,8 @@ const fr = {
     title: 'Mon compte',
   },
   addresses: {
+    tax_id: 'N° TAHITI / SIRET',
+    tax_id_hint: 'Imprimé sur la facture de la société',
     no_recipient: 'Destinataire à préciser',
     recipient: 'Destinataire',
     company: 'Société (facultatif)',
@@ -559,6 +565,8 @@ const fr = {
     with_microsoft: 'Continuer avec Microsoft',
   },
   balance: {
+    pending_manual:
+      'Un paiement par « {method} » de {amount} est annoncé pour cette commande et pas encore reçu. Si vous l’avez déjà effectué, ne payez pas ici : il sera pris en compte à sa réception. Payer maintenant par un autre moyen l’annule.',
     start_failed:
       'Votre commande est enregistrée, mais le formulaire de paiement n’a pas pu s’ouvrir. Réessayez ci-dessous.',
     title_order: 'Payer la commande',

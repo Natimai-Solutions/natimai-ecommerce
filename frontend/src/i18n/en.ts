@@ -226,6 +226,10 @@ const en: MessageSchema = {
     offer_failed: 'The link could not be sent: try again.',
   },
   checkout: {
+    choose_billing: 'Choose the billing address.',
+    bill_to_other: 'Bill another address (company)',
+    billing_address: 'Billing address',
+    tax_id: 'ID {id}',
     delivery_load_failed: 'The delivery options could not be loaded.',
     delivery_retry: 'Try again',
     edit_cart: 'Edit the cart',
@@ -453,6 +457,8 @@ const en: MessageSchema = {
     title: 'My account',
   },
   addresses: {
+    tax_id: 'Business ID (TAHITI no., SIRET)',
+    tax_id_hint: 'Printed on the company’s invoice',
     no_recipient: 'Recipient to be added',
     recipient: 'Recipient',
     company: 'Company (optional)',
@@ -553,6 +559,8 @@ const en: MessageSchema = {
     with_microsoft: 'Continue with Microsoft',
   },
   balance: {
+    pending_manual:
+      'A « {method} » payment of {amount} is announced for this order and not received yet. If you already made it, do not pay here: it will be counted once received. Paying now another way cancels it.',
     start_failed: 'Your order is recorded, but the payment form could not open. Try again below.',
     title_order: 'Pay the order',
     amount_due: 'Amount due',

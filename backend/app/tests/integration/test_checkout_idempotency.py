@@ -369,3 +369,83 @@ async def test_a_card_checkout_on_a_real_database(
     assert payment.amount == placed.amount_due_now
     assert (payment.provider_data or {}).get("form_token") == "FORM-TOKEN"
     assert await _orders_of(db_session, user_id) == 1
+
+
+@pytest.mark.asyncio
+async def test_a_company_billing_address_goes_on_the_invoice(
+    db_session: AsyncSession,
+) -> None:
+    """Decision of 18/11/2026: a company paying for goods delivered elsewhere
+    is billed at its own address, with its tax id — it was billed under the
+    account's name at the shipping address."""
+    from app.core.errors import AppError
+    from app.features.invoice.services.invoice_service import _build_buyer_identity
+    from app.features.user.models.address import Address
+
+    user_id, product_id = await _seed(db_session)
+    home = Address(
+        user_id=user_id,
+        type="shipping",
+        recipient_name="Teva Tane",
+        street="4 allée des Tiare",
+        postal_code="98713",
+        city="Papeete",
+        country="PF",
+    )
+    office = Address(
+        user_id=user_id,
+        type="billing",
+        company="Atelier Moana SARL",
+        tax_id="C12345",
+        street="BP 1234",
+        postal_code="98713",
+        city="Papeete",
+        country="PF",
+    )
+    db_session.add_all([home, office])
+    await db_session.flush()
+    home_id, office_id = home.id, office.id
+    await db_session.commit()
+
+    # Someone else's address is refused.
+    stranger_id, _ = await _seed(db_session)
+    await _fill_cart(db_session, stranger_id, product_id)
+    stranger = await db_session.get(User, stranger_id)
+    assert stranger is not None
+    with pytest.raises(AppError) as foreign:
+        await checkout_my_cart(
+            db_session,
+            stranger,
+            CheckoutRequest(
+                shipping_address="ailleurs",
+                billing_address_id=office_id,
+                cgv_accepted=True,
+            ),
+        )
+    assert foreign.value.code == "checkout.billing_address.not_found"
+
+    await _fill_cart(db_session, user_id, product_id)
+    user = await db_session.get(User, user_id)
+    assert user is not None
+    placed = await checkout_my_cart(
+        db_session,
+        user,
+        CheckoutRequest(
+            shipping_address_id=home_id,
+            billing_address_id=office_id,
+            cgv_accepted=True,
+        ),
+    )
+
+    order = await db_session.get(Order, placed.order_id)
+    assert order is not None
+    assert order.billing_name == "Atelier Moana SARL"
+    assert order.billing_address == "BP 1234, 98713 Papeete, PF"
+    assert order.billing_tax_id == "C12345"
+    user = await db_session.get(User, user_id)
+    buyer = await _build_buyer_identity(db_session, order=order, user=user)
+    assert buyer["name"] == "Atelier Moana SARL"
+    assert buyer["address"] == "BP 1234, 98713 Papeete, PF"
+    assert buyer["tax_id"] == "C12345"
+    # Shipping stays the home address.
+    assert order.shipping_recipient == "Teva Tane"

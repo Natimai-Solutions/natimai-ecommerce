@@ -19,6 +19,15 @@ takes a tag as its `ref`.
 
 ### Added
 
+- A separate billing address (decision of 18/11/2026): an address carries
+  an optional business id (n° TAHITI, SIRET…); at checkout « Facturer à une
+  autre adresse (société) » picks one, frozen on the order (`billing_name`,
+  `billing_address`, `billing_tax_id`, migration `e6f7a8b9c0d1`) and printed
+  as the buyer on the invoice and the credit notes, tax id included. The
+  admin order page shows it.
+- « Payer ma commande » warns when a transfer, cheque or cash payment is
+  announced and not received yet: a customer who already sent it would pay
+  twice (decision of 18/11/2026: a warning, not a refusal).
 - The order's address is built by the server from the saved address
   (`shipping_address_id`): company, street, city, country; the recipient and
   the phone have their own columns (`orders.shipping_recipient`,

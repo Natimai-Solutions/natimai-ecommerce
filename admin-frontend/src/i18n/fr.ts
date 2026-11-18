@@ -1584,6 +1584,8 @@ const fr = {
     next_leg: 'Tronçon suivant',
     no_cost_lines: '{n} ligne(s) sans coût connu, non comptée(s)',
     import_mode: 'Import : {mode}',
+    billing: 'Facturation',
+    tax_id: 'N° {id}',
     no_departure: '— Aucun (commande classique)',
     no_items: 'Aucun article.',
     no_leg: 'Aucun tronçon de transport.',

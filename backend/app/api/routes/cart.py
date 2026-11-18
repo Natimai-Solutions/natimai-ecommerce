@@ -667,6 +667,39 @@ async def _order_address_snapshot(
     return (typed, None, None)
 
 
+async def _billing_snapshot(
+    session: SessionDep, *, user_id: uuid.UUID, address_id: uuid.UUID | None
+) -> tuple[str | None, str | None, str | None]:
+    """``(name, address, tax_id)`` billed when the customer chose a billing
+    address of their own; all None otherwise (the invoice then bills the
+    account at the shipping address)."""
+    if address_id is None:
+        return (None, None, None)
+    address = await session.get(Address, address_id)
+    if address is None or address.user_id != user_id:
+        raise AppError(
+            code="checkout.billing_address.not_found",
+            status_code=400,
+            message="Adresse de facturation introuvable.",
+            details={"billing_address_id": str(address_id)},
+        )
+    postal = ", ".join(
+        str(p).strip()
+        for p in (
+            address.street,
+            " ".join(p for p in (address.postal_code, address.city) if p),
+            address.state,
+            address.country,
+        )
+        if p and str(p).strip()
+    )
+    return (
+        address.company or address.recipient_name or None,
+        postal[:500] or None,
+        address.tax_id or None,
+    )
+
+
 async def _resolve_tracking_address_for_checkout(
     session: SessionDep,
     *,
@@ -3820,6 +3853,9 @@ async def checkout_my_cart(
             address_id=payload.shipping_address_id,
             typed=payload.shipping_address,
         )
+        billing_name, billing_address, billing_tax_id = await _billing_snapshot(
+            session, user_id=user_id, address_id=payload.billing_address_id
+        )
         # Human-readable reference allocated up-front (server-side only — the
         # field is not part of OrderCreate, cf. Order.order_number).
         order_number = await allocate_order_number(session)
@@ -3840,6 +3876,9 @@ async def checkout_my_cart(
                 shipping_address=address_snapshot,
                 shipping_recipient=recipient,
                 shipping_phone=recipient_phone,
+                billing_name=billing_name,
+                billing_address=billing_address,
+                billing_tax_id=billing_tax_id,
                 shipping_cost_breakdown=shipping_cost_breakdown_payload,
                 notes=payload.notes,
                 delivery_type=payload.delivery_type,

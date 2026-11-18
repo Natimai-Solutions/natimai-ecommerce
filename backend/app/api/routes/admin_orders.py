@@ -191,6 +191,10 @@ class AdminOrderDetail(BaseModel):
     #: placed before 18/11/2026 carry them inside ``shipping_address``).
     shipping_recipient: str | None = None
     shipping_phone: str | None = None
+    #: Billing identity chosen at checkout (None: billed at the shipping address).
+    billing_name: str | None = None
+    billing_address: str | None = None
+    billing_tax_id: str | None = None
     delivery_type: str | None = None
     grouped_departure_id: uuid.UUID | None = None
     notes: str | None = None
@@ -850,6 +854,9 @@ async def get_order_detail(
         shipping_address=order.shipping_address,
         shipping_recipient=order.shipping_recipient,
         shipping_phone=order.shipping_phone,
+        billing_name=order.billing_name,
+        billing_address=order.billing_address,
+        billing_tax_id=order.billing_tax_id,
         delivery_type=getattr(order, "delivery_type", None),
         grouped_departure_id=order.grouped_departure_id,
         notes=order.notes,

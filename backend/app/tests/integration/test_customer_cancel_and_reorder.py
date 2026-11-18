@@ -431,3 +431,43 @@ async def test_an_unpaid_order_says_what_can_be_paid_now(
     await db_session.refresh(buyer)
     cancelled = await get_my_order(cancelled_id, db_session, buyer)
     assert cancelled.pay_now_kind is None
+
+
+@pytest.mark.asyncio
+async def test_the_order_says_a_manual_payment_is_waiting(
+    db_session: AsyncSession,
+) -> None:
+    """« Payer ma commande » warns before a card payment when a transfer is
+    announced and not received: the customer who already sent it would pay
+    twice (decision of 18/11/2026: a warning, not a refusal)."""
+    from app.features.payment.models.payment_method import PaymentMethod
+
+    buyer = await _user(db_session)
+    order_id, payment_id = await _order(
+        db_session, buyer, order_status="Pending", payment_status="AwaitingValidation"
+    )
+    transfer = PaymentMethod(name="Virement", provider_code="manual_transfer")
+    db_session.add(transfer)
+    await db_session.flush()
+    payment = await db_session.get(Payment, payment_id)
+    assert payment is not None
+    payment.provider_code = "manual_transfer"
+    payment.payment_method_id = transfer.id
+    db_session.add(payment)
+    await db_session.commit()
+    await db_session.refresh(buyer)
+
+    detail = await get_my_order(order_id, db_session, buyer)
+    assert detail.pending_manual_method_name == "Virement"
+    assert detail.pending_manual_amount == Decimal("30000")
+
+    # Received: no more warning.
+    payment = await db_session.get(Payment, payment_id)
+    assert payment is not None
+    payment.payment_status_id = await _status(db_session, PaymentStatus, "Completed")
+    db_session.add(payment)
+    await db_session.commit()
+    await db_session.refresh(buyer)
+    assert (
+        await get_my_order(order_id, db_session, buyer)
+    ).pending_manual_method_name is None

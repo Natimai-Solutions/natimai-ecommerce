@@ -170,7 +170,15 @@ async def _seller_identity(session: AsyncSession) -> dict[str, str]:
 async def _build_buyer_identity(
     session: AsyncSession, *, order: Order, user: User | None
 ) -> dict[str, Any]:
-    """Buyer block: account identity plus the shipping address of the order."""
+    """Buyer block: the billing identity chosen at checkout (a company, its
+    tax id), else the account identity at the shipping address."""
+    if order.billing_address:
+        return {
+            "name": order.billing_name or (user.full_name if user else None) or "",
+            "email": (user.email if user else None) or "",
+            "address": order.billing_address,
+            "tax_id": order.billing_tax_id or "",
+        }
     billing_address = order.shipping_address or ""
     if not billing_address:
         # Fall back to the user's first known address (orders placed through

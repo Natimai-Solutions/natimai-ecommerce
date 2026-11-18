@@ -29,6 +29,7 @@ class AddressMeCreate(SQLModel):
     recipient_name: str | None = Field(default=None, max_length=150)
     company: str | None = Field(default=None, max_length=150)
     phone: str | None = Field(default=None, max_length=40)
+    tax_id: str | None = Field(default=None, max_length=40)
     street: str
     city: str
     state: str | None = None
@@ -49,6 +50,7 @@ class AddressMeUpdate(SQLModel):
     recipient_name: str | None = Field(default=None, max_length=150)
     company: str | None = Field(default=None, max_length=150)
     phone: str | None = Field(default=None, max_length=40)
+    tax_id: str | None = Field(default=None, max_length=40)
     street: str | None = None
     city: str | None = None
     state: str | None = None

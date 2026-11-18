@@ -169,6 +169,21 @@
               :label="$t('checkout.step_address')"
               :options="addressChoices"
             />
+            <!-- A company paying for goods delivered elsewhere is invoiced at
+                 its own address, with its tax id (decision of 18/11/2026). -->
+            <q-checkbox
+              v-if="addresses.length"
+              v-model="billToOther"
+              :label="$t('checkout.bill_to_other')"
+              data-testid="checkout-bill-to-other"
+              class="q-mt-sm"
+            />
+            <ChoiceList
+              v-if="billToOther && addresses.length"
+              v-model="billingAddressId"
+              :label="$t('checkout.billing_address')"
+              :options="billingChoices"
+            />
             <div v-if="addresses.length" class="step__links">
               <button type="button" class="text-link" @click="addressDialog = true">
                 {{ $t('checkout.add_address') }}
@@ -641,6 +656,8 @@ const cartEmpty = computed(() => cartStore.items.length === 0);
 // backend stores a free-text snapshot regardless.
 const addresses = ref<Address[]>([]);
 const selectedAddressId = ref<string | null>(null);
+const billToOther = ref(false);
+const billingAddressId = ref<string | null>(null);
 const selectedAddress = computed(
   () => addresses.value.find((a) => a.id === selectedAddressId.value) ?? null,
 );
@@ -922,6 +939,22 @@ function methodIcon(providerCode: string): string {
 }
 
 // --- Options des listes de choix -------------------------------------------
+const billingChoices = computed<ChoiceOption[]>(() =>
+  addresses.value.map((a) => ({
+    value: a.id,
+    title: a.company || a.recipient_name || a.street,
+    caption: [
+      a.street,
+      `${a.postal_code} ${a.city}, ${countryLabel(a.country)}`,
+      a.tax_id ? t('checkout.tax_id', { id: a.tax_id }) : null,
+    ]
+      .filter(Boolean)
+      .join(' · '),
+    icon: 'ph:buildings',
+    testid: `checkout-billing-${a.id}`,
+  })),
+);
+
 const addressChoices = computed<ChoiceOption[]>(() =>
   addresses.value.map((a) => ({
     value: a.id,
@@ -1159,6 +1192,10 @@ async function startPayment() {
     errorMessage.value = t('checkout.choose_address');
     return;
   }
+  if (billToOther.value && !billingAddressId.value) {
+    errorMessage.value = t('checkout.choose_billing');
+    return;
+  }
 
   initiating.value = true;
   errorMessage.value = null;
@@ -1190,6 +1227,7 @@ async function startPayment() {
       pickup_place_id: selectedPickupPlace.value?.place_id ?? null,
       shipping_address: formatAddress(selectedAddress.value),
       shipping_address_id: selectedAddressId.value,
+      billing_address_id: billToOther.value ? billingAddressId.value : null,
       payment_method_id: creditCoversEverything.value ? null : (method?.id ?? null),
       return_url: returnUrl,
       cgv_accepted: cgvAccepted.value,
