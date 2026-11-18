@@ -564,6 +564,7 @@ import {
 } from '@/api/cart';
 import { listMyAddresses, type Address } from '@/api/addresses';
 import { PENDING_PAYMENT_KEY, loadPayzenSmartForm, type SmartFormOptions } from '@/utils/payzen';
+import { checkoutKeyFor, forgetCheckoutKey, submissionSignature } from '@/utils/checkoutKey';
 
 const cartStore = useCartStore();
 const authStore = useAuthStore();
@@ -1161,6 +1162,15 @@ async function startPayment() {
     //    so the order can be created from it (a quote rebuilds it server-side).
     if (!quoteRequestId.value) await syncCartToBackend();
 
+    // One key per submission: a retry of this same cart (after a timeout,
+    // a reload) gets the order back instead of placing a second one.
+    const idempotencyKey = checkoutKeyFor(
+      submissionSignature(
+        cartStore.detailedItems.map(({ item }) => item),
+        quoteRequestId.value,
+      ),
+    );
+
     // 2. Single call: create the order AND run the provider initiation in one
     //    transaction (empties the backend cart, publishes order.created). No
     //    separate /payments/initiate — one order, one payment.
@@ -1178,13 +1188,23 @@ async function startPayment() {
       payment_plan: paymentPlan.value,
       quote_request_id: quoteRequestId.value,
       use_store_credit: useStoreCredit.value,
+      idempotency_key: idempotencyKey,
     });
+    forgetCheckoutKey();
     orderPlaced.value = true;
     placedOrderRef.value = orderRef(checkout.order_number, checkout.order_id);
     placedDepartureId.value = checkout.grouped_departure_id ?? null;
 
     // 3. Clear the local cart now that the order exists.
     cartStore.clearCart();
+
+    // A previous attempt of this submission had already placed the order
+    // (its response was lost): continue from that order's page, which
+    // offers « Payer » when something is still due.
+    if (checkout.replayed) {
+      await router.push({ name: 'order-balance', params: { id: checkout.order_id } });
+      return;
+    }
 
     // The order is placed but the card / PayPal form could not be opened
     // (the provider failed after the order was recorded): pay it from its
@@ -1260,6 +1280,13 @@ async function startPayment() {
       // The recap reads the quote: price it again, at the new prices (the
       // server cart was updated with the refusal — audit 2026-11).
       void loadQuote();
+    }
+    // Another tab (or a click before this one) placed the order of this cart.
+    if (apiErrorCode(err) === 'cart.already_checked_out') {
+      cartStore.clearCart();
+      forgetCheckoutKey();
+      errorMessage.value = t('checkout.already_placed');
+      return;
     }
     errorMessage.value = apiErrorMessage(err) ?? t('checkout.failed');
     cartNeedsFixing.value = CART_LINE_ERRORS.has(apiErrorCode(err) ?? '');

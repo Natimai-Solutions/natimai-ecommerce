@@ -74,6 +74,9 @@ export interface AdminOrderLineItem {
   line_margin?: number | null;
   /** Marge / total HT de la ligne (taux de marque). */
   margin_pct?: number | null;
+  /** Mode d'import payé par le client : c'est par lui qu'il faut expédier. */
+  import_service_level?: string | null;
+  import_mode_label?: string | null;
 }
 
 /** Marge brute sur les articles (frais et livraison exclus). */

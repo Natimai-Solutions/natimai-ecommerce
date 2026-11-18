@@ -4,7 +4,7 @@ from decimal import Decimal
 from enum import StrEnum
 from typing import Any
 
-from sqlalchemy import Sequence
+from sqlalchemy import Index, Sequence, text
 from sqlmodel import JSON, Column, Field, SQLModel
 
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
@@ -206,6 +206,15 @@ class Order(OrderBase, table=True):
     """Represents order."""
 
     __tablename__ = "orders"
+    __table_args__ = (
+        Index(
+            "uq_orders_user_checkout_key",
+            "user_id",
+            "checkout_key",
+            unique=True,
+            postgresql_where=text("checkout_key IS NOT NULL"),
+        ),
+    )
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,
         primary_key=True,
@@ -221,6 +230,15 @@ class Order(OrderBase, table=True):
         unique=True,
         index=True,
         description="Numéro de commande lisible (CMD-AAAA-NNNNN)",
+    )
+    # Idempotency key of the checkout that created the order, unique per
+    # customer: a retry of the same submission (a timeout, a lost response)
+    # gets this order back instead of creating a second one. Server-side
+    # only, like order_number.
+    checkout_key: str | None = Field(
+        default=None,
+        max_length=64,
+        description="Clé d'idempotence du checkout (unique par client)",
     )
 
 

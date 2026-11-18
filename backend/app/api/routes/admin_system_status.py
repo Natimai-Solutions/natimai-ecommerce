@@ -20,9 +20,11 @@ from sqlmodel import col, select
 
 from app.api.deps import CurrentSuperUser, SessionDep
 from app.core.config import settings
+from app.features.departure.models import GroupedDeparture
 from app.features.notification.models.email_log import STATUS_FAILED, EmailLog
 from app.features.product.models.currency_rate import CurrencyRate
 from app.features.system.models.task_run import TaskRun
+from app.features.system.modules import module_enabled
 from app.outbox.models import OutboxEvent, OutboxHandlerFailure
 
 router = APIRouter(prefix="/admin/system-status", tags=["admin-dashboard"])
@@ -63,6 +65,17 @@ class AbandonedDelivery(BaseModel):
     failed_at: datetime
 
 
+class WaitingDeparture(BaseModel):
+    """An open departure past its cut-off: its threshold is not reached, so
+    nothing closed it, and until the admin decides the new orders are
+    attached to no departure."""
+
+    id: uuid.UUID
+    name: str
+    order_cutoff_at: datetime
+    hours_past_cutoff: int
+
+
 class SystemStatus(BaseModel):
     level: Level
     tasks: list[TaskRunPublic]
@@ -78,6 +91,8 @@ class SystemStatus(BaseModel):
     currency_rates: list[CurrencyRateAge]
     alert_webhook_configured: bool
     email_provider_configured: bool
+    departures_waiting: list[WaitingDeparture] = []
+    departures_level: Level = "ok"
 
 
 def _aware(moment: datetime | None) -> datetime | None:
@@ -206,6 +221,30 @@ async def get_system_status(
             )
         )
 
+    departures_waiting: list[WaitingDeparture] = []
+    if await module_enabled(session, "grouped_departures"):
+        for departure in (
+            await session.exec(
+                select(GroupedDeparture)
+                .where(
+                    col(GroupedDeparture.is_active).is_(True),
+                    col(GroupedDeparture.status) == "open",
+                    col(GroupedDeparture.order_cutoff_at) <= now,
+                )
+                .order_by(col(GroupedDeparture.order_cutoff_at))
+            )
+        ).all():
+            cutoff = _aware(departure.order_cutoff_at) or now
+            departures_waiting.append(
+                WaitingDeparture(
+                    id=departure.id,
+                    name=departure.name,
+                    order_cutoff_at=cutoff,
+                    hours_past_cutoff=int((now - cutoff).total_seconds() // 3600),
+                )
+            )
+    departures_level: Level = "warn" if departures_waiting else "ok"
+
     alert_configured = bool(settings.ALERT_WEBHOOK_URL)
     provider = settings.PAYMENT_NOTIFICATIONS_EMAIL_PROVIDER
     email_configured = provider != "noop" and (
@@ -213,7 +252,7 @@ async def get_system_status(
     )
     overall = _worst(
         [t.level for t in tasks]
-        + [outbox_level, email_level]
+        + [outbox_level, email_level, departures_level]
         + [r.level for r in rates]
         + ([] if alert_configured else ["warn"])
         + ([] if email_configured else ["warn"])
@@ -232,6 +271,8 @@ async def get_system_status(
         currency_rates=rates,
         alert_webhook_configured=alert_configured,
         email_provider_configured=email_configured,
+        departures_waiting=departures_waiting,
+        departures_level=departures_level,
     )
 
 

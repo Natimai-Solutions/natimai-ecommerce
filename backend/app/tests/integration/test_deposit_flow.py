@@ -394,3 +394,94 @@ async def test_a_deposit_order_is_paid_with_one_method_and_closes_the_others(
     db_session.add(method)
     await db_session.commit()
     assert await guard(cheque_id) == "balance"
+
+
+@pytest.mark.asyncio
+async def test_a_waiting_payment_with_money_received_is_kept_and_alerted(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Relecture du 17/11/2026: a waiting payment that already carries a
+    receipt is not closed (only a person can refund it or move it to the
+    balance) — and the shop is now told, not only a log line."""
+    from app.features.payment.models.payment_method import PaymentMethod
+    from app.features.payment.models.payment_receipt import PaymentReceipt
+
+    seed = await _seed(db_session)
+    monkeypatch.setattr(
+        payment_handlers, "secure_order_stock", AsyncMock(return_value=(0, []))
+    )
+    alerts = AsyncMock(return_value=True)
+    monkeypatch.setattr(payment_handlers, "send_alert", alerts)
+    cheque = PaymentMethod(name="Chèque", provider_code="manual_check")
+    waiting_status = PaymentStatus(name="AwaitingValidation")
+    db_session.add_all([cheque, waiting_status])
+    await db_session.flush()
+    deposit = await db_session.get(Payment, seed.deposit_payment_id)
+    assert deposit is not None
+    deposit.payment_status_id = seed.completed_id
+    # Cheque announced for the deposit, half of it already cashed at the counter.
+    announced = Payment(
+        order_id=seed.order_id,
+        user_id=seed.buyer.id,
+        amount=Decimal("306"),
+        kind="deposit",
+        payment_method_id=cheque.id,
+        payment_status_id=waiting_status.id,
+    )
+    db_session.add_all([deposit, announced])
+    await db_session.flush()
+    announced_id, waiting_id = announced.id, waiting_status.id
+    db_session.add(
+        PaymentReceipt(
+            payment_id=announced_id,
+            order_id=seed.order_id,
+            amount=Decimal("150"),
+            method="cash",
+            received_at=datetime.now(UTC),
+        )
+    )
+    await db_session.commit()
+
+    await payment_handlers.on_payment_captured(
+        db_session, _payload(seed, seed.deposit_payment_id, "306")
+    )
+
+    db_session.expire_all()
+    kept = await db_session.get(Payment, announced_id)
+    assert kept is not None and kept.payment_status_id == waiting_id
+    alerts.assert_awaited_once()
+    assert alerts.await_args is not None
+    message = alerts.await_args.args[0]
+    assert "150" in message and "versements reçus" in message
+
+
+@pytest.mark.asyncio
+async def test_an_erased_customer_is_not_asked_for_the_balance_forever(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Review of 17/11/2026: the e-mail to an erased account can never go;
+    the handler retried until it gave up and alerted for nothing."""
+    from app.features.user.services.privacy import anonymised_email
+
+    seed = await _seed(db_session)
+    buyer = await db_session.get(User, seed.buyer.id)
+    assert buyer is not None
+    buyer.email = anonymised_email(buyer.id)
+    db_session.add(buyer)
+    await db_session.commit()
+    send = AsyncMock(return_value=False)
+    monkeypatch.setattr(order_handlers, "_send_order_email", send)
+    monkeypatch.setattr("app.core.runtime_settings.get", AsyncMock(return_value=True))
+
+    await order_handlers.on_order_received_request_balance(
+        db_session,
+        {
+            "order_id": str(seed.order_id),
+            "user_id": str(seed.buyer.id),
+            "new_status": "Received",
+        },
+    )  # no RuntimeError: nothing to retry
+
+    send.assert_not_awaited()
+    order = await db_session.get(Order, seed.order_id)
+    assert order is not None and order.balance_requested_at is None

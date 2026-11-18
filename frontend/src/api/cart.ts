@@ -50,6 +50,8 @@ export interface GuestQuoteRequestItem {
   quantity: number;
   unit_price: string;
   line_total: string;
+  /** Import mode the price was computed on, carried into the quote. */
+  import_service_level?: string | null;
 }
 
 export interface GuestQuoteRequestSubmit {

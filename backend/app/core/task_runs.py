@@ -52,7 +52,9 @@ def outcome_of(result: Any) -> tuple[str, str | None]:
     if not isinstance(result, dict):
         return STATUS_OK, None
     status = str(result.get("status") or "").lower()
-    if status in {"error", "failed", "failure"}:
+    # « unhealthy »: the supplier health probe answers that way, and its
+    # failure alerted nobody (review of 17/11/2026).
+    if status in {"error", "failed", "failure", "unhealthy"}:
         return STATUS_FAILED, str(
             result.get("message") or result.get("error") or status
         )
@@ -123,16 +125,28 @@ async def _record_end(name: str, status: str, error: str | None, result: Any) ->
             # A new incident alerts at once — unless one was sent within the
             # hour: a task that alternates success and failure alerted on
             # every other run.
+            # Stamped once the alert is out (``_mark_alerted``): stamped
+            # before, a webhook down at that moment silenced the task for
+            # the next 6 hours.
             alert = (
                 last is None
                 or (now - last >= REALERT_AFTER)
                 or (row.consecutive_failures == 1 and now - last >= FLAPPING_QUIET)
             )
-            if alert:
-                row.last_alert_at = now
         session.add(row)
         await session.commit()
         return alert
+
+
+async def _mark_alerted(name: str) -> None:
+    from app.features.system.models.task_run import TaskRun
+
+    async with AsyncSession(_engine()) as session:
+        row = await session.get(TaskRun, name)
+        if row is not None:
+            row.last_alert_at = _now()
+            session.add(row)
+            await session.commit()
 
 
 async def record_run(
@@ -152,9 +166,11 @@ async def record_run(
         label = (
             "a échoué" if status == STATUS_FAILED else "s'est terminée avec des erreurs"
         )
-        await send_alert(
+        sent = await send_alert(
             f"Tâche « {name} » {label} : {(error or '')[:300]}", source="tasks"
         )
+        if sent:
+            await _mark_alerted(name)
     except Exception:  # noqa: BLE001
         logger.warning("Alert for task %s not sent", name, exc_info=True)
 

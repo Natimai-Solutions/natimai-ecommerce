@@ -79,6 +79,30 @@
           </dl>
         </section>
 
+        <section
+          v-if="status.departures_waiting?.length"
+          class="app-panel"
+          data-testid="system-status-departures"
+        >
+          <h2 class="admin-subtitle">{{ $t('system_status.departures') }}</h2>
+          <StatusTag
+            :tone="tone(status.departures_level ?? 'ok')"
+            :icon="toneIcon(tone(status.departures_level ?? 'ok'))"
+            :label="$t(`system_status.${status.departures_level ?? 'ok'}`)"
+          />
+          <p class="text-subtle">{{ $t('system_status.departures_hint') }}</p>
+          <ul class="status-list">
+            <li v-for="departure in status.departures_waiting" :key="departure.id">
+              <router-link to="/grouped-departures" class="admin-link">{{
+                departure.name
+              }}</router-link>
+              <span class="text-subtle">{{
+                $t('system_status.departure_past', { n: departure.hours_past_cutoff })
+              }}</span>
+            </li>
+          </ul>
+        </section>
+
         <section class="app-panel">
           <h2 class="admin-subtitle">{{ $t('system_status.rates') }}</h2>
           <p v-if="!status.currency_rates.length" class="text-subtle">

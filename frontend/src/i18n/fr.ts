@@ -326,6 +326,8 @@ const fr = {
     method_unavailable:
       "Le moyen de paiement sélectionné n'est pas disponible pour le moment. Veuillez réessayer.",
     failed: 'Une erreur est survenue lors de la finalisation de la commande.',
+    already_placed:
+      'Cette commande vient d’être enregistrée (depuis un autre onglet ?) : retrouvez-la dans « Mes commandes ».',
   },
   delivery_mode: {
     pickup: 'Retrait sur place',
@@ -989,6 +991,7 @@ const fr = {
     track_parcel: 'Suivre le colis',
     updated: 'Mis à jour le {date}',
     warranty_from: 'Garantie {n} mois à compter de la remise',
+    import_mode: 'Import : {mode}',
     warranty_until: "Garantie {n} mois, jusqu'au {date}",
   },
   wishlist: {

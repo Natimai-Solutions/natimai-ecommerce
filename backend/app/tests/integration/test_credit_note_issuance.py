@@ -296,3 +296,59 @@ async def test_the_note_points_back_at_the_invoice(db_session: AsyncSession) -> 
     stored = await db_session.get(CreditNote, note.id)
     assert stored is not None
     assert stored.refund_id == refund_id
+
+
+@pytest.mark.asyncio
+async def test_a_refund_after_a_mismatched_capture_does_not_wait_forever(
+    db_session: AsyncSession,
+) -> None:
+    """Review of 17/11/2026: the capture did not cover the order (the order
+    was parked for review, no invoice issued), then it was refunded. The
+    credit note waited for an invoice that would never come, retried until
+    it gave up, and alerted for nothing."""
+    from app.handlers import payment as payment_handlers
+    from app.outbox.models import OutboxEvent
+
+    user = User(
+        email=f"c+{uuid.uuid4().hex[:8]}@test.local",
+        is_active=True,
+        hashed_password="x",
+    )
+    status = OrderStatus(name=f"PaymentReview-{uuid.uuid4().hex[:6]}")
+    db_session.add_all([user, status])
+    await db_session.flush()
+    order = Order(
+        user_id=user.id,
+        order_status_id=status.id,
+        total_amount=Decimal("1000.00"),
+        currency="XPF",
+    )
+    db_session.add(order)
+    await db_session.flush()
+    # 600 captured for a 1000 order.
+    payment = Payment(
+        amount=Decimal("600.00"), currency="XPF", order_id=order.id, user_id=user.id
+    )
+    db_session.add(payment)
+    await db_session.flush()
+    refund_id = await _refund(
+        db_session, order_id=order.id, payment_id=payment.id, amount="600.00"
+    )
+    order_id, payment_id = order.id, payment.id
+    db_session.add(
+        OutboxEvent(
+            type="payment.captured",
+            payload={"order_id": str(order_id), "payment_id": str(payment_id)},
+        )
+    )
+    await db_session.commit()
+
+    # Returns: no retry, no credit note (nothing was invoiced).
+    await payment_handlers.on_payment_refunded_issue_credit_note(
+        db_session,
+        {
+            "refund_id": str(refund_id),
+            "order_id": str(order_id),
+            "payment_id": str(payment_id),
+        },
+    )

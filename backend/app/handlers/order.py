@@ -276,6 +276,19 @@ def _order_pay_url_or_none(raw_order_id: Any) -> str | None:
         return None
 
 
+async def _customer_reachable(session: AsyncSession, user_id: Any) -> bool:
+    """Whether an e-mail to this customer can ever be delivered: the account
+    exists, has an address, and was not erased (anonymised address)."""
+    from app.features.user.services.privacy import ANONYMISED_DOMAIN
+
+    try:
+        user = await session.get(User, uuid.UUID(str(user_id)))
+    except (TypeError, ValueError):
+        return False
+    email = str(getattr(user, "email", "") or "") if user is not None else ""
+    return bool(email) and not email.lower().endswith("@" + ANONYMISED_DOMAIN)
+
+
 async def request_balance(session: AsyncSession, order: Order) -> bool:
     """Ask the customer for the balance of a deposit order: e-mail with the
     amounts and the payment link, ``balance_requested_at`` stamped. Sent
@@ -334,6 +347,16 @@ async def on_order_received_request_balance(
     if order.balance_paid_at is not None or order.balance_requested_at is not None:
         return
     order_id = order.id
+    if not await _customer_reachable(session, order.user_id):
+        # An erased account (or one without an address): the e-mail can never
+        # go, and retrying ended in a misleading « handler abandoned » alert
+        # (review of 17/11/2026). The admin sees the balance due on the order.
+        logger.info(
+            "Balance of order %s not requested: the customer has no reachable "
+            "address (erased account?)",
+            order_id,
+        )
+        return
     if not await request_balance(session, order):
         if not await runtime_settings.get("notifications_email_enabled", session):
             return  # e-mails switched off on purpose: nothing to retry
@@ -392,9 +415,15 @@ async def _order_summary(
             )
         )
     ).all()
+    from app.features.shipping.services.import_routes import import_mode_labels
+
+    modes = await import_mode_labels(
+        session, (line.import_service_level for line, _ in rows)
+    )
     lines = [
         {
             "name": name or "",
+            "import_mode": modes.get(line.import_service_level or "", ""),
             "quantity": int(line.quantity),
             "line_total": str(
                 line.unit_price * line.quantity - (line.discount_amount or 0)

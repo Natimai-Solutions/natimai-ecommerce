@@ -213,6 +213,10 @@ const en: MessageSchema = {
     rates: 'Currency rates',
     no_rates: 'No currency rate entered.',
     rate_age: 'entered {n} d ago',
+    departures: 'Group departures waiting',
+    departures_hint:
+      'Cut-off passed, threshold not reached: close it (forcing) or push the date back. Until then, new orders are attached to no departure.',
+    departure_past: 'cut-off passed {n} h ago',
     tasks: 'Background tasks',
     no_tasks: 'No task has run since the deployment.',
     col_task: 'Task',
@@ -1561,6 +1565,7 @@ const en: MessageSchema = {
     negative: '. A negative amount takes credit back.',
     next_leg: 'Next leg',
     no_cost_lines: '{n} line(s) without known cost, not counted',
+    import_mode: 'Import: {mode}',
     no_departure: '— None (regular order)',
     no_items: 'No items.',
     no_leg: 'No transport legs.',

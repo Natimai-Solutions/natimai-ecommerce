@@ -10,6 +10,8 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Header, Query, Request, Response, status
 from pydantic import BaseModel, EmailStr
+from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.attributes import set_committed_value
 from sqlmodel import SQLModel, col, or_, select
 
@@ -57,6 +59,7 @@ from app.features.cart.services.quote import (
     check_convertible,
     quote_currency,
     quote_pdf_response,
+    quoted_levels,
     quoted_prices,
 )
 from app.features.departure.crud import crud_grouped_departure
@@ -85,13 +88,16 @@ from app.features.order.crud.order_crud import crud_order
 from app.features.order.crud.order_line_crud import crud_order_line
 from app.features.order.crud.order_status_crud import crud_order_status
 from app.features.order.models.order import Order, OrderCreate
-from app.features.order.models.order_line import OrderLineCreate
+from app.features.order.models.order_line import OrderLine, OrderLineCreate
 from app.features.order.models.order_status import OrderStatus, OrderStatusCreate
-from app.features.order.services.customer_actions import order_lines_to_reorder
+from app.features.order.services.customer_actions import (
+    order_line_levels,
+    order_lines_to_reorder,
+)
 from app.features.order.services.order_number import allocate_order_number
 from app.features.payment.crud.payment import crud_payment
 from app.features.payment.crud.payment_status import crud_payment_status
-from app.features.payment.models.payment import PaymentCreate
+from app.features.payment.models.payment import Payment, PaymentCreate
 from app.features.payment.models.payment_method import PaymentMethod
 from app.features.payment.models.payment_status import (
     PaymentStatus,
@@ -1868,6 +1874,14 @@ async def reorder_into_cart(
         item.product_id: item.quantity for item in current_items
     }
     levels = await _levels_of(session, current_items)
+    # An article not already in the cart comes back on the import mode it
+    # was paid on (when still on offer, else the default one); one already
+    # in the cart keeps the cart's mode.
+    for product_id, level in (
+        await order_line_levels(session, order_id=order_id)
+    ).items():
+        if product_id not in levels:
+            levels[product_id] = await _line_level(session, level)
     added = skipped = 0
     for product_id, quantity in wanted:
         quantities[product_id] = min(
@@ -2266,6 +2280,7 @@ async def create_quote_request(
                 "quantity": str(item.quantity),
                 "unit_price": str(item.unit_price),
                 "line_total": str(line_total),
+                "import_service_level": getattr(item, "import_service_level", None),
             }
         )
 
@@ -2405,10 +2420,16 @@ async def _install_quote_in_cart(
     *,
     cart_id: uuid.UUID,
     prices: dict[uuid.UUID, tuple[int, Decimal]],
+    levels: dict[uuid.UUID, str | None] | None = None,
 ) -> list[CartItem]:
     """Replace the cart content with the quote's lines (``quoted_prices``) at
-    the quoted prices. Commits (the cart CRUD does), so the caller reads what
-    it needs from the quote *before* calling."""
+    the quoted prices, each on the import mode it was quoted on
+    (``quoted_levels``). Commits (the cart CRUD does), so the caller reads
+    what it needs from the quote *before* calling."""
+    line_levels = {
+        product_id: await _line_level(session, level)
+        for product_id, level in (levels or {}).items()
+    }
     entries: list[tuple[Product, int]] = []
     for product_id, (quantity, _price) in prices.items():
         entries.append(
@@ -2416,7 +2437,7 @@ async def _install_quote_in_cart(
             (await _get_active_product_or_404(session, product_id=product_id), quantity)
         )
     items = await crud_cart_item.replace_cart_items(
-        session, cart_id=cart_id, entries=entries
+        session, cart_id=cart_id, entries=entries, levels=line_levels
     )
     for item in items:
         item.unit_price = prices[item.product_id][1]
@@ -2470,11 +2491,14 @@ async def accept_my_quote(
     so nothing typed in between can change the amounts)."""
     quote = await _load_convertible_quote(session, quote_id, current_user)
     prices = quoted_prices(quote)  # before the cart commits expire the quote
+    levels = quoted_levels(quote)
     cart = await crud_cart.get_or_create_active_cart(
         session=session, user_id=current_user.id
     )
     cart_id = cart.id
-    items = await _install_quote_in_cart(session, cart_id=cart_id, prices=prices)
+    items = await _install_quote_in_cart(
+        session, cart_id=cart_id, prices=prices, levels=levels
+    )
     cart = await crud_cart.get_or_create_active_cart(
         session=session, user_id=current_user.id
     )
@@ -2549,6 +2573,7 @@ async def create_guest_quote_request(
                 "quantity": str(item.quantity),
                 "unit_price": str(unit_price),
                 "line_total": str(line_total),
+                "import_service_level": item.import_service_level,
             }
         )
 
@@ -3377,6 +3402,118 @@ async def estimate_product_shipping(
     )
 
 
+async def _order_for_checkout_key(
+    session: SessionDep, *, user_id: uuid.UUID, key: str | None
+) -> uuid.UUID | None:
+    """The order a previous attempt of this submission created, if any."""
+    if not key:
+        return None
+    found = (
+        await session.exec(
+            select(Order.id).where(
+                col(Order.user_id) == user_id, col(Order.checkout_key) == key
+            )
+        )
+    ).first()
+    return found if isinstance(found, uuid.UUID) else None
+
+
+async def _replay_checkout(
+    session: SessionDep, *, user_id: uuid.UUID, order_id: uuid.UUID
+) -> CheckoutResponse:
+    """What a retry of an already placed order gets back: the order, no new
+    one, no new payment form (the customer pays from the order page).
+
+    The retry rebuilt the server cart from the browser before asking: that
+    cart holds the articles just ordered, so it is emptied — left full, it
+    came back at the next sign-in as if nothing had been ordered.
+    """
+    # populate_existing: after a rollback the instances in the session are
+    # expired, and reading one would lazy-load (MissingGreenlet).
+    order = (
+        await session.exec(
+            select(Order)
+            .where(col(Order.id) == order_id)
+            .execution_options(populate_existing=True)
+        )
+    ).first()
+    if order is None:  # pragma: no cover - the key was just read
+        raise AppError(
+            code="order.not_found",
+            status_code=404,
+            message=f"Order {order_id} not found",
+            details={"order_id": str(order_id)},
+        )
+    payment = (
+        await session.exec(
+            select(Payment)
+            .where(col(Payment.order_id) == order_id)
+            .order_by(col(Payment.created_at).desc().nulls_last())
+            .execution_options(populate_existing=True)
+        )
+    ).first()
+    item_count = (
+        await session.exec(
+            select(func.count())
+            .select_from(OrderLine)
+            .where(
+                col(OrderLine.order_id) == order_id,
+                col(OrderLine.is_active).is_(True),
+            )
+        )
+    ).one()
+    deposit = order.payment_plan == "deposit"
+    response = CheckoutResponse(
+        payment_plan=order.payment_plan or "full",
+        deposit_amount=order.deposit_amount or Decimal("0.00"),
+        deposit_fee_amount=order.deposit_fee_amount or Decimal("0.00"),
+        balance_amount=(
+            order.total_amount - (order.deposit_amount or Decimal("0.00"))
+            if deposit
+            else Decimal("0.00")
+        ),
+        amount_due_now=(order.deposit_amount if deposit else order.total_amount)
+        or Decimal("0.00"),
+        order_id=order.id,
+        order_number=order.order_number,
+        grouped_departure_id=order.grouped_departure_id,
+        payment_id=payment.id if payment is not None else order.id,
+        payment_status_token=(
+            payment_status_token(payment.id) if payment is not None else None
+        ),
+        cart_id=order.id,
+        subtotal_amount=order.subtotal_amount,
+        discount_code=order.discount_code,
+        discount_amount=order.discount_amount or Decimal("0.00"),
+        shipping_fee_amount=order.shipping_fee_amount or Decimal("0.00"),
+        payment_fee_amount=order.payment_fee_amount or Decimal("0.00"),
+        total_fees_amount=order.total_fees_amount or Decimal("0.00"),
+        total_amount=order.total_amount,
+        currency=order.currency or settings.REFERENCE_CURRENCY,
+        item_count=int(item_count or 0),
+        shipping_cost_breakdown=order.shipping_cost_breakdown,
+        provider_code=payment.provider_code if payment is not None else None,
+        replayed=True,
+        message="Order already placed",
+    )
+    cart = await crud_cart.get_active_cart_by_user(session=session, user_id=user_id)
+    if cart is not None:
+        cart_id = cart.id
+        await crud_cart_item.replace_cart_items(
+            session=session, cart_id=cart_id, entries=[]
+        )
+        await crud_cart.sync_total(session=session, cart_id=cart_id)
+        response.cart_id = cart_id
+    log_structured_event(
+        logger,
+        level="info",
+        event="checkout_replayed",
+        order_id=order_id,
+        user_id=user_id,
+    )
+    return response
+
+
 @router.post(
     "/checkout",
     response_model=CheckoutResponse,
@@ -3396,6 +3533,12 @@ async def checkout_my_cart(
     # including current_user. Capture the id up-front so the post-commit logging
     # and error paths don't trigger a sync lazy-load (MissingGreenlet).
     user_id = current_user.id
+    checkout_key = payload.idempotency_key
+    # A retry of a submission whose order went through (a timeout, a lost
+    # response): that order, not a second one (D5, review of 17/11/2026).
+    placed = await _order_for_checkout_key(session, user_id=user_id, key=checkout_key)
+    if placed is not None:
+        return await _replay_checkout(session, user_id=user_id, order_id=placed)
     cart = await crud_cart.get_active_cart_by_user(
         session=session,
         user_id=user_id,
@@ -3423,7 +3566,10 @@ async def checkout_my_cart(
         )
         cart_id = cart.id
         await _install_quote_in_cart(
-            session, cart_id=cart_id, prices=quoted_prices(issued_quote)
+            session,
+            cart_id=cart_id,
+            prices=quoted_prices(issued_quote),
+            levels=quoted_levels(issued_quote),
         )
         cart = await crud_cart.get_or_create_active_cart(
             session=session, user_id=user_id
@@ -3444,6 +3590,14 @@ async def checkout_my_cart(
     if isinstance(locked_cart, Cart) and (
         locked_cart.is_checked_out or not locked_cart.is_active
     ):
+        # The other request was the same submission (a double click): its
+        # order is the answer.
+        placed = await _order_for_checkout_key(
+            session, user_id=user_id, key=checkout_key
+        )
+        if placed is not None:
+            await session.rollback()
+            return await _replay_checkout(session, user_id=user_id, order_id=placed)
         raise AppError(
             code="cart.already_checked_out",
             status_code=409,
@@ -3619,7 +3773,22 @@ async def checkout_my_cart(
             user=current_user,
         )
         order.order_number = order_number
+        order.checkout_key = checkout_key
         session.add(order)
+        if checkout_key:
+            # Written now: an attempt of the same submission still running
+            # holds the key, so this waits for it and, once it has committed,
+            # fails here — before any stock or payment is touched.
+            try:
+                await session.flush()
+            except IntegrityError:
+                await session.rollback()
+                placed = await _order_for_checkout_key(
+                    session, user_id=user_id, key=checkout_key
+                )
+                if placed is None:
+                    raise
+                return await _replay_checkout(session, user_id=user_id, order_id=placed)
 
         # Take the use now, inside the transaction: a refusal (the last use
         # just went to someone else) rolls the whole order back.

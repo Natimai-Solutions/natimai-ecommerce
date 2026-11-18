@@ -161,12 +161,17 @@ async def close_departure(
     *,
     departure: GroupedDeparture,
     force: bool = False,
+    check_stock: bool = True,
 ) -> CloseResult:
     """Close a departure: live stock check, thresholds, recurrence. The
     departure stays published so its customers can still follow it.
 
     Without ``force`` the departure stays open when a threshold is not met
-    (the admin sees the numbers and decides). Does not commit.
+    (the admin sees the numbers and decides). ``check_stock=False`` asks the
+    supplier only when the departure does close: the cron passes every 15
+    minutes over a departure left open below its threshold, and called the
+    supplier API for every product each time to report nothing. Does not
+    commit.
     """
     attached = await _attached_orders(session, departure.id)
     followers = [o for o, name in attached if name in DEPARTURE_FOLLOWER_STATUSES]
@@ -188,9 +193,11 @@ async def close_departure(
             )
         )
     reached = threshold_reached(departure, total=total, units=units)
-    shortages = await find_shortages(session, followers)
-
     closed = reached or force
+    shortages = (
+        await find_shortages(session, followers) if closed or check_stock else []
+    )
+
     next_id: uuid.UUID | None = None
     if closed and departure.status in ("draft", "open"):
         # Stays published: the banner and the checkout only pick an open
@@ -239,7 +246,9 @@ async def close_due_departures(
     waiting: list[str] = []
     for departure in due:
         name = departure.name
-        result = await close_departure(session, departure=departure, force=False)
+        result = await close_departure(
+            session, departure=departure, force=False, check_stock=False
+        )
         (closed if result.closed else waiting).append(name)
         if result.closed and (result.shortages or result.unpaid_order_ids):
             # The admin route returns these « to arbitrate »; nobody reads

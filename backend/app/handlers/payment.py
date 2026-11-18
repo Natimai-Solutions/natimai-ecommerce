@@ -538,6 +538,7 @@ async def _close_superseded_payments(
         session.add(cancelled)
         await session.flush()
     closed = 0
+    kept: list[tuple[uuid.UUID, Any]] = []
     for payment in waiting:
         if received.get(payment.id):
             logger.warning(
@@ -547,6 +548,7 @@ async def _close_superseded_payments(
                 order_id,
                 paid_id,
             )
+            kept.append((payment.id, received[payment.id]))
             continue
         locked = (
             await session.exec(
@@ -569,7 +571,39 @@ async def _close_superseded_payments(
             closed,
             paid_id,
         )
+    if kept:
+        await _alert_kept_receipts(
+            session, order_id=order_id, paid_id=paid_id, kept=kept
+        )
     return closed > 0
+
+
+async def _alert_kept_receipts(
+    session: AsyncSession,
+    *,
+    order_id: uuid.UUID,
+    paid_id: uuid.UUID,
+    kept: list[tuple[uuid.UUID, Any]],
+) -> None:
+    """Money was received on a payment the part no longer needs: the order is
+    paid twice for that amount. Only a person can decide (refund it, or move
+    it to the balance), so the shop is told — a log line alone reached no one
+    (review of 17/11/2026)."""
+    order = await session.get(Order, order_id)
+    reference = (
+        (getattr(order, "order_number", None) or str(order_id))
+        if order
+        else str(order_id)
+    )
+    currency = getattr(order, "currency", None) or ""
+    amounts = ", ".join(f"{amount} {currency}".strip() for _, amount in kept)
+    await send_alert(
+        f"Commande {reference} : réglée par le paiement {paid_id}, mais "
+        f"{len(kept)} paiement(s) en attente portent déjà des versements reçus "
+        f"({amounts}). À régler à la main (remboursement ou report sur le solde) "
+        "depuis la fiche de la commande.",
+        source="payments",
+    )
 
 
 async def _secure_stock_on_payment(
@@ -842,8 +876,17 @@ async def _order_was_captured(session: AsyncSession, payload: dict[str, Any]) ->
             payment = await session.get(Payment, uuid.UUID(str(raw_payment_id)))
         except (TypeError, ValueError):
             payment = None
-        if _payment_kind(payment) != KIND_DEPOSIT:
-            return True
+        if _payment_kind(payment) == KIND_DEPOSIT:
+            continue
+        # A capture whose amount did not cover its part got no invoice (the
+        # order was parked for review and the admins told): none is coming,
+        # and the refund retried until it gave up with a misleading alert
+        # (review of 17/11/2026).
+        if isinstance(
+            await _captured_amount_mismatch(session, payload=dict(captured)), dict
+        ):
+            continue
+        return True
     return False
 
 

@@ -55,3 +55,58 @@ async def test_runs_are_journaled_and_failures_alert(
     # One alert per failing task, not one per run.
     assert len(alerts) == 2
     assert any("inventory:ingram" in a for a in alerts)
+
+
+@pytest.mark.asyncio
+async def test_an_alert_that_did_not_go_out_is_tried_again(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Review of 17/11/2026: ``last_alert_at`` was stamped before sending, so
+    a webhook down at that moment silenced the failing task for 6 hours."""
+    delivered = {"ok": False}
+    alerts: list[str] = []
+
+    async def _alert(message: str, **_kwargs: object) -> bool:
+        alerts.append(message)
+        return delivered["ok"]
+
+    monkeypatch.setattr("app.core.alerting.send_alert", _alert)
+    monkeypatch.setattr(task_runs, "_engine", lambda: db_session.bind)
+
+    async def broken(_ctx: Any) -> dict[str, Any]:
+        return {"status": "error", "message": "API down"}
+
+    await task_runs.journaled(broken, "health")({})
+    row = await db_session.get(TaskRun, "health")
+    assert row is not None and row.last_alert_at is None
+
+    delivered["ok"] = True
+    await task_runs.journaled(broken, "health")({})
+    assert len(alerts) == 2  # tried again on the next failure
+    db_session.expire_all()
+    row = await db_session.get(TaskRun, "health")
+    assert row is not None and row.last_alert_at is not None
+
+    await task_runs.journaled(broken, "health")({})
+    assert len(alerts) == 2  # now quiet until REALERT_AFTER
+
+
+def test_an_unhealthy_supplier_is_a_failure() -> None:
+    status, error = task_runs.outcome_of(
+        {"status": "unhealthy", "message": "401 Unauthorized"}
+    )
+    assert status == task_runs.STATUS_FAILED and error == "401 Unauthorized"
+
+
+def test_the_one_article_icecat_task_is_not_journaled() -> None:
+    from app.core.arq_worker import WorkerSettings
+
+    by_name = {
+        getattr(f, "name", getattr(f, "__name__", "")): f
+        for f in WorkerSettings.functions
+    }
+    single = by_name["enrich_product_with_icecat_task"]
+    batch = by_name["batch_enrich_products_task"]
+    # Journaled functions are wrapped (functools.wraps sets __wrapped__).
+    assert not hasattr(getattr(single, "coroutine", single), "__wrapped__")
+    assert hasattr(getattr(batch, "coroutine", batch), "__wrapped__")

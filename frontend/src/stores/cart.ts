@@ -425,6 +425,7 @@ export const useCartStore = defineStore('cart', () => {
             quantity: entry.item.quantity,
             unit_price: entry.item.unit_price,
             line_total: entry.item.line_total,
+            import_service_level: entry.item.import_service_level ?? null,
           })),
         },
         payload.headers ?? {},

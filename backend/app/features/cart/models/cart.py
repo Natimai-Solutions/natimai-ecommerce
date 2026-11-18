@@ -319,6 +319,18 @@ class CheckoutRequest(SQLModel):
             "still send it are not rejected."
         ),
     )
+    idempotency_key: str | None = Field(
+        default=None,
+        min_length=8,
+        max_length=64,
+        schema_extra={"pattern": r"^[A-Za-z0-9_-]+$"},
+        description=(
+            "Chosen by the client once per order submission and sent again "
+            "on every retry of it: a checkout whose order already exists "
+            "(the first attempt went through but its response was lost) "
+            "returns that order instead of creating a second one."
+        ),
+    )
     cgv_accepted: bool = Field(
         default=False,
         description=(
@@ -464,6 +476,9 @@ class CheckoutResponse(DepositTerms):
     #: The order is placed but the card / PayPal form could not be opened:
     #: the customer pays it from the order page (« Payer »).
     payment_start_failed: bool = False
+    #: The order already existed for this ``idempotency_key``: no new order,
+    #: no payment form — the customer continues from the order page.
+    replayed: bool = False
     server_url: str | None = None
     public_key: str | None = None
     redirect_url: str | None = None

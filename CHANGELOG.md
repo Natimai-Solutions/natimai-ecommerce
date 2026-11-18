@@ -19,6 +19,41 @@ takes a tag as its `ref`.
 
 ### Added
 
+- No more « handler abandoned » alerts for nothing: the credit note of a
+  refund no longer waits for an invoice when the capture did not cover the
+  order (parked for review, never invoiced), and the balance of a deposit
+  order is not requested from an erased account (anonymised address).
+  Review of 17/11/2026.
+- Task alerts: a supplier health probe answering « unhealthy » now counts as
+  a failure (it alerted nobody); the one-article Icecat task is no longer
+  journaled (an article Icecat does not know marked « the » task failed);
+  `last_alert_at` is stamped once the alert is out, not before (a webhook
+  down at that moment silenced the task for 6 hours). Review of 17/11/2026.
+- « État du système » lists the open group departures past their cut-off
+  (threshold not reached, waiting for the admin), with how long, and turns
+  « à surveiller ». The 15-minute cron no longer asks the supplier for the
+  live stock of a departure it then leaves open: only one that closes is
+  checked. Review of 17/11/2026.
+- A waiting payment that already carries money received at the counter,
+  left open when its part is paid by another payment, now alerts the shop
+  (`ALERT_WEBHOOK_URL`: order, amounts received, what to do) instead of a log
+  line only. Review of 17/11/2026.
+- The checkout takes an `idempotency_key`, chosen by the storefront once per
+  submission (a changed cart is a new one) and kept across a reload: a retry
+  whose first attempt went through — its response lost to a timeout — gets
+  that order back (`replayed`, the storefront opens the order's page) instead
+  of a second order, and the cart the retry rebuilt is emptied. Two attempts
+  in flight meet on a unique index (`orders.checkout_key`, migration
+  `c4d5e6f7a8b9`) before any stock or payment is touched; a double click that
+  finds its cart ordered gets the order too. The storefront now handles
+  `cart.already_checked_out` (another tab). D5, review of 17/11/2026.
+- The import mode the customer paid for (rapide, économique…) shows on the
+  back-office order page, under each line — the shop ships by it —, on the
+  customer's order page and in the confirmation e-mail, by its customer label
+  (kept for a route withdrawn since). It follows a quote request, the issued
+  quote and its acceptance into the cart, and « commander à nouveau » (an
+  article already in the cart keeps the cart's mode; a mode no longer on
+  offer falls back to the default one). Review of 17/11/2026.
 - The order confirmation e-mail lists the lines, the delivery mode, the
   delivery address, the group departure and the estimated delivery, in the
   customer's language (functional audit M4).

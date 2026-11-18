@@ -443,6 +443,7 @@ async function issue() {
         product_name: l.product_name.trim() || t('quotes.item'),
         quantity: Math.max(1, Math.floor(Number(l.quantity) || 1)),
         unit_price: String(Number(l.unit_price) || 0),
+        import_service_level: l.import_service_level ?? null,
       })),
       shipping_fee_amount: String(Number(issueForm.value.shipping_fee_amount) || 0),
       valid_until: issueForm.value.valid_until || null,

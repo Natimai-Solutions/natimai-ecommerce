@@ -211,6 +211,10 @@ const fr = {
     rates: 'Taux de change',
     no_rates: 'Aucun taux de change saisi.',
     rate_age: 'saisi il y a {n} j',
+    departures: 'Départs groupés en attente',
+    departures_hint:
+      'Date limite passée, seuil non atteint : clôturez (en forçant) ou repoussez la date. D’ici là, les nouvelles commandes ne sont rattachées à aucun départ.',
+    departure_past: 'limite dépassée depuis {n} h',
     tasks: 'Tâches de fond',
     no_tasks: 'Aucune tâche n’a encore tourné depuis le déploiement.',
     col_task: 'Tâche',
@@ -1572,6 +1576,7 @@ const fr = {
     negative: ". Un montant négatif reprend de l'avoir.",
     next_leg: 'Tronçon suivant',
     no_cost_lines: '{n} ligne(s) sans coût connu, non comptée(s)',
+    import_mode: 'Import : {mode}',
     no_departure: '— Aucun (commande classique)',
     no_items: 'Aucun article.',
     no_leg: 'Aucun tronçon de transport.',

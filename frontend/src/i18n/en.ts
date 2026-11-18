@@ -323,6 +323,8 @@ const en: MessageSchema = {
     method_unavailable:
       'The selected payment method is not available at the moment. Please try again.',
     failed: 'Something went wrong while placing the order.',
+    already_placed:
+      'This order has just been placed (from another tab?): find it in « My orders ».',
   },
   delivery_mode: {
     pickup: 'In-store pickup',
@@ -973,6 +975,7 @@ const en: MessageSchema = {
     track_parcel: 'Track the parcel',
     updated: 'Updated on {date}',
     warranty_from: '{n}-month warranty from handover',
+    import_mode: 'Import: {mode}',
     warranty_until: '{n}-month warranty, until {date}',
   },
   wishlist: {

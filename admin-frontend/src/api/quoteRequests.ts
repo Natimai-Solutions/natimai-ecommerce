@@ -44,6 +44,8 @@ export interface QuoteLine {
   product_name: string;
   quantity: number;
   unit_price: string;
+  /** Mode d'import du prix demandé ; conservé jusqu'au panier du client. */
+  import_service_level?: string | null;
 }
 
 export interface AdminQuoteRequestDetail extends AdminQuoteRequestListItem {

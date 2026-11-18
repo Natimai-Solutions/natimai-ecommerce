@@ -142,6 +142,9 @@ export interface OrderLine {
   manufacturer: string | null;
   /** The product page still exists (active product): the line can link to it. */
   product_available: boolean;
+  /** Import mode the line was paid on (rapide, économique…); null = no import leg. */
+  import_service_level?: string | null;
+  import_mode_label?: string | null;
 }
 
 export async function getMyOrderLines(orderId: string): Promise<OrderLine[]> {

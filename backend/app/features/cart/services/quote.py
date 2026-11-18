@@ -56,6 +56,9 @@ class QuoteLine(BaseModel):
     product_name: str = Field(max_length=255)
     quantity: int = Field(ge=1)
     unit_price: Decimal = Field(ge=0, max_digits=12, decimal_places=2)
+    #: Import mode the requested price was computed on (rapide, économique…);
+    #: the accepted quote puts the line back in the cart on it.
+    import_service_level: str | None = Field(default=None, max_length=50)
 
 
 class QuoteIssueBody(BaseModel):
@@ -90,6 +93,11 @@ def proposed_lines(quote: QuoteRequest) -> list[QuoteLine]:
                 product_name=str(item.get("product_name") or "Article"),
                 quantity=max(1, int(Decimal(str(item.get("quantity") or 1)))),
                 unit_price=Decimal(str(item.get("unit_price") or 0)),
+                import_service_level=(
+                    str(item["import_service_level"])
+                    if item.get("import_service_level")
+                    else None
+                ),
             )
         )
     return lines
@@ -131,6 +139,7 @@ async def issue_quote(
                 "quantity": line.quantity,
                 "unit_price": str(quantize_amount(line.unit_price, currency)),
                 "line_total": str(line_total),
+                "import_service_level": line.import_service_level,
             }
         )
     shipping = quantize_amount(body.shipping_fee_amount, currency)
@@ -257,6 +266,18 @@ def quoted_prices(quote: QuoteRequest) -> dict[uuid.UUID, tuple[int, Decimal]]:
             qty, price = int(line["quantity"]), Decimal(str(line["unit_price"]))
             previous = out.get(pid)
             out[pid] = (qty + previous[0], price) if previous else (qty, price)
+    return out
+
+
+def quoted_levels(quote: QuoteRequest) -> dict[uuid.UUID, str | None]:
+    """``{product_id: import mode}`` of an issued quote's lines (the first
+    line carrying one wins when a product appears twice)."""
+    out: dict[uuid.UUID, str | None] = {}
+    for line in (quote.quote_snapshot or {}).get("lines", []):
+        if line.get("product_id"):
+            pid = uuid.UUID(str(line["product_id"]))
+            if out.get(pid) is None:
+                out[pid] = line.get("import_service_level") or None
     return out
 
 

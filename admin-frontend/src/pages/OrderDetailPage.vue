@@ -70,7 +70,16 @@
               </thead>
               <tbody>
                 <tr v-for="line in order.lines" :key="line.product_id">
-                  <td class="text-left">{{ line.product_name || line.product_id.slice(0, 8) }}</td>
+                  <td class="text-left">
+                    {{ line.product_name || line.product_id.slice(0, 8) }}
+                    <div
+                      v-if="line.import_mode_label"
+                      class="text-caption text-subtle"
+                      data-testid="order-line-import-mode"
+                    >
+                      {{ $t('order.import_mode', { mode: line.import_mode_label }) }}
+                    </div>
+                  </td>
                   <td class="text-right font-mono">{{ line.quantity }}</td>
                   <td class="text-right font-mono">{{ formatMoney(line.unit_price) }}</td>
                   <td class="text-right font-mono">{{ formatMoney(line.line_total) }}</td>

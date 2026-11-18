@@ -18,7 +18,7 @@
       {% if lines %}
       <div class="summary">
         <table>
-          {% for line in lines %}<tr><td>{{ line.quantity }} × {{ line.name }}</td><td>{{ line.line_total }} {{ currency }}</td></tr>
+          {% for line in lines %}<tr><td>{{ line.quantity }} × {{ line.name }}{% if line.import_mode %} <span style="color:#666">(import : {{ line.import_mode }})</span>{% endif %}</td><td>{{ line.line_total }} {{ currency }}</td></tr>
           {% endfor %}
         </table>
       </div>

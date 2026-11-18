@@ -83,7 +83,15 @@ logger = logging.getLogger(__name__)
 
 
 _NOT_JOURNALED = frozenset(
-    {"execute_outbox_handler", "send_queued_email_task", "example_handler"}
+    {
+        "execute_outbox_handler",
+        "send_queued_email_task",
+        "example_handler",
+        # One article, asked from its admin page: an article Icecat does not
+        # know marked « the » task failed and alerted, as if Icecat were down
+        # (review of 17/11/2026). The batch run, journaled, covers an outage.
+        "enrich_product_with_icecat_task",
+    }
 )
 
 

@@ -51,6 +51,7 @@ from app.features.product.models.product import Product
 from app.features.product.models.tax_rate import TaxRate
 from app.features.product.services.margin import compute_margin, line_unit_cost
 from app.features.product.services.pricing import PricingContext
+from app.features.shipping.services.import_routes import import_mode_labels
 from app.features.user.models.user import User
 from app.handlers.order import request_balance
 from app.utils.csv_export import csv_amount, csv_response
@@ -121,6 +122,10 @@ class AdminOrderLineItem(BaseModel):
     line_margin: float | None = None
     #: Margin / line excl. tax (taux de marque).
     margin_pct: float | None = None
+    #: Import mode the customer paid for (ship by it) and its label; None =
+    #: no import leg on the line.
+    import_service_level: str | None = None
+    import_mode_label: str | None = None
 
 
 class OrderMarginSummary(BaseModel):
@@ -694,6 +699,9 @@ async def get_order_detail(
     except Exception:  # noqa: BLE001 - a missing parameter never hides an order
         commission_pct = None
 
+    mode_labels = await import_mode_labels(
+        session, (line.import_service_level for line in lines)
+    )
     line_items: list[AdminOrderLineItem] = []
     margin_totals = {"excl": Decimal("0"), "cost": Decimal("0"), "fees": Decimal("0")}
     lines_without_cost = 0
@@ -738,6 +746,8 @@ async def get_order_detail(
                     if figures is not None and figures.margin_pct is not None
                     else None
                 ),
+                import_service_level=line.import_service_level,
+                import_mode_label=mode_labels.get(line.import_service_level or ""),
             )
         )
     margin_summary: OrderMarginSummary | None = None

@@ -9056,6 +9056,10 @@ export interface components {
             line_margin?: number | null;
             /** Margin Pct */
             margin_pct?: number | null;
+            /** Import Service Level */
+            import_service_level?: string | null;
+            /** Import Mode Label */
+            import_mode_label?: string | null;
         };
         /**
          * AdminOrderListItem
@@ -10500,6 +10504,11 @@ export interface components {
              */
             payment_fee_amount?: number | string | null;
             /**
+             * Idempotency Key
+             * @description Chosen by the client once per order submission and sent again on every retry of it: a checkout whose order already exists (the first attempt went through but its response was lost) returns that order instead of creating a second one.
+             */
+            idempotency_key?: string | null;
+            /**
              * Cgv Accepted
              * @description Explicit acceptance of the terms of sale. Required: the checkbox in the SPA is not proof — the acceptance is recorded on the order (cgv_accepted_at / cgv_version) so it is opposable, and an API call that bypasses the UI is refused.
              * @default false
@@ -10682,6 +10691,11 @@ export interface components {
              * @default false
              */
             payment_start_failed: boolean;
+            /**
+             * Replayed
+             * @default false
+             */
+            replayed: boolean;
             /** Server Url */
             server_url?: string | null;
             /** Public Key */
@@ -13029,6 +13043,8 @@ export interface components {
             unit_price: number | string;
             /** Line Total */
             line_total: number | string;
+            /** Import Service Level */
+            import_service_level?: string | null;
         };
         /**
          * GuestQuoteRequestResponse
@@ -14101,6 +14117,10 @@ export interface components {
              * @default false
              */
             product_available: boolean;
+            /** Import Service Level */
+            import_service_level?: string | null;
+            /** Import Mode Label */
+            import_mode_label?: string | null;
         };
         /**
          * MyOrderPublic
@@ -18421,6 +18441,8 @@ export interface components {
             quantity: number;
             /** Unit Price */
             unit_price: number | string;
+            /** Import Service Level */
+            import_service_level?: string | null;
         };
         /**
          * QuoteLine
@@ -18435,6 +18457,8 @@ export interface components {
             quantity: number;
             /** Unit Price */
             unit_price: string;
+            /** Import Service Level */
+            import_service_level?: string | null;
         };
         /**
          * QuoteRequestResponse
@@ -21916,6 +21940,17 @@ export interface components {
             alert_webhook_configured: boolean;
             /** Email Provider Configured */
             email_provider_configured: boolean;
+            /**
+             * Departures Waiting
+             * @default []
+             */
+            departures_waiting: components["schemas"]["WaitingDeparture"][];
+            /**
+             * Departures Level
+             * @default ok
+             * @enum {string}
+             */
+            departures_level: "ok" | "warn" | "error";
         };
         /** TaskRunPublic */
         TaskRunPublic: {
@@ -22536,6 +22571,28 @@ export interface components {
             email: string;
             /** Code */
             code: string;
+        };
+        /**
+         * WaitingDeparture
+         * @description An open departure past its cut-off: its threshold is not reached, so
+         *     nothing closed it, and until the admin decides the new orders are
+         *     attached to no departure.
+         */
+        WaitingDeparture: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Order Cutoff At
+             * Format: date-time
+             */
+            order_cutoff_at: string;
+            /** Hours Past Cutoff */
+            hours_past_cutoff: number;
         };
         /**
          * WishlistAnonymousPublic

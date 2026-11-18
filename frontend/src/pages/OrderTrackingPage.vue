@@ -124,6 +124,9 @@
                   <span class="app-row__meta font-mono">
                     {{ line.quantity }} × {{ money(line.unit_price) }}
                   </span>
+                  <span v-if="line.import_mode_label" class="app-row__meta">
+                    {{ $t('tracking.import_mode', { mode: line.import_mode_label }) }}
+                  </span>
                   <span v-if="line.serial_numbers.length" class="app-row__meta">
                     {{ $t('tracking.serials') }}
                     <span class="font-mono">{{ line.serial_numbers.join(', ') }}</span>

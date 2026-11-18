@@ -114,3 +114,40 @@ async def import_route_for_level(
             if route.service_level == service_level:
                 return route
     return routes[0] if routes else None
+
+
+async def import_mode_labels(session: AsyncSession, levels: Any) -> dict[str, str]:
+    """``service_level → label shown to the customer`` for the given levels.
+
+    A line keeps the mode it was paid on even when that route is later
+    withdrawn: the routes on offer answer first, then any route that ever
+    carried the level, then the key itself (never a blank).
+    """
+    wanted = {level for level in levels or () if level}
+    if not wanted:
+        return {}
+    labels: dict[str, str] = {}
+    for route in await import_routes(session):
+        level = route.service_level
+        if level and level in wanted and level not in labels:
+            labels[level] = route.customer_label or level
+    missing = wanted - labels.keys()
+    if missing:
+        rows = (
+            await session.exec(
+                select(ShippingRoute)
+                .where(col(ShippingRoute.service_level).in_(missing))
+                .order_by(
+                    col(ShippingRoute.is_active).desc(),
+                    col(ShippingRoute.priority).asc(),
+                    col(ShippingRoute.id).asc(),
+                )
+            )
+        ).all()
+        for row in rows:
+            level = getattr(row, "service_level", None)
+            if level and level not in labels and row.customer_label:
+                labels[level] = row.customer_label
+    for level in wanted:
+        labels.setdefault(level, level)
+    return labels
