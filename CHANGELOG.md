@@ -19,6 +19,12 @@ takes a tag as its `ref`.
 
 ### Added
 
+- A stuck worker restarts (Z3, decision of 18/11/2026): the worker ends
+  itself when its event loop is blocked for 5 minutes or Redis is unreachable
+  for 3 (`app/core/worker_watchdog.py`), so Docker starts a fresh one; a
+  server cron (`scripts/ops/restart-unhealthy.sh`, every 5 minutes) restarts
+  any container Docker reports unhealthy and alerts, and stops after 3
+  restarts in an hour. DEPLOYMENT.md §12.1.
 - A separate billing address (decision of 18/11/2026): an address carries
   an optional business id (n° TAHITI, SIRET…); at checkout « Facturer à une
   autre adresse (société) » picks one, frozen on the order (`billing_name`,

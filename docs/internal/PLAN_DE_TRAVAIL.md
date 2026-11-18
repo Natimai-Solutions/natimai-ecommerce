@@ -20,7 +20,6 @@ Détail, fichiers et scénarios : [`AUDIT_2026-11.md`](AUDIT_2026-11.md) (identi
 
 Détail : [`AUDIT_FONCTIONNEL_2026-11.md`](AUDIT_FONCTIONNEL_2026-11.md) (identifiants D·, Z·, M·). Les sept défauts D1 à D7 et les zones fragiles Z1 à Z6, Z11, Z12 et Z16 sont corrigés (voir CHANGELOG). Reste :
 
-- **Z3 (reste)** : un worker « unhealthy » n'est pas redémarré automatiquement (pas d'autoheal dans les compose) — S, à décider avec l'hébergement.
 - **D1 (suite)** : le délai de livraison affiché ignore encore le mode d'import choisi et le délai fournisseur ; un départ groupé ne porte pas de mode — M.
 
 ### Relecture du 17/11/2026 — ce qui reste
@@ -36,6 +35,7 @@ Cinq relectures indépendantes des changements de novembre ; ce qui a été corr
 ### Exploitation (sur le serveur, hors code)
 
 - **Sauvegardes réelles** : planifier le cron de `scripts/backup/backup.sh`, configurer la copie hors site (rclone / scp), **exécuter une restauration réelle** avant la première commande (DEPLOYMENT.md §12).
+- **Redémarrage des conteneurs « unhealthy »** : installer `scripts/ops/ecommerce-autoheal.cron` (DEPLOYMENT.md §12.1).
 - **`ALERT_WEBHOOK_URL`** à renseigner (`.env` et cron) : sans lui, un événement outbox perdu après 8 tentatives, un health-check en erreur, un échec de sauvegarde ou une identité légale incomplète ne préviennent personne.
 - **Quota d'artefacts GitHub** atteint : les envois sont devenus non bloquants et leur rétention réduite à 7–14 j ; purger les anciens artefacts (*Settings → Actions → Artifacts* ou l'API) pour retrouver les rapports de couverture.
 - **Dependabot security updates** à activer sur le dépôt `Natimai-Solutions/natimai-ecommerce` (*Settings → Code security*), avec *Grouped security updates*.

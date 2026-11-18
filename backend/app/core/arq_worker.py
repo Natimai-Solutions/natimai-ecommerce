@@ -10,6 +10,7 @@ from app.core.arq_pool import arq_redis_settings
 from app.core.logging_config import configure_logging
 from app.core.sentry import init_sentry
 from app.core.task_runs import journaled
+from app.core.worker_watchdog import start_watchdog, stop_watchdog
 from app.features.system.audit import get_audit_cron_jobs, purge_audit_log_task
 from app.outbox.consumer import OUTBOX_HANDLER_MAX_TRIES, execute_outbox_handler
 from app.tasks.cart_tasks import (
@@ -211,6 +212,10 @@ class WorkerSettings:
     ]
 
     redis_settings = arq_redis_settings()
+    # A stuck worker (blocked loop, Redis lost) ends itself and Docker starts
+    # a fresh one: « unhealthy » alone restarted nothing (Z3).
+    on_startup = start_watchdog
+    on_shutdown = stop_watchdog
     job_timeout = 600  # Augmenté pour les tâches de sync qui peuvent prendre du temps
     keep_result = 3600
     # Défaut pour les tâches sans politique propre (sync fournisseurs, Icecat).
