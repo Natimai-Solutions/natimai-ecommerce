@@ -164,6 +164,8 @@ Cinq relectures indépendantes des changements de novembre ; ce qui a été corr
 
 ## 9. Dettes techniques et veille
 
+- **`picomatch` (GHSA-fc5q-39xc-vjpf, ReDoS)** : avis ignoré dans `pnpm audit` (`auditConfig.ignoreGhsas`, `package.json`) le 18/11/2026, faute de version corrigée (4.0.7 est la dernière). Outillage de build seulement (via `vue-router`). **À retirer** dès qu'une version corrigée sort : l'imposer par un `override`, puis supprimer l'exception — S.
+
 - **TypeScript 7** : bloqué par `vue-tsc` et `typescript-eslint` ; déclencheur : leur prise en charge annoncée. Dependabot n'en propose plus la majeure (`ignore`), à relever le moment venu.
 - **express 5** : le serveur SSR tourne en express 4 (Quasar recopie sa propre dépendance) ; `@types/express` en 5 décrit une autre API — à aligner. Majeure ignorée par Dependabot, comme celles de `@types/node` (aligné sur node 24, la LTS des images).
 - **httpx → httpx2** pour le code applicatif quand l'extra `standard` de FastAPI l'accepte ; vérifier alors `ca-certificates` dans l'image (truststore).

@@ -9,6 +9,9 @@ takes a tag as its `ref`.
 
 ### Security
 
+- `pnpm audit` ignores GHSA-fc5q-39xc-vjpf (`picomatch` ≤ 4.0.7, ReDoS) until
+  a patched version exists: build tooling only, no fix published. To remove
+  then (see the work plan, §9).
 - An account linked to Google / Microsoft that also has a chosen password
   needs that password to be erased, a recent sign-in no longer stands for it
   (`users.has_password`, migration `e1f2a3b4c5d6`; unknown for the accounts
