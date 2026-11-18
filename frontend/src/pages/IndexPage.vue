@@ -187,6 +187,7 @@ import type { components } from '@app/api-types';
 
 import AppNotice from '@app/ui/AppNotice.vue';
 import ProductCard from '@/components/ProductCard.vue';
+import { useAuthStore } from '@/stores/auth';
 import { useCartStore } from '@/stores/cart';
 import { categoryTitle, useHomeStore } from '@/stores/home';
 import { useUiStore } from '@/stores/ui';
@@ -198,6 +199,7 @@ const shopModules = useShopModulesStore();
 type ProductPublic = components['schemas']['ProductPublic'];
 
 const home = useHomeStore();
+const authStore = useAuthStore();
 const cartStore = useCartStore();
 const uiStore = useUiStore();
 const cartError = ref<string | null>(null);
@@ -288,7 +290,17 @@ async function onAddToCart(product: ProductPublic) {
 }
 
 onServerPrefetch(() => home.load());
-onMounted(() => home.load());
+onMounted(async () => {
+  await home.load();
+  // Rendered by the server for a visitor: a signed-in customer's price group
+  // changes the prices of the cards (§12.1).
+  await home.syncPrices();
+});
+// Signing in or out on the page changes them too.
+watch(
+  () => authStore.isAuthenticated,
+  () => void home.syncPrices(),
+);
 // Blocks, category tiles and product names follow the visitor's language (R9 / T3).
 watch(locale, () => void home.reload());
 </script>

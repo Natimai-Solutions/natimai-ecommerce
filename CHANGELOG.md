@@ -9,6 +9,11 @@ takes a tag as its `ref`.
 
 ### Security
 
+- A quote request made without an account is reached by its e-mail address
+  only from an account whose address is proven (verified, not a guest
+  session): a guest session opened for a visitor's address no longer lists,
+  downloads or orders that visitor's quote, and the list of « my quotes »
+  never matches another account's request by e-mail.
 - `pnpm audit` ignores GHSA-fc5q-39xc-vjpf (`picomatch` ≤ 4.0.7, ReDoS) until
   a patched version exists: build tooling only, no fix published. To remove
   then (see the work plan, §9).
@@ -370,6 +375,11 @@ takes a tag as its `ref`.
 
 ### Removed
 
+- The « Order and payment » e-mail switch of the account preferences
+  (`user_preferences.notification_email_enabled`, migration `c1d2e3f4a5b6`):
+  no sending ever read it. These e-mails are transactional and always sent;
+  the preferences now say so.
+
 - Generic CRUD routes no frontend calls: analytics (products, sales, users),
   partners, stock movements (`/inventory/stock-movements`) and user
   notifications (`/notification/users/…`). Their models and tables stay: stock
@@ -378,6 +388,10 @@ takes a tag as its `ref`.
   (superuser-only), as the base of the future fine-grained roles.
 
 ### Fixed
+
+- Homepage product cards follow the signed-in customer's price group: the
+  server render is anonymous, so the products are fetched again once a
+  customer is signed in, and again after signing out.
 
 - Relecture du 17/11/2026 of the November changes (five independent reviews):
   - « Payer » is no longer offered online once instalments were received on

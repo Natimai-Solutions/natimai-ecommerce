@@ -12,8 +12,7 @@ Deux sujets :
    commercial), sur le modèle de FenuaPro et de Natimai Paie (§4 à §9).
 
 Les décisions (prises le 18/11/2026 et attendues) sont au §10, le découpage en lots au §11. Trois
-défauts du code actuel, trouvés pendant la relecture, sont au §12 et inscrits
-au plan de travail : ils se corrigent indépendamment de ce chantier.
+défauts du code actuel, trouvés pendant la relecture, sont au §12 (corrigés).
 
 ---
 
@@ -62,7 +61,7 @@ Socle déjà en place, à réutiliser :
 - rien pour la réassurance (livraison dans les îles, paiement sécurisé,
   départs groupés), les marques, une promotion en cours, un texte libre ;
 - aucun ciblage : un client professionnel connecté voit le même accueil
-  qu'un visiteur, **y compris les prix** (défaut, §12.1) ;
+  qu'un visiteur, **y compris les prix** (corrigé le 18/11/2026, §12) ;
 - pas d'aperçu avant publication ; titre et description SEO non réglables.
 
 ---
@@ -201,7 +200,7 @@ Exemple, avec deux groupes : « Particuliers » (défaut) et « Professionnels �
 Le visiteur et le particulier ne voient jamais les sections du groupe pro ;
 le pro voit les siennes **à la place** (ou en plus, selon le réglage de
 chaque section). La dernière ligne de prix est déjà due aujourd'hui et ne
-fonctionne pas (§12.1).
+fonctionnait pas avant le correctif du 18/11/2026 (§12).
 
 Impact SSR : le rendu serveur est toujours **anonyme** (la session n'est
 restaurée que dans le navigateur, `boot/auth.ts`). Règle proposée : le
@@ -945,7 +944,7 @@ les identifiants M· de l'audit fonctionnel.
 | **ROLE** | Rôles « Service client » et « Service commercial » : premiers rôles fins (groupes de sécurité, gardes par liste d'autorisation, 2FA, menu admin filtré) | M à L |
 | **BR** | Marques : `Product.brand_id`, alias, reprise depuis `manufacturer`, écran admin, filtre et facette, page marque (M9 de l'audit) | M à L |
 
-Ordre conseillé : correctifs du §12 d'abord, puis **A1 → MSG1 → MSG2 → A2 →
+Ordre conseillé (correctifs du §12 livrés) : **A1 → MSG1 → MSG2 → A2 →
 MSG5 → ROLE → MSG3 → MSG4**, BR quand on veut la bande de marques (R6) et
 les pages marque. A1, MSG1 et BR sont indépendants et peuvent avancer en
 parallèle. ROLE peut attendre : sans lui, les superusers répondent.
@@ -954,33 +953,7 @@ parallèle. ROLE peut attendre : sans lui, les superusers répondent.
 
 ## 12. Défauts du code actuel trouvés pendant la relecture
 
-Inscrits au plan de travail ; à corriger **sans attendre** ce chantier.
-
-1. **Prix visiteur sur l'accueil pour un client d'un groupe tarifaire.** Les
-   routes `/product/featured` et `/product/popular` tarifent bien au groupe
-   du client (`product_catalog.py:592-609, 667-678`), mais le rendu serveur
-   est anonyme, le store `home` est transmis au navigateur et `load()`
-   s'arrête puisque `loaded` est vrai (`stores/home.ts:37`) ; seul un
-   changement de langue recharge (`IndexPage.vue:290-293`), ni la connexion
-   ni la déconnexion (`stores/auth.ts`), et `ProductCard` affiche le prix
-   reçu tel quel. Un pro qui arrive sur `/` voit les prix visiteur (le
-   panier, lui, est au bon prix) ; après une déconnexion dans le même
-   onglet, les prix du groupe restent affichés. Remède : recharger les
-   produits de l'accueil quand l'utilisateur connecté change ; test Vitest
-   (connexion → prix du groupe, déconnexion → prix visiteur). — S
-2. **Devis d'un visiteur lisibles par une session invitée de même
-   adresse.** `POST /signup/guest` ouvre une session pour toute adresse sans
-   compte, sans preuve (`signup.py:225-268`, compte `is_verified=False`).
-   `list_my_quotes` lit `user_id == moi OR email == mon e-mail`
-   (`cart.py:2519-2536`), `_my_quote_or_404` et `check_convertible`
-   (`quote.py:216`) donnent une demande sans compte à quiconque a la même
-   adresse : nom, téléphone, adresse de livraison et PDF du devis d'un
-   visiteur se lisent, et le devis s'accepte, depuis une session invitée
-   ouverte à son adresse. Remède : la correspondance par e-mail exige un
-   compte vérifié et non invité, et `list_my_quotes` ajoute `user_id IS
-   NULL` à sa branche e-mail. — S
-3. **Préférence « commandes » jamais lue.** `notification_email_enabled`
-   (interrupteur de `AccountPreferences.vue`) n'est consulté par aucun envoi ;
-   seuls `notification_shipping_steps` et `marketing_email_enabled` le sont.
-   La brancher sur les e-mails de commande non obligatoires, ou la retirer.
-   — S
+Corrigés le 18/11/2026 (voir le CHANGELOG) : prix visiteur sur l'accueil
+pour un client d'un groupe tarifaire ; devis d'un visiteur lisibles par une
+session invitée de même adresse ; préférence « commandes » jamais lue
+(retirée : ces e-mails sont transactionnels et partent toujours).

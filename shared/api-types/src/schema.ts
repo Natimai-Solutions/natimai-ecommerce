@@ -22720,12 +22720,6 @@ export interface components {
          */
         UserPreferencePublic: {
             /**
-             * Notification Email Enabled
-             * @description Receive transactional emails (order, payment)
-             * @default true
-             */
-            notification_email_enabled: boolean;
-            /**
              * Notification Shipping Steps
              * @description Receive shipping status notifications
              * @default true
@@ -22768,8 +22762,6 @@ export interface components {
          * @description Update schema — all fields optional.
          */
         UserPreferenceUpdate: {
-            /** Notification Email Enabled */
-            notification_email_enabled?: boolean | null;
             /** Notification Shipping Steps */
             notification_shipping_steps?: boolean | null;
             /** Marketing Email Enabled */

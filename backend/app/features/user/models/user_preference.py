@@ -10,9 +10,6 @@ _VALID_LOCALES = {"fr", "en"}
 class UserPreferenceBase(SQLModel):
     """Shared fields for user preferences."""
 
-    notification_email_enabled: bool = Field(
-        default=True, description="Receive transactional emails (order, payment)"
-    )
     notification_shipping_steps: bool = Field(
         default=True, description="Receive shipping status notifications"
     )
@@ -39,7 +36,6 @@ class UserPreferenceBase(SQLModel):
 class UserPreferenceUpdate(SQLModel):
     """Update schema — all fields optional."""
 
-    notification_email_enabled: bool | None = None
     notification_shipping_steps: bool | None = None
     marketing_email_enabled: bool | None = None
     default_shipping_preference: str | None = None

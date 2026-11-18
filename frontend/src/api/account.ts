@@ -9,7 +9,6 @@ import { api } from '@/boot/api';
  */
 export interface UserPreferences {
   user_id: string;
-  notification_email_enabled: boolean;
   notification_shipping_steps: boolean;
   /** Commercial reminders (forgotten cart, offers) — distinct from transactional mail. */
   marketing_email_enabled: boolean;

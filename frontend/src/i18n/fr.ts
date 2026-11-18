@@ -810,8 +810,8 @@ const fr = {
       rapide: 'Rapide (avion)',
     },
     order: 'Commande et paiement',
-    order_aria: 'E-mails de commande et paiement',
-    order_meta: 'Confirmation, paiement reçu, facture.',
+    order_meta: 'Confirmation, paiement reçu, facture : ils font foi de la commande.',
+    order_always: 'Toujours envoyés',
     pref: {
       cheapest: 'La moins chère',
       eco: 'La plus écologique',

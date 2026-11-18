@@ -797,8 +797,8 @@ const en: MessageSchema = {
       rapide: 'Fast (air)',
     },
     order: 'Order and payment',
-    order_aria: 'Order and payment e-mails',
-    order_meta: 'Confirmation, payment received, invoice.',
+    order_meta: 'Confirmation, payment received, invoice: they are the record of your order.',
+    order_always: 'Always sent',
     pref: {
       cheapest: 'The cheapest',
       eco: 'The most eco-friendly',

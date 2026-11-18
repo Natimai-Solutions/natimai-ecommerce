@@ -13,7 +13,7 @@ from pydantic import BaseModel, EmailStr
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.attributes import set_committed_value
-from sqlmodel import SQLModel, col, or_, select
+from sqlmodel import SQLModel, and_, col, or_, select
 
 from app.api.deps import CurrentUser, SessionDep, module_required
 from app.core import runtime_settings
@@ -58,7 +58,9 @@ from app.features.cart.models.quote_request import (
     QuoteRequestSubmit,
 )
 from app.features.cart.services.quote import (
+    address_is_proven,
     check_convertible,
+    owns_quote,
     quote_currency,
     quote_pdf_response,
     quoted_levels,
@@ -2455,17 +2457,10 @@ def _my_quote_item(quote: QuoteRequest, *, user: User) -> MyQuoteItem:
 async def _my_quote_or_404(
     session: SessionDep, quote_id: uuid.UUID, current_user: User
 ) -> QuoteRequest:
-    """A quote of the customer (by account, or by e-mail for a request made
-    before signing up); a foreign one reads as missing."""
+    """A quote of the customer (by account, or by a proven address for a
+    request made before signing up); a foreign one reads as missing."""
     quote = await session.get(QuoteRequest, quote_id)
-    owned = quote is not None and (
-        quote.user_id == current_user.id
-        or (
-            quote.user_id is None
-            and quote.email.lower() == str(current_user.email).lower()
-        )
-    )
-    if quote is None or not owned:
+    if quote is None or not owns_quote(quote, current_user):
         raise AppError(
             code="quote.not_found",
             status_code=404,
@@ -2516,6 +2511,21 @@ async def _install_quote_in_cart(
     return items
 
 
+def _my_quotes_conditions(user: User) -> list[Any]:
+    """The account's requests and, for a proven address only, the requests
+    made with it before signing up — never another account's request, and
+    nothing by e-mail for a guest session (anyone can open one)."""
+    conditions: list[Any] = [col(QuoteRequest.user_id) == user.id]
+    if address_is_proven(user):
+        conditions.append(
+            and_(
+                col(QuoteRequest.user_id).is_(None),
+                func.lower(col(QuoteRequest.email)) == str(user.email).lower(),
+            )
+        )
+    return conditions
+
+
 @router.get("/quote-requests/me", response_model=list[MyQuoteItem])
 async def list_my_quotes(
     session: SessionDep, current_user: CurrentUser
@@ -2524,12 +2534,7 @@ async def list_my_quotes(
     rows = (
         await session.exec(
             select(QuoteRequest)
-            .where(
-                or_(
-                    col(QuoteRequest.user_id) == current_user.id,
-                    col(QuoteRequest.email) == str(current_user.email).lower(),
-                )
-            )
+            .where(or_(*_my_quotes_conditions(current_user)))
             .order_by(col(QuoteRequest.created_at).desc())
         )
     ).all()
