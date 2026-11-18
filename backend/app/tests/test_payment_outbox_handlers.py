@@ -358,6 +358,10 @@ async def test_invoice_handler_issues_when_amounts_match(
     )
     issue = AsyncMock(return_value=invoice)
     monkeypatch.setattr(handlers, "issue_invoice_for_order", issue)
+    # The credit notes of earlier refunds run on the real DB (integration).
+    monkeypatch.setattr(
+        handlers, "_credit_refunds_made_before_the_invoice", AsyncMock(return_value=0)
+    )
     publish = AsyncMock()
     monkeypatch.setattr("app.outbox.registry.outbox_registry.publish", publish)
 

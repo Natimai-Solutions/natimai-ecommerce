@@ -90,7 +90,7 @@ async def test_departures_banner_and_deposits_follow_their_switch(
     open_departure: Any = SimpleNamespace(id=uuid.uuid4())
     monkeypatch.setattr(
         "app.api.routes.grouped_departures.crud_grouped_departure.get_next_open",
-        lambda _session: _async(open_departure),
+        lambda _session, **_kw: _async(open_departure),
     )
     monkeypatch.setattr(
         "app.api.routes.grouped_departures.GroupedDepartureSummary.model_validate",
