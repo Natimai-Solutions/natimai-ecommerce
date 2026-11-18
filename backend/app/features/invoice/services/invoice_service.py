@@ -172,12 +172,16 @@ async def _build_buyer_identity(
 ) -> dict[str, Any]:
     """Buyer block: the billing identity chosen at checkout (a company, its
     tax id), else the account identity at the shipping address."""
-    if order.billing_address:
+    # getattr: orders built before the columns (and lightweight test orders).
+    billed_at = getattr(order, "billing_address", None)
+    if billed_at:
         return {
-            "name": order.billing_name or (user.full_name if user else None) or "",
+            "name": getattr(order, "billing_name", None)
+            or (user.full_name if user else None)
+            or "",
             "email": (user.email if user else None) or "",
-            "address": order.billing_address,
-            "tax_id": order.billing_tax_id or "",
+            "address": billed_at,
+            "tax_id": getattr(order, "billing_tax_id", None) or "",
         }
     billing_address = order.shipping_address or ""
     if not billing_address:
