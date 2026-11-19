@@ -705,22 +705,74 @@ def test_an_oversized_image_is_refused_before_decoding() -> None:
 async def test_a_holder_who_answers_keeps_the_conversation(
     db_session: AsyncSession,
 ) -> None:
-    """Held since Monday, answered all week: the customer's Thursday message
-    does not hand it back to the queue (the wait counts from that message)."""
+    """Held since Monday, answered on Wednesday: the customer's Thursday
+    message does not hand it back to the queue (the wait counts from that
+    message, the first one left without an answer)."""
+    from app.features.messaging import service
+    from app.features.messaging.models import MessageSide
+
     alice = await _user(db_session, "alice")
+    alice_id = alice.id
     agent = await _user(db_session, "agent", staff=True)
+    agent_id = agent.id
     conversation_id = await _open(db_session, alice)
     await _fresh(db_session, agent)
     await staff_routes.claim_conversation(conversation_id, db_session, agent)
+    start = utcnow()
     row = await db_session.get(Conversation, conversation_id)
     assert row is not None
-    # The customer wrote again 4 days after the claim.
-    row.last_customer_message_at = utcnow() + datetime.timedelta(days=4)
-    db_session.add(row)
+    await service.add_message(
+        db_session,
+        row,
+        side=MessageSide.STAFF,
+        body="On regarde.",
+        author_id=agent_id,
+        now=start + datetime.timedelta(days=2),
+    )
+    await service.add_message(
+        db_session,
+        row,
+        side=MessageSide.CUSTOMER,
+        body="Merci",
+        author_id=alice_id,
+        now=start + datetime.timedelta(days=4),
+    )
     await db_session.commit()
-    later = utcnow() + datetime.timedelta(days=4, hours=2)
+    later = start + datetime.timedelta(days=4, hours=2)
     assert await notify.release_stale(db_session, now=later) == 0
     assert (
         await notify.release_stale(db_session, now=later + datetime.timedelta(days=3))
         == 1
     )
+
+
+async def test_writing_again_does_not_push_the_release_back(
+    db_session: AsyncSession,
+) -> None:
+    """Review of PR 204: the wait counted from the customer's LAST message,
+    so « any news? » every other day kept an unanswered conversation held
+    forever. It counts from the first message left without an answer."""
+    from app.features.messaging import service
+    from app.features.messaging.models import MessageSide
+
+    alice = await _user(db_session, "alice")
+    alice_id = alice.id
+    agent = await _user(db_session, "agent", staff=True)
+    conversation_id = await _open(db_session, alice)
+    await _fresh(db_session, agent)
+    await staff_routes.claim_conversation(conversation_id, db_session, agent)
+    start = utcnow()
+    row = await db_session.get(Conversation, conversation_id)
+    assert row is not None
+    await service.add_message(
+        db_session,
+        row,
+        side=MessageSide.CUSTOMER,
+        body="Des nouvelles ?",
+        author_id=alice_id,
+        now=start + datetime.timedelta(days=2),
+    )
+    await db_session.commit()
+    # 3 days after the opening message, 1 day after the reminder: released.
+    later = start + datetime.timedelta(days=3, hours=1)
+    assert await notify.release_stale(db_session, now=later) == 1

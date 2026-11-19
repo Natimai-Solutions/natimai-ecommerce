@@ -80,7 +80,7 @@ async def _seed(session: AsyncSession) -> SimpleNamespace:
     session.add_all(orders)
     await session.flush()
     return SimpleNamespace(
-        admin=cast(User, SimpleNamespace(id=admin.id)),
+        admin=cast(User, SimpleNamespace(id=admin.id, is_superuser=True)),
         departure_id=departure.id,
         paid_attached=[orders[0].id, orders[1].id],
         pending_id=orders[2].id,

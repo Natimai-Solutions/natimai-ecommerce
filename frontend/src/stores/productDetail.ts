@@ -36,11 +36,14 @@ export const useProductDetailStore = defineStore('productDetail', () => {
 
   async function load(productId: string, locale: string): Promise<void> {
     const key = `${productId}|${locale}`;
-    if (fromServer.value) {
-      // First client call after the server render: what it sent is current.
-      fromServer.value = false;
-      if (loadedKey.value === key && !loading.value) return;
+    if (fromServer.value && loadedKey.value === key && !loading.value) {
+      // The server renders a page twice over (`preFetch`, then the
+      // component's `onServerPrefetch`): only the browser's first call after
+      // the server render consumes the flag — what the server sent is current.
+      if (!import.meta.env.QUASAR_SERVER) fromServer.value = false;
+      return;
     }
+    if (!import.meta.env.QUASAR_SERVER) fromServer.value = false;
     const call = ++latest;
     loading.value = true;
     error.value = null;

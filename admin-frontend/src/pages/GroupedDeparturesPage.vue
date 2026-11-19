@@ -261,6 +261,7 @@
         <div class="detail-head">
           <h3 class="admin-subtitle">{{ $t('departures.pos') }}</h3>
           <q-btn
+            v-if="isAdmin"
             flat
             dense
             no-caps
@@ -282,12 +283,13 @@
                 {{ po.supplier_name }} — n° <span class="font-mono">{{ po.order_number }}</span>
                 <span class="text-muted">· {{ formatDate(po.ordered_at) }}</span>
               </q-item-label>
-              <q-item-label caption>
-                <span class="font-mono">{{ po.total_amount }} {{ po.currency }}</span
+              <q-item-label v-if="po.total_amount != null || po.notes" caption>
+                <span v-if="po.total_amount != null" class="font-mono"
+                  >{{ po.total_amount }} {{ po.currency }}</span
                 ><template v-if="po.notes"> · {{ po.notes }}</template>
               </q-item-label>
             </q-item-section>
-            <q-item-section side>
+            <q-item-section v-if="isAdmin" side>
               <q-btn
                 :aria-label="$t('departures.delete_text')"
                 flat
@@ -439,7 +441,7 @@
       </div>
 
       <!-- Margin dashboard -->
-      <div v-if="!showUnassigned && board" class="detail-block">
+      <div v-if="isAdmin && !showUnassigned && board" class="detail-block">
         <h3 class="admin-subtitle">{{ $t('departures.board') }}</h3>
         <div class="kpi-grid">
           <div v-for="tile in tiles" :key="tile.label" class="kpi">
@@ -1325,7 +1327,8 @@ const tiles = computed(() => {
 });
 
 async function loadDashboard() {
-  if (!selected.value) return;
+  // The margin and the real costs: administrators only (rôles fins, §4).
+  if (!selected.value || !isAdmin.value) return;
   try {
     board.value = await getDashboard(selected.value.id);
     Object.assign(costs, {

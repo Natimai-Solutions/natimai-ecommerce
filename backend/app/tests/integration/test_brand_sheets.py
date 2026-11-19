@@ -334,3 +334,40 @@ async def test_brand_page_language_sitemap_and_product_link(
     assert (shown.brand_name, shown.brand_slug) == ("HP", "hp")
     hidden_brand = await read(db_session, ids[1], None)
     assert hidden_brand.brand_slug is None
+
+
+async def test_a_brand_selection_follows_a_merge_and_blocks_a_delete(
+    db_session: AsyncSession,
+) -> None:
+    """Review of PR 204: a homepage selection « products of a brand » kept
+    the id of a merged (or deleted) sheet and emptied itself without a word."""
+    from app.features.content.models import HomepageBlock
+
+    source = Brand(name="Lenovo Group", slug="lenovo-group")
+    target = Brand(name="Lenovo", slug="lenovo")
+    db_session.add_all([source, target])
+    source_id, target_id = source.id, target.id
+    block = HomepageBlock(
+        kind="collection",
+        title="Lenovo",
+        config={"source": "brand", "brand_id": str(source_id), "limit": 8},
+    )
+    db_session.add(block)
+    block_id = block.id
+    await db_session.commit()
+
+    with pytest.raises(AppError) as used:
+        await brand_pages.admin_delete_brand(source_id, db_session, None)  # type: ignore[arg-type]
+    assert used.value.code == "brand.in_use" and used.value.status_code == 409
+
+    await brand_pages.admin_merge_brand(
+        source_id,
+        brand_pages.BrandMerge(target_id=target_id),
+        _Request(),  # type: ignore[arg-type]
+        db_session,
+        None,  # type: ignore[arg-type]
+    )
+    row = await db_session.get(HomepageBlock, block_id)
+    assert row is not None
+    await db_session.refresh(row)
+    assert row.config == {"source": "brand", "brand_id": str(target_id), "limit": 8}

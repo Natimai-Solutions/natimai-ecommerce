@@ -42,6 +42,7 @@ from app.features.cart.services.quote import (
     send_quote_email,
 )
 from app.features.messaging.links import (
+    notify_guest_of_quote,
     quote_commented,
     quote_email_not_sent,
     quote_issued,
@@ -291,6 +292,9 @@ async def issue_quote_request(
         # The e-mail did not leave: the messaging notice is owed again.
         await quote_email_not_sent(session, quote)
         await session.commit()
+    if not sent:
+        # A visitor has no account where « a reply is waiting » would show.
+        await notify_guest_of_quote(session, quote)
         quote = await _read_quote(session, quote_id)
     return QuoteIssueResponse(**_to_detail(quote).model_dump(), email_sent=sent)
 

@@ -22,7 +22,7 @@ import datetime
 import html
 from typing import Any
 
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -33,7 +33,9 @@ from app.core.i18n import resolve_locale
 from app.core.operator_messages import operator_text
 from app.features.messaging.models import (
     Conversation,
+    ConversationMessage,
     ConversationStatus,
+    MessageKind,
     MessageSide,
 )
 from app.features.messaging.service import event
@@ -231,20 +233,37 @@ async def release_stale(
     message. Never a pending or a resolved one."""
     now = now or utcnow()
     days = int(await runtime_settings.get("messaging_release_after_days", session) or 3)
+    cutoff = now - datetime.timedelta(days=days)
+    first_unanswered = (
+        select(func.min(ConversationMessage.created_at))
+        .where(
+            col(ConversationMessage.conversation_id) == col(Conversation.id),
+            col(ConversationMessage.side) == MessageSide.CUSTOMER.value,
+            col(ConversationMessage.kind) == MessageKind.MESSAGE.value,
+            or_(
+                col(Conversation.last_staff_message_at).is_(None),
+                col(ConversationMessage.created_at)
+                > col(Conversation.last_staff_message_at),
+            ),
+        )
+        .correlate(Conversation)
+        .scalar_subquery()
+    )
     rows = await session.exec(
         select(Conversation).where(
             col(Conversation.status) == ConversationStatus.OPEN.value,
             col(Conversation.assigned_to_id).is_not(None),
-            col(Conversation.assigned_at) <= now - datetime.timedelta(days=days),
+            col(Conversation.assigned_at) <= cutoff,
             # The wait is counted from the customer's message: a holder who
             # answers all week keeps a conversation the customer writes in.
-            col(Conversation.last_customer_message_at)
-            <= now - datetime.timedelta(days=days),
             or_(
                 col(Conversation.last_staff_message_at).is_(None),
                 col(Conversation.last_staff_message_at)
                 < col(Conversation.last_customer_message_at),
             ),
+            # …from the FIRST message left without an answer: a customer who
+            # writes again (« any news? ») must not push the release back.
+            first_unanswered <= cutoff,
         )
     )
     released = 0

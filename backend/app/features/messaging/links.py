@@ -50,6 +50,12 @@ _TEXTS: dict[str, tuple[str, str]] = {
         "Votre devis {number} est prêt : retrouvez-le dans Mon compte → Devis, "
         "où vous pouvez le commander jusqu'au {valid_until}.",
     ),
+    "quote.issued_guest": (
+        "Your quote {number} is ready: it is valid until {valid_until}. "
+        "Reply here for any question about it.",
+        "Votre devis {number} est prêt : il est valable jusqu'au {valid_until}. "
+        "Répondez ici pour toute question à son sujet.",
+    ),
     "quote.note": ("Quote comment: {comment}", "Commentaire du devis : {comment}"),
     "group.subject": ("Price group « {group} »", "Groupe tarifaire « {group} »"),
     "group.body": (
@@ -158,8 +164,12 @@ async def quote_issued(
         session,
         conversation,
         side=MessageSide.STAFF,
+        # A visitor has no « My account »: the quote itself is in the e-mail.
         body=text(
-            "quote.issued", lang, number=quote.quote_number, valid_until=valid_until
+            "quote.issued" if conversation.customer_id else "quote.issued_guest",
+            lang,
+            number=quote.quote_number,
+            valid_until=valid_until,
         ),
         author_id=staff.id,
         now=now,
@@ -176,6 +186,38 @@ async def quote_email_not_sent(session: AsyncSession, quote: QuoteRequest) -> No
     if conversation is not None and conversation.customer_notified_at is not None:
         conversation.customer_notified_at = None
         session.add(conversation)
+
+
+async def notify_guest_of_quote(session: AsyncSession, quote: QuoteRequest) -> None:
+    """A visitor's quote went without its e-mail (not asked, or failed): the
+    « your quote is ready » message reaches the visitor by e-mail, with the
+    link to continue — a visitor has no account where the notice would wait
+    (commits)."""
+    from app.features.messaging import guests
+    from app.features.messaging.models import ConversationMessage as Message
+
+    conversation = await conversation_about(session, "quote_request", quote.id)
+    if (
+        conversation is None
+        or conversation.customer_id is not None
+        or conversation.customer_notified_at is not None
+    ):
+        return
+    last = (
+        await session.exec(
+            select(Message)
+            .where(
+                col(Message.conversation_id) == conversation.id,
+                col(Message.side) == MessageSide.STAFF.value,
+                col(Message.kind) == MessageKind.MESSAGE.value,
+            )
+            .order_by(col(Message.created_at).desc())
+            .limit(1)
+        )
+    ).first()
+    if last is None:
+        return
+    await guests.email_reply(session, conversation, body=last.body, with_file=False)
 
 
 async def quote_commented(
@@ -268,6 +310,7 @@ __all__ = [
     "open_for_group_request",
     "open_for_quote",
     "quote_commented",
+    "notify_guest_of_quote",
     "quote_email_not_sent",
     "quote_issued",
     "text",

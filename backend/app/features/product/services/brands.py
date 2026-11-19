@@ -20,6 +20,7 @@ from __future__ import annotations
 import re
 import unicodedata
 import uuid
+from typing import Any
 
 from sqlalchemy import func, update
 from sqlmodel import col, select
@@ -265,8 +266,10 @@ async def merge_brands(session: AsyncSession, source: Brand, target: Brand) -> i
         .where(col(BrandAlias.brand_id) == source.id)
         .values(brand_id=target.id)
     )
-    # The homepage brand strips that listed the source show the target.
+    # The homepage brand strips that listed the source show the target, and
+    # the selections « products of a brand » follow it too.
     await _move_homepage_tiles(session, source.id, target.id)
+    await _move_homepage_selections(session, source.id, target.id)
     key = brand_key(source.name)
     source_name = source.name
     await session.delete(source)
@@ -278,6 +281,33 @@ async def merge_brands(session: AsyncSession, source: Brand, target: Brand) -> i
         if taken is None:
             session.add(BrandAlias(brand_id=target.id, alias=source_name, key=key))
     return moved
+
+
+async def homepage_selections_of(
+    session: AsyncSession, brand_id: uuid.UUID
+) -> list[Any]:
+    """The homepage selections « products of a brand » set on ``brand_id``."""
+    from app.features.content.models import HomepageBlock
+
+    rows = (
+        await session.exec(
+            select(HomepageBlock).where(
+                col(HomepageBlock.kind) == "collection",
+                col(HomepageBlock.is_active).is_(True),
+            )
+        )
+    ).all()
+    return [b for b in rows if (b.config or {}).get("brand_id") == str(brand_id)]
+
+
+async def _move_homepage_selections(
+    session: AsyncSession, source_id: uuid.UUID, target_id: uuid.UUID
+) -> None:
+    for block in await homepage_selections_of(session, source_id):
+        # A new dict: an in-place change of a JSON column is not saved.
+        block.config = {**(block.config or {}), "brand_id": str(target_id)}
+        session.add(block)
+    await session.flush()
 
 
 async def _move_homepage_tiles(

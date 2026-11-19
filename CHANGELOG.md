@@ -9,6 +9,14 @@ takes a tag as its `ref`.
 
 ### Security
 
+- Préparateur role: the costs of a grouped departure (freight, customs,
+  other costs, supplier order amounts, the dashboard) stay with the
+  administrator — the preparer neither reads nor sets them; the CSV export of
+  orders (purchase costs, margins) is open to the roles that read orders,
+  and the accountant records counter payments and asks for balances (both
+  were refused to it, or open to every role). The accountant reads the
+  transport legs of an order like the other roles.
+
 - Public contact: the captcha is checked before the hourly ceiling (a robot
   without a captcha used it up for everyone), an address may send 3
   requests an hour, and a new request joins the open thread of its address
@@ -581,6 +589,17 @@ takes a tag as its `ref`.
 
 ### Fixed
 
+- A homepage selection « products of a brand » follows a merge of its brand
+  sheet, and deleting a sheet a selection uses is refused (409
+  `brand.in_use`): the selection emptied itself without a word.
+- Product page: the browser no longer reloads the product the server just
+  rendered (the server's second load consumed the « from the server » flag).
+- A visitor's quote issued without its e-mail (not asked, or failed) reaches
+  the visitor by e-mail with the link to the conversation; the message no
+  longer points a visitor to « My account ».
+- Messaging: a held conversation goes back to the queue N days after the
+  first customer message left unanswered — writing again (« any news? »)
+  no longer pushes the release back.
 - Page titles of the form « … | Natimai » showed their first part only
   (vue-i18n read the `|` as a plural separator); the product page title
   and description are server-rendered (they stayed « Produit »); a closed

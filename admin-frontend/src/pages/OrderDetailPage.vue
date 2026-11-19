@@ -156,7 +156,7 @@
                   <th class="text-left">{{ $t('order.status') }}</th>
                   <th class="text-right">{{ $t('order.amount') }}</th>
                   <th class="text-left">{{ $t('order.date') }}</th>
-                  <th v-if="canManage" class="text-right">{{ $t('order.actions') }}</th>
+                  <th v-if="canCollect" class="text-right">{{ $t('order.actions') }}</th>
                 </tr>
               </thead>
               <tbody>
@@ -184,7 +184,7 @@
                     </div>
                   </td>
                   <td class="text-left">{{ formatDate(p.created_at) }}</td>
-                  <td v-if="canManage" class="text-right">
+                  <td v-if="canCollect" class="text-right">
                     <q-btn
                       v-if="p.accepts_receipts"
                       flat
@@ -235,7 +235,7 @@
                   </td>
                 </tr>
                 <tr v-if="order.payments.length === 0">
-                  <td :colspan="canManage ? 6 : 5" class="text-center text-subtle">
+                  <td :colspan="canCollect ? 6 : 5" class="text-center text-subtle">
                     {{ $t('order.no_payment') }}
                   </td>
                 </tr>
@@ -278,7 +278,7 @@
                         "
                       />
                       <q-btn
-                        v-else-if="canManage && receiptCancellable(r)"
+                        v-else-if="canCollect && receiptCancellable(r)"
                         flat
                         dense
                         no-caps
@@ -506,7 +506,7 @@
                 <span class="font-mono">{{ formatMoney(order.balance_amount) }}</span>
               </div>
               <q-btn
-                v-if="canManage && !order.balance_paid_at"
+                v-if="canCollect && !order.balance_paid_at"
                 flat
                 dense
                 no-caps
@@ -538,7 +538,7 @@
               }}</span>
             </div>
             <q-btn
-              v-if="canManage && (order.next_part_due ?? 0) > 0"
+              v-if="canCollect && (order.next_part_due ?? 0) > 0"
               color="primary"
               unelevated
               no-caps
@@ -1066,6 +1066,11 @@ const statusSaving = ref(false);
 // them anyway).
 const access = useAccessStore();
 // Unknown rights (not read yet) count as closed.
+/** The accountant (rôles fins, §4) collects, captures and refunds. */
+const canCollect = computed(
+  () =>
+    !!access.me && (access.me.is_superuser === true || access.me.staff_role === 'accountant'),
+);
 const canManage = computed(
   () => !!access.me && (!access.me.staff_role || access.me.is_superuser === true),
 );

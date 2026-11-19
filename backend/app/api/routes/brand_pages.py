@@ -483,6 +483,16 @@ async def admin_delete_brand(
     brand = await session.get(Brand, brand_id)
     if brand is None:
         raise _not_found()
+    selections = await brand_service.homepage_selections_of(session, brand_id)
+    if selections:
+        # The homepage selection would empty itself without a word: merge
+        # the sheet into another one, or change the selection first.
+        raise AppError(
+            code="brand.in_use",
+            status_code=409,
+            message="This brand is used by a homepage selection: {titles}.",
+            details={"titles": ", ".join(b.title or "—" for b in selections)},
+        )
     await session.delete(brand)
     await session.commit()
 

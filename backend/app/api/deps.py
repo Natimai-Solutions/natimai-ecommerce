@@ -382,8 +382,9 @@ async def get_current_journey_reader(
 ) -> User:
     """Reading an order's transport legs: the logistics team, and the team
     roles that read orders (lot ROLE: « where is my parcel? »)."""
-    if getattr(current_user, "staff_role", None) in (*MESSAGING_ROLES, "preparer"):
-        return _require_role(current_user, *MESSAGING_ROLES, "preparer")
+    readers = (*MESSAGING_ROLES, "preparer", "accountant")
+    if getattr(current_user, "staff_role", None) in readers:
+        return _require_role(current_user, *readers)
     return await get_current_logistics_admin(current_user, session)
 
 

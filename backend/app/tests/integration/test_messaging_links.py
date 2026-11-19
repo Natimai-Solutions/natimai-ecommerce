@@ -218,3 +218,52 @@ async def test_nothing_is_written_while_the_module_is_off(
     assert row is not None
     await db_session.refresh(row)
     assert row.assigned_to_id is None and row.customer_notified_at is None
+
+
+async def test_a_visitor_quote_without_its_email_reaches_the_visitor(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Review of PR 204: a visitor's quote issued without e-mail (or whose
+    e-mail failed) left the visitor without any word — no account where the
+    notice waits. The « quote ready » message goes by e-mail, with the link."""
+    from app.features.messaging import guests
+
+    sent: list[dict[str, Any]] = []
+
+    async def queue_email(_session: Any, **kwargs: Any) -> uuid.UUID:
+        sent.append(kwargs)
+        return uuid.uuid4()
+
+    monkeypatch.setattr(guests, "queue_email", queue_email)
+    _customer_id, agent_id = await _people(db_session)
+    quote = QuoteRequest(
+        email="visiteur@example.com", full_name="Tama", items_snapshot={}
+    )
+    db_session.add(quote)
+    await db_session.flush()
+    conversation = await links.open_for_quote(db_session, quote, customer=None)
+    assert conversation is not None
+    conversation_id, quote_id = conversation.id, quote.id
+    await db_session.commit()
+
+    agent = await db_session.get(User, agent_id)
+    quote_row = await db_session.get(QuoteRequest, quote_id)
+    assert agent is not None and quote_row is not None
+    quote_row.quote_number = "DEV-2026-00003"
+    await links.quote_issued(db_session, quote_row, staff=agent, emailed=False)
+    await db_session.commit()
+    await db_session.refresh(quote_row)
+    await links.notify_guest_of_quote(db_session, quote_row)
+
+    assert [m["recipient"] for m in sent] == ["visiteur@example.com"]
+    assert "DEV-2026-00003" in sent[0]["text"]
+    assert "Mon compte" not in sent[0]["text"] and "My account" not in sent[0]["text"]
+    row = await db_session.get(Conversation, conversation_id)
+    assert row is not None
+    await db_session.refresh(row)
+    assert row.customer_notified_at is not None and row.guest_token_hash
+
+    # Once notified, a second call sends nothing more.
+    await db_session.refresh(quote_row)
+    await links.notify_guest_of_quote(db_session, quote_row)
+    assert len(sent) == 1

@@ -20,6 +20,7 @@ from sqlalchemy import select as sa_select
 from sqlmodel import col, or_, select
 
 from app.api.deps import (
+    CurrentAccountant,
     CurrentOrderReader,
     CurrentPreparer,
     CurrentSuperUser,
@@ -404,7 +405,8 @@ async def list_orders(
 @router.get("/export.csv")
 async def export_orders_csv(
     session: SessionDep,
-    _admin: CurrentSuperUser,
+    # The same columns as the list every team role reads (no cost, no margin).
+    _admin: CurrentOrderReader,
     departure_id: uuid.UUID | None = _DepartureQ,
     unassigned: bool = _UnassignedQ,
     status: str | None = _StatusQ,
@@ -919,7 +921,7 @@ async def record_order_counter_payment(
     order_id: uuid.UUID,
     body: CounterPaymentCreate,
     session: SessionDep,
-    admin: CurrentSuperUser,
+    admin: CurrentAccountant,
 ) -> ReceiptResult:
     """« Enregistrer un encaissement » : cash, cheque or transfer received for
     the part now due, on the customer's pending manual payment or a new one."""
@@ -960,7 +962,7 @@ class RequestBalanceResponse(BaseModel):
 
 @router.post("/{order_id}/request-balance", response_model=RequestBalanceResponse)
 async def request_order_balance(
-    order_id: uuid.UUID, session: SessionDep, _admin: CurrentSuperUser
+    order_id: uuid.UUID, session: SessionDep, _admin: CurrentAccountant
 ) -> RequestBalanceResponse:
     """Send (or re-send) the balance request e-mail of a deposit order — the
     automatic one goes out when the order is received."""

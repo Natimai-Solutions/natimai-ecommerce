@@ -57,4 +57,21 @@ describe('product page loads (audit 2026-11, F2 / U2)', () => {
     await store.load('B', 'fr');
     expect(store.error).toBe('Produit retiré');
   });
+
+  it('reuses the server render once in the browser, then reloads', async () => {
+    getProductById.mockResolvedValue({ id: 'A', has_variants: false });
+    const store = useProductDetailStore();
+    // State handed over by the server render (preFetch + onServerPrefetch).
+    store.product = { id: 'A', has_variants: false } as never;
+    store.loadedKey = 'A|fr';
+    store.loading = false;
+    store.fromServer = true;
+
+    await store.load('A', 'fr'); // hydration: no request
+    expect(getProductById).not.toHaveBeenCalled();
+    expect(store.fromServer).toBe(false);
+
+    await store.load('A', 'fr'); // a later visit asks again
+    expect(getProductById).toHaveBeenCalledTimes(1);
+  });
 });

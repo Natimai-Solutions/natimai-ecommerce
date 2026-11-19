@@ -5,6 +5,7 @@ allow-list, and signs in like an administrator."""
 from __future__ import annotations
 
 import uuid
+from decimal import Decimal
 from typing import Any
 
 import pytest
@@ -308,6 +309,8 @@ async def test_preparer_and_accountant_reach_their_screens_only(
     assert await deps.get_current_accountant(accountant) is accountant
     for member in (preparer, accountant):
         assert await deps.get_current_order_reader(member) is member
+        # The order page shows the transport legs to whoever reads it.
+        assert await deps.get_current_journey_reader(member, db_session) is member
     refusals = [
         deps.get_current_accountant(preparer),
         deps.get_current_preparer(accountant),
@@ -326,3 +329,83 @@ async def test_preparer_and_accountant_reach_their_screens_only(
         db_session, await _get(db_session, admin), channel=None
     )
     assert not {m.id for m in team} & {preparer.id, accountant.id}
+
+
+def _guards(router: Any, path: str, method: str) -> set[str]:
+    """Names of the dependencies guarding a route."""
+    for route in router.routes:
+        if route.path == path and method in route.methods:
+            return {d.call.__name__ for d in route.dependant.dependencies}
+    raise AssertionError(f"{method} {path} not found")
+
+
+async def test_departure_costs_stay_with_the_administrator(
+    db_session: AsyncSession,
+) -> None:
+    """Review of PR 204: the preparer read the freight and customs costs of a
+    departure (list, dashboard, supplier orders) and could set them; the
+    CSV export of orders (purchase costs, margins) was open to every role;
+    the accountant could not record the counter payment it is there for."""
+    import datetime
+
+    from app.api.routes import admin_grouped_departures as departures
+    from app.api.routes import admin_orders
+    from app.features.departure.models import (
+        GroupedDepartureCreate,
+        GroupedDepartureUpdate,
+    )
+
+    admin_id = await _user(db_session, "admin", is_superuser=True)
+    preparer_id = await _user(db_session, "prep", staff_role="preparer")
+    cutoff = datetime.datetime.now(datetime.UTC) + datetime.timedelta(days=10)
+    created = await departures.create_departure(
+        GroupedDepartureCreate(
+            name="Départ de test",
+            order_cutoff_at=cutoff,
+            freight_cost=Decimal("120000"),
+        ),
+        db_session,
+        await _get(db_session, admin_id),
+    )
+    assert created.freight_cost == Decimal("120000")
+
+    seen = await departures.list_departures(
+        db_session, await _get(db_session, preparer_id)
+    )
+    mine = next(d for d in seen if d.id == created.id)
+    assert mine.freight_cost is None and mine.customs_cost is None
+
+    with pytest.raises(AppError) as refused:
+        await departures.create_departure(
+            GroupedDepartureCreate(
+                name="Autre", order_cutoff_at=cutoff, customs_cost=Decimal("1")
+            ),
+            db_session,
+            await _get(db_session, preparer_id),
+        )
+    assert refused.value.code == "grouped_departure.costs_reserved"
+    with pytest.raises(AppError) as refused:
+        await departures.update_departure(
+            created.id,
+            GroupedDepartureUpdate(freight_cost=Decimal("0")),
+            db_session,
+            await _get(db_session, preparer_id),
+        )
+    assert refused.value.code == "grouped_departure.costs_reserved"
+
+    prefix = departures.router.prefix
+    superuser = "get_current_active_superuser"
+    assert superuser in _guards(
+        departures.router, f"{prefix}/{{departure_id}}/dashboard", "GET"
+    )
+    assert superuser in _guards(
+        departures.router, f"{prefix}/{{departure_id}}/supplier-orders", "POST"
+    )
+    orders = admin_orders.router.prefix
+    assert "get_current_order_reader" in _guards(
+        admin_orders.router, f"{orders}/export.csv", "GET"
+    )
+    for path in ("payments", "request-balance"):
+        assert "get_current_accountant" in _guards(
+            admin_orders.router, f"{orders}/{{order_id}}/{path}", "POST"
+        )

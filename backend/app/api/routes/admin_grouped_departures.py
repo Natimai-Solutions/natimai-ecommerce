@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from sqlmodel import col, select
 
-from app.api.deps import CurrentPreparer, SessionDep, module_required
+from app.api.deps import CurrentPreparer, CurrentSuperUser, SessionDep, module_required
 from app.core.errors import AppError
 from app.features.base.crud import RecordNotFoundError
 from app.features.departure.crud import crud_grouped_departure, utcnow
@@ -84,8 +84,13 @@ async def _get_or_404(session: SessionDep, departure_id: uuid.UUID) -> GroupedDe
     return departure
 
 
+#: What a departure carries that is a cost: superusers only (rôles fins,
+#: §4 of the work plan — the preparer runs the departure, not its margin).
+_COST_FIELDS = ("freight_cost", "customs_cost", "other_costs")
+
+
 async def _to_public(
-    session: SessionDep, departures: list[GroupedDeparture]
+    session: SessionDep, departures: list[GroupedDeparture], *, reveal: bool
 ) -> list[GroupedDeparturePublic]:
     totals = await crud_grouped_departure.order_totals(
         session, (d.id for d in departures)
@@ -94,8 +99,28 @@ async def _to_public(
     for d in departures:
         item = GroupedDeparturePublic.model_validate(d)
         item.orders_count, item.orders_total = totals.get(d.id, (0, Decimal(0)))
+        if not reveal:
+            for field in _COST_FIELDS:
+                setattr(item, field, None)
+            item.supplier_orders = [
+                {
+                    k: v
+                    for k, v in entry.items()
+                    if k not in ("total_amount", "currency")
+                }
+                for entry in (item.supplier_orders or [])
+            ] or item.supplier_orders
         items.append(item)
     return items
+
+
+def _costs_reserved() -> AppError:
+    return AppError(
+        code="grouped_departure.costs_reserved",
+        status_code=403,
+        message="The costs of a departure are managed by an administrator.",
+        details={"fields": list(_COST_FIELDS)},
+    )
 
 
 @router.get("", response_model=list[GroupedDeparturePublic])
@@ -112,7 +137,7 @@ async def list_departures(
             )
         ).all()
     )
-    return await _to_public(session, departures)
+    return await _to_public(session, departures, reveal=_admin.is_superuser)
 
 
 @router.post("", response_model=GroupedDeparturePublic, status_code=201)
@@ -120,12 +145,15 @@ async def create_departure(
     body: GroupedDepartureCreate, session: SessionDep, admin: CurrentPreparer
 ) -> GroupedDeparturePublic:
     """Create a departure with its default reminders (J-7, J-2, last day)."""
+    reveal = admin.is_superuser
+    if not reveal and any(getattr(body, f, None) is not None for f in _COST_FIELDS):
+        raise _costs_reserved()
     departure = await crud_grouped_departure.create(session, data=body, user=admin)
     departure_id = departure.id
     await add_default_reminders(session, departure)
     await session.commit()
     departure = await _get_or_404(session, departure_id)
-    return (await _to_public(session, [departure]))[0]
+    return (await _to_public(session, [departure], reveal=reveal))[0]
 
 
 @router.patch("/{departure_id}", response_model=GroupedDeparturePublic)
@@ -142,6 +170,9 @@ async def update_departure(
     a draft or open departure is refused here: it goes through
     ``POST /{id}/close``.
     """
+    reveal = admin.is_superuser
+    if not reveal and set(body.model_dump(exclude_unset=True)) & set(_COST_FIELDS):
+        raise _costs_reserved()
     departure = await _get_or_404(session, departure_id)
     previous_status = departure.status
     # Closing an open departure is the assisted close (thresholds, live stock,
@@ -178,7 +209,7 @@ async def update_departure(
         )
         await session.commit()
         departure = await _get_or_404(session, departure_id)
-    result = (await _to_public(session, [departure]))[0]
+    result = (await _to_public(session, [departure], reveal=reveal))[0]
     result.orders_updated = orders_updated
     return result
 
@@ -268,7 +299,7 @@ async def add_supplier_order(
     departure_id: uuid.UUID,
     body: SupplierOrderEntry,
     session: SessionDep,
-    admin: CurrentPreparer,
+    admin: CurrentSuperUser,
 ) -> GroupedDeparturePublic:
     """Record the real purchase order placed with a supplier (number, date,
     amount). The first one moves the departure to « ordered » (and its
@@ -289,7 +320,7 @@ async def add_supplier_order(
         )
     await session.commit()
     departure = await _get_or_404(session, departure_id)
-    result = (await _to_public(session, [departure]))[0]
+    result = (await _to_public(session, [departure], reveal=True))[0]
     result.orders_updated = orders_updated
     return result
 
@@ -298,7 +329,7 @@ async def add_supplier_order(
     "/{departure_id}/supplier-orders/{index}", response_model=GroupedDeparturePublic
 )
 async def remove_supplier_order(
-    departure_id: uuid.UUID, index: int, session: SessionDep, _admin: CurrentPreparer
+    departure_id: uuid.UUID, index: int, session: SessionDep, _admin: CurrentSuperUser
 ) -> GroupedDeparturePublic:
     """Remove a recorded purchase order (typo, wrong supplier)."""
     departure = await _get_or_404(session, departure_id)
@@ -315,7 +346,7 @@ async def remove_supplier_order(
     session.add(departure)
     await session.commit()
     departure = await _get_or_404(session, departure_id)
-    return (await _to_public(session, [departure]))[0]
+    return (await _to_public(session, [departure], reveal=True))[0]
 
 
 # --- Goods receipt and dashboard --------------------------------------------
@@ -349,9 +380,10 @@ async def put_reception_line(
 
 @router.get("/{departure_id}/dashboard", response_model=DepartureDashboard)
 async def get_dashboard(
-    departure_id: uuid.UUID, session: SessionDep, _admin: CurrentPreparer
+    departure_id: uuid.UUID, session: SessionDep, _admin: CurrentSuperUser
 ) -> DepartureDashboard:
-    """Revenue, cash collected, goods cost, real shipment costs and margin."""
+    """Revenue, cash collected, goods cost, real shipment costs and margin
+    (administrators only: the preparer runs the departure, not its margin)."""
     return await dashboard(session, await _get_or_404(session, departure_id))
 
 
