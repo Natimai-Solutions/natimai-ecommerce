@@ -672,6 +672,12 @@ const en: MessageSchema = {
     topic_rule: 'Choose a topic',
   },
   home: {
+    personal_recently_viewed: 'Recently viewed',
+    personal_reorder: 'Buy again',
+    personal_wishlist: 'Your wishlist',
+    personal_current_order: 'Your order in progress',
+    order_number: 'Order {number}',
+    order_follow: 'Track',
     preview_notice: 'Preview of the homepage at {date}, as seen by {audience}: drafts included, visitor prices. Only you can see this page.',
     preview_now: 'the present time',
     preview_visitors: 'visitors',

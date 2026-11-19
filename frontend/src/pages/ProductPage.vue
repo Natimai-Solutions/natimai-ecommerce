@@ -551,6 +551,7 @@ import { useDepartureLabels } from '@/composables/useDepartureLabels';
 import { useTranslate } from '@/composables/useTranslate';
 import { useTurnstile } from '@/composables/useTurnstile';
 import { absoluteUrl, breadcrumbList, jsonLd } from '@/utils/seo';
+import { rememberViewed } from '@/utils/recentlyViewed';
 import { categoryLineage } from '@/utils/categories';
 import { useShopModulesStore } from '@/stores/shopModules';
 import { useProductDetailStore } from '@/stores/productDetail';
@@ -1228,8 +1229,11 @@ async function addRelatedToCart(item: ProductPublic) {
 }
 watch(
   () => product.value?.id,
-  () => {
-    if (import.meta.env.QUASAR_CLIENT) void loadRelated();
+  (id) => {
+    if (!import.meta.env.QUASAR_CLIENT) return;
+    void loadRelated();
+    // Another product opened from this page (related, variant).
+    if (id) rememberViewed(id);
   },
 );
 
@@ -1247,7 +1251,11 @@ onMounted(async () => {
   await loadProduct();
   // Client only: the SSR pass must not count a view, and a bot-heavy server
   // render would skew the « plus consultés » ranking.
-  if (import.meta.env.QUASAR_CLIENT && product.value) void trackProductView(product.value.id);
+  if (import.meta.env.QUASAR_CLIENT && product.value) {
+    void trackProductView(product.value.id);
+    // « Vus récemment » on the homepage: this browser only (lot A5).
+    rememberViewed(product.value.id);
+  }
   void refreshWishlistState();
 });
 

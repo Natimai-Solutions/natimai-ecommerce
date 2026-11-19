@@ -103,7 +103,21 @@ class _RichTextConfig(_Strict):
     image_side: Literal["left", "right"] = "right"
 
 
+class _PersonalConfig(_Strict):
+    #: ``recently_viewed`` is kept in the browser (visitors too); the others
+    #: are a signed-in customer's own (lot A5 / R9).
+    source: Literal["recently_viewed", "reorder", "wishlist", "current_order"] = (
+        "recently_viewed"
+    )
+    limit: int = Field(default=8, ge=2, le=12)
+
+
+#: Personal sections a visitor never gets (they need an account).
+ACCOUNT_SOURCES: frozenset[str] = frozenset({"reorder", "wishlist", "current_order"})
+
+
 _CONFIGS: dict[str, type[_Strict]] = {
+    "personal": _PersonalConfig,
     "hero": _NoConfig,
     "banner": _NoConfig,
     "announcement": _NoConfig,
@@ -247,6 +261,7 @@ def audiences_overlap(a: dict[str, Any] | None, b: dict[str, Any] | None) -> boo
 
 
 __all__ = [
+    "ACCOUNT_SOURCES",
     "REASSURANCE_ICONS",
     "is_safe_link",
     "Audience",

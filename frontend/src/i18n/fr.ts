@@ -682,6 +682,12 @@ const fr = {
     topic_rule: 'Choisissez un motif',
   },
   home: {
+    personal_recently_viewed: 'Vus récemment',
+    personal_reorder: 'À racheter',
+    personal_wishlist: 'Vos envies',
+    personal_current_order: 'Votre commande en cours',
+    order_number: 'Commande {number}',
+    order_follow: 'Suivre',
     preview_notice: "Aperçu de l'accueil au {date}, vu par {audience} : brouillons compris, prix des visiteurs. Cette page n'est visible que par vous.",
     preview_now: 'moment présent',
     preview_visitors: 'les visiteurs',

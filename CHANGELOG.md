@@ -66,6 +66,12 @@ takes a tag as its `ref`.
 
 ### Added
 
+- Personal homepage sections (chantier accueil et messagerie, lot A5):
+  « recently viewed » (kept in the browser only, visitors included), « buy
+  again », the wishlist and the order in progress for a signed-in customer
+  (never on a visitor's page, never empty); `GET /product/by-ids`. The
+  homepage `Organization` JSON-LD names the logo and the contact page.
+
 - Homepage preview, calendar and SEO (chantier accueil et messagerie, lot
   A4): the admin opens the storefront with the drafts, at a simulated date,
   for visitors or customers of a price group, through a 15-minute token of
@@ -527,6 +533,13 @@ takes a tag as its `ref`.
   (superuser-only), as the base of the future fine-grained roles.
 
 ### Fixed
+
+- Adding a product to the wishlist, or removing it, answered 500
+  (MissingGreenlet: the list read after the commit had expired) although
+  the change was saved.
+- The « Write to us » header link of a signed-in customer kept the contact
+  page address from the anonymous server render; it now switches after
+  mount.
 
 - Back-office messaging actions read the signed-in member after the commit
   (an expired object): the channels are read before it.

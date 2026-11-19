@@ -3778,6 +3778,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/product/by-ids": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Products By Ids
+         * @description The products of a list kept in the visitor's browser (recently viewed),
+         *     in that order. A product no longer on sale is left out: the list may be
+         *     stale.
+         */
+        get: operations["product-products_by_ids"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/product/compare": {
         parameters: {
             query?: never;
@@ -14564,6 +14586,28 @@ export interface components {
             image_url?: string | null;
         };
         /**
+         * HomepageCurrentOrder
+         * @description The signed-in customer's order in progress, for the homepage card
+         *     (lot A5).
+         */
+        HomepageCurrentOrder: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Order Number */
+            order_number?: string | null;
+            /** Status */
+            status: string;
+            /** Created At */
+            created_at?: string | null;
+            /** Total Amount */
+            total_amount: string;
+            /** Currency */
+            currency?: string | null;
+        };
+        /**
          * HomepageImage
          * @description An image ready for an ``<img>``: source, srcset and intrinsic size.
          */
@@ -14691,6 +14735,7 @@ export interface components {
             brands?: components["schemas"]["HomepageBrandTile"][] | null;
             /** Reassurance */
             reassurance?: components["schemas"]["HomepageReassurance"][] | null;
+            current_order?: components["schemas"]["HomepageCurrentOrder"] | null;
             /** Config */
             config?: {
                 [key: string]: unknown;
@@ -31480,6 +31525,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProductOffersResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "product-products_by_ids": {
+        parameters: {
+            query: {
+                ids: string[];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductPublic"][];
                 };
             };
             /** @description Validation Error */

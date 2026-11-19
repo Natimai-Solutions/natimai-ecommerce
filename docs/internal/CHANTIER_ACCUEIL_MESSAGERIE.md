@@ -929,9 +929,8 @@ de conservation et la mention dans la politique de confidentialité.
 Les lots de messagerie sont nommés **MSG·** pour ne pas les confondre avec
 les identifiants M· de l'audit fonctionnel.
 
-| Lot | Contenu | Taille |
-|---|---|---|
-| **A5** | Sections personnelles (R9) et héros par audience | M |
+Tous les lots sont livrés (19/11/2026). Ce qui reste est listé à la fin du
+paragraphe ci-dessous et repris au plan de travail.
 
 Livré le 18/11/2026 : correctifs du §12, **A1** (sections ordonnables,
 masquables, titrées, public par section, page du client) ; **MSG1** (socle de la
@@ -986,7 +985,25 @@ jours ; titre et description de l'accueil saisis et traduits, rendus côté
 serveur par `preFetch`). Écarts : l'aperçu montre les prix des visiteurs,
 même pour un groupe simulé ; le « calendrier » est une liste chronologique
 des apparitions et disparitions ; l'`Organization` enrichi (logo, `sameAs`,
-`contactPoint`) reste à faire avec A5. Reste : **A5**.
+`contactPoint`) reste à faire avec A5. **A5** (section « personnelle » :
+vus récemment, tenu dans le navigateur seulement, visiteurs compris ; à
+racheter, liste de souhaits et commande en cours pour le client connecté,
+jamais sur la page d'un visiteur ni vide ; le héros par audience l'était
+depuis A1 ; `Organization` avec logo et point de contact). Écarts : pas de
+`sameAs` (aucun réglage de réseaux sociaux) ; « vus récemment » n'est pas
+conservé côté serveur (pas de donnée personnelle). Corrigé en passant :
+l'ajout et le retrait d'un produit de la liste de souhaits répondaient 500
+(objet expiré après la validation) alors que l'écriture avait eu lieu ; le
+lien « Nous écrire » de l'en-tête bascule après le montage (le rendu
+serveur est anonyme et un attribut corrigé à l'hydratation garde sa valeur
+serveur en production).
+
+**Reste après le chantier** : les boutons d'action de la fiche commande
+affichés à un membre de l'équipe (l'API les refuse) ; la traduction de la
+description d'une marque et le lien de la fiche produit vers sa marque ; le
+titre et la description de la fiche produit en rendu serveur (`preFetch`) ;
+les rôles du §4 autres que service client et commercial ; `sameAs` de
+l'`Organization`.
 ROLE peut attendre : sans lui, les superusers répondent.
 
 ---

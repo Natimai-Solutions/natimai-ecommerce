@@ -353,9 +353,15 @@ const currentYear = new Date().getFullYear();
 const shop = useShopModulesStore();
 const messaging = useMessagingStore();
 const messagingOn = computed(() => shop.isOn('messaging'));
-/** « Write to us »: the customer's messages; a visitor the contact page. */
+/** « Write to us »: the customer's messages; a visitor the contact page.
+ *  Switched after mount: the server render is anonymous, and a link changed
+ *  during hydration keeps its server `href` in production. */
+const layoutMounted = ref(false);
+onMounted(() => (layoutMounted.value = true));
 const messagesLink = computed(() =>
-  authStore.isAuthenticated ? { name: 'account', query: { tab: 'messages' } } : { name: 'contact' },
+  layoutMounted.value && authStore.isAuthenticated
+    ? { name: 'account', query: { tab: 'messages' } }
+    : { name: 'contact' },
 );
 // The unread badge polls for a signed-in customer only.
 watch(

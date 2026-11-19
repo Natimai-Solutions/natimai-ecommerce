@@ -388,6 +388,31 @@ async def get_product_offers(
     )
 
 
+#: « Recently viewed » on the homepage (lot A5): the browser's history.
+MAX_BY_IDS = 12
+
+
+@router.get("/by-ids", response_model=list[ProductPublic])
+async def products_by_ids(
+    session: SessionDep,
+    ids: Annotated[list[uuid.UUID], Query(min_length=1, max_length=MAX_BY_IDS)],
+    current_user: object = Depends(get_current_user_optional),
+) -> list[ProductPublic]:
+    """The products of a list kept in the visitor's browser (recently viewed),
+    in that order. A product no longer on sale is left out: the list may be
+    stale."""
+    products: list[Product] = []
+    for product_id in dict.fromkeys(ids):
+        try:
+            products.append(
+                await _load_published_product(session, product_id, current_user)
+            )
+        except AppError as exc:
+            if exc.status_code != 404:
+                raise
+    return await publish_with_availability(session, products, customer=current_user)
+
+
 @router.get("/compare", response_model=ProductCompareResponse)
 async def compare_products(
     session: SessionDep,

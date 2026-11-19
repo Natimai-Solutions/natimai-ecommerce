@@ -273,6 +273,29 @@
                 inline
               />
             </template>
+            <template v-if="form.kind === 'personal'">
+              <q-select
+                v-model="form.personal_source"
+                :options="personalOptions"
+                emit-value
+                map-options
+                outlined
+                dense
+                :label="$t('homepage.personal_source')"
+                :hint="$t(`homepage.personal_hint_${form.personal_source}`)"
+                data-testid="homepage-personal-source"
+              />
+              <q-input
+                v-if="form.personal_source !== 'current_order'"
+                v-model.number="form.limit"
+                type="number"
+                :min="2"
+                :max="12"
+                :label="$t('homepage.limit_products')"
+                outlined
+                dense
+              />
+            </template>
             <div v-if="form.kind === 'reassurance'" class="homepage-items">
               <p class="admin-hint q-mb-sm">{{ $t('homepage.reassurance_hint') }}</p>
               <div
@@ -739,6 +762,7 @@ type Kind =
   | 'reassurance'
   | 'brand_strip'
   | 'rich_text'
+  | 'personal'
   | 'categories'
   | 'featured'
   | 'popular'
@@ -747,7 +771,8 @@ type Scope = 'all' | 'guest' | 'customer';
 type Source = 'manual' | 'category' | 'newest' | 'promotion' | 'popular' | 'best_sellers';
 const BUILTIN: Kind[] = ['categories', 'featured', 'popular', 'collection'];
 /** Lot A3: written in the admin, the title optional. */
-const TITLE_OPTIONAL: Kind[] = [...BUILTIN, 'reassurance', 'brand_strip', 'rich_text'];
+const TITLE_OPTIONAL: Kind[] = [...BUILTIN, 'reassurance', 'brand_strip', 'rich_text', 'personal'];
+type PersonalSource = 'recently_viewed' | 'reorder' | 'wishlist' | 'current_order';
 /** The closed list of pictograms of a reassurance band (as the API). */
 const REASSURANCE_ICONS: Record<string, string> = {
   truck: 'ph:truck',
@@ -797,6 +822,7 @@ const kindOptions = computed<{ label: string; value: Kind }[]>(() => [
   { label: t('homepage.kind_reassurance'), value: 'reassurance' },
   { label: t('homepage.kind_brand_strip'), value: 'brand_strip' },
   { label: t('homepage.kind_rich_text'), value: 'rich_text' },
+  { label: t('homepage.kind_personal'), value: 'personal' },
   { label: t('homepage.kind_categories'), value: 'categories' },
   { label: t('homepage.kind_featured'), value: 'featured' },
   { label: t('homepage.kind_popular'), value: 'popular' },
@@ -868,6 +894,7 @@ function kindIcon(kind: string): string {
       reassurance: 'ph:seal-check',
       brand_strip: 'ph:tag',
       rich_text: 'ph:text-align-left',
+      personal: 'ph:user-circle',
     }[kind] ?? 'ph:square'
   );
 }
@@ -881,6 +908,7 @@ function defaultTitle(kind: string): string {
       popular: t('homepage.default_popular'),
       collection: t('homepage.default_collection'),
       brand_strip: t('homepage.default_brands'),
+      personal: t('homepage.kind_personal'),
     }[kind] ?? ''
   );
 }
@@ -1021,6 +1049,8 @@ interface BlockForm {
   body_html: string;
   image_side: 'left' | 'right';
   reassurance: ReassuranceEntry[];
+  /** Lot A5: what a personal section shows. */
+  personal_source: PersonalSource;
   /** Who sees it (R8). */
   scope: Scope;
   price_group_ids: string[];
@@ -1067,6 +1097,7 @@ function emptyForm(kind: Kind): BlockForm {
     body_html: '',
     image_side: 'right',
     reassurance: kind === 'reassurance' ? [emptyReassurance(), emptyReassurance()] : [],
+    personal_source: 'recently_viewed',
     scope: 'all',
     price_group_ids: [],
     locales: [],
@@ -1079,6 +1110,11 @@ const hasCta = computed(() => ['hero', 'banner', 'announcement'].includes(form.k
 const hasImage = computed(() => ['hero', 'banner', 'rich_text'].includes(form.kind));
 const hasSubtitle = computed(
   () => !['announcement', 'reassurance', 'rich_text'].includes(form.kind),
+);
+const personalOptions = computed(() =>
+  (['recently_viewed', 'reorder', 'wishlist', 'current_order'] as PersonalSource[]).map(
+    (value) => ({ value, label: t(`homepage.personal_${value}`) }),
+  ),
 );
 const otherLocales = computed(() => (shop.config?.available_locales ?? ['fr', 'en']).slice(1));
 const iconOptions = computed(() =>
@@ -1150,6 +1186,8 @@ function openEdit(block: HomepageBlock) {
     sort: (block.config as { sort?: string } | undefined)?.sort ?? 'newest',
     mode: ((block.config as { mode?: string } | undefined)?.mode ?? 'auto') as 'auto' | 'manual',
     body_html: block.body_html ?? '',
+    personal_source: ((block.config as { source?: string } | undefined)?.source ??
+      'recently_viewed') as PersonalSource,
     image_side: ((block.config as { image_side?: string } | undefined)?.image_side ??
       'right') as 'left' | 'right',
     reassurance: (
@@ -1206,6 +1244,12 @@ function configFromForm(): Record<string, unknown> {
   if (BUILTIN.includes(form.kind)) return { limit: form.limit };
   if (form.kind === 'brand_strip') return { mode: form.mode, limit: form.limit };
   if (form.kind === 'rich_text') return { image_side: form.image_side };
+  if (form.kind === 'personal') {
+    return {
+      source: form.personal_source,
+      ...(form.personal_source === 'current_order' ? {} : { limit: Math.min(form.limit, 12) }),
+    };
+  }
   if (form.kind === 'reassurance') {
     return {
       items: form.reassurance.map((entry) => ({

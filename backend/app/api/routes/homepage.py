@@ -41,7 +41,13 @@ from app.features.content.homepage_collections import (
     collection_products,
     section_items,
 )
+from app.features.content.homepage_personal import (
+    current_order,
+    reorder_products,
+    wishlist_products,
+)
 from app.features.content.homepage_sections import (
+    ACCOUNT_SOURCES,
     InvalidSection,
     Viewer,
     audiences_overlap,
@@ -323,6 +329,14 @@ async def _section_products(
     """The products of a product section, priced for ``customer`` (a user,
     or None for a visitor: the default group's prices)."""
     config = clean_config(block.kind, block.config)
+    if block.kind == "personal":
+        if customer is None or config["source"] not in ("reorder", "wishlist"):
+            return None
+        finder = (
+            reorder_products if config["source"] == "reorder" else wishlist_products
+        )
+        products = await finder(session, customer.id, config["limit"])
+        return await publish_with_availability(session, products, customer=customer)
     if block.kind == "featured":
         products = await crud_product.get_featured(
             session=session, limit=config["limit"]
@@ -383,6 +397,12 @@ async def _page(
         if b.kind != "announcement"
         and _is_live(b, now)
         and is_shown_to(b.audience, viewer)
+        # A customer's own section: never on a visitor's page (lot A5).
+        and not (
+            b.kind == "personal"
+            and not viewer.signed_in
+            and (b.config or {}).get("source") in ACCOUNT_SOURCES
+        )
     ]
     hero = next((b for b in visible if b.kind == "hero"), None)
     ordered = ([hero] if hero else []) + [b for b in visible if b.kind != "hero"]
@@ -392,6 +412,21 @@ async def _page(
     for block in ordered:
         section = await _to_public(session, block, base, localized=True)
         products = await _section_products(session, block, customer=customer)
+        if block.kind == "personal":
+            source = clean_config(block.kind, block.config)["source"]
+            if source == "current_order":
+                if customer is None:
+                    continue
+                section.current_order = await current_order(session, customer.id)
+                if section.current_order is None:
+                    continue
+            elif source != "recently_viewed":
+                # Nothing bought yet, an empty wishlist: no empty section.
+                if not products:
+                    continue
+                section.products = products
+            sections.append(section)
+            continue
         if products is not None:
             section.products = [p for p in products if p.id not in shown]
             shown.update(p.id for p in section.products)

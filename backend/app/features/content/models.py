@@ -137,9 +137,11 @@ HOMEPAGE_BUILTIN_KINDS: tuple[str, ...] = (
     "popular",
     "collection",
 )
-#: Sections written in the admin whose title is optional (lot A3, R5 to R7).
+#: Sections written in the admin whose title is optional (lot A3, R5 to R7;
+#: lot A5, the personal sections of a signed-in customer).
 HOMEPAGE_TITLE_OPTIONAL_KINDS: tuple[str, ...] = (
     *HOMEPAGE_BUILTIN_KINDS,
+    "personal",
     "reassurance",
     "brand_strip",
     "rich_text",
@@ -153,6 +155,7 @@ HOMEPAGE_BLOCK_KINDS: tuple[str, ...] = (
     "reassurance",
     "brand_strip",
     "rich_text",
+    "personal",
     *HOMEPAGE_BUILTIN_KINDS,
 )
 #: Who a section is shown to (chantier accueil et messagerie, R8).
@@ -280,6 +283,18 @@ class HomepageReassurance(SQLModel):
     link: str | None = None
 
 
+class HomepageCurrentOrder(SQLModel):
+    """The signed-in customer's order in progress, for the homepage card
+    (lot A5)."""
+
+    id: uuid.UUID
+    order_number: str | None = None
+    status: str
+    created_at: datetime.datetime | None = None
+    total_amount: str
+    currency: str | None = None
+
+
 class HomepageBlockWrite(SQLModel):
     """Admin create / replace payload."""
 
@@ -343,6 +358,8 @@ class HomepageBlockPublic(SQLModel):
     #: reassurance band (lot A3).
     brands: list[HomepageBrandTile] | None = None
     reassurance: list[HomepageReassurance] | None = None
+    #: Signed-in customer: their order in progress (personal section, A5).
+    current_order: HomepageCurrentOrder | None = None
     config: dict[str, Any] = Field(default_factory=dict)
     audience: dict[str, Any] = Field(default_factory=dict)
     #: Back-office: the listed products / categories.

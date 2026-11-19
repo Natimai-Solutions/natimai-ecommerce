@@ -192,6 +192,13 @@
         <HomeBrandStrip :brands="part.section.brands" />
       </section>
 
+      <HomePersonal
+        v-else-if="part.type === 'personal'"
+        :section="part.section"
+        @add-to-cart="onAddToCart"
+        @compare-full="compareFull"
+      />
+
       <section
         v-else-if="part.type === 'rich_text' && part.section.body_html"
         class="home-section page-container"
@@ -258,6 +265,7 @@ import ProductCard from '@/components/ProductCard.vue';
 import HomeBrandStrip from '@/components/home/HomeBrandStrip.vue';
 import HomeReassurance from '@/components/home/HomeReassurance.vue';
 import HomeRichText from '@/components/home/HomeRichText.vue';
+import HomePersonal from '@/components/home/HomePersonal.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useCartStore } from '@/stores/cart';
 import { previewFromHash, type HomepageSection } from '@/api/homepage';
@@ -291,7 +299,11 @@ type Part =
   | { type: 'banners'; key: string; items: HomepageSection[] }
   | { type: 'categories'; key: string; section: HomepageSection; tiles: CategoryPublic[] }
   | { type: 'products'; key: string; section: HomepageSection }
-  | { type: 'reassurance' | 'brands' | 'rich_text'; key: string; section: HomepageSection };
+  | {
+      type: 'reassurance' | 'brands' | 'rich_text' | 'personal';
+      key: string;
+      section: HomepageSection;
+    };
 
 /** The sections after the hero, in order; banners next to each other share
  *  one grid, as before. */
@@ -322,6 +334,8 @@ const parts = computed<Part[]>(() => {
       result.push({ type: 'reassurance', key: section.id, section });
     } else if (section.kind === 'brand_strip') {
       result.push({ type: 'brands', key: section.id, section });
+    } else if (section.kind === 'personal') {
+      result.push({ type: 'personal', key: section.id, section });
     } else if (section.kind === 'rich_text') {
       result.push({ type: 'rich_text', key: section.id, section });
     }
@@ -387,11 +401,20 @@ useMeta(() => {
         'query-input': 'required name=search_term_string',
       },
     });
+    const logo = shopModules.config.branding?.logo?.src;
     script['ldOrganization'] = jsonLd({
       '@context': 'https://schema.org',
       '@type': 'Organization',
       name: shopName,
       url: `${siteUrl}/`,
+      ...(logo ? { logo } : {}),
+      // Lot A5 / R11: where a customer reaches the shop (the messaging).
+      contactPoint: {
+        '@type': 'ContactPoint',
+        contactType: 'customer service',
+        url: `${siteUrl}/contact`,
+        availableLanguage: shopModules.config.available_locales ?? [locale.value],
+      },
     });
   }
   return { title, meta, link, script };
