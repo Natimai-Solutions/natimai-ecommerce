@@ -29,6 +29,7 @@ from app.api.deps import CurrentSuperUser, SessionDep
 from app.core.errors import AppError
 from app.core.logging_config import mask_email
 from app.core.security import new_security_stamp
+from app.features.messaging import service as messaging_service
 from app.features.product.models.price_group import PriceGroup
 from app.features.user.crud.refresh_token import crud_user_refresh_token
 from app.features.user.models.user import User
@@ -38,6 +39,7 @@ from app.features.user.services.invitation import (
     unusable_password_hash,
 )
 from app.features.user.services.two_factor import disable as disable_two_factor
+from app.features.user.staff import STAFF_ROLES
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +65,8 @@ class AdminUserItem(BaseModel):
     phone: str | None
     is_active: bool
     is_superuser: bool
+    #: Back-office role of a team member (lot ROLE): customer_service, sales.
+    staff_role: str | None = None
     is_verified: bool
     price_group_id: uuid.UUID | None
     price_group_code: str | None = None
@@ -105,6 +109,8 @@ class AdminUserUpdate(BaseModel):
     phone: str | None = Field(default=None, max_length=255)
     price_group_id: uuid.UUID | None = None
     is_active: bool | None = None
+    #: ``customer_service``, ``sales`` or null (no back-office access).
+    staff_role: str | None = None
 
 
 class InvitationResult(BaseModel):
@@ -138,6 +144,7 @@ def _to_item(user: User, group: PriceGroup | None) -> AdminUserItem:
         phone=user.phone,
         is_active=user.is_active,
         is_superuser=user.is_superuser,
+        staff_role=getattr(user, "staff_role", None),
         is_verified=user.is_verified,
         price_group_id=user.price_group_id,
         price_group_code=group.code if group is not None else None,
@@ -399,17 +406,44 @@ async def update_user(
     if "price_group_id" in fields and fields["price_group_id"] is not None:
         await _load_active_price_group(session, fields["price_group_id"])
 
+    role_changed = "staff_role" in fields and fields["staff_role"] != user.staff_role
+    if role_changed:
+        role = fields["staff_role"]
+        if role is not None and role not in STAFF_ROLES:
+            raise AppError(
+                code="admin.user.staff_role",
+                status_code=400,
+                message="Unknown team role: {role}.",
+                details={"field": "staff_role", "role": role},
+            )
+        if user.is_superuser:
+            raise AppError(
+                code="admin.user.staff_role_superuser",
+                status_code=400,
+                message="An administrator already has every right: no team role.",
+                details={"field": "staff_role"},
+            )
+
     for name, value in fields.items():
         setattr(user, name, value)
-    if fields.get("is_active") is False:
+    if fields.get("is_active") is False or role_changed:
+        # Rights changed: every open session ends (signs in again with them).
         user.security_stamp = new_security_stamp()
     user.modify_at = _utcnow()
     user.modify_by_id = current_user.id
     session.add(user)
+    if fields.get("is_active") is False or role_changed:
+        # The conversations held on channels the new role does not cover go
+        # back to the queue (lot ROLE): their holder no longer sees them.
+        await messaging_service.release_out_of_scope(session, user, current_user)
 
-    if fields.get("is_active") is False:
+    if fields.get("is_active") is False or role_changed:
         await crud_user_refresh_token.revoke_all_active_for_user(
-            session=session, user_id=user_id, reason="admin_deactivated"
+            session=session,
+            user_id=user_id,
+            reason="admin_deactivated"
+            if fields.get("is_active") is False
+            else "role_changed",
         )
 
     await session.commit()

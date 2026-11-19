@@ -58,6 +58,7 @@ from app.features.user.models.oauth_link import UserOAuthLink
 from app.features.user.models.user import User
 from app.features.user.services.guest import claim_guest_account
 from app.features.user.services.invitation import unusable_password_hash
+from app.features.user.staff import is_back_office
 
 logger = logging.getLogger(__name__)
 
@@ -369,9 +370,9 @@ async def _find_or_create_user(
     """Find or create the local User for an OAuth identity.
 
     1. An existing link (provider, provider uid) → its user, active or not (the
-       caller blocks inactive accounts); never a superuser.
+       caller blocks inactive accounts); never a back-office account.
     2. An account with the same e-mail → linked, only if the provider verified
-       the address and the account is not a superuser.
+       the address and the account is not a back-office account.
     3. No account → created, only if the provider verified the address.
 
     Raises ``OAuthRefused`` otherwise.
@@ -386,7 +387,9 @@ async def _find_or_create_user(
     if existing_link is not None:
         linked = await session.get(User, existing_link.user_id)
         if linked is not None:
-            if linked.is_superuser:
+            # Lot ROLE: a team member signs in like an administrator (password
+            # and 2FA, from an allowed network), never through a provider.
+            if is_back_office(linked):
                 raise OAuthRefused(
                     "superuser_oauth_disabled",
                     "OAuth sign-in is disabled for administrator accounts",
@@ -400,8 +403,8 @@ async def _find_or_create_user(
         )
 
     user = await crud_user.get_by_email(session, email=identity.email)
-    if user is not None and user.is_superuser:
-        # Never hand an administrator account to whoever controls a provider
+    if user is not None and is_back_office(user):
+        # Never hand an administrator or team account to whoever controls a provider
         # account with the same address.
         raise OAuthRefused(
             "account_exists",
@@ -580,8 +583,9 @@ async def oauth_callback(
         return _frontend_error_redirect("server_error")
 
     # Keep parity with classic password login: inactive users must not be able
-    # to authenticate through OAuth. Superusers never sign in this way either.
-    if getattr(user, "is_superuser", False):
+    # to authenticate through OAuth. Back-office accounts (superusers and team
+    # members, lot ROLE) never sign in this way either: no 2FA on this path.
+    if is_back_office(user):
         await session.rollback()
         return _frontend_error_redirect("superuser_oauth_disabled")
     if not user.is_active:

@@ -16,6 +16,8 @@ export interface MyQuote {
   order_id: string | null;
   /** Issued, in date, not converted, made of catalogue products. */
   can_order: boolean;
+  /** Sales conversation about this request (messaging), if any. */
+  conversation_id?: string | null;
 }
 
 export async function listMyQuotes(): Promise<MyQuote[]> {

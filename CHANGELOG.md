@@ -9,6 +9,41 @@ takes a tag as its `ref`.
 
 ### Security
 
+- Préparateur role: the costs of a grouped departure (freight, customs,
+  other costs, supplier order amounts, the dashboard) stay with the
+  administrator — the preparer neither reads nor sets them; the CSV export of
+  orders (purchase costs, margins) is open to the roles that read orders,
+  and the accountant records counter payments and asks for balances (both
+  were refused to it, or open to every role). The accountant reads the
+  transport legs of an order like the other roles.
+
+- Public contact: the captcha is checked before the hourly ceiling (a robot
+  without a captcha used it up for everyone), an address may send 3
+  requests an hour, and a new request joins the open thread of its address
+  only on the same channel, about nothing in particular, under the same
+  name and details (anyone could write into a stranger's thread).
+
+- Back-office team accounts (« service client », « commercial ») can no
+  longer sign in through Google / Microsoft: that path skipped their
+  two-factor authentication and network check (administrators were already
+  refused).
+- The team no longer receives the purchase costs and margins of an order
+  (order detail API and screen); the order actions they cannot use are
+  hidden.
+- The homepage preview token leaves the address as soon as it is read (it
+  stayed in the history and in error reports).
+- A message attachment larger than 50 Mpx is refused from its header,
+  before decoding (one up to 100 Mpx was decoded whole in memory).
+
+- The link of a homepage section (call to action, reassurance pictogram)
+  refuses `/\…`, read by browsers as another site's address, and control
+  characters.
+
+- A quote request made without an account is reached by its e-mail address
+  only from an account whose address is proven (verified, not a guest
+  session): a guest session opened for a visitor's address no longer lists,
+  downloads or orders that visitor's quote, and the list of « my quotes »
+  never matches another account's request by e-mail.
 - `pnpm audit` ignores GHSA-fc5q-39xc-vjpf (`picomatch` ≤ 4.0.7, ReDoS) until
   a patched version exists: build tooling only, no fix published. To remove
   then (see the work plan, §9).
@@ -56,6 +91,171 @@ takes a tag as its `ref`.
   a message is French.
 
 ### Added
+
+- Two more back-office roles (`users.staff_role`, grid validated on
+  19/11/2026): « Préparateur » (orders read-only, shipping and transport,
+  grouped departures — supplier summary without costs —, inventory,
+  supplier orders) and « Comptable » (orders read-only, payments and their
+  validation, receipts, captures and refunds, invoices, credit notes,
+  currency rates, audit log). Each reaches its screens only, server-side by
+  allow-list (`CurrentPreparer`, `CurrentAccountant`); neither has the
+  messaging, settings, products, prices nor users.
+
+- Homepage, what R2/R3 left: a selection by brand, a carousel layout (one
+  row that scrolls sideways) for the product sections, and a chosen
+  category with its own image and a label in each language (migration
+  `d4e5f6a7b8c0`). The shop's social network pages are a setting
+  (`shop_social_links`), given to search engines as the homepage
+  `Organization.sameAs`.
+
+- Brand sheets, what was left: the description is translated (admin
+  *Marques*, migration `c3d4e5f6a7b9`), the product page names its brand
+  and links to its page when the sheet is validated and shown
+  (`brand_name`, `brand_slug`; also in the product JSON-LD), and the
+  storefront sitemap lists the brand pages (`GET /brands/sitemap`).
+
+- Messaging outside the hours: the customer page and the contact page say
+  when the team is back (« We will answer from Monday 08:00 »), computed in
+  the shop's zone (`open_now`, `next_opening`, `next_opening_days` of the
+  messaging info).
+- The customer service role reads quote requests (list, detail, PDF), as
+  the role grid planned; issuing and following up stay with sales.
+
+- Personal homepage sections (chantier accueil et messagerie, lot A5):
+  « recently viewed » (kept in the browser only, visitors included), « buy
+  again », the wishlist and the order in progress for a signed-in customer
+  (never on a visitor's page, never empty); `GET /product/by-ids`. The
+  homepage `Organization` JSON-LD names the logo and the contact page.
+
+- Homepage preview, calendar and SEO (chantier accueil et messagerie, lot
+  A4): the admin opens the storefront with the drafts, at a simulated date,
+  for visitors or customers of a price group, through a 15-minute token of
+  its own type tied to the administrator's security stamp and carried in the
+  address fragment (`POST /admin/homepage/preview-token`,
+  `GET /homepage/preview`, never cached); the admin lists the sections
+  starting or ending in the next 30 days; the homepage title and
+  description for search engines are typed and translated in the admin
+  (`/admin/homepage/seo`) and server-rendered.
+
+- Homepage sections of lot A3 (chantier accueil et messagerie, R4 to R7): an
+  announcement above the header of every page but the checkout (one at a
+  time, closable, remembered in the browser, part of the server render), a
+  reassurance band (2 to 4 pictograms from a closed list, each text
+  translated), a brand strip (best-stocked validated brands with a logo, or
+  hand-picked) and a free text block with an optional image (cleaned by
+  DOMPurify). `GET /homepage/announcement`.
+
+- Brand sheets (chantier accueil et messagerie, lot BR): every product is
+  linked to a brand (`products.brand_id`) from the supplier's manufacturer
+  name; spellings are gathered by a normalized key (case, accents, company
+  suffixes) and by aliases (`brand_aliases`). An unknown name creates a brand
+  « to validate », shown on the shop once the admin checks it. The migration
+  links the existing products; a worker job relinks every hour (new imports,
+  edited names). Admin screen *Marques*: validate, rename, page address, logo
+  from the media library, aliases, merge two sheets, link now. The catalogue
+  facet names a validated brand once and its filter finds every spelling; a
+  brand page `/marque/<slug>` (server-rendered title and description,
+  breadcrumb) and `GET /brands/showcase` for the homepage brand strip.
+  `preFetch` is enabled on the storefront for pages whose title comes from
+  loaded data.
+
+- Messaging between customers and the shop (module *Messagerie*, Admin →
+  Modules): a customer writes to customer service, technical support or
+  sales from *My account → Messages* (topic → channel, optional order /
+  product / quote request / group request of their own), follows the
+  answers there, settles or reopens a request. The header carries a
+  « Write to us » button with the number of unread answers. The team works
+  in the back-office *Messaging* screen: queue by tab (to do, mine, waiting
+  for the customer, resolved, all), channel filter, search (number,
+  customer, e-mail, order), take / release / resolve / transfer with a
+  confirmation before taking over a colleague's conversation, internal
+  notes the customer never sees, move to another topic; traced events. A
+  message unread for ten minutes is e-mailed once per wave — to the
+  customer without its content (new preference `notification_messages`,
+  migration `e3f4a5b6c7d8`), to the holder or the channel's address
+  (`email_support`, `email_contact`) else the superusers, in the
+  operator's language. A conversation held three days without an answer
+  goes back to the queue. Opening hours (08:00–17:00, Monday to Friday)
+  and the response time shown (24 h, or measured: 80th percentile in
+  business hours over 90 days) are settings (*Messaging* category).
+  `EMAIL_CONTACT` defaults to `contact@natimai.solutions`.
+- Messaging, files and retention: a customer or the team joins a photo or a
+  PDF to a message (5 MB, at most 20 per conversation). The type is read
+  from the bytes (PDF, JPEG, PNG, WebP, HEIC), the file is scanned by the
+  antivirus before being stored, and an image is re-encoded without its
+  metadata (no GPS position, no camera); an iPhone HEIC photo becomes a JPEG
+  (new dependency `pillow-heif`). A file joined to an internal note never
+  reaches the customer. Retention: a visitor's conversation is deleted six
+  months after its last message, a customer's resolved conversation five
+  years after (settings), with a notice e-mailed 30 days before; the
+  customer can download a conversation as text or keep it one more year.
+  The account export holds the conversations' messages (never a note), the
+  account erasure deletes the conversations and their files.
+- Public contact page `/contact` (« Write to us » in the header and the
+  footer for a visitor): topic, name, e-mail, phone, company, message;
+  Turnstile when configured, a honeypot, limits per address and overall,
+  and the same answer whatever happens — nothing is e-mailed to the address
+  typed, nothing tells whether it has an account. The team's reply reaches
+  the visitor by e-mail with the answer and a single-use link (30 days, not
+  re-sendable from the e-mail journal) to continue on the site: signing up
+  through it creates a verified account, or signing in with the account of
+  that very address, and the visitor's conversations of that address are
+  attached to the account (`/contact/suite/<token>`).
+- Quote and price-group requests in the messaging (lot MSG5): a quote
+  request (account or visitor) opens a sales conversation attached to it —
+  an acknowledgement where the answer comes; issuing the quote posts « your
+  quote is ready » there (no second e-mail), the quote's internal comment is
+  written as an internal note. A price-group request opens a conversation
+  for the proofs, and the approval or refusal (with its reason) is posted
+  there, the customer being told by the usual « a reply is waiting » e-mail.
+  *My quotes* links each request to its conversation; the back-office
+  conversation links to the order, quote request or group request.
+- Back-office team roles (lot ROLE): a superuser gives an account the role
+  « customer service » or « sales » (*Users* → edit; migration
+  `d8f9a0b1c2d3`). The member signs in to the back-office like an
+  administrator — two-factor authentication, admin network, admin origin,
+  sign-ins journaled — and reaches, by allow-list, the messaging of its
+  channels (customer service and technical support / sales), the orders
+  read-only and, for sales, the quote requests; never costs, margins,
+  refunds or settings. The menu and the navigation follow the role. A
+  conversation of another channel reads as missing; a transfer goes to
+  someone whose role covers the channel; the team's unread e-mails go to the
+  members of the channel before the channel's address. Changing a role ends
+  the person's open sessions.
+- Messaging shortcuts (lot MSG3): « A question about this product? » on the
+  product page, « A problem with this order? » on an order, « Talk to a
+  salesperson » in *My group* — a request pre-filled with its topic and what
+  it is about (the customer's messages), or the contact page pre-filled for
+  a visitor. Beside a thread, the team sees the customer: price group,
+  phone, last five orders (linked) and loyalty points.
+- The team's tools (lot MSG4): prepared answers (*Prepared answers* screen —
+  per channel or for all, translated; variables `{prenom}`, `{commande}`,
+  `{numero}`) inserted in a thread in the customer's language; a price group
+  marked « priority in the messaging » puts its customers' conversations
+  first in « To do », with a badge; a morning digest e-mails each member the
+  counters of their channels (never a message). Migration `e9a0b1c2d3e4`.
+
+- Homepage sections: the homepage is an ordered list of sections set in the
+  admin (*Site homepage*) — hero, banners, category tiles, « favourites »
+  and « most viewed » products — each with an optional title and subtitle
+  (translated), its size (number of items, period of the most viewed),
+  published or hidden, and an **audience**: everyone, visitors only,
+  signed-in customers, some price groups, some languages. The order is saved
+  in one call (`PUT /admin/homepage-blocks/order`, 409 when the page changed
+  meanwhile). `GET /homepage` is the visitor's page (it reads no identity);
+  `GET /homepage/personal` is the signed-in customer's (their sections,
+  their prices, `no-store`). One live hero per period **and per audience**.
+  Migration `d2e3f4a5b6c7` turns today's fixed sections into rows, in the
+  same order: nothing changes on screen.
+- Homepage selections (lot A2): a « product selection » section takes its
+  products from a source — hand-picked (searched by name or SKU, ordered),
+  a category with its sub-categories, new arrivals, products on promotion,
+  most viewed or best sellers over a period — with its size and order
+  (newest, price, name). The « categories » section shows either the main
+  categories (as before) or categories chosen in order, each with an
+  optional label (migration `c7e8f9a0b1c2`, table `homepage_block_items`).
+  A selection never shows a product the catalogue hides, nor a product
+  already shown higher on the page.
 
 - Tests: the freight from the product page to the invoice (one freight,
   billed once), two checkouts truly in parallel on one cart (two sessions:
@@ -370,6 +570,16 @@ takes a tag as its `ref`.
 
 ### Removed
 
+- The in-app notification tables (`notifications`, `user_notifications`,
+  migration `f4b5c6d7e8f9`): no route, no screen, nothing wrote them; only
+  the account export read them. The migration refuses to drop them if they
+  hold rows.
+
+- The « Order and payment » e-mail switch of the account preferences
+  (`user_preferences.notification_email_enabled`, migration `c1d2e3f4a5b6`):
+  no sending ever read it. These e-mails are transactional and always sent;
+  the preferences now say so.
+
 - Generic CRUD routes no frontend calls: analytics (products, sales, users),
   partners, stock movements (`/inventory/stock-movements`) and user
   notifications (`/notification/users/…`). Their models and tables stay: stock
@@ -378,6 +588,84 @@ takes a tag as its `ref`.
   (superuser-only), as the base of the future fine-grained roles.
 
 ### Fixed
+
+- A homepage selection « products of a brand » follows a merge of its brand
+  sheet, and deleting a sheet a selection uses is refused (409
+  `brand.in_use`): the selection emptied itself without a word.
+- Product page: the browser no longer reloads the product the server just
+  rendered (the server's second load consumed the « from the server » flag).
+- A visitor's quote issued without its e-mail (not asked, or failed) reaches
+  the visitor by e-mail with the link to the conversation; the message no
+  longer points a visitor to « My account ».
+- Messaging: a held conversation goes back to the queue N days after the
+  first customer message left unanswered — writing again (« any news? »)
+  no longer pushes the release back.
+- Messaging hours ending before they start (« 17:00 » to « 08:00 ») fall
+  back to 08:00–17:00: no business hour counted, so reminders, the release
+  and « open now » stood still. The storefront reads the hours again after
+  five minutes instead of keeping the first answer for the whole visit.
+- Brand page: loaded again when the language changes (it was kept by its
+  path only), and the browser loads it itself instead of the page's
+  prefetch.
+- Brands: the number of products on the storefront (strip, sitemap, brand
+  page) counts what the catalogue shows only; the brand filter lists the
+  products the facet counts under that name (a product not linked yet was
+  missing); saving the aliases of a sheet leaves the spellings another sheet
+  holds, and their products, alone.
+- Media library: an image used by a homepage tile or a brand logo can no
+  longer be deleted (409 `media.in_use`, listing them).
+- Page titles of the form « … | Natimai » showed their first part only
+  (vue-i18n read the `|` as a plural separator); the product page title
+  and description are server-rendered (they stayed « Produit »); a closed
+  announcement is remembered in a cookie the server render reads, so it no
+  longer shows for a moment on every page load.
+
+- A quote issued without its e-mail (or whose e-mail failed) still sends
+  the messaging « a reply is waiting » notice; the automatic release counts
+  from the customer's last message (a holder answering all week lost the
+  conversation); with the messaging module off, issuing a quote, commenting
+  it or deciding a price-group request no longer writes in the messaging.
+
+- Review of the chantier accueil et messagerie: a stored homepage section
+  that no longer passes validation (a language removed from the offered
+  ones, a rollback) is read leniently or left out, instead of a 500 on the
+  homepage and the admin screen; a product removed from the wishlist left
+  the homepage section; « best sellers » counts a variant's sales for its
+  product and ignores abandoned payments; « buy again » shows the product
+  of a variant bought; « buy again » and « order in progress » ignore
+  cancelled and unpaid orders, and the amount shows in the order's currency; a team
+  member can open the security screen to set up 2FA, lands on the first
+  screen whose module is on (a redirect loop when messaging was off) and
+  reads an order's transport legs; the back-office rights are read again
+  after a new sign-in; a conversation moved to a channel its holder does
+  not work on goes back to that channel's queue, and so do those a team
+  member holds when their role changes or their account is deactivated; a resolved conversation
+  reopened and resolved again gets a new notice before its deletion; a
+  hidden brand keeps its products (the hourly pass created a duplicate),
+  a renamed one keeps its former name as an alias, renaming onto another
+  sheet's name is refused, a merge moves the homepage tiles, and the hourly
+  pass always links the products without a brand first; the catalogue
+  filter on a brand is exact (« HP » no longer lists « HPE »; % and _ are
+  text); the morning digest links open the messaging (hash routes); the
+  announcement is hidden on every payment page; the homepage SEO and
+  section errors use the catalogue's message.
+
+- Adding a product to the wishlist, or removing it, answered 500
+  (MissingGreenlet: the list read after the commit had expired) although
+  the change was saved.
+- The « Write to us » header link of a signed-in customer kept the contact
+  page address from the anonymous server render; it now switches after
+  mount.
+
+- Back-office messaging actions read the signed-in member after the commit
+  (an expired object): the channels are read before it.
+
+- *Site homepage*: the warning « several heroes are live at once » was never
+  shown (its container only appeared with another message).
+
+- Homepage product cards follow the signed-in customer's price group: the
+  server render is anonymous, so the products are fetched again once a
+  customer is signed in, and again after signing out.
 
 - Relecture du 17/11/2026 of the November changes (five independent reviews):
   - « Payer » is no longer offered online once instalments were received on

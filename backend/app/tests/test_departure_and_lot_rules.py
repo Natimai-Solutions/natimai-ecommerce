@@ -51,7 +51,7 @@ async def test_bare_close_of_an_open_departure_is_refused(
             uuid.uuid4(),
             GroupedDepartureUpdate(status="closed"),
             cast(Any, MagicMock()),
-            cast(Any, SimpleNamespace(id=uuid.uuid4())),
+            cast(Any, SimpleNamespace(id=uuid.uuid4(), is_superuser=True)),
         )
 
     assert refused.value.code == "grouped_departure.close_required"

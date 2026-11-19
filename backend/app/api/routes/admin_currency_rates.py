@@ -18,7 +18,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, Query, status
 from sqlmodel import col, select
 
-from app.api.deps import CurrentSuperUser, SessionDep, module_required
+from app.api.deps import CurrentAccountant, SessionDep, module_required
 from app.core import runtime_settings
 from app.core.config import settings
 from app.core.errors import AppError
@@ -95,7 +95,7 @@ router = APIRouter(
 @router.get("", response_model=CurrencyRatesPublic)
 async def list_currency_rates(
     session: SessionDep,
-    _current_user: CurrentSuperUser,
+    _current_user: CurrentAccountant,
     code: str | None = Query(
         default=None, description="Filter by currency code (ex: USD)"
     ),
@@ -139,7 +139,7 @@ async def list_currency_rates(
 async def set_default_display_currency(
     payload: CurrencyDisplayDefaultRequest,
     session: SessionDep,
-    current_user: CurrentSuperUser,
+    current_user: CurrentAccountant,
 ) -> CurrencyDisplaySettings:
     """The currency proposed to a visitor who chose none: the reference
     currency, or a currency with an active rate that is offered (R9 / T2)."""
@@ -173,7 +173,7 @@ async def set_default_display_currency(
 async def get_active_currency_rate(
     code: str,
     session: SessionDep,
-    _current_user: CurrentSuperUser,
+    _current_user: CurrentAccountant,
 ) -> CurrencyRatePublic:
     """Get the currently active rate for a currency code."""
     today = date.today()
@@ -210,7 +210,7 @@ async def upsert_currency_rate(
     code: str,
     payload: CurrencyRateUpsertRequest,
     session: SessionDep,
-    current_user: CurrentSuperUser,
+    current_user: CurrentAccountant,
 ) -> CurrencyRatePublic:
     """Create a new rate for the given currency, closing any rate that would overlap.
 
@@ -266,7 +266,7 @@ async def set_currency_display(
     code: str,
     payload: CurrencyDisplayRequest,
     session: SessionDep,
-    current_user: CurrentSuperUser,
+    current_user: CurrentAccountant,
 ) -> CurrencyDisplaySettings:
     """Offer the currency to the visitor, or hide it (R9 / T2).
 

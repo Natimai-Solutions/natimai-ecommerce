@@ -66,6 +66,7 @@
           </div>
         </q-form>
         <p v-else class="text-muted">{{ $t('group.none') }}</p>
+        <AskButton :label="$t('group.ask')" topic="price_group" />
       </section>
 
       <section v-if="requests.length" class="app-section">
@@ -90,6 +91,7 @@
 </template>
 
 <script setup lang="ts">
+import AskButton from '@/components/AskButton.vue';
 import { useI18n } from 'vue-i18n';
 import { computed, onMounted, reactive, ref } from 'vue';
 import { formatDate } from '@app/utils';

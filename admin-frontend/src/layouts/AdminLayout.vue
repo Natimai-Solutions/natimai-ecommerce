@@ -98,6 +98,7 @@
 
         <nav class="admin-nav__scroll" :aria-label="$t('layout.admin_nav')">
           <router-link
+            v-if="canOpen(access.me, '/')"
             to="/"
             class="admin-nav__link"
             exact-active-class="admin-nav__link--active"
@@ -118,6 +119,15 @@
             >
               <q-icon :name="link.icon" size="18px" />
               <span>{{ $t(link.label) }}</span>
+              <q-badge
+                v-if="link.to === '/messages' && messagingCount > 0"
+                rounded
+                color="primary"
+                class="q-ml-auto"
+                data-testid="nav-messages-count"
+              >
+                {{ messagingCount }}
+              </q-badge>
             </router-link>
           </section>
         </nav>
@@ -143,12 +153,15 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import { useAdminLocale } from '@/composables/useAdminLocale';
-import { computed, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import { useRouter } from 'vue-router';
 
 import { getMe, type Me } from '@/api/me';
 import { useAuthStore } from '@/stores/auth';
+import { useAccessStore } from '@/stores/access';
+import { useMessagingStore } from '@/stores/messaging';
+import { canOpen } from '@/utils/staffAccess';
 import { useShopConfigStore } from '@/stores/shopConfig';
 import { moduleOfPath } from '@/utils/modules';
 import { readThemePreference, setThemePreference, type ThemePreference } from '@/utils/theme';
@@ -172,10 +185,14 @@ interface NavSection {
   links: NavLink[];
 }
 
+const access = useAccessStore();
+
 const allNav: NavSection[] = [
   {
     label: 'layout.nav.sales',
     links: [
+      { label: 'layout.nav.messages', icon: 'ph:chat-circle-text', to: '/messages' },
+      { label: 'layout.nav.canned_replies', icon: 'ph:chat-text', to: '/canned-replies' },
       { label: 'layout.nav.orders', icon: 'ph:receipt', to: '/orders' },
       {
         label: 'layout.nav.payment_validations',
@@ -194,6 +211,7 @@ const allNav: NavSection[] = [
     links: [
       { label: 'layout.nav.products', icon: 'ph:package', to: '/products' },
       { label: 'layout.nav.categories', icon: 'ph:folders', to: '/categories' },
+      { label: 'layout.nav.brands', icon: 'ph:tag', to: '/brands' },
       { label: 'layout.nav.specs', icon: 'ph:sliders-horizontal', to: '/spec-definitions' },
       { label: 'layout.nav.promotions', icon: 'ph:seal-percent', to: '/promotions' },
       { label: 'layout.nav.discounts', icon: 'ph:tag', to: '/discounts' },
@@ -254,11 +272,23 @@ const nav = computed<NavSection[]>(() =>
       ...section,
       links: section.links.filter((link) => {
         const module = moduleOfPath(link.to);
-        return !module || shopConfig.moduleOn(module);
+        return (!module || shopConfig.moduleOn(module)) && canOpen(access.me, link.to);
       }),
     }))
     .filter((section) => section.links.length > 0),
 );
+
+// Messages waiting for the team: to do (free) and mine, polled every 30 s.
+const messaging = useMessagingStore();
+const messagingCount = computed(() => messaging.summary.todo + messaging.summary.mine);
+// Polled only for whoever has the messaging (not the preparer nor the
+// accountant: their requests would be refused every 30 s).
+watch(
+  () => shopConfig.moduleOn('messaging') && !!access.me && canOpen(access.me, '/messages'),
+  (on) => (on ? messaging.start() : messaging.stop()),
+  { immediate: true },
+);
+onBeforeUnmount(() => messaging.stop());
 
 const shopName = computed(() => shopConfig.config?.shop_name || 'Natimai');
 
@@ -278,6 +308,7 @@ onMounted(() => {
 });
 
 function onLogout() {
+  access.reset();
   void auth.logout();
   void router.replace('/login');
 }

@@ -16,6 +16,11 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/pages/CataloguePage.vue'),
       },
       {
+        path: 'marque/:slug',
+        name: 'brand',
+        component: () => import('@/pages/BrandPage.vue'),
+      },
+      {
         path: 'produit/:id/:slug?',
         name: 'product-detail',
         component: () => import('@/pages/ProductPage.vue'),
@@ -92,6 +97,16 @@ const routes: RouteRecordRaw[] = [
         path: 'reinitialiser',
         name: 'reset-password',
         component: () => import('@/pages/ResetPasswordPage.vue'),
+      },
+      {
+        path: 'contact',
+        name: 'contact',
+        component: () => import('@/pages/ContactPage.vue'),
+      },
+      {
+        path: 'contact/suite/:token',
+        name: 'contact-continue',
+        component: () => import('@/pages/ContactContinuePage.vue'),
       },
       {
         path: 'comment-ca-marche',

@@ -2,6 +2,7 @@
   <!-- fff : le footer défile avec le contenu (non fixé) -->
   <q-layout view="hHh lpR fff">
     <q-header class="app-header">
+      <AnnouncementBar />
       <div class="app-header__bar page-container">
         <q-btn
           flat
@@ -149,6 +150,28 @@
           />
 
           <q-btn
+            v-if="messagingOn"
+            flat
+            round
+            class="app-header__icon"
+            :to="messagesLink"
+            :aria-label="
+              messaging.unread > 0
+                ? $t('layout.messages_with_count', { count: messaging.unread })
+                : $t('layout.messages')
+            "
+            data-testid="header-messages"
+          >
+            <q-icon name="ph:chat-circle-text" size="22px" />
+            <span
+              v-if="messaging.unread > 0"
+              class="app-header__badge font-mono"
+              aria-hidden="true"
+            >
+              {{ messaging.unread }}
+            </span>
+          </q-btn>
+          <q-btn
             flat
             round
             class="app-header__icon"
@@ -219,6 +242,17 @@
         >
           {{ $t('layout.account') }}
         </router-link>
+        <router-link
+          v-if="messagingOn"
+          :to="messagesLink"
+          class="app-menu__link"
+          @click="drawerOpen = false"
+        >
+          {{ $t('layout.messages') }}
+          <span v-if="messaging.unread > 0" class="font-mono text-subtle">{{
+            messaging.unread
+          }}</span>
+        </router-link>
         <button
           v-if="authStore.isAuthenticated"
           type="button"
@@ -272,6 +306,9 @@
         <span>{{ $t('layout.rights', { year: currentYear, name: ownerName }) }}</span>
         <nav class="app-footer__links" :aria-label="$t('layout.legal_nav')">
           <router-link :to="{ name: 'how-it-works' }">{{ $t('layout.how_it_works') }}</router-link>
+          <router-link v-if="messagingOn" :to="{ name: 'contact' }">{{
+            $t('layout.contact')
+          }}</router-link>
           <router-link :to="{ name: 'cgv' }">{{ $t('layout.cgv') }}</router-link>
           <router-link :to="{ name: 'mentions-legales' }">{{
             $t('layout.legal_notice')
@@ -295,8 +332,11 @@ import { useCurrencyStore } from '@/stores/currency';
 import { toggleTheme } from '@/utils/theme';
 import { useDepartureStore } from '@/stores/departure';
 import NextDepartureBanner from '@/components/NextDepartureBanner.vue';
+import AnnouncementBar from '@/components/AnnouncementBar.vue';
+import { useAnnouncementStore } from '@/stores/announcement';
 import { useLocale } from '@/composables/useLocale';
 import { useShopModulesStore } from '@/stores/shopModules';
+import { useMessagingStore } from '@/stores/messaging';
 
 const drawerOpen = ref(false);
 const cartStore = useCartStore();
@@ -311,6 +351,27 @@ const router = useRouter();
 const cartCount = computed(() => cartStore.totalItems);
 const currentYear = new Date().getFullYear();
 const shop = useShopModulesStore();
+const messaging = useMessagingStore();
+const messagingOn = computed(() => shop.isOn('messaging'));
+/** « Write to us »: the customer's messages; a visitor the contact page.
+ *  Switched after mount: the server render is anonymous, and a link changed
+ *  during hydration keeps its server `href` in production. */
+const layoutMounted = ref(false);
+onMounted(() => (layoutMounted.value = true));
+const messagesLink = computed(() =>
+  layoutMounted.value && authStore.isAuthenticated
+    ? { name: 'account', query: { tab: 'messages' } }
+    : { name: 'contact' },
+);
+// The unread badge polls for a signed-in customer only.
+watch(
+  () => authStore.isAuthenticated && messagingOn.value,
+  (active) => {
+    if (typeof window === 'undefined') return;
+    if (active) messaging.startPolling();
+    else messaging.stopPolling();
+  },
+);
 const ownerName = computed(() => shop.config.shop_name || 'Natimai');
 // The logo chosen in the back-office (R9 / T9); the shop name in text otherwise.
 const logo = computed(() => shop.config.branding?.logo ?? null);
@@ -318,6 +379,11 @@ const logo = computed(() => shop.config.branding?.logo ?? null);
 // (logo, name) and the icon links are right on the first paint.
 onServerPrefetch(() => shop.load());
 const { current: currentLocale, options: localeOptions, setLocale } = useLocale();
+// The shop's announcement, above the header of every page (lot A3 / R4):
+// part of the server render, reloaded when the visitor changes language.
+const announcement = useAnnouncementStore();
+onServerPrefetch(() => announcement.load(currentLocale.value));
+watch(currentLocale, (code) => void announcement.load(code));
 
 function onLocaleChange(event: Event) {
   void setLocale((event.target as HTMLSelectElement).value);
@@ -377,12 +443,15 @@ onMounted(() => {
   void cartStore.loadCart();
   void currencyStore.loadRates();
   void departureStore.load();
+  void announcement.load(currentLocale.value);
   void shop.load();
+  if (authStore.isAuthenticated && messagingOn.value) messaging.startPolling();
   window.addEventListener('keydown', onKeydown);
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeydown);
+  messaging.stopPolling();
 });
 </script>
 

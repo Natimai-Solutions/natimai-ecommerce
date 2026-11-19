@@ -32,6 +32,10 @@ from app.core.errors import AppError
 from app.core.security import get_password_hash, new_security_stamp
 from app.features.cart.models.cart import Cart, CartItem
 from app.features.cart.models.quote_request import QuoteRequest
+from app.features.messaging.retention import (
+    erase_conversations,
+    export_conversations,
+)
 from app.features.notification.models.email_log import EmailLog
 from app.features.order.models.order import Order
 from app.features.order.models.order_line import OrderLine
@@ -41,7 +45,6 @@ from app.features.product.models.stock_alert import StockAlert
 from app.features.user.crud.refresh_token import crud_user_refresh_token
 from app.features.user.models.address import Address
 from app.features.user.models.group_upgrade_request import GroupUpgradeRequest
-from app.features.user.models.notification import UserNotification
 from app.features.user.models.oauth_link import UserOAuthLink
 from app.features.user.models.review import Review
 from app.features.user.models.user import User
@@ -169,13 +172,10 @@ async def export_account(session: AsyncSession, user: User) -> dict[str, Any]:
         "reviews": await _rows(
             session, select(Review).where(col(Review.user_id) == uid)
         ),
+        "conversations": await export_conversations(session, uid),
         "group_upgrade_requests": await _rows(
             session,
             select(GroupUpgradeRequest).where(col(GroupUpgradeRequest.user_id) == uid),
-        ),
-        "notifications": await _rows(
-            session,
-            select(UserNotification).where(col(UserNotification.user_id) == uid),
         ),
         "sign_in_providers": [
             {
@@ -241,6 +241,7 @@ async def erase_account(session: AsyncSession, user: User) -> None:
         )
 
     # What only served the account.
+    await erase_conversations(session, uid)
     wishlist_ids = select(Wishlist.id).where(col(Wishlist.user_id) == uid)
     await session.execute(
         sa_delete(WishlistItem).where(col(WishlistItem.wishlist_id).in_(wishlist_ids))
@@ -249,7 +250,6 @@ async def erase_account(session: AsyncSession, user: User) -> None:
         Wishlist,
         Address,
         UserPreference,
-        UserNotification,
         UserOAuthLink,
         Review,
         GroupUpgradeRequest,

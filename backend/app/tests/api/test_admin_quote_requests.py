@@ -65,6 +65,8 @@ def _session(quote: Any) -> MagicMock:
     session.add = MagicMock()
     session.commit = AsyncMock()
     session.refresh = AsyncMock()
+    # No conversation attached to the request (messaging, lot MSG5).
+    session.exec = AsyncMock(return_value=MagicMock(first=MagicMock(return_value=None)))
     return session
 
 

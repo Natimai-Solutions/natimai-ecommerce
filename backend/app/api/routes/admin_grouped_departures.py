@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from sqlmodel import col, select
 
-from app.api.deps import CurrentSuperUser, SessionDep, module_required
+from app.api.deps import CurrentPreparer, CurrentSuperUser, SessionDep, module_required
 from app.core.errors import AppError
 from app.features.base.crud import RecordNotFoundError
 from app.features.departure.crud import crud_grouped_departure, utcnow
@@ -84,8 +84,13 @@ async def _get_or_404(session: SessionDep, departure_id: uuid.UUID) -> GroupedDe
     return departure
 
 
+#: What a departure carries that is a cost: superusers only (rôles fins,
+#: §4 of the work plan — the preparer runs the departure, not its margin).
+_COST_FIELDS = ("freight_cost", "customs_cost", "other_costs")
+
+
 async def _to_public(
-    session: SessionDep, departures: list[GroupedDeparture]
+    session: SessionDep, departures: list[GroupedDeparture], *, reveal: bool
 ) -> list[GroupedDeparturePublic]:
     totals = await crud_grouped_departure.order_totals(
         session, (d.id for d in departures)
@@ -94,13 +99,33 @@ async def _to_public(
     for d in departures:
         item = GroupedDeparturePublic.model_validate(d)
         item.orders_count, item.orders_total = totals.get(d.id, (0, Decimal(0)))
+        if not reveal:
+            for field in _COST_FIELDS:
+                setattr(item, field, None)
+            item.supplier_orders = [
+                {
+                    k: v
+                    for k, v in entry.items()
+                    if k not in ("total_amount", "currency")
+                }
+                for entry in (item.supplier_orders or [])
+            ] or item.supplier_orders
         items.append(item)
     return items
 
 
+def _costs_reserved() -> AppError:
+    return AppError(
+        code="grouped_departure.costs_reserved",
+        status_code=403,
+        message="The costs of a departure are managed by an administrator.",
+        details={"fields": list(_COST_FIELDS)},
+    )
+
+
 @router.get("", response_model=list[GroupedDeparturePublic])
 async def list_departures(
-    session: SessionDep, _admin: CurrentSuperUser
+    session: SessionDep, _admin: CurrentPreparer
 ) -> list[GroupedDeparturePublic]:
     """All departures, nearest cutoff first, with their order count and total."""
     departures = list(
@@ -112,20 +137,23 @@ async def list_departures(
             )
         ).all()
     )
-    return await _to_public(session, departures)
+    return await _to_public(session, departures, reveal=_admin.is_superuser)
 
 
 @router.post("", response_model=GroupedDeparturePublic, status_code=201)
 async def create_departure(
-    body: GroupedDepartureCreate, session: SessionDep, admin: CurrentSuperUser
+    body: GroupedDepartureCreate, session: SessionDep, admin: CurrentPreparer
 ) -> GroupedDeparturePublic:
     """Create a departure with its default reminders (J-7, J-2, last day)."""
+    reveal = admin.is_superuser
+    if not reveal and any(getattr(body, f, None) is not None for f in _COST_FIELDS):
+        raise _costs_reserved()
     departure = await crud_grouped_departure.create(session, data=body, user=admin)
     departure_id = departure.id
     await add_default_reminders(session, departure)
     await session.commit()
     departure = await _get_or_404(session, departure_id)
-    return (await _to_public(session, [departure]))[0]
+    return (await _to_public(session, [departure], reveal=reveal))[0]
 
 
 @router.patch("/{departure_id}", response_model=GroupedDeparturePublic)
@@ -133,7 +161,7 @@ async def update_departure(
     departure_id: uuid.UUID,
     body: GroupedDepartureUpdate,
     session: SessionDep,
-    admin: CurrentSuperUser,
+    admin: CurrentPreparer,
 ) -> GroupedDeparturePublic:
     """Partial update: dates, publication, status, thresholds, notes.
 
@@ -142,6 +170,9 @@ async def update_departure(
     a draft or open departure is refused here: it goes through
     ``POST /{id}/close``.
     """
+    reveal = admin.is_superuser
+    if not reveal and set(body.model_dump(exclude_unset=True)) & set(_COST_FIELDS):
+        raise _costs_reserved()
     departure = await _get_or_404(session, departure_id)
     previous_status = departure.status
     # Closing an open departure is the assisted close (thresholds, live stock,
@@ -178,14 +209,14 @@ async def update_departure(
         )
         await session.commit()
         departure = await _get_or_404(session, departure_id)
-    result = (await _to_public(session, [departure]))[0]
+    result = (await _to_public(session, [departure], reveal=reveal))[0]
     result.orders_updated = orders_updated
     return result
 
 
 @router.delete("/{departure_id}", response_model=AssignOrdersResponse)
 async def delete_departure(
-    departure_id: uuid.UUID, session: SessionDep, admin: CurrentSuperUser
+    departure_id: uuid.UUID, session: SessionDep, admin: CurrentPreparer
 ) -> AssignOrdersResponse:
     """Delete a departure that has no order attached (409 otherwise: move the
     orders first, the attachment is part of the customer's promise)."""
@@ -217,7 +248,7 @@ async def delete_departure(
 
 @router.post("/assign-orders", response_model=AssignOrdersResponse)
 async def assign_orders(
-    body: AssignOrdersRequest, session: SessionDep, _admin: CurrentSuperUser
+    body: AssignOrdersRequest, session: SessionDep, _admin: CurrentPreparer
 ) -> AssignOrdersResponse:
     """Attach / move / detach orders. Unknown order ids are ignored."""
     if body.departure_id is not None:
@@ -242,7 +273,7 @@ async def close_departure_endpoint(
     departure_id: uuid.UUID,
     body: CloseRequest,
     session: SessionDep,
-    _admin: CurrentSuperUser,
+    _admin: CurrentPreparer,
 ) -> CloseResult:
     """Close the departure: live supplier stock check on every ordered
     product, thresholds, next departure when recurring. The result lists what
@@ -289,7 +320,7 @@ async def add_supplier_order(
         )
     await session.commit()
     departure = await _get_or_404(session, departure_id)
-    result = (await _to_public(session, [departure]))[0]
+    result = (await _to_public(session, [departure], reveal=True))[0]
     result.orders_updated = orders_updated
     return result
 
@@ -315,7 +346,7 @@ async def remove_supplier_order(
     session.add(departure)
     await session.commit()
     departure = await _get_or_404(session, departure_id)
-    return (await _to_public(session, [departure]))[0]
+    return (await _to_public(session, [departure], reveal=True))[0]
 
 
 # --- Goods receipt and dashboard --------------------------------------------
@@ -323,7 +354,7 @@ async def remove_supplier_order(
 
 @router.get("/{departure_id}/reception", response_model=ReceiptReport)
 async def get_reception(
-    departure_id: uuid.UUID, session: SessionDep, _admin: CurrentSuperUser
+    departure_id: uuid.UUID, session: SessionDep, _admin: CurrentPreparer
 ) -> ReceiptReport:
     """Tally per product (expected from the orders, received, damaged, serial
     numbers) and the orders served / partially served / not served."""
@@ -336,7 +367,7 @@ async def put_reception_line(
     product_id: uuid.UUID,
     body: ReceiptLineWrite,
     session: SessionDep,
-    _admin: CurrentSuperUser,
+    _admin: CurrentPreparer,
 ) -> ReceiptReport:
     """Record what came in for one product. The serial numbers are handed to
     the order lines in order of order date; the report is returned."""
@@ -351,7 +382,8 @@ async def put_reception_line(
 async def get_dashboard(
     departure_id: uuid.UUID, session: SessionDep, _admin: CurrentSuperUser
 ) -> DepartureDashboard:
-    """Revenue, cash collected, goods cost, real shipment costs and margin."""
+    """Revenue, cash collected, goods cost, real shipment costs and margin
+    (administrators only: the preparer runs the departure, not its margin)."""
     return await dashboard(session, await _get_or_404(session, departure_id))
 
 
@@ -383,7 +415,7 @@ def _reminder_public(
 
 @router.get("/{departure_id}/reminders", response_model=list[DepartureReminderPublic])
 async def list_reminders(
-    departure_id: uuid.UUID, session: SessionDep, _admin: CurrentSuperUser
+    departure_id: uuid.UUID, session: SessionDep, _admin: CurrentPreparer
 ) -> list[DepartureReminderPublic]:
     """Reminders of a departure, soonest first, with the text as it will post."""
     departure = await _get_or_404(session, departure_id)
@@ -409,7 +441,7 @@ async def create_reminder(
     departure_id: uuid.UUID,
     body: DepartureReminderWrite,
     session: SessionDep,
-    _admin: CurrentSuperUser,
+    _admin: CurrentPreparer,
 ) -> DepartureReminderPublic:
     """Schedule a reminder N days before the cutoff (or the departure)."""
     departure = await _get_or_404(session, departure_id)
@@ -424,7 +456,7 @@ async def update_reminder(
     reminder_id: uuid.UUID,
     body: DepartureReminderWrite,
     session: SessionDep,
-    _admin: CurrentSuperUser,
+    _admin: CurrentPreparer,
 ) -> DepartureReminderPublic:
     """Edit a reminder that has not fired yet; it is rescheduled."""
     reminder, departure = await _reminder_or_404(session, reminder_id)
@@ -444,7 +476,7 @@ async def update_reminder(
 
 @router.delete("/reminders/{reminder_id}", response_model=AssignOrdersResponse)
 async def delete_reminder(
-    reminder_id: uuid.UUID, session: SessionDep, _admin: CurrentSuperUser
+    reminder_id: uuid.UUID, session: SessionDep, _admin: CurrentPreparer
 ) -> AssignOrdersResponse:
     """Drop a reminder (soft)."""
     reminder, _departure = await _reminder_or_404(session, reminder_id)
@@ -457,7 +489,7 @@ async def delete_reminder(
 
 @router.post("/reminders/{reminder_id}/publish", response_model=DepartureReminderPublic)
 async def publish_reminder_now(
-    reminder_id: uuid.UUID, session: SessionDep, _admin: CurrentSuperUser
+    reminder_id: uuid.UUID, session: SessionDep, _admin: CurrentPreparer
 ) -> DepartureReminderPublic:
     """Post the reminder right now, whatever its schedule."""
     reminder, departure = await _reminder_or_404(session, reminder_id)

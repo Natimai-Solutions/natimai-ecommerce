@@ -1,0 +1,11 @@
+Hello{% if full_name %} {{ full_name }}{% endif %},
+
+The {{ shop_name }} team answered your request {{ number }}. To read it and
+reply, open your messages:
+
+{{ messages_url }}
+
+For your privacy, the answer is not copied into this e-mail. You can stop
+these notices from My account → Preferences.
+
+The {{ shop_name }} team

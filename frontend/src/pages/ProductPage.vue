@@ -63,8 +63,18 @@
         </div>
 
         <div class="product__buy">
+          <!-- The brand page when the sheet is shown (lot BR), else the
+               catalogue filtered on the supplier's name. -->
           <router-link
-            v-if="product.manufacturer"
+            v-if="product.brand_slug"
+            :to="{ name: 'brand', params: { slug: product.brand_slug } }"
+            class="product__brand"
+            data-testid="product-brand"
+          >
+            {{ product.brand_name || product.manufacturer }}
+          </router-link>
+          <router-link
+            v-else-if="product.manufacturer"
             :to="{ name: 'catalogue', query: { mfr: product.manufacturer } }"
             class="product__brand"
           >
@@ -309,6 +319,15 @@
             </q-btn>
           </div>
 
+          <AskButton
+            class="q-mt-sm"
+            :label="$t('product.ask')"
+            topic="pre_sale"
+            context-type="product"
+            :context-id="product.id"
+            :subject="product.name"
+          />
+
           <AppNotice v-if="cartError" tone="warning" dense class="q-mt-md">
             {{ cartError }}
           </AppNotice>
@@ -496,6 +515,27 @@
     <CartErrorToast v-model="relatedCartError" />
   </q-page>
 </template>
+<script lang="ts">
+import { defineComponent } from 'vue';
+
+// Server render: the product is loaded before setup, so that the title and
+// description `useMeta` computes once are the product's (they stayed
+// « Produit »: Quasar evaluates useMeta at setup on the server).
+export default defineComponent({
+  async preFetch({ store, currentRoute }) {
+    // In the browser the page loads it itself (in the visitor's language).
+    if (!import.meta.env.QUASAR_SERVER) return;
+    const id = currentRoute.params['id'];
+    if (typeof id !== 'string') return;
+    const [{ useProductDetailStore }, { currentRequestScope }] = await Promise.all([
+      import('@/stores/productDetail'),
+      import('@/ssr/requestScope'),
+    ]);
+    await useProductDetailStore(store).load(id, currentRequestScope()?.locale ?? 'fr');
+  },
+});
+</script>
+
 <script setup lang="ts">
 import CartErrorToast from '@/components/CartErrorToast.vue';
 import AppNotice from '@app/ui/AppNotice.vue';
@@ -515,6 +555,7 @@ import {
   trackProductView,
 } from '@/api/products';
 import ProductImage from '@/components/ProductImage.vue';
+import AskButton from '@/components/AskButton.vue';
 import ProductOffers from '@/components/ProductOffers.vue';
 import ShippingEstimate from '@/components/ShippingEstimate.vue';
 import ProductReviews from '@/components/ProductReviews.vue';
@@ -541,6 +582,7 @@ import { useDepartureLabels } from '@/composables/useDepartureLabels';
 import { useTranslate } from '@/composables/useTranslate';
 import { useTurnstile } from '@/composables/useTurnstile';
 import { absoluteUrl, breadcrumbList, jsonLd } from '@/utils/seo';
+import { rememberViewed } from '@/utils/recentlyViewed';
 import { categoryLineage } from '@/utils/categories';
 import { useShopModulesStore } from '@/stores/shopModules';
 import { useProductDetailStore } from '@/stores/productDetail';
@@ -981,7 +1023,10 @@ const productJsonLd = computed<Record<string, unknown> | null>(() => {
     description: plainDescription.value || undefined,
     sku: p.vendor_part_number ?? p.supplier_sku ?? undefined,
     gtin13: p.ean ?? undefined,
-    brand: p.manufacturer ? { '@type': 'Brand', name: p.manufacturer } : undefined,
+    brand:
+      p.brand_name || p.manufacturer
+        ? { '@type': 'Brand', name: p.brand_name || p.manufacturer }
+        : undefined,
     category: categoryLabel.value ?? undefined,
     itemCondition:
       p.condition === 'refurbished'
@@ -1218,8 +1263,11 @@ async function addRelatedToCart(item: ProductPublic) {
 }
 watch(
   () => product.value?.id,
-  () => {
-    if (import.meta.env.QUASAR_CLIENT) void loadRelated();
+  (id) => {
+    if (!import.meta.env.QUASAR_CLIENT) return;
+    void loadRelated();
+    // Another product opened from this page (related, variant).
+    if (id) rememberViewed(id);
   },
 );
 
@@ -1237,7 +1285,11 @@ onMounted(async () => {
   await loadProduct();
   // Client only: the SSR pass must not count a view, and a bot-heavy server
   // render would skew the « plus consultés » ranking.
-  if (import.meta.env.QUASAR_CLIENT && product.value) void trackProductView(product.value.id);
+  if (import.meta.env.QUASAR_CLIENT && product.value) {
+    void trackProductView(product.value.id);
+    // « Vus récemment » on the homepage: this browser only (lot A5).
+    rememberViewed(product.value.id);
+  }
   void refreshWishlistState();
 });
 

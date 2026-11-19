@@ -21,7 +21,12 @@ from fastapi import APIRouter, Depends, Query, Response
 from pydantic import BaseModel, Field
 from sqlmodel import col, or_, select
 
-from app.api.deps import CurrentSuperUser, SessionDep, module_required
+from app.api.deps import (
+    CurrentQuoteReader,
+    CurrentQuoteStaff,
+    SessionDep,
+    module_required,
+)
 from app.core.errors import AppError
 from app.features.cart.models.quote_request import (
     CLOSED_QUOTE_STATUSES,
@@ -35,6 +40,12 @@ from app.features.cart.services.quote import (
     proposed_lines,
     quote_pdf_response,
     send_quote_email,
+)
+from app.features.messaging.links import (
+    notify_guest_of_quote,
+    quote_commented,
+    quote_email_not_sent,
+    quote_issued,
 )
 
 router = APIRouter(
@@ -160,7 +171,7 @@ async def _read_quote(session: SessionDep, quote_id: uuid.UUID) -> QuoteRequest:
 @router.get("", response_model=list[AdminQuoteRequestListItem])
 async def list_quote_requests(
     session: SessionDep,
-    _admin: CurrentSuperUser,
+    _admin: CurrentQuoteReader,
     skip: Annotated[int, Query(ge=0)] = 0,
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
     status: QuoteRequestStatus | None = None,
@@ -201,7 +212,7 @@ async def list_quote_requests(
 async def get_quote_request(
     quote_id: uuid.UUID,
     session: SessionDep,
-    _admin: CurrentSuperUser,
+    _admin: CurrentQuoteReader,
 ) -> AdminQuoteRequestDetail:
     """Le détail d'une demande, panier figé compris."""
     return _to_detail(await _read_quote(session, quote_id))
@@ -212,7 +223,7 @@ async def update_quote_request(
     quote_id: uuid.UUID,
     body: QuoteRequestUpdateBody,
     session: SessionDep,
-    admin: CurrentSuperUser,
+    admin: CurrentQuoteStaff,
 ) -> AdminQuoteRequestDetail:
     """Faire avancer le suivi d'une demande.
 
@@ -233,7 +244,11 @@ async def update_quote_request(
             quote.handled_by_id = None
 
     if body.admin_comment is not None:
-        quote.admin_comment = body.admin_comment.strip() or None
+        comment = body.admin_comment.strip() or None
+        if comment and comment != quote.admin_comment:
+            # Internal: written in the quote's conversation as a note (MSG5).
+            await quote_commented(session, quote, staff=admin, comment=comment)
+        quote.admin_comment = comment
 
     session.add(quote)
     await session.commit()
@@ -252,7 +267,7 @@ async def issue_quote_request(
     quote_id: uuid.UUID,
     body: QuoteIssueBody,
     session: SessionDep,
-    _admin: CurrentSuperUser,
+    admin: CurrentQuoteStaff,
 ) -> QuoteIssueResponse:
     """Émettre (ou ré-émettre) le devis : lignes au prix consenti, livraison,
     validité, message ; numéro DEV alloué la première fois ; PDF envoyé au
@@ -269,15 +284,24 @@ async def issue_quote_request(
             },
         )
     await issue_quote(session, quote, body)
+    await quote_issued(session, quote, staff=admin, emailed=body.send_email)
     await session.commit()
     quote = await _read_quote(session, quote_id)
     sent = await send_quote_email(session, quote) if body.send_email else False
+    if body.send_email and not sent:
+        # The e-mail did not leave: the messaging notice is owed again.
+        await quote_email_not_sent(session, quote)
+        await session.commit()
+    if not sent:
+        # A visitor has no account where « a reply is waiting » would show.
+        await notify_guest_of_quote(session, quote)
+        quote = await _read_quote(session, quote_id)
     return QuoteIssueResponse(**_to_detail(quote).model_dump(), email_sent=sent)
 
 
 @router.get("/{quote_id}/pdf")
 async def download_quote_pdf(
-    quote_id: uuid.UUID, session: SessionDep, _admin: CurrentSuperUser
+    quote_id: uuid.UUID, session: SessionDep, _admin: CurrentQuoteReader
 ) -> Response:
     """Le PDF du devis émis."""
     quote = await _read_quote(session, quote_id)

@@ -13,6 +13,8 @@ export const ROUTE_MODULES: Record<string, string> = {
   '/logistics-routes': 'logistics_multileg',
   '/grouped-departures': 'grouped_departures',
   '/quote-requests': 'quotes',
+  '/messages': 'messaging',
+  '/canned-replies': 'messaging',
   '/group-upgrade-requests': 'price_groups',
   '/abandoned-carts': 'abandoned_carts',
 };

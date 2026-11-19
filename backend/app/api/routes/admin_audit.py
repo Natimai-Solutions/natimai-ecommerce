@@ -13,7 +13,7 @@ from typing import Annotated
 from fastapi import APIRouter, Query
 from sqlmodel import col, func, select
 
-from app.api.deps import CurrentSuperUser, SessionDep
+from app.api.deps import CurrentAccountant, SessionDep
 from app.features.system.models.audit_log import (
     AdminAuditEntry,
     AdminAuditEntryPublic,
@@ -26,7 +26,7 @@ router = APIRouter(prefix="/admin/audit-log", tags=["admin-audit"])
 @router.get("", response_model=AdminAuditPage)
 async def list_audit_entries(
     session: SessionDep,
-    _current_user: CurrentSuperUser,
+    _current_user: CurrentAccountant,
     actor_id: Annotated[uuid.UUID | None, Query()] = None,
     event: Annotated[str | None, Query(max_length=50)] = None,
     path_contains: Annotated[str | None, Query(max_length=200)] = None,

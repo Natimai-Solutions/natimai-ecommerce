@@ -108,7 +108,7 @@ random fallback still applies, with a warning.
 | `EMAILS_API_URL` | Email API URL (e.g. Mailgun) |
 | `EMAILS_API_KEY` | Email API key |
 | `EMAIL_SUPPORT` | Recipient for quote requests and admin alerts |
-| `EMAIL_CONTACT` | Address shown in customer emails |
+| `EMAIL_CONTACT` | Address shown on the contact page; receives the sales channel's messaging alerts (default `contact@natimai.solutions`) |
 
 Without `EMAILS_API_URL` + `EMAILS_API_KEY`, emails are silently disabled
 (`emails_enabled = False`). Mailgun provider variables (`MAILGUN_DOMAIN`,

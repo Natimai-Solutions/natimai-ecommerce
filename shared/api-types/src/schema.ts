@@ -1434,6 +1434,7 @@ export interface paths {
         /**
          * Sku Summary
          * @description Filtered orders aggregated by supplier × SKU (the purchase order).
+         *     The preparer (§4) reads the quantities, not the purchase costs.
          */
         get: operations["admin-order-sku_summary"];
         put?: never;
@@ -1755,7 +1756,8 @@ export interface paths {
         };
         /**
          * Get Dashboard
-         * @description Revenue, cash collected, goods cost, real shipment costs and margin.
+         * @description Revenue, cash collected, goods cost, real shipment costs and margin
+         *     (administrators only: the preparer runs the departure, not its margin).
          */
         get: operations["admin-grouped-departures-get_dashboard"];
         put?: never;
@@ -3778,6 +3780,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/product/by-ids": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Products By Ids
+         * @description The products of a list kept in the visitor's browser (recently viewed),
+         *     in that order. A product no longer on sale is left out: the list may be
+         *     stale.
+         */
+        get: operations["product-products_by_ids"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/product/compare": {
         parameters: {
             query?: never;
@@ -4765,6 +4789,748 @@ export interface paths {
          * @description Execute delete.
          */
         delete: operations["brand-delete_Brand"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/brands/page/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Brand page
+         * @description A validated, active brand by its path (``/marque/<slug>``).
+         */
+        get: operations["brand-get_brand_page"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/brands/showcase": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Brands with a logo
+         * @description The validated brands that have a logo and products on sale, the
+         *     best-stocked first.
+         */
+        get: operations["brand-brand_showcase"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/brands/sitemap": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Brand pages
+         * @description The brand pages search engines should know: validated, active, with
+         *     products on sale (the storefront's sitemap.xml lists them).
+         */
+        get: operations["brand-brand_sitemap"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/brands": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Brand sheets
+         * @description Every sheet, those to validate first, then by name.
+         */
+        get: operations["admin-brand-admin_list_brands"];
+        put?: never;
+        /** Admin Create Brand */
+        post: operations["admin-brand-admin_create_brand"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/brands/{brand_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Admin Update Brand */
+        put: operations["admin-brand-admin_update_brand"];
+        post?: never;
+        /**
+         * Admin Delete Brand
+         * @description Delete a sheet: its products lose the link until the next pass links
+         *     them again (to a new sheet to validate, or to an alias).
+         */
+        delete: operations["admin-brand-admin_delete_brand"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/brands/{brand_id}/merge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Admin Merge Brand
+         * @description This sheet is a spelling of another: its products and aliases move to
+         *     the target, its name becomes an alias of it, and it goes.
+         */
+        post: operations["admin-brand-admin_merge_brand"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/brands/link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Admin Link Products
+         * @description Link now the products without a sheet (the worker does it hourly).
+         */
+        post: operations["admin-brand-admin_link_products"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/conversations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Conversations
+         * @description The queue: « to do » (open and free), « mine », « waiting for the
+         *     customer », « resolved », « all »; oldest waiting first in « to do ».
+         */
+        get: operations["admin-messaging-list_conversations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/conversations/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Conversations Summary
+         * @description Counters of the menu and the tabs.
+         */
+        get: operations["admin-messaging-conversations_summary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/conversations/team": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Conversation Team
+         * @description Who a conversation (of ``channel``) can be transferred to: the
+         *     superusers and the team members whose role covers the channel.
+         */
+        get: operations["admin-messaging-conversation_team"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/conversations/{conversation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Conversation
+         * @description A conversation with its messages, notes and events.
+         */
+        get: operations["admin-messaging-get_conversation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/conversations/{conversation_id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Staff Message
+         * @description Answer the customer, or write an internal note. The first answer takes
+         *     a free conversation (never one someone else holds).
+         */
+        post: operations["admin-messaging-post_staff_message"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/conversations/{conversation_id}/attachments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Staff File
+         * @description Send a file to the customer (takes a free conversation), or join it to
+         *     an internal note.
+         */
+        post: operations["admin-messaging-post_staff_file"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/conversations/{conversation_id}/attachments/{attachment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Staff File */
+        get: operations["admin-messaging-get_staff_file"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/conversations/{conversation_id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Read Conversation */
+        post: operations["admin-messaging-read_conversation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/conversations/{conversation_id}/claim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Claim Conversation
+         * @description Take the conversation (409 if someone else holds it, unless ``force``).
+         */
+        post: operations["admin-messaging-claim_conversation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/conversations/{conversation_id}/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Release Conversation */
+        post: operations["admin-messaging-release_conversation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/conversations/{conversation_id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Resolve Conversation */
+        post: operations["admin-messaging-resolve_conversation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/conversations/{conversation_id}/transfer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Transfer Conversation */
+        post: operations["admin-messaging-transfer_conversation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/conversations/{conversation_id}/topic": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Move Conversation
+         * @description Move the conversation to another channel / topic (traced). Moved to a
+         *     channel the team member does not work on, it is answered once more (what
+         *     was just done), then reads as missing like any other of that channel.
+         */
+        put: operations["admin-messaging-move_conversation"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/canned-replies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Canned Replies
+         * @description The prepared answers of the channels the member works on.
+         */
+        get: operations["admin-messaging-list_canned_replies"];
+        put?: never;
+        /** Create Canned Reply */
+        post: operations["admin-messaging-create_canned_reply"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/canned-replies/{reply_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Replace Canned Reply */
+        put: operations["admin-messaging-replace_canned_reply"];
+        post?: never;
+        /** Delete Canned Reply */
+        delete: operations["admin-messaging-delete_canned_reply"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/messaging/info": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Messaging Info
+         * @description Channels and topics, opening hours, response time, contact address.
+         */
+        get: operations["messaging-messaging_info"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/conversations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List My Conversations
+         * @description The customer's conversations, most recent activity first.
+         */
+        get: operations["messaging-list_my_conversations"];
+        put?: never;
+        /**
+         * Open My Conversation
+         * @description Open a conversation on a topic (the channel follows), optionally about
+         *     the customer's order, quote request, group request or a product.
+         */
+        post: operations["messaging-open_my_conversation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/conversations/unread": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My Unread Count
+         * @description How many conversations hold an answer the customer has not read.
+         */
+        get: operations["messaging-my_unread_count"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/conversations/{conversation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get My Conversation
+         * @description A conversation and its messages (only those after ``after`` when
+         *     given: the open thread polls with it).
+         */
+        get: operations["messaging-get_my_conversation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/conversations/{conversation_id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post My Message
+         * @description Write in a conversation (a resolved one reopens).
+         */
+        post: operations["messaging-post_my_message"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/conversations/{conversation_id}/attachments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post My File
+         * @description Send a file (a photo, a PDF) with an optional text.
+         */
+        post: operations["messaging-post_my_file"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/conversations/{conversation_id}/attachments/{attachment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get My File
+         * @description Download a file of the conversation (never one of an internal note).
+         */
+        get: operations["messaging-get_my_file"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/conversations/{conversation_id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Read My Conversation */
+        post: operations["messaging-read_my_conversation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/conversations/{conversation_id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resolve My Conversation
+         * @description « My question is settled » (writing again reopens it).
+         */
+        post: operations["messaging-resolve_my_conversation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/conversations/{conversation_id}/keep": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Keep My Conversation
+         * @description « Keep one more year »: pushes the deletion date back a year.
+         */
+        post: operations["messaging-keep_my_conversation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/conversations/{conversation_id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export My Conversation
+         * @description The conversation as a text file (messages only).
+         */
+        get: operations["messaging-export_my_conversation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/contact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Contact
+         * @description A visitor writes to the shop. Always 202: the team answers by e-mail.
+         */
+        post: operations["contact-contact"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/contact/continue/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Continue Info
+         * @description What the link of a team reply opens: the address it was sent to, and
+         *     whether it already has an account (only the holder of the link sees it).
+         */
+        get: operations["contact-continue_info"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/contact/continue/{token}/signup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Continue With Signup
+         * @description Create the account of the link's address (proven: the link was only
+         *     sent there), attach the visitor's conversations and sign in.
+         */
+        post: operations["contact-continue_with_signup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/contact/continue/{token}/claim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Continue Signed In
+         * @description Signed in with the account of the link's address: attach the visitor's
+         *     conversations. Another account reads the link as invalid.
+         */
+        post: operations["contact-continue_signed_in"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -6731,10 +7497,121 @@ export interface paths {
         };
         /**
          * Get Homepage
-         * @description Published blocks whose dates include now: the first hero, then banners.
+         * @description The visitor's homepage. Reads no identity on purpose: the server render
+         *     of the storefront is anonymous, and this answer must not depend on who
+         *     asks (a signed-in customer asks ``/homepage/personal``).
          */
         get: operations["homepage-get_homepage"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/homepage/personal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Personal Homepage
+         * @description The signed-in customer's homepage: the sections of their audience, the
+         *     products at their prices. Never cached.
+         */
+        get: operations["homepage-get_personal_homepage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/homepage/announcement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Announcement
+         * @description The announcement shown above the header of every page (lot A3 / R4):
+         *     the published one live now in the visitor's language, or nothing.
+         */
+        get: operations["homepage-get_announcement"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/homepage/preview-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Homepage Preview Token
+         * @description A link to see the homepage with its drafts, at a chosen date, as a
+         *     chosen audience (lot A4 / R10). Valid 15 minutes.
+         */
+        post: operations["homepage-homepage_preview_token"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/homepage/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Homepage Preview
+         * @description The homepage as it will be: drafts included, at ``at``, for a visitor
+         *     or a customer of a price group. Only with a valid preview token (header
+         *     ``X-Homepage-Preview``); never cached. Prices stay the visitor's.
+         */
+        get: operations["homepage-get_homepage_preview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/homepage/seo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Homepage Seo
+         * @description The homepage title and description, with their translations.
+         */
+        get: operations["homepage-get_homepage_seo"];
+        /**
+         * Save Homepage Seo
+         * @description Set the homepage title and description (empty: the storefront's).
+         */
+        put: operations["homepage-save_homepage_seo"];
         post?: never;
         delete?: never;
         options?: never;
@@ -6751,15 +7628,38 @@ export interface paths {
         };
         /**
          * List Blocks
-         * @description Every block, published or not, in display order.
+         * @description Every section, published or not, in display order.
          */
         get: operations["homepage-list_blocks"];
         put?: never;
         /**
          * Create Block
-         * @description Add a hero or a banner.
+         * @description Add a section, at the end of the page (``position`` is ignored: the
+         *     order is set by ``PUT /admin/homepage-blocks/order``).
          */
         post: operations["homepage-create_block"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/homepage-blocks/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Reorder Blocks
+         * @description Put every section in the given order, in one transaction. The list must
+         *     name each active section once: a page changed meanwhile (a section added
+         *     or removed in another tab) is refused rather than half applied.
+         */
+        put: operations["homepage-reorder_blocks"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -6776,13 +7676,13 @@ export interface paths {
         get?: never;
         /**
          * Replace Block
-         * @description Replace every field of a block.
+         * @description Replace every field of a section but its place in the page.
          */
         put: operations["homepage-replace_block"];
         post?: never;
         /**
          * Delete Block
-         * @description Remove a block (its image stays in the media library).
+         * @description Remove a section (its image stays in the media library).
          */
         delete: operations["homepage-delete_block"];
         options?: never;
@@ -8729,6 +9629,55 @@ export interface components {
             /** Count */
             count: number;
         };
+        /** AdminBrand */
+        AdminBrand: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Slug */
+            slug: string;
+            /** Description */
+            description?: string | null;
+            logo?: components["schemas"]["BrandLogo"] | null;
+            /**
+             * Product Count
+             * @default 0
+             */
+            product_count: number;
+            /** Is Validated */
+            is_validated: boolean;
+            /**
+             * Translations
+             * @default {}
+             */
+            translations: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            };
+            /** Is Active */
+            is_active: boolean;
+            /**
+             * Aliases
+             * @default []
+             */
+            aliases: string[];
+            /** Media Id */
+            media_id?: string | null;
+        };
+        /** AdminBrandList */
+        AdminBrandList: {
+            /** Data */
+            data: components["schemas"]["AdminBrand"][];
+            /** Count */
+            count: number;
+            /** To Validate */
+            to_validate: number;
+        };
         /**
          * AdminCategoriesPublic
          * @description Liste complète (pas de pagination : quelques dizaines de lignes).
@@ -9481,6 +10430,8 @@ export interface components {
             is_active: boolean;
             /** Is Superuser */
             is_superuser: boolean;
+            /** Staff Role */
+            staff_role?: string | null;
             /** Is Verified */
             is_verified: boolean;
             /** Price Group Id */
@@ -9518,6 +10469,8 @@ export interface components {
             price_group_id?: string | null;
             /** Is Active */
             is_active?: boolean | null;
+            /** Staff Role */
+            staff_role?: string | null;
         };
         /**
          * AdminUsersPublic
@@ -9631,6 +10584,14 @@ export interface components {
              */
             price_group_id: string;
         };
+        /** Attached */
+        Attached: {
+            /**
+             * Conversation Id
+             * Format: uuid
+             */
+            conversation_id: string;
+        };
         /**
          * AttachmentDownloadResponse
          * @description Represents attachment download response.
@@ -9640,6 +10601,20 @@ export interface components {
             download_url: string;
             /** Expires In */
             expires_in: number;
+        };
+        /** AttachmentPublic */
+        AttachmentPublic: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Filename */
+            filename: string;
+            /** Mime */
+            mime: string;
+            /** Size */
+            size: number;
         };
         /**
          * AvailabilityMode
@@ -9666,6 +10641,22 @@ export interface components {
              * @default 50
              */
             limit: number;
+        };
+        /** Body_admin-messaging-post_staff_file */
+        "Body_admin-messaging-post_staff_file": {
+            /** File */
+            file: string;
+            /**
+             * Body
+             * @default
+             */
+            body: string;
+            /**
+             * Kind
+             * @default message
+             * @enum {string}
+             */
+            kind: "message" | "note";
         };
         /** Body_login-login_access_token */
         "Body_login-login_access_token": {
@@ -9707,6 +10698,16 @@ export interface components {
             kind: string;
             /** Alt */
             alt?: string | null;
+        };
+        /** Body_messaging-post_my_file */
+        "Body_messaging-post_my_file": {
+            /** File */
+            file: string;
+            /**
+             * Body
+             * @default
+             */
+            body: string;
         };
         /** Body_suppliers-import_catalog_file */
         "Body_suppliers-import_catalog_file": {
@@ -9782,6 +10783,57 @@ export interface components {
              * @description URL of the brand image
              */
             image_url?: string | null;
+            /** Slug */
+            slug?: string | null;
+            /** Media Id */
+            media_id?: string | null;
+            /**
+             * Is Validated
+             * @default true
+             */
+            is_validated: boolean;
+        };
+        /** BrandLogo */
+        BrandLogo: {
+            /** Src */
+            src: string;
+            /** Srcset */
+            srcset?: string | null;
+            /** Width */
+            width?: number | null;
+            /** Height */
+            height?: number | null;
+        };
+        /** BrandMerge */
+        BrandMerge: {
+            /**
+             * Target Id
+             * Format: uuid
+             */
+            target_id: string;
+        };
+        /**
+         * BrandPagePublic
+         * @description What the storefront shows of a brand.
+         */
+        BrandPagePublic: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Slug */
+            slug: string;
+            /** Description */
+            description?: string | null;
+            logo?: components["schemas"]["BrandLogo"] | null;
+            /**
+             * Product Count
+             * @default 0
+             */
+            product_count: number;
         };
         /**
          * BrandPublic
@@ -9821,11 +10873,27 @@ export interface components {
              * @description URL of the brand image
              */
             image_url?: string | null;
+            /** Slug */
+            slug?: string | null;
+            /** Media Id */
+            media_id?: string | null;
+            /**
+             * Is Validated
+             * @default true
+             */
+            is_validated: boolean;
             /**
              * Id
              * Format: uuid
              */
             id: string;
+        };
+        /** BrandSitemapEntry */
+        BrandSitemapEntry: {
+            /** Slug */
+            slug: string;
+            /** Modify At */
+            modify_at?: string | null;
         };
         /**
          * BrandUpdate
@@ -9856,6 +10924,41 @@ export interface components {
             description?: string | null;
             /** Image Url */
             image_url?: string | null;
+            /** Slug */
+            slug?: string | null;
+            /** Media Id */
+            media_id?: string | null;
+            /** Is Validated */
+            is_validated?: boolean | null;
+        };
+        /** BrandWrite */
+        BrandWrite: {
+            /** Name */
+            name: string;
+            /** Slug */
+            slug?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Media Id */
+            media_id?: string | null;
+            /**
+             * Is Validated
+             * @default true
+             */
+            is_validated: boolean;
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Aliases */
+            aliases?: string[];
+            /** Translations */
+            translations?: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            };
         };
         /**
          * BrandingIcon
@@ -9899,6 +11002,43 @@ export interface components {
              * @default 0
              */
             count: number;
+        };
+        /** CannedReplyPublic */
+        CannedReplyPublic: {
+            /** Channel */
+            channel?: string | null;
+            /** Title */
+            title: string;
+            /** Body */
+            body: string;
+            /** Translations */
+            translations?: {
+                [key: string]: {
+                    [key: string]: string;
+                };
+            };
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Position */
+            position: number;
+        };
+        /** CannedReplyWrite */
+        CannedReplyWrite: {
+            /** Channel */
+            channel?: string | null;
+            /** Title */
+            title: string;
+            /** Body */
+            body: string;
+            /** Translations */
+            translations?: {
+                [key: string]: {
+                    [key: string]: string;
+                };
+            };
         };
         /**
          * CarrierPatchRequest
@@ -10383,6 +11523,13 @@ export interface components {
             default_customs_rate_pct?: number | string | null;
             /** Default Margin Rate Pct */
             default_margin_rate_pct?: number | string | null;
+        };
+        /** ChannelTopics */
+        ChannelTopics: {
+            /** Channel */
+            channel: string;
+            /** Topics */
+            topics: string[];
         };
         /**
          * CheckoutObservabilityMetrics
@@ -10891,6 +12038,34 @@ export interface components {
             /** Notes */
             notes?: string | null;
         };
+        /** ContactRequest */
+        ContactRequest: {
+            /** Topic */
+            topic: string;
+            /** Name */
+            name: string;
+            /**
+             * Email
+             * Format: email
+             */
+            email: string;
+            /** Phone */
+            phone?: string | null;
+            /** Company */
+            company?: string | null;
+            /**
+             * Subject
+             * @default
+             */
+            subject: string;
+            /** Body */
+            body: string;
+            /**
+             * Website
+             * @default
+             */
+            website: string;
+        };
         /**
          * ContentPagePublic
          * @description Admin view.
@@ -11021,6 +12196,114 @@ export interface components {
                     [key: string]: unknown;
                 };
             };
+        };
+        /** ContinueInfo */
+        ContinueInfo: {
+            /** Number */
+            number: string;
+            /** Email */
+            email: string;
+            /** Name */
+            name?: string | null;
+            /** Account */
+            account: string;
+        };
+        /** ContinueSignup */
+        ContinueSignup: {
+            /** Password */
+            password: string;
+            /** Full Name */
+            full_name?: string | null;
+        };
+        /** ConversationCreate */
+        ConversationCreate: {
+            /** Topic */
+            topic: string;
+            /**
+             * Subject
+             * @default
+             */
+            subject: string;
+            /** Body */
+            body: string;
+            /** Context Type */
+            context_type?: string | null;
+            /** Context Id */
+            context_id?: string | null;
+        };
+        /** ConversationDetail */
+        ConversationDetail: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Number */
+            number: string;
+            /** Channel */
+            channel: string;
+            /** Topic */
+            topic: string;
+            /** Status */
+            status: string;
+            /** Subject */
+            subject: string;
+            /** Context Type */
+            context_type?: string | null;
+            /** Context Id */
+            context_id?: string | null;
+            /** Created At */
+            created_at?: string | null;
+            /** Last Message At */
+            last_message_at?: string | null;
+            /**
+             * Unread
+             * @default false
+             */
+            unread: boolean;
+            /**
+             * Messages
+             * @default []
+             */
+            messages: components["schemas"]["MessagePublic"][];
+        };
+        /** ConversationPage */
+        ConversationPage: {
+            /** Data */
+            data: components["schemas"]["StaffConversation"][];
+            /** Count */
+            count: number;
+        };
+        /** ConversationSummary */
+        ConversationSummary: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Number */
+            number: string;
+            /** Channel */
+            channel: string;
+            /** Topic */
+            topic: string;
+            /** Status */
+            status: string;
+            /** Subject */
+            subject: string;
+            /** Context Type */
+            context_type?: string | null;
+            /** Context Id */
+            context_id?: string | null;
+            /** Created At */
+            created_at?: string | null;
+            /** Last Message At */
+            last_message_at?: string | null;
+            /**
+             * Unread
+             * @default false
+             */
+            unread: boolean;
         };
         /**
          * CounterPaymentCreate
@@ -11257,6 +12540,24 @@ export interface components {
             exception_scenarios?: string[];
             /** Consolidations */
             consolidations?: components["schemas"]["ShippingRouteTrackingConsolidationPublic"][];
+        };
+        /**
+         * CustomerPanel
+         * @description The customer beside the thread (lot MSG3): their price group, last
+         *     orders and loyalty points — what an answer usually needs.
+         */
+        CustomerPanel: {
+            /** Price Group Label */
+            price_group_label?: string | null;
+            /**
+             * Orders
+             * @default []
+             */
+            orders: components["schemas"]["PanelOrder"][];
+            /** Loyalty Points */
+            loyalty_points?: number | null;
+            /** Phone */
+            phone?: string | null;
         };
         /**
          * CustomsRateAssignBody
@@ -13238,10 +14539,223 @@ export interface components {
             };
         };
         /**
-         * HomepageBlockPublic
-         * @description A block as the storefront and the admin see it.
+         * HomepageBlockWrite
+         * @description Admin create / replace payload.
          */
-        HomepageBlockPublic: {
+        HomepageBlockWrite: {
+            /**
+             * Kind
+             * @default banner
+             */
+            kind: string;
+            /**
+             * Title
+             * @default
+             */
+            title: string;
+            /** Subtitle */
+            subtitle?: string | null;
+            /** Cta Label */
+            cta_label?: string | null;
+            /** Cta Link */
+            cta_link?: string | null;
+            /** Media Id */
+            media_id?: string | null;
+            /** Image Url */
+            image_url?: string | null;
+            /** Alt */
+            alt?: string | null;
+            /** Body Html */
+            body_html?: string | null;
+            /**
+             * Position
+             * @default 0
+             */
+            position: number;
+            /**
+             * Is Published
+             * @default false
+             */
+            is_published: boolean;
+            /** Starts At */
+            starts_at?: string | null;
+            /** Ends At */
+            ends_at?: string | null;
+            /** Translations */
+            translations?: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            };
+            /** Config */
+            config?: {
+                [key: string]: unknown;
+            };
+            /** Audience */
+            audience?: {
+                [key: string]: unknown;
+            };
+            /** Items */
+            items?: components["schemas"]["HomepageItemWrite"][];
+        };
+        /**
+         * HomepageBrandTile
+         * @description A brand of a brand strip: its logo leads to its page.
+         */
+        HomepageBrandTile: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Slug */
+            slug: string;
+            /** Logo */
+            logo: string;
+            /** Logo Srcset */
+            logo_srcset?: string | null;
+        };
+        /**
+         * HomepageCategoryTile
+         * @description A chosen category, ready for the storefront tile.
+         */
+        HomepageCategoryTile: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Title */
+            title: string;
+            /** Image Url */
+            image_url?: string | null;
+            /** Image Srcset */
+            image_srcset?: string | null;
+        };
+        /**
+         * HomepageCurrentOrder
+         * @description The signed-in customer's order in progress, for the homepage card
+         *     (lot A5).
+         */
+        HomepageCurrentOrder: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Order Number */
+            order_number?: string | null;
+            /** Status */
+            status: string;
+            /** Created At */
+            created_at?: string | null;
+            /** Total Amount */
+            total_amount: string;
+            /** Currency */
+            currency?: string | null;
+        };
+        /**
+         * HomepageImage
+         * @description An image ready for an ``<img>``: source, srcset and intrinsic size.
+         */
+        HomepageImage: {
+            /** Src */
+            src: string;
+            /** Srcset */
+            srcset?: string | null;
+            /** Width */
+            width?: number | null;
+            /** Height */
+            height?: number | null;
+            /**
+             * Alt
+             * @default
+             */
+            alt: string;
+        };
+        /** HomepageItemPublic */
+        HomepageItemPublic: {
+            /** Product Id */
+            product_id?: string | null;
+            /** Category Id */
+            category_id?: string | null;
+            /** Brand Id */
+            brand_id?: string | null;
+            /** Label */
+            label?: string | null;
+            /** Translations */
+            translations?: {
+                [key: string]: string;
+            };
+            /** Media Id */
+            media_id?: string | null;
+            /** Image Url */
+            image_url?: string | null;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+        };
+        /** HomepageItemWrite */
+        HomepageItemWrite: {
+            /** Product Id */
+            product_id?: string | null;
+            /** Category Id */
+            category_id?: string | null;
+            /** Brand Id */
+            brand_id?: string | null;
+            /** Label */
+            label?: string | null;
+            /** Translations */
+            translations?: {
+                [key: string]: string;
+            };
+            /** Media Id */
+            media_id?: string | null;
+        };
+        /**
+         * HomepageOrder
+         * @description Every active block, in the new display order.
+         */
+        HomepageOrder: {
+            /** Ids */
+            ids: string[];
+        };
+        /**
+         * HomepagePublic
+         * @description The storefront homepage: its sections in display order (the hero, if
+         *     any, first), and its title and description for search engines.
+         */
+        HomepagePublic: {
+            /**
+             * Sections
+             * @default []
+             */
+            sections: components["schemas"]["HomepageSectionPublic"][];
+            seo?: components["schemas"]["HomepageSeoPublic"] | null;
+            announcement?: components["schemas"]["HomepageSectionPublic"] | null;
+        };
+        /**
+         * HomepageReassurance
+         * @description One pictogram and its short text, in the visitor's language.
+         */
+        HomepageReassurance: {
+            /** Icon */
+            icon: string;
+            /** Text */
+            text: string;
+            /** Link */
+            link?: string | null;
+        };
+        /**
+         * HomepageSectionPublic
+         * @description A section of the storefront homepage, with its products when it shows
+         *     some (featured, most viewed).
+         */
+        HomepageSectionPublic: {
             /**
              * Id
              * Format: uuid
@@ -13263,6 +14777,8 @@ export interface components {
             image_url?: string | null;
             /** Alt */
             alt?: string | null;
+            /** Body Html */
+            body_html?: string | null;
             /**
              * Position
              * @default 0
@@ -13278,12 +14794,31 @@ export interface components {
             /** Ends At */
             ends_at?: string | null;
             image?: components["schemas"]["HomepageImage"] | null;
+            /** Brands */
+            brands?: components["schemas"]["HomepageBrandTile"][] | null;
+            /** Reassurance */
+            reassurance?: components["schemas"]["HomepageReassurance"][] | null;
+            current_order?: components["schemas"]["HomepageCurrentOrder"] | null;
+            /** Config */
+            config?: {
+                [key: string]: unknown;
+            };
+            /** Audience */
+            audience?: {
+                [key: string]: unknown;
+            };
+            /** Items */
+            items?: components["schemas"]["HomepageItemPublic"][];
+            /** Categories */
+            categories?: components["schemas"]["HomepageCategoryTile"][] | null;
             /** Translations */
             translations?: {
                 [key: string]: {
                     [key: string]: unknown;
                 };
             };
+            /** Products */
+            products?: components["schemas"]["ProductPublic"][] | null;
             /**
              * Translation Status
              * @description Per offered language: ``ok`` / ``stale`` / ``missing`` (R9 / T3).
@@ -13292,44 +14827,18 @@ export interface components {
                 [key: string]: string;
             };
         };
-        /**
-         * HomepageBlockWrite
-         * @description Admin create / replace payload.
-         */
-        HomepageBlockWrite: {
+        /** HomepageSeoPublic */
+        HomepageSeoPublic: {
             /**
-             * Kind
-             * @default banner
+             * Title
+             * @default
              */
-            kind: string;
-            /** Title */
             title: string;
-            /** Subtitle */
-            subtitle?: string | null;
-            /** Cta Label */
-            cta_label?: string | null;
-            /** Cta Link */
-            cta_link?: string | null;
-            /** Media Id */
-            media_id?: string | null;
-            /** Image Url */
-            image_url?: string | null;
-            /** Alt */
-            alt?: string | null;
             /**
-             * Position
-             * @default 0
+             * Description
+             * @default
              */
-            position: number;
-            /**
-             * Is Published
-             * @default false
-             */
-            is_published: boolean;
-            /** Starts At */
-            starts_at?: string | null;
-            /** Ends At */
-            ends_at?: string | null;
+            description: string;
             /** Translations */
             translations?: {
                 [key: string]: {
@@ -13337,36 +14846,24 @@ export interface components {
                 };
             };
         };
-        /**
-         * HomepageImage
-         * @description An image ready for an ``<img>``: source, srcset and intrinsic size.
-         */
-        HomepageImage: {
-            /** Src */
-            src: string;
-            /** Srcset */
-            srcset?: string | null;
-            /** Width */
-            width?: number | null;
-            /** Height */
-            height?: number | null;
+        /** HomepageSeoWrite */
+        HomepageSeoWrite: {
             /**
-             * Alt
+             * Title
              * @default
              */
-            alt: string;
-        };
-        /**
-         * HomepagePublic
-         * @description Storefront homepage content: at most one hero, then the banners.
-         */
-        HomepagePublic: {
-            hero?: components["schemas"]["HomepageBlockPublic"] | null;
+            title: string;
             /**
-             * Banners
-             * @default []
+             * Description
+             * @default
              */
-            banners: components["schemas"]["HomepageBlockPublic"][];
+            description: string;
+            /** Translations */
+            translations?: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            };
         };
         /**
          * ImportModePublic
@@ -13640,6 +15137,14 @@ export interface components {
              */
             count: number;
         };
+        /** KeptUntil */
+        KeptUntil: {
+            /**
+             * Retain Until
+             * Format: date-time
+             */
+            retain_until: string;
+        };
         /**
          * LastLegOption
          * @description Priced last-leg (zone C) delivery option for the current cart.
@@ -13675,6 +15180,11 @@ export interface components {
              * @default 0.00
              */
             customs_declaration_fee: string;
+        };
+        /** LinkResult */
+        LinkResult: {
+            /** Linked */
+            linked: number;
         };
         /**
          * LivenessResponse
@@ -13953,6 +15463,66 @@ export interface components {
             message: string;
             /** Task Id */
             task_id?: string | null;
+        };
+        /** MessageCreate */
+        MessageCreate: {
+            /** Body */
+            body: string;
+        };
+        /**
+         * MessagePublic
+         * @description A message as the customer sees it.
+         */
+        MessagePublic: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Side */
+            side: string;
+            /** Body */
+            body: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Author Name
+             * @default
+             */
+            author_name: string;
+            /**
+             * Attachments
+             * @default []
+             */
+            attachments: components["schemas"]["AttachmentPublic"][];
+        };
+        /** MessagingInfo */
+        MessagingInfo: {
+            /** Channels */
+            channels: components["schemas"]["ChannelTopics"][];
+            /** Hours Start */
+            hours_start: string;
+            /** Hours End */
+            hours_end: string;
+            /** Days */
+            days: number[];
+            /** Timezone */
+            timezone: string;
+            response_time: components["schemas"]["ResponseTime"];
+            /** Contact Email */
+            contact_email?: string | null;
+            /**
+             * Open Now
+             * @default true
+             */
+            open_now: boolean;
+            /** Next Opening */
+            next_opening?: string | null;
+            /** Next Opening Days */
+            next_opening_days?: number | null;
         };
         /** ModerationDecision */
         ModerationDecision: {
@@ -14509,6 +16079,13 @@ export interface components {
             is_guest: boolean;
             /** Created At */
             created_at?: string | null;
+            /**
+             * Is Superuser
+             * @default false
+             */
+            is_superuser: boolean;
+            /** Staff Role */
+            staff_role?: string | null;
         };
         /**
          * MyProfileUpdate
@@ -14548,6 +16125,8 @@ export interface components {
             order_id: string | null;
             /** Can Order */
             can_order: boolean;
+            /** Conversation Id */
+            conversation_id?: string | null;
         };
         /**
          * MyReview
@@ -15532,6 +17111,24 @@ export interface components {
             stale_pending: number;
             /** Oldest Pending Age Minutes */
             oldest_pending_age_minutes: number | null;
+        };
+        /** PanelOrder */
+        PanelOrder: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Number */
+            number?: string | null;
+            /** Status */
+            status?: string | null;
+            /** Total Amount */
+            total_amount?: string | null;
+            /** Currency */
+            currency?: string | null;
+            /** Created At */
+            created_at?: string | null;
         };
         /**
          * PaymentApproveRequest
@@ -16975,6 +18572,22 @@ export interface components {
             entries?: components["schemas"]["PostalCodeDirectoryEntry"][];
         };
         /**
+         * PreviewLink
+         * @description What the admin opens: the storefront address and a 15-minute token,
+         *     passed in the address fragment (never sent to the server).
+         */
+        PreviewLink: {
+            /** Token */
+            token: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Storefront Url */
+            storefront_url: string;
+        };
+        /**
          * PriceGroupOption
          * @description Customer-safe view of a price group (omits the internal margin rate).
          */
@@ -17070,6 +18683,12 @@ export interface components {
              */
             deposit_required: boolean;
             /**
+             * Messaging Priority
+             * @description Conversations of its customers first in the messaging queue
+             * @default false
+             */
+            messaging_priority: boolean;
+            /**
              * Id
              * Format: uuid
              */
@@ -17102,6 +18721,8 @@ export interface components {
             deposit_fee_fixed?: number | string | null;
             /** Deposit Required */
             deposit_required?: boolean | null;
+            /** Messaging Priority */
+            messaging_priority?: boolean | null;
         };
         /**
          * PriceGroupsPublic
@@ -18040,6 +19661,10 @@ export interface components {
             id: string;
             /** Category Id */
             category_id?: string | null;
+            /** Brand Name */
+            brand_name?: string | null;
+            /** Brand Slug */
+            brand_slug?: string | null;
             /**
              * Offers Count
              * @default 1
@@ -18139,6 +19764,8 @@ export interface components {
             category_id?: string | null;
             /** Manufacturer */
             manufacturer?: string | null;
+            /** Brand Id */
+            brand_id?: string | null;
             /** Price Min */
             price_min?: number | string | null;
             /** Price Max */
@@ -18892,6 +20519,14 @@ export interface components {
             /** Payment Settled */
             payment_settled: boolean;
         };
+        /** Received */
+        Received: {
+            /**
+             * Status
+             * @default received
+             */
+            status: string;
+        };
         /** RecoveryCodes */
         RecoveryCodes: {
             /** Recovery Codes */
@@ -19031,6 +20666,15 @@ export interface components {
             token: string;
             /** Password */
             password: string;
+        };
+        /** ResponseTime */
+        ResponseTime: {
+            /** Unit */
+            unit: string;
+            /** Value */
+            value: number;
+            /** Measured */
+            measured: boolean;
         };
         /**
          * ReviewAnonymousPublic
@@ -20760,6 +22404,11 @@ export interface components {
             /** Captcha Site Key */
             captcha_site_key?: string | null;
             branding?: components["schemas"]["ShopBranding"];
+            /**
+             * Social Links
+             * @default []
+             */
+            social_links: string[];
         };
         /**
          * Shortage
@@ -21090,6 +22739,186 @@ export interface components {
             key: string;
             /** Value */
             value?: string | null;
+        };
+        /**
+         * StaffConversation
+         * @description A conversation as the team sees it.
+         */
+        StaffConversation: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Number */
+            number: string;
+            /** Channel */
+            channel: string;
+            /** Topic */
+            topic: string;
+            /** Status */
+            status: string;
+            /** Subject */
+            subject: string;
+            /** Context Type */
+            context_type?: string | null;
+            /** Context Id */
+            context_id?: string | null;
+            /** Created At */
+            created_at?: string | null;
+            /** Last Message At */
+            last_message_at?: string | null;
+            /**
+             * Unread
+             * @default false
+             */
+            unread: boolean;
+            /** Customer Id */
+            customer_id?: string | null;
+            /**
+             * Customer Name
+             * @default
+             */
+            customer_name: string;
+            /** Customer Email */
+            customer_email?: string | null;
+            /** Assigned To Id */
+            assigned_to_id?: string | null;
+            /**
+             * Assigned To Name
+             * @default
+             */
+            assigned_to_name: string;
+            /**
+             * Staff Unread
+             * @default false
+             */
+            staff_unread: boolean;
+            /**
+             * Priority
+             * @default false
+             */
+            priority: boolean;
+            /** Customer Locale */
+            customer_locale?: string | null;
+            /** Resolved At */
+            resolved_at?: string | null;
+        };
+        /** StaffConversationDetail */
+        StaffConversationDetail: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Number */
+            number: string;
+            /** Channel */
+            channel: string;
+            /** Topic */
+            topic: string;
+            /** Status */
+            status: string;
+            /** Subject */
+            subject: string;
+            /** Context Type */
+            context_type?: string | null;
+            /** Context Id */
+            context_id?: string | null;
+            /** Created At */
+            created_at?: string | null;
+            /** Last Message At */
+            last_message_at?: string | null;
+            /**
+             * Unread
+             * @default false
+             */
+            unread: boolean;
+            /** Customer Id */
+            customer_id?: string | null;
+            /**
+             * Customer Name
+             * @default
+             */
+            customer_name: string;
+            /** Customer Email */
+            customer_email?: string | null;
+            /** Assigned To Id */
+            assigned_to_id?: string | null;
+            /**
+             * Assigned To Name
+             * @default
+             */
+            assigned_to_name: string;
+            /**
+             * Staff Unread
+             * @default false
+             */
+            staff_unread: boolean;
+            /**
+             * Priority
+             * @default false
+             */
+            priority: boolean;
+            /** Customer Locale */
+            customer_locale?: string | null;
+            /** Resolved At */
+            resolved_at?: string | null;
+            /**
+             * Messages
+             * @default []
+             */
+            messages: components["schemas"]["StaffMessage"][];
+            customer_panel?: components["schemas"]["CustomerPanel"] | null;
+            /** Context Label */
+            context_label?: string | null;
+        };
+        /** StaffMessage */
+        StaffMessage: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Side */
+            side: string;
+            /** Kind */
+            kind: string;
+            /** Body */
+            body: string;
+            /**
+             * Data
+             * @default {}
+             */
+            data: {
+                [key: string]: unknown;
+            };
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Author Name
+             * @default
+             */
+            author_name: string;
+            /**
+             * Attachments
+             * @default []
+             */
+            attachments: components["schemas"]["AttachmentPublic"][];
+        };
+        /** StaffMessageCreate */
+        StaffMessageCreate: {
+            /** Body */
+            body: string;
+            /**
+             * Kind
+             * @default message
+             * @enum {string}
+             */
+            kind: "message" | "note";
         };
         /**
          * StatusDefinitionCreate
@@ -21641,6 +23470,17 @@ export interface components {
             reason: string;
             /** Order Id */
             order_id?: string | null;
+        };
+        /** Summary */
+        Summary: {
+            /** Todo */
+            todo: number;
+            /** Mine */
+            mine: number;
+            /** Pending */
+            pending: number;
+            /** Unread */
+            unread: number;
         };
         /**
          * SupplierAttachRequest
@@ -22419,6 +24259,16 @@ export interface components {
             /** Fees Code */
             fees_code: string;
         };
+        /** TeamMember */
+        TeamMember: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+        };
         /**
          * TestEnrichmentRequest
          * @description Request model for testing enrichment
@@ -22444,6 +24294,13 @@ export interface components {
              * @description Optional UPC code
              */
             upc?: string | null;
+        };
+        /** TopicBody */
+        TopicBody: {
+            /** Channel */
+            channel: string;
+            /** Topic */
+            topic: string;
         };
         /**
          * TrackedOrderResponse
@@ -22520,6 +24377,19 @@ export interface components {
              */
             tracking_ref?: string | null;
         };
+        /** TransferBody */
+        TransferBody: {
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+            /**
+             * Force
+             * @default false
+             */
+            force: boolean;
+        };
         /** TwoFactorCode */
         TwoFactorCode: {
             /** Code */
@@ -22582,6 +24452,11 @@ export interface components {
          * @enum {string}
          */
         UnmappedCategoryAction: "auto" | "draft" | "deactivate" | "skip";
+        /** UnreadCount */
+        UnreadCount: {
+            /** Count */
+            count: number;
+        };
         /**
          * UpdateStatusRequest
          * @description Request payload for updating tracking status.
@@ -22720,17 +24595,17 @@ export interface components {
          */
         UserPreferencePublic: {
             /**
-             * Notification Email Enabled
-             * @description Receive transactional emails (order, payment)
-             * @default true
-             */
-            notification_email_enabled: boolean;
-            /**
              * Notification Shipping Steps
              * @description Receive shipping status notifications
              * @default true
              */
             notification_shipping_steps: boolean;
+            /**
+             * Notification Messages
+             * @description E-mail when the shop answers in the messaging (no content)
+             * @default true
+             */
+            notification_messages: boolean;
             /**
              * Marketing Email Enabled
              * @description Receive commercial reminders (forgotten cart, offers)
@@ -22768,10 +24643,10 @@ export interface components {
          * @description Update schema — all fields optional.
          */
         UserPreferenceUpdate: {
-            /** Notification Email Enabled */
-            notification_email_enabled?: boolean | null;
             /** Notification Shipping Steps */
             notification_shipping_steps?: boolean | null;
+            /** Notification Messages */
+            notification_messages?: boolean | null;
             /** Marketing Email Enabled */
             marketing_email_enabled?: boolean | null;
             /** Default Shipping Preference */
@@ -29744,6 +31619,37 @@ export interface operations {
             };
         };
     };
+    "product-products_by_ids": {
+        parameters: {
+            query: {
+                ids: string[];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductPublic"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "product-compare_products": {
         parameters: {
             query: {
@@ -31671,6 +33577,1288 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Message"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "brand-get_brand_page": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrandPagePublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "brand-brand_showcase": {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrandPagePublic"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "brand-brand_sitemap": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrandSitemapEntry"][];
+                };
+            };
+        };
+    };
+    "admin-brand-admin_list_brands": {
+        parameters: {
+            query?: {
+                q?: string | null;
+                to_validate?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBrandList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-brand-admin_create_brand": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BrandWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBrand"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-brand-admin_update_brand": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                brand_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BrandWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBrand"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-brand-admin_delete_brand": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                brand_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-brand-admin_merge_brand": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                brand_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BrandMerge"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBrand"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-brand-admin_link_products": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LinkResult"];
+                };
+            };
+        };
+    };
+    "admin-messaging-list_conversations": {
+        parameters: {
+            query?: {
+                tab?: "todo" | "mine" | "pending" | "resolved" | "all";
+                channel?: string | null;
+                q?: string | null;
+                skip?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-messaging-conversations_summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Summary"];
+                };
+            };
+        };
+    };
+    "admin-messaging-conversation_team": {
+        parameters: {
+            query?: {
+                channel?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeamMember"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-messaging-get_conversation": {
+        parameters: {
+            query?: {
+                after?: string | null;
+            };
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffConversationDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-messaging-post_staff_message": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaffMessageCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffConversationDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-messaging-post_staff_file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_admin-messaging-post_staff_file"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffConversationDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-messaging-get_staff_file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+                attachment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-messaging-read_conversation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-messaging-claim_conversation": {
+        parameters: {
+            query?: {
+                force?: boolean;
+            };
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffConversationDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-messaging-release_conversation": {
+        parameters: {
+            query?: {
+                force?: boolean;
+            };
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffConversationDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-messaging-resolve_conversation": {
+        parameters: {
+            query?: {
+                force?: boolean;
+            };
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffConversationDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-messaging-transfer_conversation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TransferBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffConversationDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-messaging-move_conversation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TopicBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffConversationDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-messaging-list_canned_replies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CannedReplyPublic"][];
+                };
+            };
+        };
+    };
+    "admin-messaging-create_canned_reply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CannedReplyWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CannedReplyPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-messaging-replace_canned_reply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reply_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CannedReplyWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CannedReplyPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-messaging-delete_canned_reply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reply_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "messaging-messaging_info": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessagingInfo"];
+                };
+            };
+        };
+    };
+    "messaging-list_my_conversations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationSummary"][];
+                };
+            };
+        };
+    };
+    "messaging-open_my_conversation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConversationCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "messaging-my_unread_count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnreadCount"];
+                };
+            };
+        };
+    };
+    "messaging-get_my_conversation": {
+        parameters: {
+            query?: {
+                after?: string | null;
+            };
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "messaging-post_my_message": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MessageCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "messaging-post_my_file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_messaging-post_my_file"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "messaging-get_my_file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+                attachment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "messaging-read_my_conversation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "messaging-resolve_my_conversation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "messaging-keep_my_conversation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeptUntil"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "messaging-export_my_conversation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "contact-contact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContactRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Received"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "contact-continue_info": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContinueInfo"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "contact-continue_with_signup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContinueSignup"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccessTokenResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "contact-continue_signed_in": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Attached"];
                 };
             };
             /** @description Validation Error */
@@ -35893,6 +39081,154 @@ export interface operations {
             };
         };
     };
+    "homepage-get_personal_homepage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HomepagePublic"];
+                };
+            };
+        };
+    };
+    "homepage-get_announcement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HomepageSectionPublic"] | null;
+                };
+            };
+        };
+    };
+    "homepage-homepage_preview_token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreviewLink"];
+                };
+            };
+        };
+    };
+    "homepage-get_homepage_preview": {
+        parameters: {
+            query?: {
+                at?: string | null;
+                scope?: "guest" | "customer";
+                price_group_id?: string | null;
+            };
+            header?: {
+                "x-homepage-preview"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HomepagePublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "homepage-get_homepage_seo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HomepageSeoPublic"];
+                };
+            };
+        };
+    };
+    "homepage-save_homepage_seo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HomepageSeoWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HomepageSeoPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "homepage-list_blocks": {
         parameters: {
             query?: never;
@@ -35908,7 +39244,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HomepageBlockPublic"][];
+                    "application/json": components["schemas"]["HomepageSectionPublic"][];
                 };
             };
         };
@@ -35932,7 +39268,40 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HomepageBlockPublic"];
+                    "application/json": components["schemas"]["HomepageSectionPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "homepage-reorder_blocks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HomepageOrder"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HomepageSectionPublic"][];
                 };
             };
             /** @description Validation Error */
@@ -35967,7 +39336,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HomepageBlockPublic"];
+                    "application/json": components["schemas"]["HomepageSectionPublic"];
                 };
             };
             /** @description Validation Error */

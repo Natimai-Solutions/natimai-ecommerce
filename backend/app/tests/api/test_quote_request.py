@@ -106,6 +106,10 @@ async def test_quote_request_persists_and_notifies_support(
         "app.api.routes.cart._send_quote_support_email",
         AsyncMock(return_value=True),
     )
+    # The request's conversation (messaging) is covered by the integration
+    # tests (test_messaging_links.py): out of this mocked session's reach.
+    open_conversation = AsyncMock(return_value=None)
+    monkeypatch.setattr("app.api.routes.cart.open_for_quote", open_conversation)
 
     response = await create_quote_request(
         session=session,

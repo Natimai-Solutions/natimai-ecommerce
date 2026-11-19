@@ -89,6 +89,8 @@ export interface PriceGroup {
   deposit_fee_pct: string;
   deposit_fee_fixed: string;
   deposit_required: boolean;
+  /** Its customers' conversations first in the messaging queue (MSG4). */
+  messaging_priority?: boolean;
 }
 
 export interface DepositPolicyWrite {
@@ -100,7 +102,11 @@ export interface DepositPolicyWrite {
 
 export async function updatePriceGroup(
   groupId: string,
-  payload: Partial<DepositPolicyWrite> & { discount_pct?: string; margin_rate_pct?: string },
+  payload: Partial<DepositPolicyWrite> & {
+    discount_pct?: string;
+    margin_rate_pct?: string;
+    messaging_priority?: boolean;
+  },
 ): Promise<PriceGroup> {
   const { data } = await api.patch<PriceGroup>(`/admin/price-groups/${groupId}`, payload);
   return data;

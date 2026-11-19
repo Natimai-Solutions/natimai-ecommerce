@@ -9,8 +9,9 @@ import { api } from '@/boot/api';
  */
 export interface UserPreferences {
   user_id: string;
-  notification_email_enabled: boolean;
   notification_shipping_steps: boolean;
+  /** E-mail when the shop answers in the messaging (never the content). */
+  notification_messages: boolean;
   /** Commercial reminders (forgotten cart, offers) — distinct from transactional mail. */
   marketing_email_enabled: boolean;
   /** Checkout fallback: fastest | cheapest | eco_friendly */

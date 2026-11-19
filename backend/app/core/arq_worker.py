@@ -13,6 +13,7 @@ from app.core.task_runs import install_abandoned_job_journal, journaled
 from app.core.worker_watchdog import start_watchdog, stop_watchdog
 from app.features.system.audit import get_audit_cron_jobs, purge_audit_log_task
 from app.outbox.consumer import OUTBOX_HANDLER_MAX_TRIES, execute_outbox_handler
+from app.tasks.brand_tasks import get_brand_cron_jobs, link_product_brands_task
 from app.tasks.cart_tasks import (
     get_cart_abandonment_cron_jobs,
     remind_abandoned_carts_task,
@@ -33,6 +34,12 @@ from app.tasks.icecat_tasks import (
 from app.tasks.inventory_tasks import (
     get_stock_reservation_cron_jobs,
     release_expired_stock_reservations_task,
+)
+from app.tasks.messaging_tasks import (
+    get_messaging_cron_jobs,
+    messaging_retention_task,
+    notify_unread_messages_task,
+    release_stale_conversations_task,
 )
 from app.tasks.payment_tasks import (
     alert_expiring_authorizations_task,
@@ -179,6 +186,11 @@ class WorkerSettings:
         purge_audit_log_task,
         purge_journals_task,
         watch_outbox_backlog_task,
+        # Messagerie : avis de messages non lus, libération des conversations
+        notify_unread_messages_task,
+        release_stale_conversations_task,
+        messaging_retention_task,
+        link_product_brands_task,
         # ... tes autres handlers
     ]
 
@@ -200,6 +212,8 @@ class WorkerSettings:
         + get_payment_cron_jobs()
         + get_retention_cron_jobs()
         + get_watch_cron_jobs()
+        + get_messaging_cron_jobs()
+        + get_brand_cron_jobs()
     )
 
     # NOTE: Le polling de l'outbox est géré par un service dédié (outbox-poller)

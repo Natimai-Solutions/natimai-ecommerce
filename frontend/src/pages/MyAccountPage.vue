@@ -55,6 +55,7 @@ import { useRoute, useRouter } from 'vue-router';
 
 import AccountAddresses from '@/components/account/AccountAddresses.vue';
 import AccountGroup from '@/components/account/AccountGroup.vue';
+import AccountMessages from '@/components/account/AccountMessages.vue';
 import AccountOrders from '@/components/account/AccountOrders.vue';
 import AccountOverview from '@/components/account/AccountOverview.vue';
 import AccountPreferences from '@/components/account/AccountPreferences.vue';
@@ -89,6 +90,12 @@ const SECTIONS: AccountSection[] = [
     labelKey: 'account.section.orders',
     icon: 'ph:receipt',
     component: AccountOrders,
+  },
+  {
+    key: 'messages',
+    labelKey: 'account.section.messages',
+    icon: 'ph:chat-circle-text',
+    component: AccountMessages,
   },
   {
     key: 'quotes',
@@ -136,7 +143,11 @@ const ready = ref(false);
 const profile = ref<MyProfile | null>(null);
 
 /** Tabs of a module switched off in the back-office are left out. */
-const SECTION_MODULES: Record<string, string> = { quotes: 'quotes', group: 'price_groups' };
+const SECTION_MODULES: Record<string, string> = {
+  quotes: 'quotes',
+  group: 'price_groups',
+  messages: 'messaging',
+};
 const shopModules = useShopModulesStore();
 const sections = computed<AccountSection[]>(() =>
   SECTIONS.filter((s) => {

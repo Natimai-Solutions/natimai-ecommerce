@@ -19,7 +19,13 @@ from sqlalchemy import func
 from sqlalchemy import select as sa_select
 from sqlmodel import col, or_, select
 
-from app.api.deps import CurrentSuperUser, SessionDep
+from app.api.deps import (
+    CurrentAccountant,
+    CurrentOrderReader,
+    CurrentPreparer,
+    CurrentSuperUser,
+    SessionDep,
+)
 from app.api.routes.admin_payments import ReceiptResult, receipt_result
 from app.core.datetimes import as_utc
 from app.core.errors import AppError
@@ -351,7 +357,7 @@ _SearchQ = Query(
 @router.get("", response_model=AdminOrdersPage)
 async def list_orders(
     session: SessionDep,
-    _admin: CurrentSuperUser,
+    _admin: CurrentOrderReader,
     skip: Annotated[int, Query(ge=0)] = 0,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     departure_id: uuid.UUID | None = _DepartureQ,
@@ -399,7 +405,8 @@ async def list_orders(
 @router.get("/export.csv")
 async def export_orders_csv(
     session: SessionDep,
-    _admin: CurrentSuperUser,
+    # The same columns as the list every team role reads (no cost, no margin).
+    _admin: CurrentOrderReader,
     departure_id: uuid.UUID | None = _DepartureQ,
     unassigned: bool = _UnassignedQ,
     status: str | None = _StatusQ,
@@ -508,15 +515,16 @@ async def _sku_summary_rows(
 @router.get("/sku-summary", response_model=list[SkuSummaryRow])
 async def sku_summary(
     session: SessionDep,
-    _admin: CurrentSuperUser,
+    _admin: CurrentPreparer,
     departure_id: uuid.UUID | None = _DepartureQ,
     unassigned: bool = _UnassignedQ,
     status: str | None = _StatusQ,
     date_from: datetime | None = _FromQ,
     date_to: datetime | None = _ToQ,
 ) -> list[SkuSummaryRow]:
-    """Filtered orders aggregated by supplier × SKU (the purchase order)."""
-    return await _sku_summary_rows(
+    """Filtered orders aggregated by supplier × SKU (the purchase order).
+    The preparer (§4) reads the quantities, not the purchase costs."""
+    rows = await _sku_summary_rows(
         session,
         departure_id=departure_id,
         unassigned=unassigned,
@@ -524,12 +532,19 @@ async def sku_summary(
         date_from=date_from,
         date_to=date_to,
     )
+    return rows if _admin.is_superuser else _without_costs(rows)
+
+
+def _without_costs(rows: list[SkuSummaryRow]) -> list[SkuSummaryRow]:
+    return [
+        r.model_copy(update={"unit_cost": None, "cost_currency": None}) for r in rows
+    ]
 
 
 @router.get("/sku-summary.csv")
 async def sku_summary_csv(
     session: SessionDep,
-    _admin: CurrentSuperUser,
+    _admin: CurrentPreparer,
     departure_id: uuid.UUID | None = _DepartureQ,
     unassigned: bool = _UnassignedQ,
     status: str | None = _StatusQ,
@@ -545,6 +560,8 @@ async def sku_summary_csv(
         date_from=date_from,
         date_to=date_to,
     )
+    if not _admin.is_superuser:
+        rows = _without_costs(rows)
     return csv_response(
         [
             "Fournisseur",
@@ -593,7 +610,7 @@ class OrderStatusChangeResponse(BaseModel):
 
 
 @router.get("/statuses", response_model=list[str])
-async def list_order_statuses(_admin: CurrentSuperUser) -> list[str]:
+async def list_order_statuses(_admin: CurrentOrderReader) -> list[str]:
     """Every order status name, payment ones first then the fulfilment steps."""
     return list(ALL_ORDER_STATUSES)
 
@@ -652,9 +669,11 @@ async def change_order_status(
 async def get_order_detail(
     order_id: uuid.UUID,
     session: SessionDep,
-    _admin: CurrentSuperUser,
+    _admin: CurrentOrderReader,
 ) -> AdminOrderDetail:
     """Return the enriched detail of one order: client, status, lines, payments."""
+    # Lot ROLE: the team reads the order, not its purchase costs nor margins.
+    sees_costs = bool(getattr(_admin, "is_superuser", False))
     try:
         order = await crud_order.read(session, id=order_id)
     except RecordNotFoundError as exc:
@@ -741,14 +760,24 @@ async def get_order_detail(
                 line_total_excl_tax=(
                     float(figures.price_excl_tax) if figures is not None else None
                 ),
-                unit_cost=float(unit_cost) if unit_cost is not None else None,
-                line_cost=float(figures.unit_cost) if figures is not None else None,
+                unit_cost=(
+                    float(unit_cost) if sees_costs and unit_cost is not None else None
+                ),
+                line_cost=(
+                    float(figures.unit_cost)
+                    if sees_costs and figures is not None
+                    else None
+                ),
                 line_margin=(
-                    float(figures.margin_amount) if figures is not None else None
+                    float(figures.margin_amount)
+                    if sees_costs and figures is not None
+                    else None
                 ),
                 margin_pct=(
                     float(figures.margin_pct)
-                    if figures is not None and figures.margin_pct is not None
+                    if sees_costs
+                    and figures is not None
+                    and figures.margin_pct is not None
                     else None
                 ),
                 import_service_level=line.import_service_level,
@@ -756,7 +785,7 @@ async def get_order_detail(
             )
         )
     margin_summary: OrderMarginSummary | None = None
-    if lines and lines_without_cost < len(lines):
+    if sees_costs and lines and lines_without_cost < len(lines):
         goods_margin = (
             margin_totals["excl"] - margin_totals["fees"] - margin_totals["cost"]
         )
@@ -892,7 +921,7 @@ async def record_order_counter_payment(
     order_id: uuid.UUID,
     body: CounterPaymentCreate,
     session: SessionDep,
-    admin: CurrentSuperUser,
+    admin: CurrentAccountant,
 ) -> ReceiptResult:
     """« Enregistrer un encaissement » : cash, cheque or transfer received for
     the part now due, on the customer's pending manual payment or a new one."""
@@ -933,7 +962,7 @@ class RequestBalanceResponse(BaseModel):
 
 @router.post("/{order_id}/request-balance", response_model=RequestBalanceResponse)
 async def request_order_balance(
-    order_id: uuid.UUID, session: SessionDep, _admin: CurrentSuperUser
+    order_id: uuid.UUID, session: SessionDep, _admin: CurrentAccountant
 ) -> RequestBalanceResponse:
     """Send (or re-send) the balance request e-mail of a deposit order — the
     automatic one goes out when the order is received."""

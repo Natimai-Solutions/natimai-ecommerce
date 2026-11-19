@@ -51,6 +51,10 @@ CATEGORIES: dict[str, tuple[str, str]] = {
         "Prestataires activés et instructions des paiements manuels.",
     ),
     "notifications": ("Notifications", "E-mails et alertes envoyés par la boutique."),
+    "messaging": (
+        "Messagerie",
+        "Horaires, délai de réponse affiché et conservation des conversations.",
+    ),
     "orders": (
         "Commandes et stock",
         "Réservations, paniers abandonnés, vérifications.",
@@ -102,6 +106,19 @@ register(
         order=10,
     ),
     SettingSpec(
+        "shop_social_links",
+        "list",
+        "shop",
+        "Réseaux sociaux",
+        "Adresses https des pages de la boutique (Facebook, Instagram…), une "
+        "par ligne : les moteurs de recherche les relient à la boutique "
+        "(données structurées de l'accueil).",
+        default=[],
+        public=True,
+        max_length=2000,
+        order=15,
+    ),
+    SettingSpec(
         "shop_logo_media_id",
         "str",
         "shop",
@@ -144,7 +161,8 @@ register(
         "str",
         "shop",
         "E-mail de contact",
-        "Destinataire des messages du formulaire de contact.",
+        "Adresse affichée sur la page de contact ; reçoit les alertes du canal "
+        "commercial de la messagerie.",
         env="EMAIL_CONTACT",
         format="email",
         max_length=255,
@@ -456,6 +474,107 @@ register(
         secret=True,
         max_length=500,
         order=30,
+    ),
+)
+
+# --------------------------------------------------------------------------
+# Messagerie (chantier accueil et messagerie, lot MSG1)
+
+register(
+    SettingSpec(
+        "messaging_hours_start",
+        "str",
+        "messaging",
+        "Début des horaires",
+        "Heure à laquelle l'équipe commence à répondre (HH:MM, heure de la "
+        "boutique). Affichée sur la page de contact et dans la messagerie.",
+        default="08:00",
+        public=True,
+        max_length=5,
+        order=10,
+    ),
+    SettingSpec(
+        "messaging_hours_end",
+        "str",
+        "messaging",
+        "Fin des horaires",
+        "Heure à laquelle l'équipe s'arrête (HH:MM, heure de la boutique), "
+        "après le début : sinon les horaires 08:00–17:00 s'appliquent.",
+        default="17:00",
+        public=True,
+        max_length=5,
+        order=20,
+    ),
+    SettingSpec(
+        "messaging_days",
+        "list",
+        "messaging",
+        "Jours ouvrés",
+        "Jours où l'équipe répond (1 = lundi … 7 = dimanche).",
+        default=["1", "2", "3", "4", "5"],
+        public=True,
+        choices=("1", "2", "3", "4", "5", "6", "7"),
+        order=30,
+    ),
+    SettingSpec(
+        "messaging_response_time_mode",
+        "str",
+        "messaging",
+        "Délai de réponse affiché",
+        "« fixed » : le délai réglé ci-dessous. « measured » : le délai tenu "
+        "dans 80 % des cas sur 90 jours, en heures ouvrées, dès 20 "
+        "conversations — jamais mieux que le délai réglé.",
+        default="fixed",
+        choices=("fixed", "measured"),
+        order=40,
+    ),
+    SettingSpec(
+        "messaging_response_time_hours",
+        "int",
+        "messaging",
+        "Délai de réponse (heures)",
+        "Délai annoncé au client, et plafond du délai mesuré.",
+        default=24,
+        minimum=Decimal("1"),
+        maximum=Decimal("720"),
+        order=50,
+    ),
+    SettingSpec(
+        "messaging_release_after_days",
+        "int",
+        "messaging",
+        "Libération automatique (jours)",
+        "Une conversation prise en charge sans réponse depuis ce nombre de jours "
+        "retourne dans « À traiter ».",
+        default=3,
+        minimum=Decimal("1"),
+        maximum=Decimal("60"),
+        order=60,
+    ),
+    SettingSpec(
+        "messaging_retention_customer_days",
+        "int",
+        "messaging",
+        "Conservation — clients (jours)",
+        "Durée de conservation d'une conversation réglée d'un client, après son "
+        "dernier message (5 ans par défaut : prescription de droit commun, à "
+        "confirmer par la relecture juridique).",
+        default=1826,
+        minimum=Decimal("30"),
+        maximum=Decimal("3653"),
+        order=70,
+    ),
+    SettingSpec(
+        "messaging_retention_guest_days",
+        "int",
+        "messaging",
+        "Conservation — visiteurs (jours)",
+        "Durée de conservation d'une conversation d'un visiteur sans compte, "
+        "après son dernier message.",
+        default=183,
+        minimum=Decimal("7"),
+        maximum=Decimal("3653"),
+        order=80,
     ),
 )
 

@@ -13,6 +13,10 @@ const routes: RouteRecordRaw[] = [
       { path: '', component: () => import('@/pages/IndexPage.vue') },
       { path: 'products', component: () => import('@/pages/ProductsPage.vue') },
       { path: 'categories', component: () => import('@/pages/CategoriesPage.vue') },
+      { path: 'messages', component: () => import('@/pages/MessagingPage.vue') },
+      { path: 'messages/:id', component: () => import('@/pages/MessagingPage.vue') },
+      { path: 'canned-replies', component: () => import('@/pages/CannedRepliesPage.vue') },
+      { path: 'brands', component: () => import('@/pages/BrandsPage.vue') },
       { path: 'orders', component: () => import('@/pages/OrdersPage.vue') },
       { path: 'orders/:id', component: () => import('@/pages/OrderDetailPage.vue') },
       {

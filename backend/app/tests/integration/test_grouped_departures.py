@@ -127,7 +127,7 @@ async def _seed(session: AsyncSession) -> SimpleNamespace:
     )
     await session.flush()
     return SimpleNamespace(
-        admin=cast(User, SimpleNamespace(id=admin.id)),
+        admin=cast(User, SimpleNamespace(id=admin.id, is_superuser=True)),
         orders=[o1.id, o2.id, o3.id],
         laptop_id=laptop.id,
         mouse_id=mouse.id,

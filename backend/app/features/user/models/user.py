@@ -146,6 +146,10 @@ class User(UserBase, table=True):
     #: None for the accounts older than the column, where it is unknown.
     #: Erasing an account with a password requires that password.
     has_password: bool | None = Field(default=None)
+    #: Back-office role of a team member who is not a superuser (lot ROLE):
+    #: ``customer_service`` or ``sales``. Set by a superuser only, never by
+    #: the account itself; ``None`` for customers.
+    staff_role: str | None = Field(default=None, max_length=30)
     # Two-factor authentication (administrators, R6). The secret is encrypted
     # (SECRETS_ENCRYPTION_KEY); recovery codes are stored as SHA-256 hashes.
     totp_secret_encrypted: str | None = Field(

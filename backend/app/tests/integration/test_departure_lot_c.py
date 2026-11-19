@@ -139,7 +139,7 @@ async def _seed(session: AsyncSession) -> SimpleNamespace:
     )
     await session.flush()
     return SimpleNamespace(
-        admin=cast(User, SimpleNamespace(id=admin.id)),
+        admin=cast(User, SimpleNamespace(id=admin.id, is_superuser=True)),
         buyer=cast(User, SimpleNamespace(id=buyer.id)),
         departure_id=departure.id,
         laptop_id=laptop.id,

@@ -1,0 +1,9 @@
+{% extends "_layout.html" %}
+{% block title %}Conversation {{ number }} — {{ shop_name }}{% endblock %}
+{% block heading %}Your conversation will be deleted{% endblock %}
+{% block content %}
+      <p>Hello{% if full_name %} {{ full_name }}{% endif %},</p>
+      <p>Your conversation <strong>{{ number }}</strong> with {{ shop_name }}, settled long ago, reaches the end of its retention period. It will be deleted from <strong>{{ deletion_date }}</strong>.</p>
+      <p>To keep it, open it in My account → Messages: you can download it or keep it one more year.</p>
+      <p>The {{ shop_name }} team</p>
+{% endblock %}

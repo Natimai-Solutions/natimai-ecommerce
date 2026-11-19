@@ -239,7 +239,7 @@
         <h3 class="admin-subtitle">{{ $t('departures.po_title') }}</h3>
         <q-table
           :rows="sku"
-          :columns="skuColumns"
+          :columns="isAdmin ? skuColumns : skuColumns.filter((c) => c.name !== 'cost')"
           row-key="product_id"
           :loading="skuLoading"
           flat
@@ -261,6 +261,7 @@
         <div class="detail-head">
           <h3 class="admin-subtitle">{{ $t('departures.pos') }}</h3>
           <q-btn
+            v-if="isAdmin"
             flat
             dense
             no-caps
@@ -282,12 +283,13 @@
                 {{ po.supplier_name }} — n° <span class="font-mono">{{ po.order_number }}</span>
                 <span class="text-muted">· {{ formatDate(po.ordered_at) }}</span>
               </q-item-label>
-              <q-item-label caption>
-                <span class="font-mono">{{ po.total_amount }} {{ po.currency }}</span
+              <q-item-label v-if="po.total_amount != null || po.notes" caption>
+                <span v-if="po.total_amount != null" class="font-mono"
+                  >{{ po.total_amount }} {{ po.currency }}</span
                 ><template v-if="po.notes"> · {{ po.notes }}</template>
               </q-item-label>
             </q-item-section>
-            <q-item-section side>
+            <q-item-section v-if="isAdmin" side>
               <q-btn
                 :aria-label="$t('departures.delete_text')"
                 flat
@@ -439,7 +441,7 @@
       </div>
 
       <!-- Margin dashboard -->
-      <div v-if="!showUnassigned && board" class="detail-block">
+      <div v-if="isAdmin && !showUnassigned && board" class="detail-block">
         <h3 class="admin-subtitle">{{ $t('departures.board') }}</h3>
         <div class="kpi-grid">
           <div v-for="tile in tiles" :key="tile.label" class="kpi">
@@ -506,6 +508,7 @@
           />
         </div>
         <q-input
+          v-if="isAdmin"
           v-model="webhookUrl"
           :label="$t('departures.webhook')"
           :hint="$t('departures.webhook_hint')"
@@ -627,7 +630,7 @@
                     }}
                   </q-item-label>
                 </q-item-section>
-                <q-item-section side>
+                <q-item-section v-if="isAdmin" side>
                   <q-btn
                     flat
                     dense
@@ -996,8 +999,13 @@ import { useDialogGuard, useFormSnapshot } from '@/composables/useUnsavedGuard';
 import { listSystemSettings, updateSystemSetting } from '@/api/systemSettings';
 import { useShopConfigStore } from '@/stores/shopConfig';
 import { setOrderStatus } from '@/api/orders';
+import { useAccessStore } from '@/stores/access';
 
 const { t } = useI18n();
+// Rôles fins (§4): the preparer runs the departures; changing an order's
+// status, the purchase costs and the shop's settings stay with administrators.
+const access = useAccessStore();
+const isAdmin = computed(() => access.me?.is_superuser === true);
 // Aide : le cycle d'un départ et ce que chaque étape déclenche.
 const helpItems = computed<HelpItem[]>(() => [
   { title: t('help.departures_open_title'), text: t('help.departures_open') },
@@ -1319,7 +1327,8 @@ const tiles = computed(() => {
 });
 
 async function loadDashboard() {
-  if (!selected.value) return;
+  // The margin and the real costs: administrators only (rôles fins, §4).
+  if (!selected.value || !isAdmin.value) return;
   try {
     board.value = await getDashboard(selected.value.id);
     Object.assign(costs, {
@@ -1851,7 +1860,7 @@ async function submit() {
 
 onMounted(() => {
   void load();
-  void loadWebhook();
+  if (isAdmin.value) void loadWebhook();
 });
 </script>
 

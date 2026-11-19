@@ -9,7 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import app.api.routes.admin_supplier_orders as routes
-from app.api.deps import get_current_active_superuser
+from app.api.deps import get_current_preparer
 from app.core.db import get_db
 from app.features.integrations.models.supplier_order import (
     SupplierOrder,
@@ -43,7 +43,7 @@ def override_dependencies(
     async def _override_get_db() -> AsyncGenerator[MagicMock, None]:
         yield db_session
 
-    app.dependency_overrides[get_current_active_superuser] = _override_superuser
+    app.dependency_overrides[get_current_preparer] = _override_superuser
     app.dependency_overrides[get_db] = _override_get_db
     yield
     app.dependency_overrides.clear()

@@ -20,7 +20,7 @@ import anyio
 from fastapi import APIRouter, Query, Response
 from sqlmodel import col, select
 
-from app.api.deps import CurrentSuperUser, SessionDep
+from app.api.deps import CurrentAccountant, SessionDep
 from app.core.errors import AppError
 from app.features.invoice.models.credit_note import CreditNote, CreditNotePublic
 from app.features.invoice.services.credit_note_service import (
@@ -74,7 +74,7 @@ def _csv_amount(value: Decimal) -> str:
 @router.get("", response_model=list[CreditNotePublic])
 async def list_credit_notes(
     session: SessionDep,
-    _current_user: CurrentSuperUser,
+    _current_user: CurrentAccountant,
     fiscal_year: int | None = None,
     skip: Annotated[int, Query(ge=0)] = 0,
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
@@ -93,7 +93,7 @@ async def list_credit_notes(
 @router.get("/export.csv")
 async def export_credit_notes_csv(
     session: SessionDep,
-    _current_user: CurrentSuperUser,
+    _current_user: CurrentAccountant,
     fiscal_year: int | None = None,
 ) -> Response:
     """Accounting export of the issued credit notes (CSV, semicolon-separated).
@@ -154,7 +154,7 @@ async def export_credit_notes_csv(
 async def get_credit_note(
     session: SessionDep,
     credit_note_id: uuid.UUID,
-    _current_user: CurrentSuperUser,
+    _current_user: CurrentAccountant,
 ) -> CreditNotePublic:
     """Return one issued credit note."""
     return credit_note_to_public(await _load_credit_note(session, credit_note_id))
@@ -164,7 +164,7 @@ async def get_credit_note(
 async def download_credit_note_pdf(
     session: SessionDep,
     credit_note_id: uuid.UUID,
-    _current_user: CurrentSuperUser,
+    _current_user: CurrentAccountant,
 ) -> Response:
     """Download the PDF of an issued credit note."""
     credit_note = await _load_credit_note(session, credit_note_id)

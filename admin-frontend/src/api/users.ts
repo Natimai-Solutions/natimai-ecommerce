@@ -8,6 +8,8 @@ export interface AdminUser {
   phone: string | null;
   is_active: boolean;
   is_superuser: boolean;
+  /** Rôle d'équipe (lot ROLE) : customer_service, sales, ou null. */
+  staff_role?: string | null;
   is_verified: boolean;
   price_group_id: string | null;
   price_group_code: string | null;
@@ -41,6 +43,7 @@ export interface AdminUserUpdate {
   phone?: string | null;
   price_group_id?: string | null;
   is_active?: boolean;
+  staff_role?: string | null;
 }
 
 export interface InvitationResult {

@@ -10,7 +10,7 @@ from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 from sqlmodel import col, func, or_, select
 
-from app.api.deps import CurrentSuperUser, SessionDep
+from app.api.deps import CurrentAccountant, SessionDep
 from app.core.errors import AppError
 from app.features.attachment.service import issue_download_url
 from app.features.base.crud import RecordNotFoundError
@@ -193,7 +193,7 @@ class PaymentListResponse(BaseModel):
 @router.get("", response_model=PaymentListResponse)
 async def list_payments(
     session: SessionDep,
-    _admin: CurrentSuperUser,
+    _admin: CurrentAccountant,
     q: str | None = Query(default=None, max_length=100),
     status: str | None = Query(default=None, max_length=50),
     provider_code: str | None = Query(default=None, max_length=50),
@@ -321,7 +321,7 @@ async def list_payments(
 @router.get("/pending-validation", response_model=list[PaymentPendingValidationItem])
 async def list_pending_validation(
     session: SessionDep,
-    _admin: CurrentSuperUser,
+    _admin: CurrentAccountant,
 ) -> list[PaymentPendingValidationItem]:
     """List pending validation."""
     conditions = await pending_validation_conditions(session)
@@ -378,7 +378,7 @@ async def list_pending_validation(
 async def list_payment_validations(
     payment_id: uuid.UUID,
     session: SessionDep,
-    _admin: CurrentSuperUser,
+    _admin: CurrentAccountant,
 ) -> list[PaymentValidation]:
     """List payment validations."""
     await _get_payment_or_404(session, payment_id)
@@ -392,7 +392,7 @@ async def approve_payment(
     payment_id: uuid.UUID,
     body: PaymentApproveRequest,
     session: SessionDep,
-    admin: CurrentSuperUser,
+    admin: CurrentAccountant,
 ) -> PaymentValidationResponse:
     """Execute approve payment."""
     payment = await _get_payment_or_404(session, payment_id)
@@ -479,7 +479,7 @@ async def reject_payment(
     payment_id: uuid.UUID,
     body: PaymentRejectRequest,
     session: SessionDep,
-    admin: CurrentSuperUser,
+    admin: CurrentAccountant,
 ) -> PaymentValidationResponse:
     """Execute reject payment."""
     payment = await _get_payment_or_404(session, payment_id)
@@ -560,7 +560,7 @@ async def refund_payment_route(
     payment_id: uuid.UUID,
     body: PaymentRefundRequest,
     session: SessionDep,
-    admin: CurrentSuperUser,
+    admin: CurrentAccountant,
 ) -> PaymentRefundResponse:
     """Refund a payment — full when ``amount`` is omitted, partial otherwise.
 
@@ -596,7 +596,7 @@ class PaymentRefundsConfirmedResponse(BaseModel):
 async def confirm_payment_refunds_route(
     payment_id: uuid.UUID,
     session: SessionDep,
-    admin: CurrentSuperUser,
+    admin: CurrentAccountant,
 ) -> PaymentRefundsConfirmedResponse:
     """Confirm the refunds recorded « pending » on a payment, once done in the
     provider's back office: credit note, order status, gift cards and points."""
@@ -614,7 +614,7 @@ async def confirm_payment_refunds_route(
 async def capture_payment_route(
     payment_id: uuid.UUID,
     session: SessionDep,
-    admin: CurrentSuperUser,
+    admin: CurrentAccountant,
 ) -> PaymentCaptureResponse:
     """Capture an authorised card payment (deferred debit, e.g. at shipment)."""
     payment = await _get_payment_or_404(session, payment_id)
@@ -640,7 +640,7 @@ class AttachmentDownloadResponse(BaseModel):
 async def list_payment_attachments(
     payment_id: uuid.UUID,
     session: SessionDep,
-    _admin: CurrentSuperUser,
+    _admin: CurrentAccountant,
 ) -> list[PaymentAttachmentPublic]:
     """List payment attachments."""
     await _get_payment_or_404(session, payment_id)
@@ -661,7 +661,7 @@ async def get_attachment_download_url(
     payment_id: uuid.UUID,
     attachment_id: uuid.UUID,
     session: SessionDep,
-    _admin: CurrentSuperUser,
+    _admin: CurrentAccountant,
 ) -> AttachmentDownloadResponse:
     """Get attachment download url."""
     await _get_payment_or_404(session, payment_id)
@@ -762,7 +762,7 @@ def receipt_result(outcome: ReceiptOutcome) -> ReceiptResult:
 async def list_payment_receipts(
     payment_id: uuid.UUID,
     session: SessionDep,
-    _admin: CurrentSuperUser,
+    _admin: CurrentAccountant,
 ) -> list[PaymentReceiptPublic]:
     """Every receipt of a payment, cancelled ones included, oldest first."""
     await _get_payment_or_404(session, payment_id)
@@ -781,7 +781,7 @@ async def create_payment_receipt(
     payment_id: uuid.UUID,
     body: ReceiptCreate,
     session: SessionDep,
-    admin: CurrentSuperUser,
+    admin: CurrentAccountant,
 ) -> ReceiptResult:
     """Record an instalment; the one that reaches the amount settles the payment."""
     payment = await _get_payment_or_404(session, payment_id)
@@ -809,7 +809,7 @@ async def cancel_payment_receipt(
     receipt_id: uuid.UUID,
     body: ReceiptCancel,
     session: SessionDep,
-    admin: CurrentSuperUser,
+    admin: CurrentAccountant,
 ) -> PaymentReceiptPublic:
     """Cancel an instalment of a still pending payment (bounced cheque…)."""
     receipt = await session.get(PaymentReceipt, receipt_id)

@@ -49,6 +49,7 @@ dependencies = [
     "cryptography>=44.0.0",
     # QR code (SVG) of the administrators' two-factor enrolment; pure Python.
     "segno>=1.6.0",
+    "pillow-heif>=0.18",
 ]
 
 [dependency-groups]

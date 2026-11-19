@@ -19,6 +19,7 @@ from app.features.inventory.services.availability import (
     local_stock_expression,
     supplier_stock_expression,
 )
+from app.features.product.models.brand import Brand
 from app.features.product.models.price_history import (
     REASON_PRODUCT_WRITE,
     price_change_entry,
@@ -719,6 +720,7 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
         q: str | None = None,
         category_id: uuid.UUID | None = None,
         manufacturer: str | None = None,
+        brand_id: uuid.UUID | None = None,
         price_min: Decimal | None = None,
         price_max: Decimal | None = None,
         specs: dict[str, Any] | None = None,
@@ -787,9 +789,42 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
             # « Réseau » lists WiFi and its access points too.
             conditions.append(product_in_category_condition(category_id))
         if manufacturer:
-            conditions.append(
-                col(Product.manufacturer).ilike(f"%{manufacturer.strip()}%")
+            # The facet shows a validated brand by name: exactly its products,
+            # under every spelling the supplier used (lot BR). Another name
+            # is free text (« HP » no longer finds « HPE »; % and _ are text).
+            name = manufacturer.strip()
+            named_brand = select(col(Brand.id)).where(
+                col(Brand.is_validated).is_(True),
+                col(Brand.is_active).is_(True),
+                func.lower(col(Brand.name)) == name.lower(),
             )
+            pattern = name.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            shown_brands = select(col(Brand.id)).where(
+                col(Brand.is_validated).is_(True), col(Brand.is_active).is_(True)
+            )
+            conditions.append(
+                or_(
+                    col(Product.brand_id).in_(named_brand),
+                    # What the facet counts under that name too: a product
+                    # not (yet) under a shown sheet, supplied with that very
+                    # name (review of PR 204: the facet said 5, the list 3).
+                    and_(
+                        named_brand.exists(),
+                        or_(
+                            col(Product.brand_id).is_(None),
+                            col(Product.brand_id).not_in(shown_brands),
+                        ),
+                        func.lower(func.trim(col(Product.manufacturer)))
+                        == name.lower(),
+                    ),
+                    and_(
+                        ~named_brand.exists(),
+                        col(Product.manufacturer).ilike(f"%{pattern}%", escape="\\"),
+                    ),
+                )
+            )
+        if brand_id is not None:
+            conditions.append(col(Product.brand_id) == brand_id)
         # Sellable stock = warehouse + supplier, as the checkout counts it.
         if in_stock is True:
             conditions.append(available_quantity_expression() > 0)
@@ -969,13 +1004,25 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
         session: AsyncSession, representatives: Any
     ) -> dict[str, Any]:
         """Facets of the (grouped) result set, three aggregate queries."""
-        clean_maker = func.nullif(func.trim(col(Product.manufacturer)), "")
+        # A validated brand gathers its spellings (« HP Inc. », « hp ») under
+        # its name (lot BR); a brand still to validate shows as supplied.
+        validated_name = case(
+            (
+                and_(col(Brand.is_validated).is_(True), col(Brand.is_active).is_(True)),
+                col(Brand.name),
+            ),
+            else_=null(),
+        )
+        clean_maker = func.coalesce(
+            validated_name, func.nullif(func.trim(col(Product.manufacturer)), "")
+        )
         maker_key = func.lower(func.coalesce(clean_maker, "unknown"))
         maker_rows = (
             await session.exec(
                 select(func.min(clean_maker), func.count())
                 .select_from(Product)
                 .join(representatives, representatives.c.id == col(Product.id))
+                .outerjoin(Brand, col(Brand.id) == col(Product.brand_id))
                 .group_by(maker_key)
             )
         ).all()

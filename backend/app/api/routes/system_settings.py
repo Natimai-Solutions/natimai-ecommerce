@@ -82,6 +82,9 @@ class ShopConfigPublic(BaseModel):
     captcha_site_key: str | None = None
     #: Logo and site icon chosen in the back-office (R9 / T9); empty = defaults.
     branding: ShopBranding = Field(default_factory=ShopBranding)
+    #: The shop's pages on social networks (https only): the homepage's
+    #: ``Organization.sameAs``.
+    social_links: list[str] = []
 
 
 class RuntimeSettingPublic(BaseModel):
@@ -182,6 +185,11 @@ async def get_shop_config(request: Request, session: SessionDep) -> ShopConfigPu
         ),
         captcha_site_key=(await captcha_site_key(session)) or None,
         branding=branding,
+        social_links=[
+            str(link).strip()
+            for link in (await rs.get("shop_social_links", session) or [])
+            if str(link).strip().startswith("https://")
+        ],
     )
 
 

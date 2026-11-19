@@ -3,7 +3,7 @@ from app.features.analytic.models.analytic_sale import AnalyticsSale
 from app.features.analytic.models.analytic_user import AnalyticsUser
 from app.features.cart.models.cart import Cart, CartItem
 from app.features.cart.models.quote_request import QuoteRequest
-from app.features.content.models import ContentPage, HomepageBlock
+from app.features.content.models import ContentPage, HomepageBlock, HomepageSeo
 from app.features.departure.models import DepartureReminder, GroupedDeparture
 from app.features.discount.models import Discount
 from app.features.integrations.models.supplier import Supplier
@@ -20,6 +20,12 @@ from app.features.inventory.models.stock_movement import InventoryStockMovement
 from app.features.invoice.models.credit_note import CreditNote, CreditNoteCounter
 from app.features.invoice.models.invoice import Invoice, InvoiceCounter
 from app.features.media.models import MediaAsset
+from app.features.messaging.models import (
+    CannedReply,
+    Conversation,
+    ConversationAttachment,
+    ConversationMessage,
+)
 from app.features.notification.models.email_log import EmailLog
 from app.features.order.models.order import Order
 from app.features.order.models.order_line import OrderLine
@@ -41,7 +47,7 @@ from app.features.payment.models.payment_webhook_event import PaymentWebhookEven
 from app.features.payment.models.refund import Refund
 from app.features.payment.models.store_credit import StoreCreditEntry
 from app.features.place.models import Place, PlacePostalCode
-from app.features.product.models.brand import Brand
+from app.features.product.models.brand import Brand, BrandAlias
 from app.features.product.models.category import Category
 from app.features.product.models.price_group import PriceGroup
 from app.features.product.models.price_history import ProductPriceEntry
@@ -68,7 +74,6 @@ from app.features.user.models.address import Address
 from app.features.user.models.group import Group
 from app.features.user.models.group_security import GroupSecurity
 from app.features.user.models.group_upgrade_request import GroupUpgradeRequest
-from app.features.user.models.notification import Notification, UserNotification
 from app.features.user.models.oauth_link import UserOAuthLink
 from app.features.user.models.refresh_token import UserRefreshToken
 from app.features.user.models.review import Review
@@ -78,6 +83,12 @@ from app.features.user.models.user_preference import UserPreference
 from app.features.user.models.wishlist import Wishlist, WishlistItem
 
 __all__ = [
+    "HomepageSeo",
+    "BrandAlias",
+    "CannedReply",
+    "Conversation",
+    "ConversationAttachment",
+    "ConversationMessage",
     "CategoryLink",
     "ProductLink",
     "AdminAuditEntry",
@@ -100,7 +111,6 @@ __all__ = [
     "GroupSecurity",
     "Inventory",
     "InventoryStockMovement",
-    "Notification",
     "Order",
     "OrderLine",
     "OrderStatus",
@@ -138,7 +148,6 @@ __all__ = [
     "GroupUpgradeRequest",
     "UserOAuthLink",
     "UserGroup",
-    "UserNotification",
     "UserPreference",
     "UserRefreshToken",
     "Wishlist",

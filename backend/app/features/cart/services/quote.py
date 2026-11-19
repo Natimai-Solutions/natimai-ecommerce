@@ -211,13 +211,27 @@ async def send_quote_email(session: AsyncSession, quote: QuoteRequest) -> bool:
     return bool(result.delivered)
 
 
+def address_is_proven(user: Any) -> bool:
+    """The account holder proved they own its address (sign-up code, reset
+    link, taking a guest account over, OAuth). A guest session proves
+    nothing: anyone can open one for an address without an account."""
+    return bool(getattr(user, "is_verified", False)) and not bool(
+        getattr(user, "is_guest", False)
+    )
+
+
+def owns_quote(quote: QuoteRequest, user: Any) -> bool:
+    """A quote belongs to its account, or — for a request made before signing
+    up — to the account whose address is proven to be the request's."""
+    if quote.user_id is not None:
+        return bool(quote.user_id == user.id)
+    return address_is_proven(user) and (quote.email.lower() == str(user.email).lower())
+
+
 def check_convertible(quote: QuoteRequest, *, user: Any) -> None:
     """A quote turns into an order only for its customer, while it is
     issued, valid, not converted yet, and made of catalogue products."""
-    owned = quote.user_id == user.id or (
-        quote.user_id is None and quote.email.lower() == str(user.email).lower()
-    )
-    if not owned:
+    if not owns_quote(quote, user):
         raise AppError(
             code="quote.not_found",
             status_code=404,

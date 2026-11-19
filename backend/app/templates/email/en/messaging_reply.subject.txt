@@ -1,0 +1,1 @@
+{{ shop_name }} — a reply is waiting for you ({{ number }})

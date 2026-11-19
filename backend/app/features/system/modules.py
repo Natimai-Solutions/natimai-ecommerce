@@ -140,6 +140,17 @@ MODULES: tuple[ModuleSpec, ...] = (
         legacy_simple=True,
     ),
     ModuleSpec(
+        key="messaging",
+        label="Messagerie",
+        description=(
+            "Les clients écrivent au service client, au support technique ou "
+            "au service commercial depuis leur compte, et l'équipe leur répond "
+            "dans l'administration. Éteint : onglet Messages et bouton « Nous "
+            "écrire » masqués, écran Messagerie fermé."
+        ),
+        group="Ventes",
+    ),
+    ModuleSpec(
         key="deposits",
         label="Acompte à la commande",
         description=(

@@ -260,6 +260,19 @@
               map-options
               clearable
             />
+            <q-select
+              v-if="!editing?.is_superuser"
+              v-model="editForm.staff_role"
+              :options="roleChoices"
+              :label="$t('users.staff_role')"
+              :hint="$t('users.staff_role_hint')"
+              outlined
+              dense
+              emit-value
+              map-options
+              clearable
+              data-testid="user-staff-role"
+            />
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
             <q-btn flat no-caps :label="$t('common.cancel')" @click="editGuard.requestClose()" />
@@ -506,7 +519,14 @@ const editForm = reactive({
   full_name: '',
   phone: '',
   price_group_id: null as string | null,
+  staff_role: null as string | null,
 });
+const roleChoices = computed(() => [
+  { label: t('users.role_customer_service'), value: 'customer_service' },
+  { label: t('users.role_sales'), value: 'sales' },
+  { label: t('users.role_preparer'), value: 'preparer' },
+  { label: t('users.role_accountant'), value: 'accountant' },
+]);
 const editSnapshot = useFormSnapshot(() => editForm);
 const editGuard = useDialogGuard({
   isOpen: () => editDialog.value,
@@ -520,6 +540,7 @@ function openEdit(user: AdminUser) {
   editForm.full_name = user.full_name ?? '';
   editForm.phone = user.phone ?? '';
   editForm.price_group_id = user.price_group_id;
+  editForm.staff_role = user.staff_role ?? null;
   editSnapshot.take();
   editDialog.value = true;
 }
@@ -533,6 +554,7 @@ async function submitEdit() {
       full_name: editForm.full_name.trim() || null,
       phone: editForm.phone.trim() || null,
       price_group_id: editForm.price_group_id,
+      ...(editing.value.is_superuser ? {} : { staff_role: editForm.staff_role }),
     });
     editDialog.value = false;
     await load();

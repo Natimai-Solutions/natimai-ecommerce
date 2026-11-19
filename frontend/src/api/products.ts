@@ -207,3 +207,14 @@ export async function compareProducts(ids: string[]): Promise<ProductCompareResp
   });
   return data;
 }
+
+/** Les produits d'une liste tenue par le navigateur (vus récemment), dans
+ *  son ordre ; un produit retiré de la vente est omis. */
+export async function getProductsByIds(ids: string[]): Promise<ProductPublic[]> {
+  if (!ids.length) return [];
+  const { data } = await api.get<ProductPublic[]>('/product/by-ids', {
+    params: { ids },
+    paramsSerializer: { indexes: null },
+  });
+  return data;
+}

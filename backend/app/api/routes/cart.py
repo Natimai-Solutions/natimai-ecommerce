@@ -13,7 +13,7 @@ from pydantic import BaseModel, EmailStr
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.attributes import set_committed_value
-from sqlmodel import SQLModel, col, or_, select
+from sqlmodel import SQLModel, and_, col, or_, select
 
 from app.api.deps import CurrentUser, SessionDep, module_required
 from app.core import runtime_settings
@@ -58,7 +58,9 @@ from app.features.cart.models.quote_request import (
     QuoteRequestSubmit,
 )
 from app.features.cart.services.quote import (
+    address_is_proven,
     check_convertible,
+    owns_quote,
     quote_currency,
     quote_pdf_response,
     quoted_levels,
@@ -84,6 +86,7 @@ from app.features.inventory.models.stock_movement import (
 )
 from app.features.inventory.services.availability import supplier_available_quantity
 from app.features.inventory.services.stock_release import lock_stock_rows
+from app.features.messaging.links import conversation_about, open_for_quote
 from app.features.notification.email_renderer import render_email
 from app.features.notification.mailer import send_email
 from app.features.order.crud.order_crud import crud_order
@@ -2380,6 +2383,8 @@ async def create_quote_request(
         ),
         user=current_user,
     )
+    # The customer gets a conversation where the answer will come (MSG5).
+    await open_for_quote(session, quote_request, customer=current_user)
 
     email_delivered = await _send_quote_support_email(
         session=session,
@@ -2429,6 +2434,8 @@ class MyQuoteItem(BaseModel):
     order_id: uuid.UUID | None
     #: Issued, in date, not converted, made of catalogue products.
     can_order: bool
+    #: The sales conversation about this request (messaging), if any.
+    conversation_id: uuid.UUID | None = None
 
 
 def _my_quote_item(quote: QuoteRequest, *, user: User) -> MyQuoteItem:
@@ -2455,17 +2462,10 @@ def _my_quote_item(quote: QuoteRequest, *, user: User) -> MyQuoteItem:
 async def _my_quote_or_404(
     session: SessionDep, quote_id: uuid.UUID, current_user: User
 ) -> QuoteRequest:
-    """A quote of the customer (by account, or by e-mail for a request made
-    before signing up); a foreign one reads as missing."""
+    """A quote of the customer (by account, or by a proven address for a
+    request made before signing up); a foreign one reads as missing."""
     quote = await session.get(QuoteRequest, quote_id)
-    owned = quote is not None and (
-        quote.user_id == current_user.id
-        or (
-            quote.user_id is None
-            and quote.email.lower() == str(current_user.email).lower()
-        )
-    )
-    if quote is None or not owned:
+    if quote is None or not owns_quote(quote, current_user):
         raise AppError(
             code="quote.not_found",
             status_code=404,
@@ -2516,6 +2516,21 @@ async def _install_quote_in_cart(
     return items
 
 
+def _my_quotes_conditions(user: User) -> list[Any]:
+    """The account's requests and, for a proven address only, the requests
+    made with it before signing up — never another account's request, and
+    nothing by e-mail for a guest session (anyone can open one)."""
+    conditions: list[Any] = [col(QuoteRequest.user_id) == user.id]
+    if address_is_proven(user):
+        conditions.append(
+            and_(
+                col(QuoteRequest.user_id).is_(None),
+                func.lower(col(QuoteRequest.email)) == str(user.email).lower(),
+            )
+        )
+    return conditions
+
+
 @router.get("/quote-requests/me", response_model=list[MyQuoteItem])
 async def list_my_quotes(
     session: SessionDep, current_user: CurrentUser
@@ -2524,16 +2539,17 @@ async def list_my_quotes(
     rows = (
         await session.exec(
             select(QuoteRequest)
-            .where(
-                or_(
-                    col(QuoteRequest.user_id) == current_user.id,
-                    col(QuoteRequest.email) == str(current_user.email).lower(),
-                )
-            )
+            .where(or_(*_my_quotes_conditions(current_user)))
             .order_by(col(QuoteRequest.created_at).desc())
         )
     ).all()
-    return [_my_quote_item(q, user=current_user) for q in rows]
+    items = [_my_quote_item(q, user=current_user) for q in rows]
+    for item in items:
+        conversation = await conversation_about(session, "quote_request", item.id)
+        # Only the customer's own conversation (a visitor's stays theirs).
+        if conversation is not None and conversation.customer_id == current_user.id:
+            item.conversation_id = conversation.id
+    return items
 
 
 @router.get("/quote-requests/me/{quote_id}/pdf")
@@ -2677,6 +2693,8 @@ async def create_guest_quote_request(
         ),
         user=None,
     )
+    # A visitor's conversation: answered by e-mail, nothing sent before (MSG5).
+    await open_for_quote(session, quote_request, customer=None)
     # Capturé AVANT le commit : celui-ci expire l'instance, et relire un
     # attribut expiré depuis du code asynchrone lève MissingGreenlet.
     quote_request_id = quote_request.id

@@ -184,3 +184,49 @@ async def test_existing_link_to_an_inactive_account_returns_it(
     assert user.id == blocked_id
     assert user.is_active is False
     assert len(await _links(db_session)) == 1
+
+
+@pytest.mark.asyncio
+async def test_team_member_never_signs_in_through_a_provider(
+    db_session: AsyncSession,
+) -> None:
+    """Lot ROLE: a « service client » / « commercial » account reaches the
+    back-office; a provider sign-in would skip its 2FA and network check."""
+    member = User(
+        email="vente@example.com",
+        hashed_password="x",
+        is_active=True,
+        is_verified=True,
+        staff_role="sales",
+    )
+    db_session.add(member)
+    await db_session.commit()
+    await db_session.refresh(member)
+
+    # By e-mail: never linked.
+    with pytest.raises(OAuthRefused) as by_email:
+        await _find_or_create_user(
+            db_session,
+            provider="google",
+            identity=_identity("vente@example.com", verified=True),
+        )
+    assert by_email.value.code == "account_exists"
+    assert await _links(db_session) == []
+
+    # A link made while the account was still a customer stops working.
+    db_session.add(
+        UserOAuthLink(
+            user_id=member.id,
+            provider="google",
+            provider_user_id="g-before-role",
+            email_at_link="vente@example.com",
+        )
+    )
+    await db_session.commit()
+    with pytest.raises(OAuthRefused) as linked:
+        await _find_or_create_user(
+            db_session,
+            provider="google",
+            identity=_identity("vente@example.com", verified=True, uid="g-before-role"),
+        )
+    assert linked.value.code == "superuser_oauth_disabled"

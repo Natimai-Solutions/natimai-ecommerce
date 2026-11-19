@@ -43,8 +43,16 @@ REFRESH_KEY = "_refresh"
 #: Translatable fields per entity (the column names of the default language).
 PRODUCT_FIELDS: tuple[str, ...] = ("name", "description", "long_description")
 CATEGORY_FIELDS: tuple[str, ...] = ("display_name", "description")
+#: A brand sheet's translated text (lot BR).
+BRAND_FIELDS: tuple[str, ...] = ("description",)
 CONTENT_PAGE_FIELDS: tuple[str, ...] = ("title", "body_html")
-HOMEPAGE_BLOCK_FIELDS: tuple[str, ...] = ("title", "subtitle", "cta_label", "alt")
+HOMEPAGE_BLOCK_FIELDS: tuple[str, ...] = (
+    "title",
+    "subtitle",
+    "cta_label",
+    "alt",
+    "body_html",
+)
 #: ``label_fr`` is the column of the default-language label (historical name).
 SPEC_DEFINITION_FIELDS: tuple[str, ...] = ("label_fr",)
 
@@ -170,6 +178,7 @@ def localize_all(items: Iterable[Any], fields: Sequence[str]) -> None:
 
 
 __all__ = [
+    "BRAND_FIELDS",
     "CATEGORY_FIELDS",
     "CONTENT_PAGE_FIELDS",
     "HOMEPAGE_BLOCK_FIELDS",

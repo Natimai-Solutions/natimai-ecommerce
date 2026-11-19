@@ -4,13 +4,7 @@ import type { StatusTone } from '@app/ui/statusTone';
 
 /** Cycle de vie d'une demande, aligné sur QuoteRequestStatus côté backend. */
 export type QuoteRequestStatus =
-  | 'requested'
-  | 'email_failed'
-  | 'in_progress'
-  | 'quoted'
-  | 'won'
-  | 'lost'
-  | 'cancelled';
+  'requested' | 'email_failed' | 'in_progress' | 'quoted' | 'won' | 'lost' | 'cancelled';
 
 export interface AdminQuoteRequestListItem {
   quote_request_id: string;

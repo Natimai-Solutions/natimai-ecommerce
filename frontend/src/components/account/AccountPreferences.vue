@@ -17,10 +17,8 @@
               <span class="app-row__title">{{ $t('prefs.order') }}</span>
               <span class="app-row__meta">{{ $t('prefs.order_meta') }}</span>
             </div>
-            <q-toggle
-              v-model="prefs.notification_email_enabled"
-              :aria-label="$t('prefs.order_aria')"
-            />
+            <!-- Transactional: always sent, nothing to switch off (§12.3). -->
+            <span class="app-row__meta">{{ $t('prefs.order_always') }}</span>
           </li>
           <li class="app-row">
             <div class="app-row__main">
@@ -30,6 +28,17 @@
             <q-toggle
               v-model="prefs.notification_shipping_steps"
               :aria-label="$t('prefs.shipping_aria')"
+            />
+          </li>
+          <li class="app-row">
+            <div class="app-row__main">
+              <span class="app-row__title">{{ $t('prefs.messages') }}</span>
+              <span class="app-row__meta">{{ $t('prefs.messages_meta') }}</span>
+            </div>
+            <q-toggle
+              v-model="prefs.notification_messages"
+              :aria-label="$t('prefs.messages_aria')"
+              data-testid="prefs-messages"
             />
           </li>
           <li class="app-row">
@@ -138,8 +147,8 @@ const saving = ref(false);
 const saved = ref(false);
 const error = ref<string | null>(null);
 const prefs = reactive<Omit<UserPreferences, 'user_id'>>({
-  notification_email_enabled: true,
   notification_shipping_steps: true,
+  notification_messages: true,
   marketing_email_enabled: true,
   default_shipping_preference: null,
   locale: null,
@@ -170,8 +179,8 @@ async function load() {
   error.value = null;
   try {
     const data = await getMyPreferences();
-    prefs.notification_email_enabled = data.notification_email_enabled;
     prefs.notification_shipping_steps = data.notification_shipping_steps;
+    prefs.notification_messages = data.notification_messages ?? true;
     prefs.marketing_email_enabled = data.marketing_email_enabled ?? true;
     prefs.default_shipping_preference = data.default_shipping_preference;
     prefs.locale = data.locale;

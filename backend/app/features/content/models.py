@@ -13,7 +13,7 @@ import uuid
 from typing import Any
 
 from pydantic import computed_field
-from sqlalchemy import Column
+from sqlalchemy import Column, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, SQLModel
 
@@ -126,16 +126,48 @@ class ContentPageTemplate(SQLModel):
 
 
 # --------------------------------------------------------------------------
-# Homepage blocks (R2): the hero and the banners of the storefront homepage.
+# Homepage blocks (R2): the sections of the storefront homepage, in order —
+# the hero and the banners written in the admin, and the sections the shop
+# fills itself (category tiles, featured and most viewed products).
 # --------------------------------------------------------------------------
-HOMEPAGE_BLOCK_KINDS: tuple[str, ...] = ("hero", "banner")
+#: Sections whose content the shop computes (title and size set in the admin).
+HOMEPAGE_BUILTIN_KINDS: tuple[str, ...] = (
+    "categories",
+    "featured",
+    "popular",
+    "collection",
+)
+#: Sections written in the admin whose title is optional (lot A3, R5 to R7;
+#: lot A5, the personal sections of a signed-in customer).
+HOMEPAGE_TITLE_OPTIONAL_KINDS: tuple[str, ...] = (
+    *HOMEPAGE_BUILTIN_KINDS,
+    "personal",
+    "reassurance",
+    "brand_strip",
+    "rich_text",
+)
+#: The announcement shows above the header of every page, not in the
+#: homepage sections (lot A3, R4).
+HOMEPAGE_BLOCK_KINDS: tuple[str, ...] = (
+    "hero",
+    "banner",
+    "announcement",
+    "reassurance",
+    "brand_strip",
+    "rich_text",
+    "personal",
+    *HOMEPAGE_BUILTIN_KINDS,
+)
+#: Who a section is shown to (chantier accueil et messagerie, R8).
+HOMEPAGE_AUDIENCE_SCOPES: tuple[str, ...] = ("all", "guest", "customer")
 
 
 class HomepageBlockBase(Base):
     """Fields shared by the table and its schemas."""
 
     kind: str = Field(default="banner", max_length=20, index=True)
-    title: str = Field(max_length=200)
+    #: Empty for a shop section: the storefront shows its default title.
+    title: str = Field(default="", max_length=200)
     subtitle: str | None = Field(default=None, max_length=500)
     cta_label: str | None = Field(default=None, max_length=60)
     cta_link: str | None = Field(
@@ -150,6 +182,9 @@ class HomepageBlockBase(Base):
         default=None, max_length=500, description="External image, when no media is set"
     )
     alt: str | None = Field(default=None, max_length=255)
+    #: Text of a free content section (``rich_text``), cleaned by the
+    #: storefront before display.
+    body_html: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
     position: int = Field(default=0, index=True)
     is_published: bool = Field(default=False, index=True)
     starts_at: datetime.datetime | None = Field(default=None)
@@ -161,6 +196,18 @@ class HomepageBlockBase(Base):
             "Translated title / subtitle / cta_label / alt per language (R9 / T3)"
         ),
     )
+    config: dict[str, Any] = Field(
+        default_factory=dict,
+        sa_column=Column(JSONB, nullable=False, server_default="{}"),
+        description="Settings of the section type (number of items, period…)",
+    )
+    audience: dict[str, Any] = Field(
+        default_factory=dict,
+        sa_column=Column(JSONB, nullable=False, server_default="{}"),
+        description=(
+            "Who sees it: scope all | guest | customer, price_group_ids, locales"
+        ),
+    )
 
 
 class HomepageBlock(HomepageBlockBase, table=True):
@@ -170,23 +217,129 @@ class HomepageBlock(HomepageBlockBase, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
 
 
+class HomepageBlockItem(SQLModel, table=True):
+    """A product or a category listed in a section, in order (a manual
+    selection, chosen categories)."""
+
+    __tablename__ = "homepage_block_items"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    block_id: uuid.UUID = Field(
+        foreign_key="homepage_blocks.id", index=True, ondelete="CASCADE"
+    )
+    position: int = Field(default=0)
+    product_id: uuid.UUID | None = Field(
+        default=None, foreign_key="products.id", ondelete="CASCADE"
+    )
+    category_id: uuid.UUID | None = Field(
+        default=None, foreign_key="categories.id", ondelete="CASCADE"
+    )
+    brand_id: uuid.UUID | None = Field(
+        default=None, foreign_key="brands.id", ondelete="CASCADE"
+    )
+    #: Label shown instead of the category's own name (optional).
+    label: str | None = Field(default=None, max_length=100)
+    #: The label in the other offered languages: ``{"en": "…"}``.
+    translations: dict[str, str] = Field(
+        default_factory=dict,
+        sa_column=Column(JSONB, nullable=False, server_default="{}"),
+    )
+    #: An image of its own for a chosen category's tile (R3).
+    media_id: uuid.UUID | None = Field(
+        default=None, foreign_key="media_assets.id", ondelete="SET NULL"
+    )
+
+
+class HomepageItemWrite(SQLModel):
+    product_id: uuid.UUID | None = None
+    category_id: uuid.UUID | None = None
+    brand_id: uuid.UUID | None = None
+    label: str | None = Field(default=None, max_length=100)
+    translations: dict[str, str] = Field(default_factory=dict)
+    media_id: uuid.UUID | None = None
+
+
+class HomepageItemPublic(SQLModel):
+    product_id: uuid.UUID | None = None
+    category_id: uuid.UUID | None = None
+    brand_id: uuid.UUID | None = None
+    label: str | None = None
+    translations: dict[str, str] = Field(default_factory=dict)
+    media_id: uuid.UUID | None = None
+    #: Back-office: the chosen image's address (preview).
+    image_url: str | None = None
+    #: Name of the product or the category (back-office list).
+    name: str = ""
+
+
+class HomepageCategoryTile(SQLModel):
+    """A chosen category, ready for the storefront tile."""
+
+    id: uuid.UUID
+    title: str
+    image_url: str | None = None
+    image_srcset: str | None = None
+
+
+class HomepageBrandTile(SQLModel):
+    """A brand of a brand strip: its logo leads to its page."""
+
+    id: uuid.UUID
+    name: str
+    slug: str
+    logo: str
+    logo_srcset: str | None = None
+
+
+class HomepageReassurance(SQLModel):
+    """One pictogram and its short text, in the visitor's language."""
+
+    icon: str
+    text: str
+    link: str | None = None
+
+
+class HomepageCurrentOrder(SQLModel):
+    """The signed-in customer's order in progress, for the homepage card
+    (lot A5)."""
+
+    id: uuid.UUID
+    order_number: str | None = None
+    status: str
+    created_at: datetime.datetime | None = None
+    total_amount: str
+    currency: str | None = None
+
+
 class HomepageBlockWrite(SQLModel):
     """Admin create / replace payload."""
 
     kind: str = Field(default="banner", max_length=20)
-    title: str = Field(min_length=1, max_length=200)
+    title: str = Field(default="", max_length=200)
     subtitle: str | None = Field(default=None, max_length=500)
     cta_label: str | None = Field(default=None, max_length=60)
     cta_link: str | None = Field(default=None, max_length=500)
     media_id: uuid.UUID | None = None
     image_url: str | None = Field(default=None, max_length=500)
     alt: str | None = Field(default=None, max_length=255)
+    body_html: str | None = Field(default=None, max_length=20000)
     position: int = 0
     is_published: bool = False
     starts_at: datetime.datetime | None = None
     ends_at: datetime.datetime | None = None
     #: Raw mapping from the editor; validated and stamped by the API.
     translations: dict[str, dict[str, Any]] = Field(default_factory=dict)
+    config: dict[str, Any] = Field(default_factory=dict)
+    audience: dict[str, Any] = Field(default_factory=dict)
+    #: Products of a manual selection, categories of a manual « categories »
+    #: section, in order; replaces the stored list.
+    items: list[HomepageItemWrite] = Field(default_factory=list, max_length=48)
+
+
+class HomepageOrder(SQLModel):
+    """Every active block, in the new display order."""
+
+    ids: list[uuid.UUID] = Field(min_length=1, max_length=500)
 
 
 class HomepageImage(SQLModel):
@@ -211,11 +364,24 @@ class HomepageBlockPublic(SQLModel):
     media_id: uuid.UUID | None = None
     image_url: str | None = None
     alt: str | None = None
+    body_html: str | None = None
     position: int = 0
     is_published: bool = False
     starts_at: datetime.datetime | None = None
     ends_at: datetime.datetime | None = None
     image: HomepageImage | None = None
+    #: Storefront: the brands of a brand strip, the pictograms of a
+    #: reassurance band (lot A3).
+    brands: list[HomepageBrandTile] | None = None
+    reassurance: list[HomepageReassurance] | None = None
+    #: Signed-in customer: their order in progress (personal section, A5).
+    current_order: HomepageCurrentOrder | None = None
+    config: dict[str, Any] = Field(default_factory=dict)
+    audience: dict[str, Any] = Field(default_factory=dict)
+    #: Back-office: the listed products / categories.
+    items: list[HomepageItemPublic] = Field(default_factory=list)
+    #: Storefront: the chosen categories of a manual « categories » section.
+    categories: list[HomepageCategoryTile] | None = None
     #: Back-office only (the storefront gets the resolved texts).
     translations: dict[str, dict[str, Any]] = Field(default_factory=dict)
 
@@ -230,8 +396,37 @@ class HomepageBlockPublic(SQLModel):
         )
 
 
-class HomepagePublic(SQLModel):
-    """Storefront homepage content: at most one hero, then the banners."""
+# --------------------------------------------------------------------------
+# Homepage SEO (chantier accueil et messagerie, lot A4 / R11): the title and
+# description search engines show for the homepage, translated. One row.
+# --------------------------------------------------------------------------
+HOMEPAGE_SEO_FIELDS: tuple[str, ...] = ("title", "description")
 
-    hero: HomepageBlockPublic | None = None
-    banners: list[HomepageBlockPublic] = []
+
+class HomepageSeo(SQLModel, table=True):
+    __tablename__ = "homepage_seo"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    title: str = Field(default="", max_length=70)
+    description: str = Field(default="", max_length=170)
+    translations: dict[str, dict[str, Any]] = Field(
+        default_factory=dict,
+        sa_column=Column(JSONB, nullable=False, server_default="{}"),
+    )
+    modify_at: datetime.datetime | None = Field(default=None)
+    modify_by_id: uuid.UUID | None = Field(
+        default=None, foreign_key="users.id", nullable=True, ondelete="SET NULL"
+    )
+
+
+class HomepageSeoWrite(SQLModel):
+    title: str = Field(default="", max_length=70)
+    description: str = Field(default="", max_length=170)
+    translations: dict[str, dict[str, Any]] = Field(default_factory=dict)
+
+
+class HomepageSeoPublic(SQLModel):
+    title: str = ""
+    description: str = ""
+    #: Back-office only.
+    translations: dict[str, dict[str, Any]] = Field(default_factory=dict)

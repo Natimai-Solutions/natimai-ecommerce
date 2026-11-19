@@ -51,6 +51,9 @@ class MyProfilePublic(BaseModel):
     #: Opened at checkout without a password: the storefront offers to finish it.
     is_guest: bool = False
     created_at: datetime.datetime | None = None
+    #: Back-office: the menu of an administrator or a team member (lot ROLE).
+    is_superuser: bool = False
+    staff_role: str | None = None
 
 
 class MyProfileUpdate(BaseModel):
@@ -92,6 +95,8 @@ def _profile_of(user: CurrentUser) -> MyProfilePublic:
         is_verified=bool(user.is_verified),
         is_guest=bool(user.is_guest),
         created_at=getattr(user, "created_at", None),
+        is_superuser=bool(user.is_superuser),
+        staff_role=getattr(user, "staff_role", None),
     )
 
 

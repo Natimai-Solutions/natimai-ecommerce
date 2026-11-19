@@ -145,6 +145,9 @@ async def add_product_to_my_wishlist(
         product_id=payload.product_id,
         notes=payload.notes,
     )
+    # The write commits: the list is read again rather than through an
+    # expired object (MissingGreenlet, the item added but a 500 answered).
+    await session.refresh(wishlist)
 
     items = await crud_wishlist_item.get_by_wishlist_id(
         session=session, wishlist_id=wishlist.id
@@ -177,6 +180,7 @@ async def remove_product_from_my_wishlist(
                 "wishlist_id": str(wishlist.id),
             },
         )
+    await session.refresh(wishlist)
 
     items = await crud_wishlist_item.get_by_wishlist_id(
         session=session, wishlist_id=wishlist.id
