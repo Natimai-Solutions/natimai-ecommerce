@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import datetime
 import html
-import logging
 from typing import Any
 
 from sqlalchemy import or_
@@ -43,8 +42,6 @@ from app.features.notification.mailer import queue_email
 from app.features.user.crud.user_preference import get_preference_for_user
 from app.features.user.models.user import User
 from app.features.user.staff import MESSAGING_ROLES, staff_channels
-
-logger = logging.getLogger(__name__)
 
 NOTIFY_AFTER = datetime.timedelta(minutes=10)
 ACTIVE_WINDOW = datetime.timedelta(days=7)

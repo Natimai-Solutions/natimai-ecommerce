@@ -16,7 +16,6 @@
 from __future__ import annotations
 
 import datetime
-import logging
 import uuid
 from typing import Any
 
@@ -38,8 +37,6 @@ from app.features.notification.email_renderer import render_email
 from app.features.notification.mailer import queue_email
 from app.features.user.crud.user_preference import get_preference_for_user
 from app.features.user.models.user import User
-
-logger = logging.getLogger(__name__)
 
 NOTICE_BEFORE = datetime.timedelta(days=30)
 KEEP_LONGER = datetime.timedelta(days=365)
