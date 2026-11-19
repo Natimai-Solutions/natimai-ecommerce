@@ -590,3 +590,28 @@ async def test_erasing_an_account_removes_its_files(
     await erase_conversations(db_session, alice.id)
     await db_session.commit()
     assert [p for p in local_files.rglob("*") if p.is_file()] == []
+
+
+async def test_the_team_sees_the_customer_beside_the_thread(
+    db_session: AsyncSession,
+) -> None:
+    bob = await _user(db_session, "bob")
+    agent = await _user(db_session, "agent", staff=True)
+    await _fresh(db_session, bob)
+    status = OrderStatus(name=f"Paid {uuid.uuid4().hex[:6]}")
+    db_session.add(status)
+    await db_session.flush()
+    order = Order(
+        user_id=bob.id, order_status_id=status.id, order_number="CMD-2026-00042"
+    )
+    db_session.add(order)
+    order_id = order.id
+    await db_session.commit()
+    conversation_id = await _open(
+        db_session, bob, context_type="order", context_id=str(order_id)
+    )
+    await _fresh(db_session, agent)
+    detail = await staff_routes.get_conversation(conversation_id, db_session, agent)
+    assert detail.context_label == "CMD-2026-00042"
+    assert detail.customer_panel is not None
+    assert [o.number for o in detail.customer_panel.orders] == ["CMD-2026-00042"]

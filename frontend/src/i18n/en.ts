@@ -158,6 +158,7 @@ const en: MessageSchema = {
     unavailable_now: 'Currently unavailable',
   },
   product: {
+    ask: 'A question about this product?',
     crumbs: 'Breadcrumb',
     back_to_catalogue: 'Back to the catalogue',
     photos: 'Photos',
@@ -598,6 +599,7 @@ const en: MessageSchema = {
     total: 'Order total',
   },
   group: {
+    ask: 'Talk to a salesperson',
     group: 'Group',
     hint: 'The prices shown on the site take this group into account.',
     load_failed: 'Your price group could not be loaded.',
@@ -1019,6 +1021,8 @@ const en: MessageSchema = {
     valid_until: '· valid until {date}',
   },
   tracking: {
+    ask_subject: 'Order {ref}',
+    ask: 'A problem with this order?',
     unpaid_text: 'This order is not paid yet.',
     pay_now: 'Pay {amount}',
     balance: 'Balance',

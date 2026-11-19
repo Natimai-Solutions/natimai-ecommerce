@@ -374,6 +374,13 @@
                 data-testid="order-reorder"
                 @click="onReorder"
               />
+              <AskButton
+                :label="$t('tracking.ask')"
+                topic="order_tracking"
+                context-type="order"
+                :context-id="orderId"
+                :subject="$t('tracking.ask_subject', { ref: reference })"
+              />
               <q-btn
                 v-if="canCancel"
                 flat
@@ -434,6 +441,7 @@ import { useDepartureLabels } from '@/composables/useDepartureLabels';
 import { computed, onMounted, ref, watch } from 'vue';
 import { useMeta } from 'quasar';
 import { NOINDEX } from '@/utils/seo';
+import AskButton from '@/components/AskButton.vue';
 import { useRoute, useRouter } from 'vue-router';
 import { formatDate, formatDateTime, orderRef } from '@app/utils';
 

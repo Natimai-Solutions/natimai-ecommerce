@@ -1117,6 +1117,8 @@ const en: MessageSchema = {
     empty: 'No section: the homepage only shows the default title.',
   },
   messaging: {
+    points: '{n} loyalty points',
+    no_order: 'No order',
     attach: 'Attach',
     file_too_large: 'The file is larger than {mb} MB.',
     add_note: 'Add the note',

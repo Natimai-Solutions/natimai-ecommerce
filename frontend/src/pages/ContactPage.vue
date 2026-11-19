@@ -133,6 +133,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useRoute } from 'vue-router';
 import AppNotice from '@app/ui/AppNotice.vue';
 
 import { sendContact } from '@/api/messaging';
@@ -218,6 +219,11 @@ async function onSubmit() {
     captcha.reset();
   }
 }
+
+// A shortcut (« a question about this product? ») pre-fills topic and subject.
+const route = useRoute();
+if (typeof route.query.topic === 'string') form.topic = route.query.topic;
+if (typeof route.query.subject === 'string') form.subject = route.query.subject.slice(0, 200);
 
 onMounted(() => void messaging.loadInfo());
 </script>

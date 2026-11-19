@@ -434,6 +434,7 @@ async function syncWithRoute() {
     draft.context_type =
       typeof route.query.context_type === 'string' ? route.query.context_type : null;
     draft.context_id = typeof route.query.context_id === 'string' ? route.query.context_id : null;
+    if (typeof route.query.subject === 'string') draft.subject = route.query.subject.slice(0, 200);
     return;
   }
   if (id) {

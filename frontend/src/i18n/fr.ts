@@ -158,6 +158,7 @@ const fr = {
     unavailable_now: 'Indisponible pour le moment',
   },
   product: {
+    ask: 'Une question sur ce produit ?',
     crumbs: "Fil d'Ariane",
     back_to_catalogue: 'Retour au catalogue',
     photos: 'Photos',
@@ -607,6 +608,7 @@ const fr = {
     total: 'Total de la commande',
   },
   group: {
+    ask: 'Parler à un commercial',
     group: 'Groupe',
     hint: 'Les prix affichés sur le site tiennent compte de ce groupe.',
     load_failed: 'Impossible de charger votre groupe tarifaire.',
@@ -1036,6 +1038,8 @@ const fr = {
     valid_until: "· valable jusqu'au {date}",
   },
   tracking: {
+    ask_subject: 'Commande {ref}',
+    ask: 'Un problème avec cette commande ?',
     unpaid_text: 'Cette commande n’est pas encore payée.',
     pay_now: 'Payer {amount}',
     balance: 'Solde',

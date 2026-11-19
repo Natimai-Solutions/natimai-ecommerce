@@ -309,6 +309,15 @@
             </q-btn>
           </div>
 
+          <AskButton
+            class="q-mt-sm"
+            :label="$t('product.ask')"
+            topic="pre_sale"
+            context-type="product"
+            :context-id="product.id"
+            :subject="product.name"
+          />
+
           <AppNotice v-if="cartError" tone="warning" dense class="q-mt-md">
             {{ cartError }}
           </AppNotice>
@@ -515,6 +524,7 @@ import {
   trackProductView,
 } from '@/api/products';
 import ProductImage from '@/components/ProductImage.vue';
+import AskButton from '@/components/AskButton.vue';
 import ProductOffers from '@/components/ProductOffers.vue';
 import ShippingEstimate from '@/components/ShippingEstimate.vue';
 import ProductReviews from '@/components/ProductReviews.vue';

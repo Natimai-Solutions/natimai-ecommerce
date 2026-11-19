@@ -41,8 +41,11 @@ from app.features.messaging.models import (
     MessageSide,
 )
 from app.features.order.models.order import Order
+from app.features.order.models.order_status import OrderStatus
+from app.features.payment.services import loyalty
 from app.features.product.models.price_group import PriceGroup
 from app.features.product.models.product import Product
+from app.features.product.services.group_pricing import resolve_customer_group
 from app.features.user.models.group_upgrade_request import GroupUpgradeRequest
 from app.features.user.models.user import User
 from app.features.user.staff import STAFF_ROLES, staff_channels
@@ -80,8 +83,28 @@ class StaffMessage(BaseModel):
     attachments: list[AttachmentPublic] = []
 
 
+class PanelOrder(BaseModel):
+    id: uuid.UUID
+    number: str | None = None
+    status: str | None = None
+    total_amount: str | None = None
+    currency: str | None = None
+    created_at: datetime.datetime | None = None
+
+
+class CustomerPanel(BaseModel):
+    """The customer beside the thread (lot MSG3): their price group, last
+    orders and loyalty points — what an answer usually needs."""
+
+    price_group_label: str | None = None
+    orders: list[PanelOrder] = []
+    loyalty_points: int | None = None
+    phone: str | None = None
+
+
 class StaffConversationDetail(StaffConversation):
     messages: list[StaffMessage] = []
+    customer_panel: CustomerPanel | None = None
     #: Label of what the conversation refers to (order number…), if any.
     context_label: str | None = None
 
@@ -160,6 +183,40 @@ async def _get(
     if conversation is None or conversation.channel not in channels:
         raise service.not_found(conversation_id)
     return conversation
+
+
+async def _customer_panel(session: SessionDep, customer_id: uuid.UUID) -> CustomerPanel:
+    customer = await session.get(User, customer_id)
+    group = await resolve_customer_group(session, customer) if customer else None
+    rows = (
+        await session.exec(
+            select(Order, OrderStatus.name)
+            .join(OrderStatus, col(OrderStatus.id) == col(Order.order_status_id))
+            .where(col(Order.user_id) == customer_id)
+            .order_by(col(Order.created_at).desc())
+            .limit(5)
+        )
+    ).all()
+    try:
+        points: int | None = await loyalty.balance(session, customer_id)
+    except Exception:  # noqa: BLE001 - the panel never breaks the thread
+        points = None
+    return CustomerPanel(
+        price_group_label=group.label if group else None,
+        orders=[
+            PanelOrder(
+                id=order.id,
+                number=order.order_number,
+                status=status_name,
+                total_amount=str(order.total_amount),
+                currency=order.currency,
+                created_at=order.created_at,
+            )
+            for order, status_name in rows
+        ],
+        loyalty_points=points,
+        phone=customer.phone if customer else None,
+    )
 
 
 async def _context_label(session: SessionDep, conversation: Conversation) -> str | None:
@@ -333,6 +390,10 @@ async def _detail(
         **(await _staff_view(session, conversation)).model_dump()
     )
     detail.context_label = await _context_label(session, conversation)
+    if conversation.customer_id is not None:
+        detail.customer_panel = await _customer_panel(session, conversation.customer_id)
+    elif conversation.guest_phone:
+        detail.customer_panel = CustomerPanel(phone=conversation.guest_phone)
     attached = await attachments_of(session, [m.id for m in messages])
     detail.messages = [
         StaffMessage(

@@ -137,6 +137,39 @@
           <StatusTag :tone="statusTone(current.status)" :label="statusLabel(current.status)" />
         </div>
 
+        <div
+          v-if="current.customer_panel"
+          class="messaging__panel"
+          data-testid="conversation-customer-panel"
+        >
+          <span v-if="current.customer_panel.price_group_label">
+            <q-icon name="ph:users-three" size="16px" />
+            {{ current.customer_panel.price_group_label }}
+          </span>
+          <span v-if="current.customer_panel.phone">
+            <q-icon name="ph:phone" size="16px" /> {{ current.customer_panel.phone }}
+          </span>
+          <span v-if="current.customer_panel.loyalty_points">
+            <q-icon name="ph:star" size="16px" />
+            {{ $t('messaging.points', { n: current.customer_panel.loyalty_points }) }}
+          </span>
+          <span v-if="current.customer_panel.orders?.length" class="messaging__orders">
+            <q-icon name="ph:receipt" size="16px" />
+            <router-link
+              v-for="order in current.customer_panel.orders"
+              :key="order.id"
+              :to="`/orders/${order.id}`"
+              class="text-link"
+            >
+              {{ order.number || order.id.slice(0, 8) }}
+              <span class="text-subtle">({{ order.status }})</span>
+            </router-link>
+          </span>
+          <span v-else-if="current.customer_id" class="text-subtle">
+            {{ $t('messaging.no_order') }}
+          </span>
+        </div>
+
         <div class="row q-col-gutter-sm items-center q-mb-sm">
           <q-select
             :model-value="current.topic"
@@ -664,6 +697,28 @@ onBeforeUnmount(() => {
   gap: 12px;
   flex-wrap: wrap;
   margin-bottom: 12px;
+}
+
+.messaging__panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  border: 1px solid var(--n-line);
+  border-radius: var(--n-radius);
+  font-size: 13px;
+
+  span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+}
+
+.messaging__orders {
+  flex-wrap: wrap;
 }
 
 .messaging__thread {

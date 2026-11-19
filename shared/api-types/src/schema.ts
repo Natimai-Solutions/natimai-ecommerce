@@ -12055,6 +12055,24 @@ export interface components {
             consolidations?: components["schemas"]["ShippingRouteTrackingConsolidationPublic"][];
         };
         /**
+         * CustomerPanel
+         * @description The customer beside the thread (lot MSG3): their price group, last
+         *     orders and loyalty points — what an answer usually needs.
+         */
+        CustomerPanel: {
+            /** Price Group Label */
+            price_group_label?: string | null;
+            /**
+             * Orders
+             * @default []
+             */
+            orders: components["schemas"]["PanelOrder"][];
+            /** Loyalty Points */
+            loyalty_points?: number | null;
+            /** Phone */
+            phone?: string | null;
+        };
+        /**
          * CustomsRateAssignBody
          * @description Set (or clear, with null) a customs rate percentage.
          */
@@ -16470,6 +16488,24 @@ export interface components {
             stale_pending: number;
             /** Oldest Pending Age Minutes */
             oldest_pending_age_minutes: number | null;
+        };
+        /** PanelOrder */
+        PanelOrder: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Number */
+            number?: string | null;
+            /** Status */
+            status?: string | null;
+            /** Total Amount */
+            total_amount?: string | null;
+            /** Currency */
+            currency?: string | null;
+            /** Created At */
+            created_at?: string | null;
         };
         /**
          * PaymentApproveRequest
@@ -22161,6 +22197,7 @@ export interface components {
              * @default []
              */
             messages: components["schemas"]["StaffMessage"][];
+            customer_panel?: components["schemas"]["CustomerPanel"] | null;
             /** Context Label */
             context_label?: string | null;
         };

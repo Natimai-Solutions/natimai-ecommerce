@@ -125,6 +125,12 @@ takes a tag as its `ref`.
   someone whose role covers the channel; the team's unread e-mails go to the
   members of the channel before the channel's address. Changing a role ends
   the person's open sessions.
+- Messaging shortcuts (lot MSG3): « A question about this product? » on the
+  product page, « A problem with this order? » on an order, « Talk to a
+  salesperson » in *My group* — a request pre-filled with its topic and what
+  it is about (the customer's messages), or the contact page pre-filled for
+  a visitor. Beside a thread, the team sees the customer: price group,
+  phone, last five orders (linked) and loyalty points.
 
 - Homepage sections: the homepage is an ordered list of sections set in the
   admin (*Site homepage*) — hero, banners, category tiles, « favourites »
