@@ -215,3 +215,58 @@ async def test_an_existing_account_signs_in_and_only_its_own_address_attaches(
     assert attached.conversation_id == conversation_id
     row = await db_session.get(Conversation, conversation_id)
     assert row is not None and row.customer_id == owner_id
+
+
+async def test_a_new_request_joins_only_a_thread_that_says_the_same(
+    db_session: AsyncSession,
+) -> None:
+    """Nothing proves who writes: under another name or phone, or on
+    another channel, a request gets its own thread (it was added to the open
+    thread of the address, its details lost)."""
+    await routes.contact(_form(phone="87 00 00 01"), _request(), db_session)
+    # Same person, same channel: one thread.
+    await routes.contact(_form(body="Et la garantie ?"), _request(), db_session)
+    assert len(await _conversations(db_session)) == 1
+    # Someone else using the address: a thread of their own.
+    await routes.contact(
+        _form(name="Intrus", phone="87 99 99 99", body="Changez l'adresse"),
+        _request(),
+        db_session,
+    )
+    # Another channel (customer service): its own thread too.
+    await routes.contact(_form(topic="delivery"), _request(), db_session)
+    rows = await _conversations(db_session)
+    assert len(rows) == 3
+    assert {c.guest_phone for c in rows} == {"87 00 00 01", "87 99 99 99", None}
+
+
+async def test_limits_count_after_the_captcha_and_per_address(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    hits: list[str] = []
+
+    async def count(key: str, **_kwargs: Any) -> bool:
+        hits.append(key)
+        return key.startswith("contact:email:") and hits.count(key) > 3
+
+    monkeypatch.setattr(routes, "hit_rate_limit", count)
+
+    async def no_captcha(*_args: Any) -> None:
+        raise AppError(code="captcha.required", status_code=400, message="x")
+
+    monkeypatch.setattr(routes, "require_captcha", no_captcha)
+    with pytest.raises(AppError):
+        await routes.contact(_form(), _request(), db_session)
+    # Refused at the captcha: no counter used.
+    assert hits == []
+
+    async def captcha_ok(*_args: Any) -> None:
+        return None
+
+    monkeypatch.setattr(routes, "require_captcha", captcha_ok)
+    for _ in range(3):
+        await routes.contact(_form(), _request(), db_session)
+    with pytest.raises(AppError) as limited:
+        await routes.contact(_form(), _request(), db_session)
+    assert limited.value.code == "contact.rate_limited"
+    assert "teva@example.com" not in " ".join(hits)  # the address is hashed

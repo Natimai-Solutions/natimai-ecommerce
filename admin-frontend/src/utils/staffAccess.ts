@@ -3,7 +3,7 @@
  * reaches everything; the API checks the same allow-list on every route.
  */
 export const ROLE_SCREENS: Record<string, string[]> = {
-  customer_service: ['/messages', '/orders'],
+  customer_service: ['/messages', '/orders', '/quote-requests'],
   sales: ['/messages', '/orders', '/quote-requests'],
 };
 

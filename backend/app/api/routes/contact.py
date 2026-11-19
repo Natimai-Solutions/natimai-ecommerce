@@ -13,6 +13,7 @@ visitor's conversations to the account.
 
 from __future__ import annotations
 
+import hashlib
 import uuid
 
 from fastapi import APIRouter, Depends, Request, Response
@@ -39,6 +40,8 @@ router = APIRouter(
 )
 
 #: All visitors together: a flood from many addresses stops here.
+#: Requests of one address an hour (a visitor writes once or twice).
+PER_ADDRESS_LIMIT_PER_HOUR = 3
 GLOBAL_LIMIT_PER_HOUR = 200
 
 
@@ -87,19 +90,35 @@ async def contact(
     """A visitor writes to the shop. Always 202: the team answers by e-mail."""
     if body.website.strip():
         return Received()  # a robot: dropped, same answer
-    if await hit_rate_limit(
-        "contact:all", limit=GLOBAL_LIMIT_PER_HOUR, window_seconds=3600
-    ):
-        raise AppError(
-            code="contact.rate_limited",
-            status_code=429,
-            message="Too many attempts: try again in a few minutes.",
-            details={"scope": "contact"},
-        )
+    # The captcha and the topic first: a request refused there never uses
+    # up the shared hourly ceiling (a robot without a captcha emptied it).
     await require_captcha(request, session)
-    service.channel_of(body.topic)  # 400 on an unknown topic
+    channel = service.channel_of(body.topic)  # 400 on an unknown topic
     email = str(body.email).strip().lower()
-    existing = await guests.open_guest_conversation_for(session, email)
+    digest = hashlib.sha256(email.encode()).hexdigest()[:32]
+    for key, limit in (
+        (f"contact:email:{digest}", PER_ADDRESS_LIMIT_PER_HOUR),
+        ("contact:all", GLOBAL_LIMIT_PER_HOUR),
+    ):
+        if await hit_rate_limit(key, limit=limit, window_seconds=3600):
+            raise AppError(
+                code="contact.rate_limited",
+                status_code=429,
+                message="Too many attempts: try again in a few minutes.",
+                details={"scope": "contact"},
+            )
+    phone = (body.phone or "").strip() or None
+    company = (body.company or "").strip() or None
+    existing = await guests.open_guest_conversation_for(session, email, channel=channel)
+    # Nothing proves who writes: a new request joins the open one only when
+    # it says the same (name, phone, company); otherwise its own thread, so
+    # that nobody writes into a stranger's conversation under their name.
+    if existing is not None and not (
+        (existing.guest_name or "").strip().casefold() == body.name.strip().casefold()
+        and (phone is None or phone == existing.guest_phone)
+        and (company is None or company == existing.guest_company)
+    ):
+        existing = None
     if existing is not None:
         await service.add_message(
             session,
@@ -118,8 +137,8 @@ async def contact(
             guest={
                 "guest_name": body.name.strip(),
                 "guest_email": email,
-                "guest_phone": (body.phone or "").strip() or None,
-                "guest_company": (body.company or "").strip() or None,
+                "guest_phone": phone,
+                "guest_company": company,
                 "guest_locale": request_locale(),
             },
         )

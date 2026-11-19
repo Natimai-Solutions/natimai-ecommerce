@@ -238,6 +238,10 @@ async def release_stale(
             col(Conversation.status) == ConversationStatus.OPEN.value,
             col(Conversation.assigned_to_id).is_not(None),
             col(Conversation.assigned_at) <= now - datetime.timedelta(days=days),
+            # The wait is counted from the customer's message: a holder who
+            # answers all week keeps a conversation the customer writes in.
+            col(Conversation.last_customer_message_at)
+            <= now - datetime.timedelta(days=days),
             or_(
                 col(Conversation.last_staff_message_at).is_(None),
                 col(Conversation.last_staff_message_at)

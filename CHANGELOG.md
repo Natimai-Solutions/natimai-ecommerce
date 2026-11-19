@@ -9,6 +9,12 @@ takes a tag as its `ref`.
 
 ### Security
 
+- Public contact: the captcha is checked before the hourly ceiling (a robot
+  without a captcha used it up for everyone), an address may send 3
+  requests an hour, and a new request joins the open thread of its address
+  only on the same channel, about nothing in particular, under the same
+  name and details (anyone could write into a stranger's thread).
+
 - Back-office team accounts (« service client », « commercial ») can no
   longer sign in through Google / Microsoft: that path skipped their
   two-factor authentication and network check (administrators were already
@@ -77,6 +83,13 @@ takes a tag as its `ref`.
   a message is French.
 
 ### Added
+
+- Messaging outside the hours: the customer page and the contact page say
+  when the team is back (« We will answer from Monday 08:00 »), computed in
+  the shop's zone (`open_now`, `next_opening`, `next_opening_days` of the
+  messaging info).
+- The customer service role reads quote requests (list, detail, PDF), as
+  the role grid planned; issuing and following up stay with sales.
 
 - Personal homepage sections (chantier accueil et messagerie, lot A5):
   « recently viewed » (kept in the browser only, visitors included), « buy
@@ -545,6 +558,12 @@ takes a tag as its `ref`.
   (superuser-only), as the base of the future fine-grained roles.
 
 ### Fixed
+
+- A quote issued without its e-mail (or whose e-mail failed) still sends
+  the messaging « a reply is waiting » notice; the automatic release counts
+  from the customer's last message (a holder answering all week lost the
+  conversation); with the messaging module off, issuing a quote, commenting
+  it or deciding a price-group request no longer writes in the messaging.
 
 - Review of the chantier accueil et messagerie: a stored homepage section
   that no longer passes validation (a language removed from the offered

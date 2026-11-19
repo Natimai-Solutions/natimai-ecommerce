@@ -63,6 +63,12 @@ class MessagingInfo(BaseModel):
     timezone: str
     response_time: ResponseTime
     contact_email: str | None = None
+    #: The team is at work now; else when it is back (local date and time,
+    #: ``YYYY-MM-DDTHH:MM`` in the shop's zone).
+    open_now: bool = True
+    next_opening: str | None = None
+    #: Days from today (shop's zone) to ``next_opening``: 0, 1, …
+    next_opening_days: int | None = None
 
 
 class AttachmentPublic(BaseModel):

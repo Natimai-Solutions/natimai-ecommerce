@@ -148,9 +148,33 @@ async def response_time(session: AsyncSession, hours: Hours) -> dict[str, Any]:
     return {"unit": unit, "value": value, "measured": True}
 
 
-async def public_info(session: AsyncSession) -> dict[str, Any]:
+def next_opening(
+    now: datetime.datetime, hours: Hours, tz: ZoneInfo
+) -> datetime.datetime | None:
+    """``None`` while the team is at work; otherwise when it is next (the
+    customer writing on Saturday reads « from Monday 08:00 »)."""
+    local = as_utc(now).astimezone(tz)
+    for offset in range(8):
+        day = local.date() + datetime.timedelta(days=offset)
+        if day.isoweekday() not in hours.days:
+            continue
+        open_at = datetime.datetime.combine(day, hours.start, tzinfo=tz)
+        close_at = datetime.datetime.combine(day, hours.end, tzinfo=tz)
+        if offset == 0 and open_at <= local < close_at:
+            return None
+        if local < open_at:
+            return open_at
+    return None
+
+
+async def public_info(
+    session: AsyncSession, *, now: datetime.datetime | None = None
+) -> dict[str, Any]:
     hours = await opening_hours(session)
     contact = str(await runtime_settings.get("email_contact", session) or "").strip()
+    tz = ZoneInfo(settings.SHOP_TIMEZONE)
+    moment = now or utcnow()
+    reopens = next_opening(moment, hours, tz)
     return {
         "channels": [
             {"channel": channel, "topics": list(topics)}
@@ -162,6 +186,17 @@ async def public_info(session: AsyncSession) -> dict[str, Any]:
         "timezone": settings.SHOP_TIMEZONE,
         "response_time": await response_time(session, hours),
         "contact_email": contact or None,
+        # Outside the hours (§6): when the team is back, in the shop's zone,
+        # as a local date and time the interfaces show as is.
+        "open_now": reopens is None,
+        "next_opening": reopens.strftime("%Y-%m-%dT%H:%M") if reopens else None,
+        # 0 = later today, 1 = tomorrow…: the interfaces say « today »,
+        # « tomorrow » or the weekday without date arithmetic of their own.
+        "next_opening_days": (
+            (reopens.date() - as_utc(moment).astimezone(tz).date()).days
+            if reopens
+            else None
+        ),
     }
 
 
@@ -173,6 +208,7 @@ __all__ = [
     "Hours",
     "business_hours_between",
     "measured_response",
+    "next_opening",
     "opening_hours",
     "public_info",
     "reset_cache",

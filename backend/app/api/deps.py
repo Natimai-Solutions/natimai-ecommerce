@@ -287,6 +287,16 @@ async def get_current_quote_staff(current_user: CurrentUser) -> User:
 CurrentQuoteStaff = Annotated[User, Depends(get_current_quote_staff)]
 
 
+async def get_current_quote_reader(current_user: CurrentUser) -> User:
+    """Reading quote requests: superusers and both team roles (grid of the
+    chantier accueil et messagerie, §6: the customer service reads them, a
+    conversation it handles may be about one; issuing stays with sales)."""
+    return _require_role(current_user, *STAFF_ROLES)
+
+
+CurrentQuoteReader = Annotated[User, Depends(get_current_quote_reader)]
+
+
 async def get_current_logistics_admin(
     current_user: CurrentUser, session: SessionDep
 ) -> User:

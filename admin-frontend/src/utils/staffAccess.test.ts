@@ -12,7 +12,8 @@ describe('back-office screens by role (lot ROLE)', () => {
     const support = { is_superuser: false, staff_role: 'customer_service' };
     expect(canOpen(support, '/messages/abc')).toBe(true);
     expect(canOpen(support, '/orders/42')).toBe(true);
-    expect(canOpen(support, '/quote-requests')).toBe(false);
+    expect(canOpen(support, '/quote-requests')).toBe(true);
+    expect(canOpen(support, '/payments')).toBe(false);
     expect(canOpen(support, '/')).toBe(false);
     expect(homeOf(support)).toBe('/messages');
     expect(canOpen({ staff_role: 'sales' }, '/quote-requests')).toBe(true);

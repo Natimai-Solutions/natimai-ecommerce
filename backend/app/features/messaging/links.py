@@ -131,10 +131,18 @@ async def open_for_quote(
 
 
 async def quote_issued(
-    session: AsyncSession, quote: QuoteRequest, *, staff: User
+    session: AsyncSession,
+    quote: QuoteRequest,
+    *,
+    staff: User,
+    emailed: bool = True,
 ) -> None:
     """Post « your quote is ready » in the quote's conversation (no commit).
-    The quote e-mail already told the customer: no second notice."""
+    When the quote goes by e-mail (``emailed``), that e-mail tells the
+    customer: no second notice; otherwise the usual « a reply is waiting »
+    notice goes."""
+    if not await module_enabled(session, "messaging"):
+        return
     conversation = await conversation_about(session, "quote_request", quote.id)
     if conversation is None or not quote.quote_number:
         return
@@ -156,14 +164,26 @@ async def quote_issued(
         author_id=staff.id,
         now=now,
     )
-    conversation.customer_notified_at = now
-    session.add(conversation)
+    if emailed:
+        conversation.customer_notified_at = now
+        session.add(conversation)
+
+
+async def quote_email_not_sent(session: AsyncSession, quote: QuoteRequest) -> None:
+    """The quote e-mail did not leave: the « a reply is waiting » notice is
+    owed again (no commit)."""
+    conversation = await conversation_about(session, "quote_request", quote.id)
+    if conversation is not None and conversation.customer_notified_at is not None:
+        conversation.customer_notified_at = None
+        session.add(conversation)
 
 
 async def quote_commented(
     session: AsyncSession, quote: QuoteRequest, *, staff: User, comment: str
 ) -> None:
     """The quote's internal comment, written as an internal note (no commit)."""
+    if not await module_enabled(session, "messaging"):
+        return
     conversation = await conversation_about(session, "quote_request", quote.id)
     if conversation is None or not comment.strip():
         return
@@ -219,6 +239,8 @@ async def group_decided(
 ) -> None:
     """Post the decision in the request's conversation (no commit): the
     customer is told by the usual « a reply is waiting » e-mail."""
+    if not await module_enabled(session, "messaging"):
+        return
     conversation = await conversation_about(session, "group_request", request.id)
     if conversation is None:
         return
@@ -246,6 +268,7 @@ __all__ = [
     "open_for_group_request",
     "open_for_quote",
     "quote_commented",
+    "quote_email_not_sent",
     "quote_issued",
     "text",
 ]

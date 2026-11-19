@@ -21,7 +21,12 @@ from fastapi import APIRouter, Depends, Query, Response
 from pydantic import BaseModel, Field
 from sqlmodel import col, or_, select
 
-from app.api.deps import CurrentQuoteStaff, SessionDep, module_required
+from app.api.deps import (
+    CurrentQuoteReader,
+    CurrentQuoteStaff,
+    SessionDep,
+    module_required,
+)
 from app.core.errors import AppError
 from app.features.cart.models.quote_request import (
     CLOSED_QUOTE_STATUSES,
@@ -36,7 +41,11 @@ from app.features.cart.services.quote import (
     quote_pdf_response,
     send_quote_email,
 )
-from app.features.messaging.links import quote_commented, quote_issued
+from app.features.messaging.links import (
+    quote_commented,
+    quote_email_not_sent,
+    quote_issued,
+)
 
 router = APIRouter(
     prefix="/admin/quote-requests",
@@ -161,7 +170,7 @@ async def _read_quote(session: SessionDep, quote_id: uuid.UUID) -> QuoteRequest:
 @router.get("", response_model=list[AdminQuoteRequestListItem])
 async def list_quote_requests(
     session: SessionDep,
-    _admin: CurrentQuoteStaff,
+    _admin: CurrentQuoteReader,
     skip: Annotated[int, Query(ge=0)] = 0,
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
     status: QuoteRequestStatus | None = None,
@@ -202,7 +211,7 @@ async def list_quote_requests(
 async def get_quote_request(
     quote_id: uuid.UUID,
     session: SessionDep,
-    _admin: CurrentQuoteStaff,
+    _admin: CurrentQuoteReader,
 ) -> AdminQuoteRequestDetail:
     """Le détail d'une demande, panier figé compris."""
     return _to_detail(await _read_quote(session, quote_id))
@@ -274,16 +283,21 @@ async def issue_quote_request(
             },
         )
     await issue_quote(session, quote, body)
-    await quote_issued(session, quote, staff=admin)
+    await quote_issued(session, quote, staff=admin, emailed=body.send_email)
     await session.commit()
     quote = await _read_quote(session, quote_id)
     sent = await send_quote_email(session, quote) if body.send_email else False
+    if body.send_email and not sent:
+        # The e-mail did not leave: the messaging notice is owed again.
+        await quote_email_not_sent(session, quote)
+        await session.commit()
+        quote = await _read_quote(session, quote_id)
     return QuoteIssueResponse(**_to_detail(quote).model_dump(), email_sent=sent)
 
 
 @router.get("/{quote_id}/pdf")
 async def download_quote_pdf(
-    quote_id: uuid.UUID, session: SessionDep, _admin: CurrentQuoteStaff
+    quote_id: uuid.UUID, session: SessionDep, _admin: CurrentQuoteReader
 ) -> Response:
     """Le PDF du devis émis."""
     quote = await _read_quote(session, quote_id)

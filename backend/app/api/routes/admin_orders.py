@@ -656,7 +656,7 @@ async def get_order_detail(
 ) -> AdminOrderDetail:
     """Return the enriched detail of one order: client, status, lines, payments."""
     # Lot ROLE: the team reads the order, not its purchase costs nor margins.
-    sees_costs = bool(_admin.is_superuser)
+    sees_costs = bool(getattr(_admin, "is_superuser", False))
     try:
         order = await crud_order.read(session, id=order_id)
     except RecordNotFoundError as exc:

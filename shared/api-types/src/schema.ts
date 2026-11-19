@@ -15453,6 +15453,15 @@ export interface components {
             response_time: components["schemas"]["ResponseTime"];
             /** Contact Email */
             contact_email?: string | null;
+            /**
+             * Open Now
+             * @default true
+             */
+            open_now: boolean;
+            /** Next Opening */
+            next_opening?: string | null;
+            /** Next Opening Days */
+            next_opening_days?: number | null;
         };
         /** ModerationDecision */
         ModerationDecision: {

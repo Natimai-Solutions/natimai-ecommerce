@@ -193,9 +193,34 @@
             {{ $t('quotes.ordered') }}
             <router-link :to="`/orders/${detail.order_id}`" class="admin-link">{{
               $t('quotes.see_order')
-            }}</router-link
-            >.
+            }}</router-link>.
           </AppNotice>
+          <!-- Customer service (lot ROLE): reads the request, sales answers it. -->
+          <q-markup-table
+            v-else-if="!canEdit"
+            flat
+            bordered
+            dense
+            class="q-mb-sm"
+            data-testid="quote-lines-readonly"
+          >
+            <thead>
+              <tr>
+                <th class="text-left">{{ $t('quotes.designation') }}</th>
+                <th class="text-right">{{ $t('quotes.qty') }}</th>
+                <th class="text-right">{{ $t('quotes.unit_ttc') }}</th>
+                <th class="text-right">{{ $t('quotes.total') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(line, index) in issueLines" :key="index">
+                <td>{{ line.product_name }}</td>
+                <td class="text-right font-mono">{{ line.quantity }}</td>
+                <td class="text-right font-mono">{{ line.unit_price }}</td>
+                <td class="text-right font-mono">{{ lineTotal(line) }}</td>
+              </tr>
+            </tbody>
+          </q-markup-table>
           <template v-else>
             <q-markup-table flat bordered dense class="q-mb-sm">
               <thead>
@@ -324,27 +349,29 @@
             </div>
           </template>
 
-          <q-separator class="q-my-lg" />
+          <template v-if="canEdit">
+            <q-separator class="q-my-lg" />
 
-          <h3 class="admin-subtitle">{{ $t('quotes.follow_up') }}</h3>
-          <q-select
-            v-model="editStatus"
-            :options="QUOTE_STATUS_OPTIONS"
-            emit-value
-            map-options
-            outlined
-            dense
-            :label="$t('common.status')"
-            class="q-mb-sm"
-          />
-          <q-input
-            v-model="editComment"
-            type="textarea"
-            outlined
-            dense
-            autogrow
-            :label="$t('quotes.internal')"
-          />
+            <h3 class="admin-subtitle">{{ $t('quotes.follow_up') }}</h3>
+            <q-select
+              v-model="editStatus"
+              :options="QUOTE_STATUS_OPTIONS"
+              emit-value
+              map-options
+              outlined
+              dense
+              :label="$t('common.status')"
+              class="q-mb-sm"
+            />
+            <q-input
+              v-model="editComment"
+              type="textarea"
+              outlined
+              dense
+              autogrow
+              :label="$t('quotes.internal')"
+            />
+          </template>
           <AppNotice v-if="issueNotice" tone="success" dense class="q-mt-sm">
             {{ issueNotice }}
           </AppNotice>
@@ -356,6 +383,7 @@
         <q-card-actions align="right" class="app-dialog__actions">
           <q-btn flat no-caps :label="$t('common.close')" @click="dialog = false" />
           <q-btn
+            v-if="canEdit"
             color="primary"
             unelevated
             no-caps
@@ -393,8 +421,15 @@ import {
   type QuoteRequestStatus,
 } from '@/api/quoteRequests';
 import { extractApiError } from '@/api/errors';
+import { useAccessStore } from '@/stores/access';
 
 const { t } = useI18n();
+const access = useAccessStore();
+/** Lot ROLE: sales issues and follows up; customer service only reads. */
+const canEdit = computed(
+  () =>
+    !!access.me && (access.me.is_superuser === true || access.me.staff_role !== 'customer_service'),
+);
 
 // --- Issuing the quote (lines at the granted price, delivery, validity) ---
 const issueLines = ref<QuoteLine[]>([]);

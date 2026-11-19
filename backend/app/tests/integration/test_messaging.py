@@ -359,6 +359,28 @@ async def test_business_hours_and_response_steps() -> None:
     assert step_of(12, hours.per_day) == ("business_days", 2)
 
 
+def test_next_opening_outside_the_hours() -> None:
+    from app.features.messaging.info import next_opening
+
+    tahiti = ZoneInfo("Pacific/Tahiti")
+    hours = Hours(
+        start=datetime.time(8), end=datetime.time(17), days=frozenset({1, 2, 3, 4, 5})
+    )
+
+    def at(day: int, hour: int) -> datetime.datetime:
+        return datetime.datetime(2026, 11, day, hour, tzinfo=tahiti)
+
+    monday_8h = datetime.datetime(2026, 11, 23, 8, tzinfo=tahiti)
+    assert next_opening(at(21, 10), hours, tahiti) == monday_8h  # Saturday
+    assert next_opening(at(20, 18), hours, tahiti) == monday_8h  # Friday evening
+    assert next_opening(at(23, 6), hours, tahiti) == monday_8h  # Monday early
+    assert next_opening(at(23, 9), hours, tahiti) is None  # at work
+    # 21:00 in Tahiti is already Tuesday in UTC: the shop's zone decides.
+    assert next_opening(at(23, 21), hours, tahiti) == datetime.datetime(
+        2026, 11, 24, 8, tzinfo=tahiti
+    )
+
+
 async def test_export_holds_messages_never_notes_and_erasure_removes_all(
     db_session: AsyncSession,
 ) -> None:
@@ -678,3 +700,27 @@ def test_an_oversized_image_is_refused_before_decoding() -> None:
     with pytest.raises(AppError) as refused:
         attachments._reencode(buffer.getvalue(), "image/png")
     assert refused.value.code == "messaging.attachment.unreadable"
+
+
+async def test_a_holder_who_answers_keeps_the_conversation(
+    db_session: AsyncSession,
+) -> None:
+    """Held since Monday, answered all week: the customer's Thursday message
+    does not hand it back to the queue (the wait counts from that message)."""
+    alice = await _user(db_session, "alice")
+    agent = await _user(db_session, "agent", staff=True)
+    conversation_id = await _open(db_session, alice)
+    await _fresh(db_session, agent)
+    await staff_routes.claim_conversation(conversation_id, db_session, agent)
+    row = await db_session.get(Conversation, conversation_id)
+    assert row is not None
+    # The customer wrote again 4 days after the claim.
+    row.last_customer_message_at = utcnow() + datetime.timedelta(days=4)
+    db_session.add(row)
+    await db_session.commit()
+    later = utcnow() + datetime.timedelta(days=4, hours=2)
+    assert await notify.release_stale(db_session, now=later) == 0
+    assert (
+        await notify.release_stale(db_session, now=later + datetime.timedelta(days=3))
+        == 1
+    )

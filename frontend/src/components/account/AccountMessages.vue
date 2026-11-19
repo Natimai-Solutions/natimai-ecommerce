@@ -248,6 +248,7 @@
 </template>
 
 <script setup lang="ts">
+import { messagingAvailability } from '@/utils/messagingAvailability';
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
@@ -309,25 +310,7 @@ const topicOptions = computed(() =>
 );
 
 /** « We answer Monday to Friday, 8:00–17:00 (Tahiti time), usually within 24 h. » */
-const availability = computed(() => {
-  const info = messaging.info;
-  if (!info) return '';
-  const days = info.days.join(',') === '1,2,3,4,5' ? t('messaging.weekdays') : daysLabel(info.days);
-  const delay =
-    info.response_time.unit === 'business_days'
-      ? t('messaging.delay_days', info.response_time.value)
-      : t('messaging.delay_hours', { n: info.response_time.value });
-  return t('messaging.availability', {
-    days,
-    start: info.hours_start,
-    end: info.hours_end,
-    delay,
-  });
-});
-
-function daysLabel(days: number[]): string {
-  return days.map((d) => t(`messaging.day.${d}`)).join(', ');
-}
+const availability = computed(() => messagingAvailability(messaging.info, t));
 
 function topicLabel(topic: string): string {
   return t(`messaging.topic.${topic}`);

@@ -49,14 +49,17 @@ def invalid_link() -> AppError:
 
 
 async def open_guest_conversation_for(
-    session: AsyncSession, email: str
+    session: AsyncSession, email: str, *, channel: str
 ) -> Conversation | None:
-    """The visitor's conversation still open on this address, if any."""
+    """The visitor's conversation still open on this address and channel,
+    about nothing in particular (a quote request has its own thread)."""
     rows = await session.exec(
         select(Conversation)
         .where(
             col(Conversation.customer_id).is_(None),
             col(Conversation.guest_email) == email,
+            col(Conversation.channel) == channel,
+            col(Conversation.context_type).is_(None),
             col(Conversation.status) != ConversationStatus.RESOLVED.value,
         )
         .order_by(col(Conversation.last_message_at).desc())

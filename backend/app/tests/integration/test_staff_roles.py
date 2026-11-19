@@ -114,6 +114,10 @@ async def test_allow_lists_and_second_factor(
     support, seller, customer = [await _get(db_session, i) for i in ids]
 
     assert await deps.get_current_quote_staff(seller) is seller
+    # The customer service reads quote requests (grid §6), sales issues them.
+    assert await deps.get_current_quote_reader(support) is support
+    with pytest.raises(AppError):
+        await deps.get_current_quote_reader(customer)
     for outsider in (support, customer):
         with pytest.raises(AppError) as refused:
             await deps.get_current_quote_staff(outsider)

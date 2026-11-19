@@ -131,6 +131,7 @@
 </template>
 
 <script setup lang="ts">
+import { messagingAvailability } from '@/utils/messagingAvailability';
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
@@ -175,24 +176,7 @@ const topicOptions = computed(() =>
   ),
 );
 
-const availability = computed(() => {
-  const info = messaging.info;
-  if (!info) return '';
-  const days =
-    info.days.join(',') === '1,2,3,4,5'
-      ? t('messaging.weekdays')
-      : info.days.map((d) => t(`messaging.day.${d}`)).join(', ');
-  const delay =
-    info.response_time.unit === 'business_days'
-      ? t('messaging.delay_days', info.response_time.value)
-      : t('messaging.delay_hours', { n: info.response_time.value });
-  return t('messaging.availability', {
-    days,
-    start: info.hours_start,
-    end: info.hours_end,
-    delay,
-  });
-});
+const availability = computed(() => messagingAvailability(messaging.info, t));
 
 async function onSubmit() {
   sending.value = true;
