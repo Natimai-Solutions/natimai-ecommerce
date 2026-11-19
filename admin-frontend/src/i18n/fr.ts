@@ -2871,9 +2871,11 @@ const fr = {
   users: {
     staff_role: "Rôle d'équipe",
     staff_role_hint:
-      'Ouvre le back-office : messagerie de ses canaux, commandes en lecture (devis pour le commercial)',
+      "Ouvre le back-office à ses seuls écrans : service client et commercial (messagerie de leurs canaux, commandes en lecture, devis), préparateur (expéditions, départs, stock, commandes fournisseurs), comptable (paiements, factures, avoirs, taux de change, journal).",
     role_customer_service: 'Service client (et support technique)',
     role_sales: 'Service commercial',
+    role_preparer: 'Préparateur',
+    role_accountant: 'Comptable',
     two_factor_reset_done:
       '{email} activera de nouveau la double authentification à sa prochaine connexion.',
     admin: 'Administrateur',

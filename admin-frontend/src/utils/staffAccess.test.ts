@@ -33,4 +33,17 @@ describe('back-office screens by role (lot ROLE)', () => {
     expect(homeOf({ staff_role: 'unknown' })).toBe('/security');
     expect(homeOf(support, () => false)).toBe('/security');
   });
+
+  it('opens their screens to the preparer and the accountant', () => {
+    const preparer = { staff_role: 'preparer' };
+    const accountant = { staff_role: 'accountant' };
+    expect(homeOf(preparer)).toBe('/shipping');
+    expect(canOpen(preparer, '/grouped-departures/x')).toBe(true);
+    expect(canOpen(preparer, '/messages')).toBe(false);
+    expect(canOpen(preparer, '/payments')).toBe(false);
+    expect(homeOf(accountant)).toBe('/payment-validations');
+    expect(canOpen(accountant, '/invoices')).toBe(true);
+    expect(canOpen(accountant, '/shipping')).toBe(false);
+    expect(canOpen(accountant, '/system-settings')).toBe(false);
+  });
 });

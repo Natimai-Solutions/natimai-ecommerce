@@ -144,7 +144,7 @@ def _to_item(user: User, group: PriceGroup | None) -> AdminUserItem:
         phone=user.phone,
         is_active=user.is_active,
         is_superuser=user.is_superuser,
-        staff_role=user.staff_role,
+        staff_role=getattr(user, "staff_role", None),
         is_verified=user.is_verified,
         price_group_id=user.price_group_id,
         price_group_code=group.code if group is not None else None,

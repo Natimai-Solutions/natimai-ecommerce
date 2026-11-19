@@ -524,6 +524,8 @@ const editForm = reactive({
 const roleChoices = computed(() => [
   { label: t('users.role_customer_service'), value: 'customer_service' },
   { label: t('users.role_sales'), value: 'sales' },
+  { label: t('users.role_preparer'), value: 'preparer' },
+  { label: t('users.role_accountant'), value: 'accountant' },
 ]);
 const editSnapshot = useFormSnapshot(() => editForm);
 const editGuard = useDialogGuard({

@@ -24,10 +24,17 @@ from typing import Any
 
 from app.features.messaging.models import CHANNELS
 
+#: Every team role and the messaging channels it works on (none for the
+#: roles that do not answer customers).
 STAFF_ROLES: dict[str, tuple[str, ...]] = {
     "customer_service": ("customer_service", "technical"),
     "sales": ("sales",),
+    # Rôles fins (§4 of the work plan, grid validated on 19/11/2026).
+    "preparer": (),
+    "accountant": (),
 }
+#: The roles that answer customers in the messaging.
+MESSAGING_ROLES: tuple[str, ...] = ("customer_service", "sales")
 
 
 def is_back_office(user: Any) -> bool:
@@ -51,4 +58,10 @@ def has_role(user: Any, *roles: str) -> bool:
     )
 
 
-__all__ = ["STAFF_ROLES", "has_role", "is_back_office", "staff_channels"]
+__all__ = [
+    "MESSAGING_ROLES",
+    "STAFF_ROLES",
+    "has_role",
+    "is_back_office",
+    "staff_channels",
+]

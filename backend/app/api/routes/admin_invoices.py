@@ -17,7 +17,7 @@ from fastapi import APIRouter, Query, Response
 from pydantic import BaseModel
 from sqlmodel import col, select
 
-from app.api.deps import CurrentSuperUser, SessionDep
+from app.api.deps import CurrentAccountant, SessionDep
 from app.core.errors import AppError
 from app.features.invoice.models.invoice import (
     Invoice,
@@ -86,7 +86,7 @@ async def _load_invoice(session: SessionDep, invoice_id: uuid.UUID) -> Invoice:
 @router.get("", response_model=InvoicesPublic)
 async def list_invoices(
     session: SessionDep,
-    _current_user: CurrentSuperUser,
+    _current_user: CurrentAccountant,
     fiscal_year: int | None = None,
     skip: Annotated[int, Query(ge=0)] = 0,
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
@@ -110,7 +110,7 @@ async def list_invoices(
 @router.get("/export.csv")
 async def export_invoices_csv(
     session: SessionDep,
-    _current_user: CurrentSuperUser,
+    _current_user: CurrentAccountant,
     fiscal_year: int | None = None,
 ) -> Response:
     """Accounting export of the issued invoices (CSV, semicolon-separated).
@@ -170,7 +170,7 @@ async def export_invoices_csv(
 @router.get("/export-fec.txt")
 async def export_invoices_fec(
     session: SessionDep,
-    _current_user: CurrentSuperUser,
+    _current_user: CurrentAccountant,
     fiscal_year: int | None = None,
 ) -> Response:
     """Export au format FEC — écritures comptables importables.
@@ -230,7 +230,7 @@ class IntegrityReportPublic(BaseModel):
 @router.get("/integrity", response_model=IntegrityReportPublic)
 async def check_integrity(
     session: SessionDep,
-    _current_user: CurrentSuperUser,
+    _current_user: CurrentAccountant,
 ) -> IntegrityReportPublic:
     """Recompute the integrity chain of every invoice and credit note.
 
@@ -261,7 +261,7 @@ async def check_integrity(
 async def get_invoice(
     session: SessionDep,
     invoice_id: uuid.UUID,
-    _current_user: CurrentSuperUser,
+    _current_user: CurrentAccountant,
 ) -> InvoicePublic:
     """Return one invoice's metadata."""
     return _to_public(await _load_invoice(session, invoice_id))
@@ -271,7 +271,7 @@ async def get_invoice(
 async def download_invoice_pdf(
     session: SessionDep,
     invoice_id: uuid.UUID,
-    _current_user: CurrentSuperUser,
+    _current_user: CurrentAccountant,
 ) -> Response:
     """Download an invoice PDF."""
     invoice = await _load_invoice(session, invoice_id)

@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock
 import pytest
 from fastapi.testclient import TestClient
 
-from app.api.deps import get_current_active_superuser
+from app.api.deps import get_current_accountant
 from app.core.db import get_db
 from app.main import app
 
@@ -32,7 +32,7 @@ def override_dependencies(
     async def _override_get_db() -> AsyncGenerator[SimpleNamespace, None]:
         yield db_session
 
-    app.dependency_overrides[get_current_active_superuser] = _override_current_superuser
+    app.dependency_overrides[get_current_accountant] = _override_current_superuser
     app.dependency_overrides[get_db] = _override_get_db
     yield
     app.dependency_overrides.clear()

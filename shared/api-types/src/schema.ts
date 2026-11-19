@@ -1434,6 +1434,7 @@ export interface paths {
         /**
          * Sku Summary
          * @description Filtered orders aggregated by supplier × SKU (the purchase order).
+         *     The preparer (§4) reads the quantities, not the purchase costs.
          */
         get: operations["admin-order-sku_summary"];
         put?: never;

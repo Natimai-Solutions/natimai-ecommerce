@@ -57,7 +57,7 @@ from app.features.product.services.pricing import resolve_default_price_group
 from app.features.user.crud.user_preference import get_preference_for_user
 from app.features.user.models.group_upgrade_request import GroupUpgradeRequest
 from app.features.user.models.user import User
-from app.features.user.staff import STAFF_ROLES, staff_channels
+from app.features.user.staff import MESSAGING_ROLES, staff_channels
 
 router = APIRouter(
     prefix="/admin/conversations",
@@ -371,7 +371,7 @@ async def conversation_team(
         select(User).where(
             or_(
                 col(User.is_superuser).is_(True),
-                col(User.staff_role).in_(list(STAFF_ROLES)),
+                col(User.staff_role).in_(list(MESSAGING_ROLES)),
             ),
             col(User.is_active).is_(True),
         )

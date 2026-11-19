@@ -5,6 +5,17 @@
 export const ROLE_SCREENS: Record<string, string[]> = {
   customer_service: ['/messages', '/orders', '/quote-requests'],
   sales: ['/messages', '/orders', '/quote-requests'],
+  // Rôles fins (§4 of the work plan, grid validated on 19/11/2026).
+  preparer: ['/shipping', '/orders', '/grouped-departures', '/inventory', '/supplier-orders'],
+  accountant: [
+    '/payment-validations',
+    '/payments',
+    '/orders',
+    '/invoices',
+    '/credit-notes',
+    '/currency-rates',
+    '/audit-log',
+  ],
 };
 
 interface Access {

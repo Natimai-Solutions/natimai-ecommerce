@@ -281,8 +281,10 @@ const nav = computed<NavSection[]>(() =>
 // Messages waiting for the team: to do (free) and mine, polled every 30 s.
 const messaging = useMessagingStore();
 const messagingCount = computed(() => messaging.summary.todo + messaging.summary.mine);
+// Polled only for whoever has the messaging (not the preparer nor the
+// accountant: their requests would be refused every 30 s).
 watch(
-  () => shopConfig.moduleOn('messaging'),
+  () => shopConfig.moduleOn('messaging') && !!access.me && canOpen(access.me, '/messages'),
   (on) => (on ? messaging.start() : messaging.stop()),
   { immediate: true },
 );

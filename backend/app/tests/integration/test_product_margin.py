@@ -309,6 +309,8 @@ async def test_an_order_shows_the_margin_of_its_lines(
     )
     order_id = order.id
     await db_session.commit()
+    # The route reads the caller's rights: a fresh object, as in a request.
+    await db_session.refresh(admin)
 
     detail = await get_order_detail(order_id, cast(Any, db_session), admin)
     lines = {line.product_name: line for line in detail.lines}

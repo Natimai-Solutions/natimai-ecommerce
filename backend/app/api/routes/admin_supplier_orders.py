@@ -17,7 +17,7 @@ import uuid
 from fastapi import APIRouter, Depends, Query
 from sqlmodel import col, func, select
 
-from app.api.deps import CurrentSuperUser, SessionDep, module_required
+from app.api.deps import CurrentPreparer, SessionDep, module_required
 from app.core.errors import AppError
 from app.features.integrations.models.supplier_order import (
     SupplierOrder,
@@ -55,7 +55,7 @@ async def _load_supplier_order(
 @router.get("", response_model=SupplierOrdersPublic)
 async def list_supplier_orders(
     session: SessionDep,
-    _current_user: CurrentSuperUser,
+    _current_user: CurrentPreparer,
     status: SupplierOrderStatus | None = Query(
         default=None, description="Filter by supplier order status"
     ),
@@ -92,7 +92,7 @@ async def list_supplier_orders(
 async def get_supplier_order(
     supplier_order_id: uuid.UUID,
     session: SessionDep,
-    _current_user: CurrentSuperUser,
+    _current_user: CurrentPreparer,
 ) -> SupplierOrderPublic:
     """Fetch a single supplier order."""
     record = await _load_supplier_order(session, supplier_order_id)
@@ -103,7 +103,7 @@ async def get_supplier_order(
 async def retry_supplier_order(
     supplier_order_id: uuid.UUID,
     session: SessionDep,
-    current_user: CurrentSuperUser,
+    current_user: CurrentPreparer,
 ) -> SupplierOrderPublic:
     """Manually re-attempt the purchase order of this row (its supplier, its order).
 

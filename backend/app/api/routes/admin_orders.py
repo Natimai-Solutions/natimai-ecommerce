@@ -19,7 +19,12 @@ from sqlalchemy import func
 from sqlalchemy import select as sa_select
 from sqlmodel import col, or_, select
 
-from app.api.deps import CurrentOrderReader, CurrentSuperUser, SessionDep
+from app.api.deps import (
+    CurrentOrderReader,
+    CurrentPreparer,
+    CurrentSuperUser,
+    SessionDep,
+)
 from app.api.routes.admin_payments import ReceiptResult, receipt_result
 from app.core.datetimes import as_utc
 from app.core.errors import AppError
@@ -508,15 +513,16 @@ async def _sku_summary_rows(
 @router.get("/sku-summary", response_model=list[SkuSummaryRow])
 async def sku_summary(
     session: SessionDep,
-    _admin: CurrentSuperUser,
+    _admin: CurrentPreparer,
     departure_id: uuid.UUID | None = _DepartureQ,
     unassigned: bool = _UnassignedQ,
     status: str | None = _StatusQ,
     date_from: datetime | None = _FromQ,
     date_to: datetime | None = _ToQ,
 ) -> list[SkuSummaryRow]:
-    """Filtered orders aggregated by supplier × SKU (the purchase order)."""
-    return await _sku_summary_rows(
+    """Filtered orders aggregated by supplier × SKU (the purchase order).
+    The preparer (§4) reads the quantities, not the purchase costs."""
+    rows = await _sku_summary_rows(
         session,
         departure_id=departure_id,
         unassigned=unassigned,
@@ -524,12 +530,19 @@ async def sku_summary(
         date_from=date_from,
         date_to=date_to,
     )
+    return rows if _admin.is_superuser else _without_costs(rows)
+
+
+def _without_costs(rows: list[SkuSummaryRow]) -> list[SkuSummaryRow]:
+    return [
+        r.model_copy(update={"unit_cost": None, "cost_currency": None}) for r in rows
+    ]
 
 
 @router.get("/sku-summary.csv")
 async def sku_summary_csv(
     session: SessionDep,
-    _admin: CurrentSuperUser,
+    _admin: CurrentPreparer,
     departure_id: uuid.UUID | None = _DepartureQ,
     unassigned: bool = _UnassignedQ,
     status: str | None = _StatusQ,
@@ -545,6 +558,8 @@ async def sku_summary_csv(
         date_from=date_from,
         date_to=date_to,
     )
+    if not _admin.is_superuser:
+        rows = _without_costs(rows)
     return csv_response(
         [
             "Fournisseur",

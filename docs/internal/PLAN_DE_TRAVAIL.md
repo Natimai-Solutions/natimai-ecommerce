@@ -36,7 +36,7 @@ Tous les constats sont corrigés ou tranchés (décisions du 18/11/2026) : voir 
 - Variables GitHub `VITE_PUBLIC_SITE_URL`, `VITE_SENTRY_DSN`, `CODEQL_ENABLED`.
 - **CSP en observation sur staging** (`CSP_HEADER=Content-Security-Policy-Report-Only`), puis l'imposer.
 - Clés **Turnstile** (Paramètres → Sécurité) si les limites de fréquence ne suffisent plus.
-- `ENABLE_GROUP_PERMISSIONS` : décidé le 04/11/2026, gardé désactivé comme base des rôles fins (§4) ; l'admin est protégé par `is_superuser` et, depuis le lot ROLE du chantier accueil et messagerie, par les rôles `users.staff_role` (« Service client » : messagerie et lecture des commandes ; « Service commercial » : en plus les demandes de devis).
+- `ENABLE_GROUP_PERMISSIONS` : décidé le 04/11/2026, gardé désactivé comme base des rôles fins (§4) ; l'admin est protégé par `is_superuser` et, depuis le chantier accueil et messagerie, par les rôles `users.staff_role` : « Service client » (messagerie de ses canaux, commandes et devis en lecture), « Service commercial » (en plus l'émission des devis), « Préparateur » (expéditions et transport, départs groupés, inventaire, commandes fournisseurs, commandes en lecture), « Comptable » (paiements et leur validation, remboursements compris, factures, avoirs, taux de change, journal d'audit, commandes en lecture). Aucun rôle n'atteint les réglages, les produits, les prix ni les utilisateurs ; coûts et marges restent aux superusers.
 - Commande automatique Ingram : passer `INGRAM_ORDER_CREATION_ENABLED=true` seulement avec l'adresse de livraison complète, réglée **sur le worker**.
 
 ### Paiement (identifiants de test à fournir)
@@ -82,7 +82,6 @@ Tous les constats sont corrigés ou tranchés (décisions du 18/11/2026) : voir 
 
 ## 3. Fonctionnel — client
 
-- **Chantier accueil et messagerie** (document de travail du 18/11/2026, tous les lots livrés le 19/11/2026) : [`CHANTIER_ACCUEIL_MESSAGERIE.md`](CHANTIER_ACCUEIL_MESSAGERIE.md). Reste : les rôles fins du §4 autres que « Service client » et « Service commercial » (préparateur, comptable — droits à fixer, M).
 - **Audit fonctionnel du 15/11/2026, manques côté client** (détail dans l'audit, §4) : identité de facturation B2B (M3, M) ; notification de retard d'un départ (M4, M — l'e-mail de confirmation complet est fait) ; pages catégorie indexables (M9, M ; les pages marque sont livrées par le lot BR) ; demande d'avis après livraison, carte cadeau saisissable au checkout (M14, S chacun ; la décision de groupe tarifaire est postée dans la messagerie depuis le lot MSG5) ; rupture partielle après commande (M6, M à L).
 
 - **Retours, RMA et formulaire de rétractation** (obligation légale, c'est du code) : demande depuis « Mes commandes », validation admin, enchaînement sur le remboursement et l'avoir existants — L.
@@ -100,7 +99,6 @@ Tous les constats sont corrigés ou tranchés (décisions du 18/11/2026) : voir 
 - **Écran du journal des e-mails** (`email_log`, déjà alimenté : statut, erreur, renvoi possible sauf secrets) avec « renvoyer » ; écran des événements outbox en échec — M.
 - **Bons de préparation, étiquettes**, changement de statut en masse — M.
 - **Fiche client** (commandes, avoir, points), recherche globale (n° de commande, client, SKU) — M.
-- **Rôles fins** (préparateur, comptable) : le socle existe depuis le lot ROLE (`users.staff_role`, gardes par liste d'autorisation dans `api/deps.py`, écrans par rôle dans `admin-frontend/src/utils/staffAccess.ts`) — M.
 - Pagination serveur sur les autres tableaux (30 fichiers masquent encore la pagination ; 3 seulement paginent côté serveur) — M.
 
 ---

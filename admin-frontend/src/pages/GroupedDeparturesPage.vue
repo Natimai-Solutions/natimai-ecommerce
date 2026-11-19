@@ -239,7 +239,7 @@
         <h3 class="admin-subtitle">{{ $t('departures.po_title') }}</h3>
         <q-table
           :rows="sku"
-          :columns="skuColumns"
+          :columns="isAdmin ? skuColumns : skuColumns.filter((c) => c.name !== 'cost')"
           row-key="product_id"
           :loading="skuLoading"
           flat
@@ -506,6 +506,7 @@
           />
         </div>
         <q-input
+          v-if="isAdmin"
           v-model="webhookUrl"
           :label="$t('departures.webhook')"
           :hint="$t('departures.webhook_hint')"
@@ -627,7 +628,7 @@
                     }}
                   </q-item-label>
                 </q-item-section>
-                <q-item-section side>
+                <q-item-section v-if="isAdmin" side>
                   <q-btn
                     flat
                     dense
@@ -996,8 +997,13 @@ import { useDialogGuard, useFormSnapshot } from '@/composables/useUnsavedGuard';
 import { listSystemSettings, updateSystemSetting } from '@/api/systemSettings';
 import { useShopConfigStore } from '@/stores/shopConfig';
 import { setOrderStatus } from '@/api/orders';
+import { useAccessStore } from '@/stores/access';
 
 const { t } = useI18n();
+// Rôles fins (§4): the preparer runs the departures; changing an order's
+// status, the purchase costs and the shop's settings stay with administrators.
+const access = useAccessStore();
+const isAdmin = computed(() => access.me?.is_superuser === true);
 // Aide : le cycle d'un départ et ce que chaque étape déclenche.
 const helpItems = computed<HelpItem[]>(() => [
   { title: t('help.departures_open_title'), text: t('help.departures_open') },
@@ -1851,7 +1857,7 @@ async function submit() {
 
 onMounted(() => {
   void load();
-  void loadWebhook();
+  if (isAdmin.value) void loadWebhook();
 });
 </script>
 

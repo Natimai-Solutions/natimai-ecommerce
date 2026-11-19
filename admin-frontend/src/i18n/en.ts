@@ -2855,9 +2855,11 @@ const en: MessageSchema = {
   users: {
     staff_role: 'Team role',
     staff_role_hint:
-      'Opens the back-office: messaging of its channels, orders read-only (quotes for sales)',
+      "Opens the back-office on its own screens only: customer service and sales (messaging of their channels, orders read-only, quotes), preparer (shipping, departures, stock, supplier orders), accountant (payments, invoices, credit notes, currency rates, audit log).",
     role_customer_service: 'Customer service (and technical support)',
     role_sales: 'Sales',
+    role_preparer: 'Preparer',
+    role_accountant: 'Accountant',
     two_factor_reset_done:
       '{email} will set up two-factor authentication again at the next sign-in.',
     admin: 'Administrator',

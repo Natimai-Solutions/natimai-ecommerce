@@ -280,3 +280,49 @@ async def test_a_role_change_releases_the_conversations_it_no_longer_covers(
     assert row is not None
     await db_session.refresh(row)
     assert row.assigned_to_id is None
+
+
+async def test_preparer_and_accountant_reach_their_screens_only(
+    db_session: AsyncSession,
+) -> None:
+    """Rôles fins (§4, grid validated on 19/11/2026): the preparer ships, the
+    accountant handles the money; neither answers customers."""
+    admin = await _user(db_session, "admin", is_superuser=True)
+    ids = [await _user(db_session, "member")]
+    for role in ("preparer", "accountant"):
+        updated = await admin_users.update_user(
+            ids[0] if role == "preparer" else await _user(db_session, "other"),
+            admin_users.AdminUserUpdate(staff_role=role),
+            db_session,
+            await _get(db_session, admin),
+        )
+        ids.append(updated.id)
+    preparer, accountant = (
+        await _get(db_session, ids[1]),
+        await _get(db_session, ids[2]),
+    )
+
+    assert await deps.get_current_preparer(preparer) is preparer
+    assert await deps.get_current_logistics_admin(preparer, db_session) is preparer
+    assert await deps.get_current_journey_reader(preparer, db_session) is preparer
+    assert await deps.get_current_accountant(accountant) is accountant
+    for member in (preparer, accountant):
+        assert await deps.get_current_order_reader(member) is member
+    refusals = [
+        deps.get_current_accountant(preparer),
+        deps.get_current_preparer(accountant),
+        deps.get_current_logistics_admin(accountant, db_session),
+        deps.get_current_messaging_staff(preparer),
+        deps.get_current_messaging_staff(accountant),
+        deps.get_current_quote_reader(accountant),
+        deps.get_current_active_superuser(accountant),
+    ]
+    for refused in refusals:
+        with pytest.raises(AppError) as error:
+            await refused
+        assert error.value.status_code == 403
+    # Not in the messaging team: never offered as the holder of a transfer.
+    team = await staff_routes.conversation_team(
+        db_session, await _get(db_session, admin), channel=None
+    )
+    assert not {m.id for m in team} & {preparer.id, accountant.id}

@@ -1,7 +1,11 @@
 # Chantier — personnalisation de l'accueil et messagerie client
 
+> **Chantier terminé le 19/11/2026** : tous les lots, les correctifs de la
+> revue et le reste sont livrés (bilan au §11). Ce document reste comme
+> référence des décisions ; il ne porte plus de travail en cours.
+
 Document de travail du 18/11/2026, relu contre le code le même jour. Rien
-n'est livré : ce document sert à **décider** puis à découper. Un lot livré
+n'était livré : ce document sert à **décider** puis à découper. Un lot livré
 sort d'ici et du plan de travail ; git garde l'historique.
 
 Deux sujets :
@@ -1040,8 +1044,15 @@ disparaître les sections déjà réglées plus bas. Corrigé en passant : les
 titres de page de la forme « … | Natimai » n'affichaient que leur première
 partie (vue-i18n lisait le `|` comme un séparateur de pluriels).
 
-**Reste** : les rôles fins du §4 autres que service client et commercial
-(préparateur, comptable), dont les droits sont à fixer.
+**Rôles fins, livrés le 19/11/2026** (grille validée le jour même) :
+« Préparateur » — commandes en lecture (sans coûts ni marges), expéditions
+et transport, départs groupés (récapitulatif fournisseur sans les coûts ;
+le passage en rupture et le réglage du webhook restent aux superusers),
+inventaire, commandes fournisseurs ; « Comptable » — commandes en lecture,
+paiements et leur validation (encaissements, captures et remboursements
+compris), factures, avoirs, taux de change, journal d'audit. Aucun n'a la
+messagerie, les réglages, les produits, les prix ni les utilisateurs ; 2FA
+et contrôle d'origine comme pour l'équipe. Le chantier n'a plus de reste.
 
 ---
 

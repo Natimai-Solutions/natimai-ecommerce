@@ -18,7 +18,12 @@ from app.core.errors import AppError
 from app.core.field_visibility import reveal_internal_fields
 from app.core.rate_limit import get_client_ip
 from app.features.user.models.user import TokenPayload, User
-from app.features.user.staff import STAFF_ROLES, has_role, is_back_office
+from app.features.user.staff import (
+    MESSAGING_ROLES,
+    STAFF_ROLES,
+    has_role,
+    is_back_office,
+)
 
 reusable_oauth2 = OAuth2PasswordBearer(
     tokenUrl=f"{settings.API_V1_STR}/login/access-token"
@@ -264,15 +269,16 @@ def _require_role(user: User, *roles: str) -> User:
 
 
 async def get_current_messaging_staff(current_user: CurrentUser) -> User:
-    """The messaging: superusers and both team roles (each on its channels)."""
-    return _require_role(current_user, *STAFF_ROLES)
+    """The messaging: superusers and the roles that answer customers (each on
+    its channels)."""
+    return _require_role(current_user, *MESSAGING_ROLES)
 
 
 CurrentMessagingStaff = Annotated[User, Depends(get_current_messaging_staff)]
 
 
 async def get_current_order_reader(current_user: CurrentUser) -> User:
-    """Reading orders: superusers and both team roles."""
+    """Reading orders: superusers and every team role."""
     return _require_role(current_user, *STAFF_ROLES)
 
 
@@ -291,7 +297,7 @@ async def get_current_quote_reader(current_user: CurrentUser) -> User:
     """Reading quote requests: superusers and both team roles (grid of the
     chantier accueil et messagerie, §6: the customer service reads them, a
     conversation it handles may be about one; issuing stays with sales)."""
-    return _require_role(current_user, *STAFF_ROLES)
+    return _require_role(current_user, *MESSAGING_ROLES)
 
 
 CurrentQuoteReader = Annotated[User, Depends(get_current_quote_reader)]
@@ -312,6 +318,9 @@ async def get_current_logistics_admin(
     """
     if current_user.is_superuser:
         return current_user
+    if getattr(current_user, "staff_role", None) == "preparer":
+        # The « Préparateur » role (§4): shipping, transport, stock.
+        return _require_role(current_user, "preparer")
 
     from app.core import runtime_settings
 
@@ -350,13 +359,31 @@ async def get_current_logistics_admin(
 CurrentLogisticsAdmin = Annotated[User, Depends(get_current_logistics_admin)]
 
 
+async def get_current_preparer(current_user: CurrentUser) -> User:
+    """Grouped departures and supplier orders: superusers and the
+    « Préparateur » role (§4 of the work plan)."""
+    return _require_role(current_user, "preparer")
+
+
+CurrentPreparer = Annotated[User, Depends(get_current_preparer)]
+
+
+async def get_current_accountant(current_user: CurrentUser) -> User:
+    """Payments and their validation, invoices, credit notes, currency rates
+    and the audit log: superusers and the « Comptable » role (§4)."""
+    return _require_role(current_user, "accountant")
+
+
+CurrentAccountant = Annotated[User, Depends(get_current_accountant)]
+
+
 async def get_current_journey_reader(
     current_user: CurrentUser, session: SessionDep
 ) -> User:
     """Reading an order's transport legs: the logistics team, and the team
     roles that read orders (lot ROLE: « where is my parcel? »)."""
-    if getattr(current_user, "staff_role", None) in STAFF_ROLES:
-        return current_user
+    if getattr(current_user, "staff_role", None) in (*MESSAGING_ROLES, "preparer"):
+        return _require_role(current_user, *MESSAGING_ROLES, "preparer")
     return await get_current_logistics_admin(current_user, session)
 
 

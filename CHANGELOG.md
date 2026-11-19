@@ -84,6 +84,15 @@ takes a tag as its `ref`.
 
 ### Added
 
+- Two more back-office roles (`users.staff_role`, grid validated on
+  19/11/2026): « Préparateur » (orders read-only, shipping and transport,
+  grouped departures — supplier summary without costs —, inventory,
+  supplier orders) and « Comptable » (orders read-only, payments and their
+  validation, receipts, captures and refunds, invoices, credit notes,
+  currency rates, audit log). Each reaches its screens only, server-side by
+  allow-list (`CurrentPreparer`, `CurrentAccountant`); neither has the
+  messaging, settings, products, prices nor users.
+
 - Homepage, what R2/R3 left: a selection by brand, a carousel layout (one
   row that scrolls sideways) for the product sections, and a chosen
   category with its own image and a label in each language (migration

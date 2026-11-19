@@ -42,7 +42,7 @@ from app.features.notification.email_renderer import render_email
 from app.features.notification.mailer import queue_email
 from app.features.user.crud.user_preference import get_preference_for_user
 from app.features.user.models.user import User
-from app.features.user.staff import STAFF_ROLES, staff_channels
+from app.features.user.staff import MESSAGING_ROLES, staff_channels
 
 logger = logging.getLogger(__name__)
 
@@ -127,7 +127,8 @@ async def _staff_recipients(
     # The team members whose role covers the channel (lot ROLE).
     members = await session.exec(
         select(User).where(
-            col(User.staff_role).in_(list(STAFF_ROLES)), col(User.is_active).is_(True)
+            col(User.staff_role).in_(list(MESSAGING_ROLES)),
+            col(User.is_active).is_(True),
         )
     )
     on_channel = [
@@ -280,7 +281,7 @@ async def staff_digest(session: AsyncSession) -> int:
             select(User).where(
                 or_(
                     col(User.is_superuser).is_(True),
-                    col(User.staff_role).in_(list(STAFF_ROLES)),
+                    col(User.staff_role).in_(list(MESSAGING_ROLES)),
                 ),
                 col(User.is_active).is_(True),
             )
