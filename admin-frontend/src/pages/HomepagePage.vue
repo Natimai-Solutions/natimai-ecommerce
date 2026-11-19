@@ -189,11 +189,16 @@
         <q-form @submit.prevent="submit">
           <q-card-section class="q-gutter-sm">
             <AppNotice v-if="dialogError" tone="error" dense>{{ dialogError }}</AppNotice>
-            <q-option-group
+            <q-select
               v-model="form.kind"
               :options="kindOptions"
-              inline
+              emit-value
+              map-options
+              outlined
+              dense
+              :label="$t('homepage.kind')"
               :disable="!!editingId"
+              data-testid="homepage-kind"
             />
             <ContentLanguageTabs
               v-model="content.lang.value"
@@ -205,23 +210,32 @@
             />
             <q-input
               v-model="texts.title"
-              :label="isBuiltin ? $t('homepage.section_title') : $t('homepage.block_title')"
+              :label="
+                form.kind === 'announcement'
+                  ? $t('homepage.announcement_text')
+                  : titleOptional
+                    ? $t('homepage.section_title')
+                    : $t('homepage.block_title')
+              "
               :hint="
-                isBuiltin
-                  ? $t('homepage.section_title_hint', { title: defaultTitle(form.kind) })
-                  : undefined
+                form.kind === 'announcement'
+                  ? $t('homepage.announcement_hint')
+                  : titleOptional && defaultTitle(form.kind)
+                    ? $t('homepage.section_title_hint', { title: defaultTitle(form.kind) })
+                    : undefined
               "
               outlined
               dense
-              maxlength="200"
+              :maxlength="form.kind === 'announcement' ? 160 : 200"
               :rules="
-                content.isSource.value && !isBuiltin
+                content.isSource.value && !titleOptional
                   ? [(v: string) => !!v.trim() || $t('homepage.title_rule')]
                   : []
               "
               data-testid="homepage-title"
             />
             <q-input
+              v-if="hasSubtitle"
               v-model="texts.subtitle"
               :label="$t('homepage.text')"
               type="textarea"
@@ -230,6 +244,101 @@
               dense
               maxlength="500"
             />
+            <template v-if="form.kind === 'rich_text'">
+              <q-editor
+                v-model="texts.body_html"
+                min-height="10rem"
+                :toolbar="[
+                  ['bold', 'italic', 'underline'],
+                  ['unordered', 'ordered', 'link'],
+                  [{ label: $t('homepage.heading'), list: 'no-icons', options: ['p', 'h2', 'h3'] }],
+                  ['removeFormat'],
+                ]"
+                data-testid="homepage-body"
+              />
+              <q-option-group
+                v-model="form.image_side"
+                :options="[
+                  { label: $t('homepage.image_right'), value: 'right' },
+                  { label: $t('homepage.image_left'), value: 'left' },
+                ]"
+                inline
+              />
+            </template>
+            <div v-if="form.kind === 'reassurance'" class="homepage-items">
+              <p class="admin-hint q-mb-sm">{{ $t('homepage.reassurance_hint') }}</p>
+              <div
+                v-for="(entry, index) in form.reassurance"
+                :key="index"
+                class="homepage-reassurance"
+                data-testid="homepage-reassurance-item"
+              >
+                <div class="row q-col-gutter-sm items-start">
+                  <q-select
+                    v-model="entry.icon"
+                    class="col-12 col-sm-3"
+                    :options="iconOptions"
+                    emit-value
+                    map-options
+                    outlined
+                    dense
+                    :label="$t('homepage.icon')"
+                  >
+                    <template #option="scope">
+                      <q-item v-bind="scope.itemProps">
+                        <q-item-section avatar><q-icon :name="scope.opt.icon" /></q-item-section>
+                        <q-item-section>{{ scope.opt.label }}</q-item-section>
+                      </q-item>
+                    </template>
+                  </q-select>
+                  <q-input
+                    v-model="entry.text"
+                    class="col-12 col-sm-5"
+                    outlined
+                    dense
+                    maxlength="80"
+                    :label="$t('homepage.reassurance_text')"
+                  />
+                  <q-input
+                    v-model="entry.link"
+                    class="col-10 col-sm-3"
+                    outlined
+                    dense
+                    maxlength="500"
+                    :label="$t('homepage.link')"
+                  />
+                  <div class="col-2 col-sm-1">
+                    <q-btn
+                      flat
+                      round
+                      dense
+                      icon="ph:x"
+                      :aria-label="$t('common.delete')"
+                      :disable="form.reassurance.length <= 2"
+                      @click="form.reassurance.splice(index, 1)"
+                    />
+                  </div>
+                  <q-input
+                    v-for="lang in otherLocales"
+                    :key="lang"
+                    v-model="entry.translations[lang]"
+                    class="col-12 col-sm-5 offset-sm-3"
+                    outlined
+                    dense
+                    maxlength="80"
+                    :label="`${$t('homepage.reassurance_text')} (${lang.toUpperCase()})`"
+                  />
+                </div>
+              </div>
+              <q-btn
+                v-if="form.reassurance.length < 4"
+                flat
+                no-caps
+                icon="ph:plus"
+                :label="$t('homepage.reassurance_add')"
+                @click="form.reassurance.push(emptyReassurance())"
+              />
+            </div>
             <div v-if="form.kind === 'collection'" class="row q-col-gutter-sm">
               <q-select
                 v-model="form.source"
@@ -266,7 +375,7 @@
               />
             </div>
             <q-option-group
-              v-if="form.kind === 'categories'"
+              v-if="form.kind === 'categories' || form.kind === 'brand_strip'"
               v-model="form.mode"
               :options="[
                 { label: $t('homepage.mode_auto'), value: 'auto' },
@@ -298,6 +407,17 @@
                   >
                 </template>
               </q-select>
+              <q-select
+                v-else-if="form.kind === 'brand_strip'"
+                :model-value="null"
+                :options="brandOptions.filter((o) => !form.items.some((i) => i.id === o.value))"
+                outlined
+                dense
+                :label="$t('homepage.add_brand')"
+                :hint="$t('homepage.add_brand_hint')"
+                data-testid="homepage-add-brand"
+                @update:model-value="addItem"
+              />
               <q-select
                 v-else
                 :model-value="null"
@@ -357,17 +477,19 @@
               </q-list>
               <p v-else class="admin-hint q-mt-sm">{{ $t('homepage.items_empty') }}</p>
             </div>
-            <div v-if="isBuiltin" class="row q-col-gutter-sm">
+            <div v-if="isBuiltin || form.kind === 'brand_strip'" class="row q-col-gutter-sm">
               <q-input
                 v-model.number="form.limit"
                 class="col-12 col-sm-4"
                 type="number"
-                :min="2"
+                :min="form.kind === 'brand_strip' ? 3 : 2"
                 :max="24"
                 :label="
                   form.kind === 'categories'
                     ? $t('homepage.limit_categories')
-                    : $t('homepage.limit_products')
+                    : form.kind === 'brand_strip'
+                      ? $t('homepage.limit_brands')
+                      : $t('homepage.limit_products')
                 "
                 outlined
                 dense
@@ -388,7 +510,7 @@
                 dense
               />
             </div>
-            <div v-if="!isBuiltin" class="row q-col-gutter-sm">
+            <div v-if="hasCta" class="row q-col-gutter-sm">
               <q-input
                 v-model="texts.cta_label"
                 class="col-12 col-sm-4"
@@ -409,7 +531,7 @@
               />
             </div>
 
-            <template v-if="!isBuiltin">
+            <template v-if="hasImage">
               <h3 class="admin-subtitle q-mt-md">{{ $t('homepage.image') }}</h3>
               <p class="admin-hint q-mb-sm">
                 <strong>{{ $t('media.recommended') }}</strong>
@@ -460,6 +582,7 @@
             <h3 class="admin-subtitle q-mt-md">{{ $t('homepage.audience') }}</h3>
             <p class="admin-hint q-mb-sm">{{ $t('homepage.audience_hint') }}</p>
             <q-option-group
+              v-if="form.kind !== 'announcement'"
               v-model="form.scope"
               :options="[
                 { label: $t('homepage.scope_all'), value: 'all' },
@@ -589,14 +712,55 @@ import { listCategories, type Category } from '@/api/categories';
 import { searchProducts } from '@/api/discounts';
 import { useShopConfigStore } from '@/stores/shopConfig';
 import type { MediaAsset } from '@/api/media';
+import { listBrands, type AdminBrand } from '@/api/brands';
 
 const { t } = useI18n();
 const { confirmDelete } = useConfirm();
 
-type Kind = 'hero' | 'banner' | 'categories' | 'featured' | 'popular' | 'collection';
+type Kind =
+  | 'hero'
+  | 'banner'
+  | 'announcement'
+  | 'reassurance'
+  | 'brand_strip'
+  | 'rich_text'
+  | 'categories'
+  | 'featured'
+  | 'popular'
+  | 'collection';
 type Scope = 'all' | 'guest' | 'customer';
 type Source = 'manual' | 'category' | 'newest' | 'promotion' | 'popular' | 'best_sellers';
 const BUILTIN: Kind[] = ['categories', 'featured', 'popular', 'collection'];
+/** Lot A3: written in the admin, the title optional. */
+const TITLE_OPTIONAL: Kind[] = [...BUILTIN, 'reassurance', 'brand_strip', 'rich_text'];
+/** The closed list of pictograms of a reassurance band (as the API). */
+const REASSURANCE_ICONS: Record<string, string> = {
+  truck: 'ph:truck',
+  boat: 'ph:boat',
+  map_pin: 'ph:map-pin',
+  package: 'ph:package',
+  lock: 'ph:lock-simple',
+  shield: 'ph:shield-check',
+  credit_card: 'ph:credit-card',
+  seal: 'ph:seal-check',
+  chat: 'ph:chat-circle-text',
+  phone: 'ph:phone',
+  clock: 'ph:clock',
+  returns: 'ph:arrow-counter-clockwise',
+  tag: 'ph:tag',
+  star: 'ph:star',
+};
+interface ReassuranceEntry {
+  icon: string;
+  text: string;
+  link: string;
+  translations: Record<string, string>;
+}
+/** A key of the closed list (not an icon name: the storefront draws it). */
+const FIRST_PICTOGRAM = Object.keys(REASSURANCE_ICONS)[0] ?? '';
+function emptyReassurance(): ReassuranceEntry {
+  return { icon: FIRST_PICTOGRAM, text: '', link: '', translations: {} };
+}
 interface ListedItem {
   id: string;
   name: string;
@@ -614,6 +778,10 @@ const shop = useShopConfigStore();
 const kindOptions = computed<{ label: string; value: Kind }[]>(() => [
   { label: t('homepage.kind_hero'), value: 'hero' },
   { label: t('homepage.kind_banner'), value: 'banner' },
+  { label: t('homepage.kind_announcement'), value: 'announcement' },
+  { label: t('homepage.kind_reassurance'), value: 'reassurance' },
+  { label: t('homepage.kind_brand_strip'), value: 'brand_strip' },
+  { label: t('homepage.kind_rich_text'), value: 'rich_text' },
   { label: t('homepage.kind_categories'), value: 'categories' },
   { label: t('homepage.kind_featured'), value: 'featured' },
   { label: t('homepage.kind_popular'), value: 'popular' },
@@ -681,6 +849,10 @@ function kindIcon(kind: string): string {
       featured: 'ph:star',
       popular: 'ph:trend-up',
       collection: 'ph:stack',
+      announcement: 'ph:megaphone',
+      reassurance: 'ph:seal-check',
+      brand_strip: 'ph:tag',
+      rich_text: 'ph:text-align-left',
     }[kind] ?? 'ph:square'
   );
 }
@@ -693,6 +865,7 @@ function defaultTitle(kind: string): string {
       featured: t('homepage.default_featured'),
       popular: t('homepage.default_popular'),
       collection: t('homepage.default_collection'),
+      brand_strip: t('homepage.default_brands'),
     }[kind] ?? ''
   );
 }
@@ -779,11 +952,13 @@ async function load() {
   loading.value = true;
   error.value = null;
   try {
-    const [list, groups, cats] = await Promise.all([
+    const [list, groups, cats, brandList] = await Promise.all([
       listHomepageBlocks(),
       listPriceGroups().catch(() => [] as PriceGroup[]),
       listCategories().catch(() => [] as Category[]),
+      listBrands({}).catch(() => null),
     ]);
+    brands.value = brandList?.data ?? [];
     blocks.value = list;
     priceGroups.value = groups;
     categories.value = cats;
@@ -826,6 +1001,10 @@ interface BlockForm {
   sort: string;
   mode: 'auto' | 'manual';
   items: ListedItem[];
+  /** Lot A3: free text, its image side; pictograms of a reassurance band. */
+  body_html: string;
+  image_side: 'left' | 'right';
+  reassurance: ReassuranceEntry[];
   /** Who sees it (R8). */
   scope: Scope;
   price_group_ids: string[];
@@ -835,7 +1014,7 @@ interface BlockForm {
 const form = reactive<BlockForm>(emptyForm('banner'));
 const content = useContentTranslations({
   form,
-  fields: ['title', 'subtitle', 'cta_label', 'alt'],
+  fields: ['title', 'subtitle', 'cta_label', 'alt', 'body_html'],
   status: () => blocks.value.find((b) => b.id === editingId.value)?.translation_status,
 });
 const texts = content.texts;
@@ -869,6 +1048,9 @@ function emptyForm(kind: Kind): BlockForm {
     sort: 'newest',
     mode: 'auto',
     items: [],
+    body_html: '',
+    image_side: 'right',
+    reassurance: kind === 'reassurance' ? [emptyReassurance(), emptyReassurance()] : [],
     scope: 'all',
     price_group_ids: [],
     locales: [],
@@ -876,11 +1058,35 @@ function emptyForm(kind: Kind): BlockForm {
 }
 
 const isBuiltin = computed(() => BUILTIN.includes(form.kind));
+const titleOptional = computed(() => TITLE_OPTIONAL.includes(form.kind));
+const hasCta = computed(() => ['hero', 'banner', 'announcement'].includes(form.kind));
+const hasImage = computed(() => ['hero', 'banner', 'rich_text'].includes(form.kind));
+const hasSubtitle = computed(
+  () => !['announcement', 'reassurance', 'rich_text'].includes(form.kind),
+);
+const otherLocales = computed(() => (shop.config?.available_locales ?? ['fr', 'en']).slice(1));
+const iconOptions = computed(() =>
+  Object.entries(REASSURANCE_ICONS).map(([value, icon]) => ({
+    value,
+    icon,
+    label: t(`homepage.icon_${value}`),
+  })),
+);
+const brands = ref<AdminBrand[]>([]);
+const brandOptions = computed(() =>
+  brands.value
+    .filter((b) => b.is_active)
+    .map((b) => ({
+      value: b.id,
+      label: b.is_validated ? b.name : `${b.name} (${t('brands.to_validate')})`,
+    })),
+);
 /** The section lists products (manual selection) or categories (manual mode). */
 const listsItems = computed(
   () =>
     (form.kind === 'collection' && form.source === 'manual') ||
-    (form.kind === 'categories' && form.mode === 'manual'),
+    (form.kind === 'categories' && form.mode === 'manual') ||
+    (form.kind === 'brand_strip' && form.mode === 'manual'),
 );
 
 const previewSrc = computed(() => {
@@ -897,6 +1103,7 @@ function openCreate(kind: Kind = 'banner') {
   // A shop section is shown as soon as it is added; a hero or a banner is
   // prepared as a draft first.
   form.is_published = BUILTIN.includes(kind);
+  if (kind === 'brand_strip') form.limit = 12;
   pickedPreview.value = null;
   dialogError.value = null;
   content.reset();
@@ -926,8 +1133,19 @@ function openEdit(block: HomepageBlock) {
     category_id: (block.config as { category_id?: string } | undefined)?.category_id ?? null,
     sort: (block.config as { sort?: string } | undefined)?.sort ?? 'newest',
     mode: ((block.config as { mode?: string } | undefined)?.mode ?? 'auto') as 'auto' | 'manual',
+    body_html: block.body_html ?? '',
+    image_side: ((block.config as { image_side?: string } | undefined)?.image_side ??
+      'right') as 'left' | 'right',
+    reassurance: (
+      (block.config as { items?: Partial<ReassuranceEntry>[] } | undefined)?.items ?? []
+    ).map((entry) => ({
+      icon: entry.icon ?? FIRST_PICTOGRAM,
+      text: entry.text ?? '',
+      link: entry.link ?? '',
+      translations: { ...(entry.translations ?? {}) },
+    })),
     items: (block.items ?? []).map((item) => ({
-      id: (item.product_id ?? item.category_id) as string,
+      id: (item.product_id ?? item.category_id ?? item.brand_id) as string,
       name: item.name,
       label: item.label ?? '',
     })),
@@ -970,20 +1188,40 @@ function configFromForm(): Record<string, unknown> {
     };
   }
   if (BUILTIN.includes(form.kind)) return { limit: form.limit };
+  if (form.kind === 'brand_strip') return { mode: form.mode, limit: form.limit };
+  if (form.kind === 'rich_text') return { image_side: form.image_side };
+  if (form.kind === 'reassurance') {
+    return {
+      items: form.reassurance.map((entry) => ({
+        icon: entry.icon,
+        text: entry.text.trim(),
+        link: entry.link.trim() || null,
+        translations: Object.fromEntries(
+          Object.entries(entry.translations).filter(([, text]) => text?.trim()),
+        ),
+      })),
+    };
+  }
   return {};
 }
 
-function itemsFromForm(): { product_id?: string; category_id?: string; label?: string | null }[] {
+function itemsFromForm(): {
+  product_id?: string;
+  category_id?: string;
+  brand_id?: string;
+  label?: string | null;
+}[] {
   if (!listsItems.value) return [];
   return form.items.map((item) =>
     form.kind === 'collection'
       ? { product_id: item.id }
-      : { category_id: item.id, label: item.label.trim() || null },
+      : form.kind === 'brand_strip'
+        ? { brand_id: item.id }
+        : { category_id: item.id, label: item.label.trim() || null },
   );
 }
 
 function payloadFromForm(): HomepageBlockWrite {
-  const builtin = BUILTIN.includes(form.kind);
   return {
     kind: form.kind,
     title: form.title.trim(),
@@ -993,6 +1231,7 @@ function payloadFromForm(): HomepageBlockWrite {
     media_id: form.media_id,
     image_url: form.media_id ? null : form.image_url.trim() || null,
     alt: form.alt.trim() || null,
+    body_html: form.kind === 'rich_text' ? form.body_html : null,
     position: form.position,
     is_published: form.is_published,
     starts_at: fromShopDateTimeInput(form.starts_at),
@@ -1001,13 +1240,14 @@ function payloadFromForm(): HomepageBlockWrite {
     config: configFromForm(),
     items: itemsFromForm(),
     audience: {
-      scope: form.scope,
-      price_group_ids: form.scope === 'customer' ? form.price_group_ids : [],
+      scope: form.kind === 'announcement' ? 'all' : form.scope,
+      price_group_ids:
+        form.scope === 'customer' && form.kind !== 'announcement' ? form.price_group_ids : [],
       locales: form.locales,
     },
-    ...(builtin
-      ? { cta_label: null, cta_link: null, media_id: null, image_url: null, alt: null }
-      : {}),
+    ...(hasCta.value ? {} : { cta_label: null, cta_link: null }),
+    ...(hasImage.value ? {} : { media_id: null, image_url: null, alt: null }),
+    ...(hasSubtitle.value ? {} : { subtitle: null }),
   };
 }
 
@@ -1062,6 +1302,11 @@ onMounted(load);
 </script>
 
 <style scoped lang="scss">
+.homepage-reassurance {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--n-line);
+}
+
 .homepage-thumb {
   width: 96px;
   height: 64px;

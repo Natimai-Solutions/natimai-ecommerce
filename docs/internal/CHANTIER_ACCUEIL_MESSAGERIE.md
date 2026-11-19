@@ -931,7 +931,6 @@ les identifiants M· de l'audit fonctionnel.
 
 | Lot | Contenu | Taille |
 |---|---|---|
-| **A3** | Annonce au-dessus de l'en-tête sur toutes les pages, réassurance, marques (après BR), bloc libre (R4 à R7) | M |
 | **A4** | Aperçu et programmation (R10), SEO de l'accueil (R11) | S à M |
 | **A5** | Sections personnelles (R9) et héros par audience | M |
 
@@ -970,8 +969,17 @@ marque n'est pas encore traduite ; la fiche produit ne renvoie pas encore vers
 la page marque. Constat en passant : en rendu serveur, le titre et la
 description de la **fiche produit** restent ceux par défaut (« Produit »),
 Quasar figeant `useMeta` au montage — la page marque précharge par `preFetch` ;
-la fiche produit est à traiter de même (noté au plan). Ordre conseillé pour la
-suite : **A3 → A4 → A5**.
+la fiche produit est à traiter de même (noté au plan). **A3** (annonce
+au-dessus de l'en-tête de toutes les pages sauf le paiement, fermable et
+mémorisée ; bande de réassurance à pictogrammes d'une liste fermée ; bande de
+marques automatique ou choisie ; bloc de texte libre avec image). Écarts :
+l'annonce est pour tout le monde (seule la langue la restreint : elle fait
+partie du rendu serveur, anonyme) ; le texte de chaque engagement de
+réassurance est traduit dans la section elle-même (pas dans les colonnes de
+traduction) ; le texte libre est nettoyé par DOMPurify à l'affichage, pas à
+l'enregistrement (saisi par un administrateur seulement). Le validateur de
+lien refuse désormais aussi `/\…` et les caractères de contrôle, pour toutes
+les sections. Ordre conseillé pour la suite : **A4 → A5**.
 ROLE peut attendre : sans lui, les superusers répondent.
 
 ---

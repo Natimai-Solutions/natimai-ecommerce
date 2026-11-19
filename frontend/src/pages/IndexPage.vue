@@ -150,6 +150,46 @@
           />
         </div>
       </section>
+
+      <section
+        v-else-if="part.type === 'reassurance' && part.section.reassurance?.length"
+        class="home-section page-container"
+        :aria-label="part.section.title || $t('home.reassurance')"
+      >
+        <h2 v-if="part.section.title" class="home-section__title home-section__title--solo">
+          {{ part.section.title }}
+        </h2>
+        <HomeReassurance :items="part.section.reassurance" />
+      </section>
+
+      <section
+        v-else-if="part.type === 'brands' && part.section.brands?.length"
+        class="home-section page-container"
+        :aria-labelledby="`home-section-${part.key}`"
+      >
+        <div class="home-section__head">
+          <h2 :id="`home-section-${part.key}`" class="home-section__title">
+            {{ part.section.title || $t('home.brands') }}
+          </h2>
+        </div>
+        <p v-if="part.section.subtitle" class="home-section__lead">{{ part.section.subtitle }}</p>
+        <HomeBrandStrip :brands="part.section.brands" />
+      </section>
+
+      <section
+        v-else-if="part.type === 'rich_text' && part.section.body_html"
+        class="home-section page-container"
+        :aria-labelledby="part.section.title ? `home-section-${part.key}` : undefined"
+      >
+        <h2
+          v-if="part.section.title"
+          :id="`home-section-${part.key}`"
+          class="home-section__title home-section__title--solo"
+        >
+          {{ part.section.title }}
+        </h2>
+        <HomeRichText :section="part.section" />
+      </section>
     </template>
 
     <div v-if="home.failed && !home.loading" class="page-container home__notice">
@@ -175,6 +215,7 @@
 
 <script setup lang="ts">
 import { mediaSrcset } from '@/utils/mediaSrcset';
+import { isInternalLink, linkAttrs } from '@/utils/links';
 import CartErrorToast from '@/components/CartErrorToast.vue';
 import { useI18n } from 'vue-i18n';
 import { useShopModulesStore } from '@/stores/shopModules';
@@ -185,6 +226,9 @@ import type { components } from '@app/api-types';
 
 import AppNotice from '@app/ui/AppNotice.vue';
 import ProductCard from '@/components/ProductCard.vue';
+import HomeBrandStrip from '@/components/home/HomeBrandStrip.vue';
+import HomeReassurance from '@/components/home/HomeReassurance.vue';
+import HomeRichText from '@/components/home/HomeRichText.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useCartStore } from '@/stores/cart';
 import type { HomepageSection } from '@/api/homepage';
@@ -215,7 +259,8 @@ type CategoryPublic = components['schemas']['CategoryPublic'];
 type Part =
   | { type: 'banners'; key: string; items: HomepageSection[] }
   | { type: 'categories'; key: string; section: HomepageSection; tiles: CategoryPublic[] }
-  | { type: 'products'; key: string; section: HomepageSection };
+  | { type: 'products'; key: string; section: HomepageSection }
+  | { type: 'reassurance' | 'brands' | 'rich_text'; key: string; section: HomepageSection };
 
 /** The sections after the hero, in order; banners next to each other share
  *  one grid, as before. */
@@ -242,6 +287,12 @@ const parts = computed<Part[]>(() => {
       result.push({ type: 'categories', key: section.id, section, tiles });
     } else if (['featured', 'popular', 'collection'].includes(section.kind)) {
       result.push({ type: 'products', key: section.id, section });
+    } else if (section.kind === 'reassurance') {
+      result.push({ type: 'reassurance', key: section.id, section });
+    } else if (section.kind === 'brand_strip') {
+      result.push({ type: 'brands', key: section.id, section });
+    } else if (section.kind === 'rich_text') {
+      result.push({ type: 'rich_text', key: section.id, section });
     }
   }
   return result;
@@ -309,15 +360,7 @@ const FALLBACK_LEAD = computed(() => t('home.lead'));
 const heroLead = computed(() => (hero.value ? hero.value.subtitle : FALLBACK_LEAD.value));
 
 /** Lien d'un bloc : chemin du site (routeur) ou adresse https (nouvel onglet). */
-function isInternal(link: string): boolean {
-  return link.startsWith('/') && !link.startsWith('//');
-}
-
-function linkAttrs(link: string): Record<string, string> {
-  return isInternal(link)
-    ? { to: link }
-    : { href: link, target: '_blank', rel: 'noopener noreferrer' };
-}
+const isInternal = isInternalLink;
 
 /** Mêmes liens pour un q-btn (to ou href). */
 function linkProps(link: string): Record<string, string> {
@@ -554,6 +597,10 @@ a.banner:hover {
   & + & {
     margin-top: 56px;
   }
+}
+
+.home-section__title--solo {
+  margin-bottom: 20px;
 }
 
 .home-section__head {

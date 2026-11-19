@@ -394,6 +394,10 @@ const en: MessageSchema = {
     unknown: 'Unknown error',
     catalogue_unavailable: 'The catalogue is temporarily unavailable. Try again in a moment.',
   },
+  announcement: {
+    more: 'Learn more',
+    close: 'Close the announcement',
+  },
   brand: {
     not_found: 'Brand not found',
     load_failed: 'This brand cannot be shown right now.',
@@ -668,6 +672,8 @@ const en: MessageSchema = {
     topic_rule: 'Choose a topic',
   },
   home: {
+    reassurance: 'Our commitments',
+    brands: 'Our brands',
     selection: 'Our selection',
     unavailable: 'The shop is temporarily unavailable.',
     retry: 'Try again',

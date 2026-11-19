@@ -15,3 +15,9 @@ export async function getPersonalHomepage(): Promise<HomepageContent> {
   const { data } = await api.get<HomepageContent>('/homepage/personal');
   return data;
 }
+
+/** L'annonce au-dessus de l'en-tête, dans la langue du visiteur (lot A3). */
+export async function getAnnouncement(): Promise<HomepageSection | null> {
+  const { data } = await api.get<HomepageSection | null>('/homepage/announcement');
+  return data ?? null;
+}

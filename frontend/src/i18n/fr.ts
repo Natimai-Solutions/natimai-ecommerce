@@ -398,6 +398,10 @@ const fr = {
     catalogue_unavailable:
       'Le catalogue est momentanément indisponible. Réessayez dans un instant.',
   },
+  announcement: {
+    more: 'En savoir plus',
+    close: "Fermer l'annonce",
+  },
   brand: {
     not_found: 'Marque introuvable',
     load_failed: 'La marque ne peut pas être affichée pour le moment.',
@@ -678,6 +682,8 @@ const fr = {
     topic_rule: 'Choisissez un motif',
   },
   home: {
+    reassurance: 'Nos engagements',
+    brands: 'Nos marques',
     selection: 'Notre sélection',
     unavailable: 'La boutique est momentanément indisponible.',
     retry: 'Réessayer',

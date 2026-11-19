@@ -167,7 +167,7 @@ watch(slug, load);
   object-fit: contain;
   flex: none;
   border-radius: 8px;
-  background: var(--n-surface);
+  background: var(--n-paper);
   padding: 8px;
   border: 1px solid var(--n-line);
 }

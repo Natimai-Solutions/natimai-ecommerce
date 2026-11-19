@@ -20,6 +20,7 @@ from pydantic import BaseModel
 from sqlmodel import col, select
 
 from app.api.deps import CurrentSuperUser, CurrentUser, SessionDep
+from app.api.routes.brand_pages import brand_logo, showcase
 from app.api.routes.media import request_origin
 from app.core.content_i18n import (
     CATEGORY_FIELDS,
@@ -30,7 +31,7 @@ from app.core.content_i18n import (
 )
 from app.core.datetimes import as_utc, utcnow
 from app.core.errors import AppError
-from app.core.i18n import request_locale
+from app.core.i18n import default_locale, request_locale
 from app.features.content.homepage_collections import (
     chosen_categories,
     collection_products,
@@ -42,24 +43,29 @@ from app.features.content.homepage_sections import (
     audiences_overlap,
     clean_audience,
     clean_config,
+    is_safe_link,
     is_shown_to,
 )
 from app.features.content.models import (
     HOMEPAGE_BLOCK_KINDS,
-    HOMEPAGE_BUILTIN_KINDS,
+    HOMEPAGE_TITLE_OPTIONAL_KINDS,
     HomepageBlock,
     HomepageBlockItem,
     HomepageBlockPublic,
     HomepageBlockWrite,
+    HomepageBrandTile,
     HomepageCategoryTile,
     HomepageImage,
     HomepageItemPublic,
+    HomepageItemWrite,
     HomepageOrder,
+    HomepageReassurance,
 )
 from app.features.inventory.services.availability import publish_with_availability
 from app.features.media.models import MediaAsset
 from app.features.media.service import public_base_url, to_public
 from app.features.product.crud.product import crud_product
+from app.features.product.models.brand import Brand
 from app.features.product.models.category import Category
 from app.features.product.models.price_group import PriceGroup
 from app.features.product.models.product import Product, ProductPublic
@@ -97,15 +103,16 @@ def _validate(body: HomepageBlockWrite) -> None:
             message="Unknown section type: {kind}.",
             details={"field": "kind", "kind": body.kind},
         )
-    if body.kind not in HOMEPAGE_BUILTIN_KINDS and not body.title.strip():
+    if body.kind not in HOMEPAGE_TITLE_OPTIONAL_KINDS and not body.title.strip():
         raise _invalid("A title is required.", "homepage.title", "title")
+    if body.kind == "rich_text" and not (body.body_html or "").strip():
+        raise _invalid("The text is required.", "homepage.body", "body_html")
+    if body.kind != "rich_text":
+        body.body_html = None
     link = (body.cta_link or "").strip()
     # A storefront path or an https URL: never javascript: or a protocol-relative
     # URL that would take the visitor elsewhere unnoticed.
-    if link and not (
-        (link.startswith("/") and not link.startswith("//"))
-        or link.startswith("https://")
-    ):
+    if link and not is_safe_link(link):
         raise _invalid(
             "Link: a path of the site (/catalogue…) or an https:// address.",
             "homepage.link",
@@ -135,6 +142,10 @@ async def _clean_sections_fields(
     try:
         audience = clean_audience(body.audience)
     except InvalidSection:
+        raise _invalid("Invalid audience.", "homepage.audience", "audience")
+    # The announcement is above the header of every page, rendered with the
+    # page for everyone: a language may narrow it, an audience may not.
+    if body.kind == "announcement" and audience["scope"] != "all":
         raise _invalid("Invalid audience.", "homepage.audience", "audience")
     for group_id in audience["price_group_ids"]:
         group = await session.get(PriceGroup, uuid.UUID(group_id))
@@ -197,24 +208,86 @@ async def _to_public(
             )
             for category, listed in chosen
         ]
+    if block.kind == "reassurance":
+        item.reassurance = _reassurance(block, localized=localized)
+    if block.kind == "brand_strip" and localized:
+        item.brands = await _brand_tiles(session, block, base_url)
     if not localized:
         names: list[HomepageItemPublic] = []
         for listed in await section_items(session, block.id):
-            target: Product | Category | None = (
-                await session.get(Product, listed.product_id)
-                if listed.product_id
-                else await session.get(Category, listed.category_id)
-            )
+            target: Product | Category | Brand | None
+            if listed.product_id:
+                target = await session.get(Product, listed.product_id)
+            elif listed.category_id:
+                target = await session.get(Category, listed.category_id)
+            else:
+                target = await session.get(Brand, listed.brand_id)
             names.append(
                 HomepageItemPublic(
                     product_id=listed.product_id,
                     category_id=listed.category_id,
+                    brand_id=listed.brand_id,
                     label=listed.label,
                     name=getattr(target, "name", "") if target else "",
                 )
             )
         item.items = names
     return item
+
+
+def _reassurance(block: HomepageBlock, *, localized: bool) -> list[HomepageReassurance]:
+    """The pictograms of a reassurance band, their text in the visitor's
+    language (lot A3 / R5)."""
+    locale = request_locale() if localized else default_locale()
+    shown = []
+    for raw in clean_config(block.kind, block.config)["items"]:
+        text = raw["text"]
+        if localized and locale != default_locale():
+            text = (raw.get("translations") or {}).get(locale) or text
+        shown.append(
+            HomepageReassurance(icon=raw["icon"], text=text, link=raw.get("link"))
+        )
+    return shown
+
+
+async def _brand_tiles(
+    session: SessionDep, block: HomepageBlock, base_url: str
+) -> list[HomepageBrandTile]:
+    """The brands of a brand strip: chosen, or the best-stocked with a logo.
+    A brand without a logo, hidden or still to validate is left out."""
+    config = clean_config(block.kind, block.config)
+    tiles: list[HomepageBrandTile] = []
+    if config["mode"] == "manual":
+        for listed in await section_items(session, block.id):
+            brand = (
+                await session.get(Brand, listed.brand_id) if listed.brand_id else None
+            )
+            if brand is None or not (brand.is_validated and brand.is_active):
+                continue
+            logo = await brand_logo(session, brand, base_url)
+            if logo is None or not brand.slug:
+                continue
+            tiles.append(
+                HomepageBrandTile(
+                    id=brand.id,
+                    name=brand.name,
+                    slug=brand.slug,
+                    logo=logo.src,
+                    logo_srcset=logo.srcset,
+                )
+            )
+        return tiles[: config["limit"]]
+    for brand, logo, _count in await showcase(session, base_url, config["limit"]):
+        tiles.append(
+            HomepageBrandTile(
+                id=brand.id,
+                name=brand.name,
+                slug=brand.slug or "",
+                logo=logo.src,
+                logo_srcset=logo.srcset,
+            )
+        )
+    return tiles
 
 
 def _is_live(block: HomepageBlock, now: datetime.datetime) -> bool:
@@ -265,7 +338,13 @@ async def _page(
             .order_by(col(HomepageBlock.position).asc(), col(HomepageBlock.title).asc())
         )
     ).all()
-    visible = [b for b in rows if _is_live(b, now) and is_shown_to(b.audience, viewer)]
+    visible = [
+        b
+        for b in rows
+        if b.kind != "announcement"
+        and _is_live(b, now)
+        and is_shown_to(b.audience, viewer)
+    ]
     hero = next((b for b in visible if b.kind == "hero"), None)
     ordered = ([hero] if hero else []) + [b for b in visible if b.kind != "hero"]
     base = public_base_url(request_origin(request))
@@ -304,6 +383,36 @@ async def get_personal_homepage(
         locale=request_locale(),
     )
     return await _page(request, session, viewer=viewer, customer=current_user)
+
+
+@router.get("/homepage/announcement", response_model=HomepageSectionPublic | None)
+async def get_announcement(
+    request: Request, session: SessionDep
+) -> HomepageSectionPublic | None:
+    """The announcement shown above the header of every page (lot A3 / R4):
+    the published one live now in the visitor's language, or nothing."""
+    now = utcnow()
+    viewer = Viewer(signed_in=False, price_group_id=None, locale=request_locale())
+    rows = (
+        await session.exec(
+            select(HomepageBlock)
+            .where(
+                col(HomepageBlock.kind) == "announcement",
+                col(HomepageBlock.is_active).is_(True),
+                col(HomepageBlock.is_published).is_(True),
+            )
+            .order_by(col(HomepageBlock.position).asc())
+        )
+    ).all()
+    for block in rows:
+        if _is_live(block, now) and is_shown_to(block.audience, viewer):
+            return await _to_public(
+                session,
+                block,
+                public_base_url(request_origin(request)),
+                localized=True,
+            )
+    return None
 
 
 @router.get("/admin/homepage-blocks", response_model=list[HomepageSectionPublic])
@@ -348,12 +457,12 @@ async def _refuse_second_live_hero(
     single one, by position, so a second live hero for the same visitors
     would silently never appear (03/10/2026). Heroes for audiences no visitor
     shares (visitors / customers, two price groups) may overlap in time."""
-    if body.kind != "hero" or not body.is_published:
+    if body.kind not in ("hero", "announcement") or not body.is_published:
         return
     others = (
         await session.exec(
             select(HomepageBlock).where(
-                col(HomepageBlock.kind) == "hero",
+                col(HomepageBlock.kind) == body.kind,
                 col(HomepageBlock.is_published).is_(True),
                 col(HomepageBlock.is_active).is_(True),
             )
@@ -365,6 +474,19 @@ async def _refuse_second_live_hero(
         if _overlaps(
             body.starts_at, body.ends_at, other.starts_at, other.ends_at
         ) and audiences_overlap(body.audience, other.audience):
+            if body.kind == "announcement":
+                raise AppError(
+                    code="homepage.announcement.conflict",
+                    status_code=409,
+                    message=(
+                        "Another published announcement already covers this period: “{other_title}”. Only one is shown at a time."
+                    ),
+                    details={
+                        "field": "is_published",
+                        "other_id": str(other.id),
+                        "other_title": other.title,
+                    },
+                )
             raise AppError(
                 code="homepage.hero.conflict",
                 status_code=409,
@@ -398,26 +520,33 @@ async def _prepare(session: SessionDep, body: HomepageBlockWrite) -> None:
     manual_categories = (
         body.kind == "categories" and body.config.get("mode") == "manual"
     )
-    if not (manual_products or manual_categories):
+    manual_brands = body.kind == "brand_strip" and body.config.get("mode") == "manual"
+    if not (manual_products or manual_categories or manual_brands):
         body.items = []
         return
+    field = (
+        "product_id"
+        if manual_products
+        else "category_id"
+        if manual_categories
+        else "brand_id"
+    )
+    model: type[Product] | type[Category] | type[Brand] = (
+        Product if manual_products else Category if manual_categories else Brand
+    )
     seen: set[uuid.UUID] = set()
     cleaned = []
     for item in body.items:
-        target = item.product_id if manual_products else item.category_id
+        target = getattr(item, field)
         if target is None or target in seen:
             raise _invalid("Invalid list of the section.", "homepage.items", "items")
-        model = Product if manual_products else Category
         if await session.get(model, target) is None:
             raise _invalid("Invalid list of the section.", "homepage.items", "items")
         seen.add(target)
         cleaned.append(
-            item.model_copy(
-                update={
-                    "product_id": target if manual_products else None,
-                    "category_id": None if manual_products else target,
-                    "label": (item.label or "").strip() or None,
-                }
+            HomepageItemWrite(
+                **{field: target},
+                label=(item.label or "").strip() or None,
             )
         )
     body.items = cleaned
@@ -435,6 +564,7 @@ async def _save_items(
                 position=position,
                 product_id=item.product_id,
                 category_id=item.category_id,
+                brand_id=item.brand_id,
                 label=item.label,
             )
         )

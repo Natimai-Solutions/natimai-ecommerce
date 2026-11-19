@@ -13,7 +13,7 @@ import uuid
 from typing import Any
 
 from pydantic import computed_field
-from sqlalchemy import Column
+from sqlalchemy import Column, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, SQLModel
 
@@ -137,7 +137,24 @@ HOMEPAGE_BUILTIN_KINDS: tuple[str, ...] = (
     "popular",
     "collection",
 )
-HOMEPAGE_BLOCK_KINDS: tuple[str, ...] = ("hero", "banner", *HOMEPAGE_BUILTIN_KINDS)
+#: Sections written in the admin whose title is optional (lot A3, R5 to R7).
+HOMEPAGE_TITLE_OPTIONAL_KINDS: tuple[str, ...] = (
+    *HOMEPAGE_BUILTIN_KINDS,
+    "reassurance",
+    "brand_strip",
+    "rich_text",
+)
+#: The announcement shows above the header of every page, not in the
+#: homepage sections (lot A3, R4).
+HOMEPAGE_BLOCK_KINDS: tuple[str, ...] = (
+    "hero",
+    "banner",
+    "announcement",
+    "reassurance",
+    "brand_strip",
+    "rich_text",
+    *HOMEPAGE_BUILTIN_KINDS,
+)
 #: Who a section is shown to (chantier accueil et messagerie, R8).
 HOMEPAGE_AUDIENCE_SCOPES: tuple[str, ...] = ("all", "guest", "customer")
 
@@ -162,6 +179,9 @@ class HomepageBlockBase(Base):
         default=None, max_length=500, description="External image, when no media is set"
     )
     alt: str | None = Field(default=None, max_length=255)
+    #: Text of a free content section (``rich_text``), cleaned by the
+    #: storefront before display.
+    body_html: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
     position: int = Field(default=0, index=True)
     is_published: bool = Field(default=False, index=True)
     starts_at: datetime.datetime | None = Field(default=None)
@@ -211,6 +231,9 @@ class HomepageBlockItem(SQLModel, table=True):
     category_id: uuid.UUID | None = Field(
         default=None, foreign_key="categories.id", ondelete="CASCADE"
     )
+    brand_id: uuid.UUID | None = Field(
+        default=None, foreign_key="brands.id", ondelete="CASCADE"
+    )
     #: Label shown instead of the category's own name (optional).
     label: str | None = Field(default=None, max_length=100)
 
@@ -218,12 +241,14 @@ class HomepageBlockItem(SQLModel, table=True):
 class HomepageItemWrite(SQLModel):
     product_id: uuid.UUID | None = None
     category_id: uuid.UUID | None = None
+    brand_id: uuid.UUID | None = None
     label: str | None = Field(default=None, max_length=100)
 
 
 class HomepageItemPublic(SQLModel):
     product_id: uuid.UUID | None = None
     category_id: uuid.UUID | None = None
+    brand_id: uuid.UUID | None = None
     label: str | None = None
     #: Name of the product or the category (back-office list).
     name: str = ""
@@ -237,6 +262,24 @@ class HomepageCategoryTile(SQLModel):
     image_url: str | None = None
 
 
+class HomepageBrandTile(SQLModel):
+    """A brand of a brand strip: its logo leads to its page."""
+
+    id: uuid.UUID
+    name: str
+    slug: str
+    logo: str
+    logo_srcset: str | None = None
+
+
+class HomepageReassurance(SQLModel):
+    """One pictogram and its short text, in the visitor's language."""
+
+    icon: str
+    text: str
+    link: str | None = None
+
+
 class HomepageBlockWrite(SQLModel):
     """Admin create / replace payload."""
 
@@ -248,6 +291,7 @@ class HomepageBlockWrite(SQLModel):
     media_id: uuid.UUID | None = None
     image_url: str | None = Field(default=None, max_length=500)
     alt: str | None = Field(default=None, max_length=255)
+    body_html: str | None = Field(default=None, max_length=20000)
     position: int = 0
     is_published: bool = False
     starts_at: datetime.datetime | None = None
@@ -289,11 +333,16 @@ class HomepageBlockPublic(SQLModel):
     media_id: uuid.UUID | None = None
     image_url: str | None = None
     alt: str | None = None
+    body_html: str | None = None
     position: int = 0
     is_published: bool = False
     starts_at: datetime.datetime | None = None
     ends_at: datetime.datetime | None = None
     image: HomepageImage | None = None
+    #: Storefront: the brands of a brand strip, the pictograms of a
+    #: reassurance band (lot A3).
+    brands: list[HomepageBrandTile] | None = None
+    reassurance: list[HomepageReassurance] | None = None
     config: dict[str, Any] = Field(default_factory=dict)
     audience: dict[str, Any] = Field(default_factory=dict)
     #: Back-office: the listed products / categories.

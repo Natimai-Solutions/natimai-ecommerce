@@ -9,6 +9,10 @@ takes a tag as its `ref`.
 
 ### Security
 
+- The link of a homepage section (call to action, reassurance pictogram)
+  refuses `/\…`, read by browsers as another site's address, and control
+  characters.
+
 - A quote request made without an account is reached by its e-mail address
   only from an account whose address is proven (verified, not a guest
   session): a guest session opened for a visitor's address no longer lists,
@@ -61,6 +65,14 @@ takes a tag as its `ref`.
   a message is French.
 
 ### Added
+
+- Homepage sections of lot A3 (chantier accueil et messagerie, R4 to R7): an
+  announcement above the header of every page but the checkout (one at a
+  time, closable, remembered in the browser, part of the server render), a
+  reassurance band (2 to 4 pictograms from a closed list, each text
+  translated), a brand strip (best-stocked validated brands with a logo, or
+  hand-picked) and a free text block with an optional image (cleaned by
+  DOMPurify). `GET /homepage/announcement`.
 
 - Brand sheets (chantier accueil et messagerie, lot BR): every product is
   linked to a brand (`products.brand_id`) from the supplier's manufacturer

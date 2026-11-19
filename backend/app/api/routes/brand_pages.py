@@ -83,7 +83,9 @@ def _not_found() -> AppError:
     return AppError(code="brand.not_found", status_code=404, message="Brand not found.")
 
 
-async def _logo(session: SessionDep, brand: Brand, base_url: str) -> BrandLogo | None:
+async def brand_logo(
+    session: SessionDep, brand: Brand, base_url: str
+) -> BrandLogo | None:
     if brand.media_id:
         media = await session.get(MediaAsset, brand.media_id)
         if media is not None and media.is_active:
@@ -138,9 +140,41 @@ async def get_brand_page(
         name=brand.name,
         slug=brand.slug or slug,
         description=brand.description,
-        logo=await _logo(session, brand, public_base_url(request_origin(request))),
+        logo=await brand_logo(session, brand, public_base_url(request_origin(request))),
         product_count=counts.get(brand.id, 0),
     )
+
+
+async def showcase(
+    session: SessionDep, base_url: str, limit: int
+) -> list[tuple[Brand, BrandLogo, int]]:
+    """The validated brands that have a logo and products on sale, the
+    best-stocked first (the brand page list and the homepage brand strip)."""
+    brands = (
+        await session.exec(
+            select(Brand).where(
+                col(Brand.is_validated).is_(True),
+                col(Brand.is_active).is_(True),
+                col(Brand.slug).is_not(None),
+                or_(
+                    col(Brand.media_id).is_not(None),
+                    col(Brand.image_url).is_not(None),
+                ),
+            )
+        )
+    ).all()
+    counts = await _product_counts(session, [b.id for b in brands])
+    shown: list[tuple[Brand, BrandLogo, int]] = []
+    for brand in sorted(brands, key=lambda b: (-counts.get(b.id, 0), b.name.lower())):
+        if not counts.get(brand.id):
+            continue
+        logo = await brand_logo(session, brand, base_url)
+        if logo is None:
+            continue
+        shown.append((brand, logo, counts[brand.id]))
+        if len(shown) >= limit:
+            break
+    return shown
 
 
 @router.get(
@@ -152,41 +186,20 @@ async def brand_showcase(
     limit: Annotated[int, Query(ge=1, le=48)] = 24,
 ) -> list[BrandPagePublic]:
     """The validated brands that have a logo and products on sale, the
-    best-stocked first (the homepage brand strip)."""
-    brands = (
-        await session.exec(
-            select(Brand).where(
-                col(Brand.is_validated).is_(True),
-                col(Brand.is_active).is_(True),
-                col(Brand.slug).is_not(None),
-                or_(
-                    col(Brand.media_id).is_not(None), col(Brand.image_url).is_not(None)
-                ),
-            )
+    best-stocked first."""
+    return [
+        BrandPagePublic(
+            id=brand.id,
+            name=brand.name,
+            slug=brand.slug or "",
+            description=brand.description,
+            logo=logo,
+            product_count=count,
         )
-    ).all()
-    counts = await _product_counts(session, [b.id for b in brands])
-    base_url = public_base_url(request_origin(request))
-    shown: list[BrandPagePublic] = []
-    for brand in sorted(brands, key=lambda b: (-counts.get(b.id, 0), b.name.lower())):
-        if not counts.get(brand.id):
-            continue
-        logo = await _logo(session, brand, base_url)
-        if logo is None:
-            continue
-        shown.append(
-            BrandPagePublic(
-                id=brand.id,
-                name=brand.name,
-                slug=brand.slug or "",
-                description=brand.description,
-                logo=logo,
-                product_count=counts[brand.id],
-            )
+        for brand, logo, count in await showcase(
+            session, public_base_url(request_origin(request)), limit
         )
-        if len(shown) >= limit:
-            break
-    return shown
+    ]
 
 
 # -------------------------------------------------------------------- admin
@@ -213,7 +226,7 @@ async def _admin_view(
             name=b.name,
             slug=b.slug or "",
             description=b.description,
-            logo=await _logo(session, b, base_url),
+            logo=await brand_logo(session, b, base_url),
             product_count=counts.get(b.id, 0),
             is_validated=b.is_validated,
             is_active=b.is_active,

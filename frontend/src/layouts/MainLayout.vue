@@ -2,6 +2,7 @@
   <!-- fff : le footer défile avec le contenu (non fixé) -->
   <q-layout view="hHh lpR fff">
     <q-header class="app-header">
+      <AnnouncementBar />
       <div class="app-header__bar page-container">
         <q-btn
           flat
@@ -331,6 +332,8 @@ import { useCurrencyStore } from '@/stores/currency';
 import { toggleTheme } from '@/utils/theme';
 import { useDepartureStore } from '@/stores/departure';
 import NextDepartureBanner from '@/components/NextDepartureBanner.vue';
+import AnnouncementBar from '@/components/AnnouncementBar.vue';
+import { useAnnouncementStore } from '@/stores/announcement';
 import { useLocale } from '@/composables/useLocale';
 import { useShopModulesStore } from '@/stores/shopModules';
 import { useMessagingStore } from '@/stores/messaging';
@@ -370,6 +373,11 @@ const logo = computed(() => shop.config.branding?.logo ?? null);
 // (logo, name) and the icon links are right on the first paint.
 onServerPrefetch(() => shop.load());
 const { current: currentLocale, options: localeOptions, setLocale } = useLocale();
+// The shop's announcement, above the header of every page (lot A3 / R4):
+// part of the server render, reloaded when the visitor changes language.
+const announcement = useAnnouncementStore();
+onServerPrefetch(() => announcement.load(currentLocale.value));
+watch(currentLocale, (code) => void announcement.load(code));
 
 function onLocaleChange(event: Event) {
   void setLocale((event.target as HTMLSelectElement).value);
@@ -429,6 +437,7 @@ onMounted(() => {
   void cartStore.loadCart();
   void currencyStore.loadRates();
   void departureStore.load();
+  void announcement.load(currentLocale.value);
   void shop.load();
   if (authStore.isAuthenticated && messagingOn.value) messaging.startPolling();
   window.addEventListener('keydown', onKeydown);

@@ -4800,7 +4800,7 @@ export interface paths {
         /**
          * Brands with a logo
          * @description The validated brands that have a logo and products on sale, the
-         *     best-stocked first (the homepage brand strip).
+         *     best-stocked first.
          */
         get: operations["brand-brand_showcase"];
         put?: never;
@@ -7476,6 +7476,27 @@ export interface paths {
          *     products at their prices. Never cached.
          */
         get: operations["homepage-get_personal_homepage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/homepage/announcement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Announcement
+         * @description The announcement shown above the header of every page (lot A3 / R4):
+         *     the published one live now in the visitor's language, or nothing.
+         */
+        get: operations["homepage-get_announcement"];
         put?: never;
         post?: never;
         delete?: never;
@@ -14408,6 +14429,8 @@ export interface components {
             image_url?: string | null;
             /** Alt */
             alt?: string | null;
+            /** Body Html */
+            body_html?: string | null;
             /**
              * Position
              * @default 0
@@ -14438,6 +14461,25 @@ export interface components {
             };
             /** Items */
             items?: components["schemas"]["HomepageItemWrite"][];
+        };
+        /**
+         * HomepageBrandTile
+         * @description A brand of a brand strip: its logo leads to its page.
+         */
+        HomepageBrandTile: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Slug */
+            slug: string;
+            /** Logo */
+            logo: string;
+            /** Logo Srcset */
+            logo_srcset?: string | null;
         };
         /**
          * HomepageCategoryTile
@@ -14479,6 +14521,8 @@ export interface components {
             product_id?: string | null;
             /** Category Id */
             category_id?: string | null;
+            /** Brand Id */
+            brand_id?: string | null;
             /** Label */
             label?: string | null;
             /**
@@ -14493,6 +14537,8 @@ export interface components {
             product_id?: string | null;
             /** Category Id */
             category_id?: string | null;
+            /** Brand Id */
+            brand_id?: string | null;
             /** Label */
             label?: string | null;
         };
@@ -14515,6 +14561,18 @@ export interface components {
              * @default []
              */
             sections: components["schemas"]["HomepageSectionPublic"][];
+        };
+        /**
+         * HomepageReassurance
+         * @description One pictogram and its short text, in the visitor's language.
+         */
+        HomepageReassurance: {
+            /** Icon */
+            icon: string;
+            /** Text */
+            text: string;
+            /** Link */
+            link?: string | null;
         };
         /**
          * HomepageSectionPublic
@@ -14543,6 +14601,8 @@ export interface components {
             image_url?: string | null;
             /** Alt */
             alt?: string | null;
+            /** Body Html */
+            body_html?: string | null;
             /**
              * Position
              * @default 0
@@ -14558,6 +14618,10 @@ export interface components {
             /** Ends At */
             ends_at?: string | null;
             image?: components["schemas"]["HomepageImage"] | null;
+            /** Brands */
+            brands?: components["schemas"]["HomepageBrandTile"][] | null;
+            /** Reassurance */
+            reassurance?: components["schemas"]["HomepageReassurance"][] | null;
             /** Config */
             config?: {
                 [key: string]: unknown;
@@ -38733,6 +38797,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HomepagePublic"];
+                };
+            };
+        };
+    };
+    "homepage-get_announcement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HomepageSectionPublic"] | null;
                 };
             };
         };

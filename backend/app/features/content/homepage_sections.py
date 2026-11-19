@@ -59,9 +59,57 @@ class _PopularConfig(_Strict):
     days: int = Field(default=30, ge=1, le=365)
 
 
+#: Pictograms of a reassurance band: a closed list, drawn by the storefront
+#: (no icon address typed in the admin, lot A3 / R5).
+REASSURANCE_ICONS: tuple[str, ...] = (
+    "truck",
+    "boat",
+    "map_pin",
+    "package",
+    "lock",
+    "shield",
+    "credit_card",
+    "seal",
+    "chat",
+    "phone",
+    "clock",
+    "returns",
+    "tag",
+    "star",
+)
+
+
+class _ReassuranceItem(_Strict):
+    icon: Literal[REASSURANCE_ICONS]  # type: ignore[valid-type]
+    text: str = Field(min_length=1, max_length=80)
+    link: str | None = Field(default=None, max_length=500)
+    #: The text in the other languages: ``{"en": "…"}``.
+    translations: dict[str, str] = Field(default_factory=dict, max_length=10)
+
+
+class _ReassuranceConfig(_Strict):
+    items: list[_ReassuranceItem] = Field(min_length=2, max_length=4)
+
+
+class _BrandStripConfig(_Strict):
+    #: ``auto``: the validated brands with a logo, best-stocked first;
+    #: ``manual``: the brands listed in the section, in order.
+    mode: Literal["auto", "manual"] = "auto"
+    limit: int = Field(default=12, ge=3, le=24)
+
+
+class _RichTextConfig(_Strict):
+    #: Side of the optional image.
+    image_side: Literal["left", "right"] = "right"
+
+
 _CONFIGS: dict[str, type[_Strict]] = {
     "hero": _NoConfig,
     "banner": _NoConfig,
+    "announcement": _NoConfig,
+    "reassurance": _ReassuranceConfig,
+    "brand_strip": _BrandStripConfig,
+    "rich_text": _RichTextConfig,
     "categories": _CategoriesConfig,
     "featured": _FeaturedConfig,
     "popular": _PopularConfig,
@@ -92,7 +140,32 @@ def clean_config(kind: str, raw: dict[str, Any] | None) -> dict[str, Any]:
         (config.source == "category") != (config.category_id is not None)
     ):
         raise InvalidSection("a category is required for, and only for, that source")
+    if isinstance(config, _ReassuranceConfig):
+        offered = set(offered_locales())
+        for item in config.items:
+            item.text = item.text.strip()
+            item.link = (item.link or "").strip() or None
+            if item.link and not is_safe_link(item.link):
+                raise InvalidSection("unsafe link")
+            texts: dict[str, str] = {}
+            for code, text in item.translations.items():
+                lang = normalize_locale(code)
+                if not lang or lang not in offered:
+                    raise InvalidSection(f"language not offered: {code}")
+                if text.strip():
+                    texts[lang] = text.strip()[:80]
+            item.translations = texts
     return config.model_dump(mode="json")
+
+
+def is_safe_link(link: str) -> bool:
+    """A storefront path or an https address: never ``javascript:``, a
+    protocol-relative URL (``//`` or ``/\\``) nor a control character."""
+    if any(ord(ch) < 32 or ord(ch) == 127 for ch in link):
+        return False
+    if link.startswith("/"):
+        return not link.startswith("//") and not link.startswith("/\\")
+    return link.startswith("https://")
 
 
 def clean_audience(raw: dict[str, Any] | None) -> dict[str, Any]:
@@ -174,6 +247,8 @@ def audiences_overlap(a: dict[str, Any] | None, b: dict[str, Any] | None) -> boo
 
 
 __all__ = [
+    "REASSURANCE_ICONS",
+    "is_safe_link",
     "Audience",
     "InvalidSection",
     "Viewer",
