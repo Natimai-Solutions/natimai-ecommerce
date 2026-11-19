@@ -776,3 +776,23 @@ async def test_writing_again_does_not_push_the_release_back(
     # 3 days after the opening message, 1 day after the reminder: released.
     later = start + datetime.timedelta(days=3, hours=1)
     assert await notify.release_stale(db_session, now=later) == 1
+
+
+async def test_hours_ending_before_they_start_fall_back_to_the_usual(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Review of PR 204: « 17:00 » to « 08:00 » counted no business hour at
+    all — reminders, the release and « open now » stood still."""
+    import datetime as dt
+
+    from app.core import runtime_settings
+    from app.features.messaging import info
+
+    values = {"messaging_hours_start": "17:00", "messaging_hours_end": "08:00"}
+
+    async def get(key: str, _session: Any = None, **_kw: Any) -> Any:
+        return values.get(key)
+
+    monkeypatch.setattr(runtime_settings, "get", get)
+    hours = await info.opening_hours(None)  # type: ignore[arg-type]
+    assert (hours.start, hours.end) == (dt.time(8, 0), dt.time(17, 0))

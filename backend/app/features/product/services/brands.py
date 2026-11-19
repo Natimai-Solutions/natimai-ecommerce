@@ -220,6 +220,20 @@ async def set_aliases(
 
 
 async def _relink_names(session: AsyncSession, brand: Brand, keys: list[str]) -> None:
+    # A spelling another sheet holds as its alias stays with that sheet
+    # (review of PR 204: saving the aliases of « HP » took the products of
+    # « HPE », which holds the alias « HP »).
+    held = set(
+        (
+            await session.exec(
+                select(BrandAlias.key).where(
+                    col(BrandAlias.key).in_(keys),
+                    col(BrandAlias.brand_id) != brand.id,
+                )
+            )
+        ).all()
+    )
+    keys = [k for k in keys if k not in held]
     names = (
         await session.exec(
             select(Product.manufacturer)

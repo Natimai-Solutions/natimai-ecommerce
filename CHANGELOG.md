@@ -600,6 +600,20 @@ takes a tag as its `ref`.
 - Messaging: a held conversation goes back to the queue N days after the
   first customer message left unanswered — writing again (« any news? »)
   no longer pushes the release back.
+- Messaging hours ending before they start (« 17:00 » to « 08:00 ») fall
+  back to 08:00–17:00: no business hour counted, so reminders, the release
+  and « open now » stood still. The storefront reads the hours again after
+  five minutes instead of keeping the first answer for the whole visit.
+- Brand page: loaded again when the language changes (it was kept by its
+  path only), and the browser loads it itself instead of the page's
+  prefetch.
+- Brands: the number of products on the storefront (strip, sitemap, brand
+  page) counts what the catalogue shows only; the brand filter lists the
+  products the facet counts under that name (a product not linked yet was
+  missing); saving the aliases of a sheet leaves the spellings another sheet
+  holds, and their products, alone.
+- Media library: an image used by a homepage tile or a brand logo can no
+  longer be deleted (409 `media.in_use`, listing them).
 - Page titles of the form « … | Natimai » showed their first part only
   (vue-i18n read the `|` as a plural separator); the product page title
   and description are server-rendered (they stayed « Produit »); a closed

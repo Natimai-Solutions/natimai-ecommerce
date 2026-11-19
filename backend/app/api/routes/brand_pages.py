@@ -29,6 +29,7 @@ from app.core.errors import AppError
 from app.core.i18n import request_locale
 from app.features.media.models import MediaAsset
 from app.features.media.service import public_base_url, to_public
+from app.features.product.crud.product import crud_product
 from app.features.product.models.brand import Brand, BrandAlias
 from app.features.product.models.product import Product
 from app.features.product.services import brands as brand_service
@@ -118,19 +119,26 @@ async def brand_logo(
 
 
 async def _product_counts(
-    session: SessionDep, brand_ids: list[uuid.UUID]
+    session: SessionDep, brand_ids: list[uuid.UUID], *, storefront: bool = True
 ) -> dict[uuid.UUID, int]:
+    """Products per brand. On the storefront (strip, sitemap, brand page),
+    only what the catalogue shows: a brand whose products are hidden or not
+    ready would lead to an empty page (review of PR 204)."""
     if not brand_ids:
         return {}
+    conditions = (
+        crud_product.storefront_conditions()
+        if storefront
+        else [
+            col(Product.is_active).is_(True),
+            # A variant counts with its product, as the catalogue lists it.
+            col(Product.parent_product_id).is_(None),
+        ]
+    )
     rows = (
         await session.exec(
             select(col(Product.brand_id), func.count())
-            .where(
-                col(Product.brand_id).in_(brand_ids),
-                col(Product.is_active).is_(True),
-                # A variant counts with its product, as the catalogue lists it.
-                col(Product.parent_product_id).is_(None),
-            )
+            .where(col(Product.brand_id).in_(brand_ids), *conditions)
             .group_by(col(Product.brand_id))
         )
     ).all()
@@ -254,7 +262,7 @@ async def _admin_view(
     session: SessionDep, brands: list[Brand], base_url: str
 ) -> list[AdminBrand]:
     ids = [b.id for b in brands]
-    counts = await _product_counts(session, ids)
+    counts = await _product_counts(session, ids, storefront=False)
     aliases: dict[uuid.UUID, list[str]] = {}
     if ids:
         for row in (

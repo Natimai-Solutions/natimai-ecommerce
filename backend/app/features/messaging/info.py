@@ -63,6 +63,11 @@ async def opening_hours(session: AsyncSession) -> Hours:
     end = _parse_time(
         await runtime_settings.get("messaging_hours_end", session), "17:00"
     )
+    if end <= start:
+        # A typing slip (« 17:00 » to « 08:00 »): no business hour would ever
+        # count — reminders, the release and « open now » would stand still.
+        # The usual hours stand in until the setting is put right.
+        start, end = datetime.time(8, 0), datetime.time(17, 0)
     raw_days = await runtime_settings.get("messaging_days", session) or []
     days = frozenset(int(d) for d in raw_days if str(d).isdigit() and 1 <= int(d) <= 7)
     return Hours(start=start, end=end, days=days or frozenset({1, 2, 3, 4, 5}))

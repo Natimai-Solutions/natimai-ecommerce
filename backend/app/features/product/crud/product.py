@@ -799,9 +799,24 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
                 func.lower(col(Brand.name)) == name.lower(),
             )
             pattern = name.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            shown_brands = select(col(Brand.id)).where(
+                col(Brand.is_validated).is_(True), col(Brand.is_active).is_(True)
+            )
             conditions.append(
                 or_(
                     col(Product.brand_id).in_(named_brand),
+                    # What the facet counts under that name too: a product
+                    # not (yet) under a shown sheet, supplied with that very
+                    # name (review of PR 204: the facet said 5, the list 3).
+                    and_(
+                        named_brand.exists(),
+                        or_(
+                            col(Product.brand_id).is_(None),
+                            col(Product.brand_id).not_in(shown_brands),
+                        ),
+                        func.lower(func.trim(col(Product.manufacturer)))
+                        == name.lower(),
+                    ),
                     and_(
                         ~named_brand.exists(),
                         col(Product.manufacturer).ilike(f"%{pattern}%", escape="\\"),

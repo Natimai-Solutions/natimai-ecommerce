@@ -286,6 +286,37 @@ async def test_media_in_use_cannot_be_deleted(
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("local_storage")
+async def test_a_tile_or_a_brand_logo_keeps_its_image(
+    db_session: AsyncSession,
+) -> None:
+    """Review of PR 204: the image of a section tile or of a brand logo could
+    be deleted from the library, emptying them without a word."""
+    from app.features.content.models import HomepageBlock, HomepageBlockItem
+    from app.features.product.models.brand import Brand
+
+    admin = await _admin(db_session)
+    image = await upload_media(
+        _request(),
+        db_session,
+        await _fresh(db_session, admin),
+        file=_jpeg((400, 400)),
+    )
+    block = HomepageBlock(kind="reassurance", title="Nos engagements", config={})
+    db_session.add(block)
+    await db_session.flush()
+    db_session.add(HomepageBlockItem(block_id=block.id, media_id=image.id))
+    db_session.add(Brand(name=f"Marque {uuid.uuid4().hex[:4]}", media_id=image.id))
+    await db_session.commit()
+
+    with pytest.raises(AppError) as in_use:
+        await delete_media(image.id, db_session, await _fresh(db_session, admin))
+    usages = in_use.value.details["usages"]
+    assert "Accueil : Nos engagements" in usages
+    assert any(u.startswith("Marque : ") for u in usages)
+
+
+@pytest.mark.asyncio
 async def test_a_second_live_hero_is_refused(db_session: AsyncSession) -> None:
     """03/10/2026: one published hero per period; a scheduled one may follow."""
     admin = await _admin(db_session)

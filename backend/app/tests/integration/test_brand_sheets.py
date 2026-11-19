@@ -281,6 +281,42 @@ async def test_the_brand_filter_is_exact_for_a_sheet_and_literal_otherwise(
     assert await names("HP") == {"A"}
     assert await names("3_M") == {"C"}
 
+    # Review of PR 204: a product not linked yet (the hourly pass) counted in
+    # the facet under « HP » but was missing from the filtered list.
+    late = _product("E", " hp ")
+    db_session.add(late)
+    await db_session.commit()
+    await refresh_sale_prices(db_session)
+    assert await names("HP") == {"A", "E"}
+
+
+async def test_saving_aliases_leaves_another_sheets_spelling_alone(
+    db_session: AsyncSession,
+) -> None:
+    """Review of PR 204: saving the aliases of « HP » took the products of
+    « HPE », which holds the spelling « HP » as an alias."""
+    from app.features.product.models.brand import BrandAlias
+
+    hp = Brand(name="HP", slug="hp")
+    hpe = Brand(name="HPE", slug="hpe")
+    db_session.add_all([hp, hpe])
+    await db_session.flush()
+    db_session.add(BrandAlias(brand_id=hpe.id, alias="HP", key=brands.brand_key("HP")))
+    product = _product("Serveur", "HP")
+    product.brand_id = hpe.id
+    db_session.add(product)
+    hp_id, hpe_id, product_id = hp.id, hpe.id, product.id
+    await db_session.commit()
+
+    hp_row = await db_session.get(Brand, hp_id)
+    assert hp_row is not None
+    await brands.set_aliases(db_session, hp_row, ["Hewlett-Packard"])
+    await db_session.commit()
+    row = await db_session.get(Product, product_id)
+    assert row is not None
+    await db_session.refresh(row)
+    assert row.brand_id == hpe_id
+
 
 async def test_a_sheet_saved_under_its_own_name_beside_a_hidden_namesake(
     db_session: AsyncSession,

@@ -1756,7 +1756,8 @@ export interface paths {
         };
         /**
          * Get Dashboard
-         * @description Revenue, cash collected, goods cost, real shipment costs and margin.
+         * @description Revenue, cash collected, goods cost, real shipment costs and margin
+         *     (administrators only: the preparer runs the departure, not its margin).
          */
         get: operations["admin-grouped-departures-get_dashboard"];
         put?: never;

@@ -70,11 +70,15 @@ import { defineComponent } from 'vue';
 // description `useMeta` computes once are the brand's (lot BR).
 export default defineComponent({
   async preFetch({ store, currentRoute }) {
+    // In the browser the page loads it itself (in the visitor's language).
+    if (!import.meta.env.QUASAR_SERVER) return;
     const slug = currentRoute.params['slug'];
-    if (typeof slug === 'string') {
-      const { useBrandPageStore } = await import('@/stores/brandPage');
-      await useBrandPageStore(store).load(slug);
-    }
+    if (typeof slug !== 'string') return;
+    const [{ useBrandPageStore }, { currentRequestScope }] = await Promise.all([
+      import('@/stores/brandPage'),
+      import('@/ssr/requestScope'),
+    ]);
+    await useBrandPageStore(store).load(slug, currentRequestScope()?.locale ?? 'fr');
   },
 });
 </script>
@@ -97,7 +101,7 @@ import { absoluteUrl, breadcrumbList, jsonLd, NOINDEX } from '@/utils/seo';
 
 type ProductPublic = components['schemas']['ProductPublic'];
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
 const route = useRoute();
 const page = useBrandPageStore();
 const cartStore = useCartStore();
@@ -108,7 +112,7 @@ const cartError = ref<string | null>(null);
 const slug = computed(() => (typeof route.params.slug === 'string' ? route.params.slug : ''));
 
 async function load() {
-  await page.load(slug.value);
+  await page.load(slug.value, locale.value);
 }
 
 async function onAddToCart(product: ProductPublic) {
@@ -145,7 +149,7 @@ useMeta(() => {
 });
 
 onMounted(load);
-watch(slug, load);
+watch([slug, locale], load);
 </script>
 
 <style scoped lang="scss">

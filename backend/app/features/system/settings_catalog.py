@@ -498,7 +498,8 @@ register(
         "str",
         "messaging",
         "Fin des horaires",
-        "Heure à laquelle l'équipe s'arrête (HH:MM, heure de la boutique).",
+        "Heure à laquelle l'équipe s'arrête (HH:MM, heure de la boutique), "
+        "après le début : sinon les horaires 08:00–17:00 s'appliquent.",
         default="17:00",
         public=True,
         max_length=5,

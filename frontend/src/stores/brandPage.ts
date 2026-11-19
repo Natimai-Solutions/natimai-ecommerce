@@ -24,11 +24,13 @@ export const useBrandPageStore = defineStore('brandPage', () => {
   /** `not_found`, sinon le message de l'erreur. */
   const error = ref<string | null>(null);
   const loading = ref(true);
-  const loadedSlug = ref<string | null>(null);
+  /** `slug|locale`: the description is translated (review of PR 204). */
+  const loadedKey = ref<string | null>(null);
   let latest = 0;
 
-  async function load(slug: string): Promise<void> {
-    if (loadedSlug.value === slug && !loading.value && brand.value) return;
+  async function load(slug: string, locale: string): Promise<void> {
+    const key = `${slug}|${locale}`;
+    if (loadedKey.value === key && !loading.value && brand.value) return;
     const call = ++latest;
     loading.value = true;
     error.value = null;
@@ -45,13 +47,13 @@ export const useBrandPageStore = defineStore('brandPage', () => {
       brand.value = found;
       products.value = result.data ?? [];
       total.value = result.count ?? 0;
-      loadedSlug.value = slug;
+      loadedKey.value = key;
     } catch (e) {
       if (call !== latest) return;
       brand.value = null;
       products.value = [];
       total.value = 0;
-      loadedSlug.value = null;
+      loadedKey.value = null;
       const status = (e as { response?: { status?: number } }).response?.status;
       error.value = status === 404 ? 'not_found' : (apiErrorMessage(e) ?? 'unknown');
     } finally {
@@ -59,5 +61,5 @@ export const useBrandPageStore = defineStore('brandPage', () => {
     }
   }
 
-  return { brand, products, total, error, loading, loadedSlug, load };
+  return { brand, products, total, error, loading, loadedKey, load };
 });

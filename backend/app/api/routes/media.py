@@ -20,7 +20,7 @@ from app.api.deps import CurrentSuperUser, SessionDep
 from app.core.datetimes import utcnow
 from app.core.errors import AppError
 from app.features.attachment.storage.factory import get_file_storage
-from app.features.content.models import ContentPage, HomepageBlock
+from app.features.content.models import ContentPage, HomepageBlock, HomepageBlockItem
 from app.features.media.models import MediaAsset, MediaAssetPublic, MediaAssetUpdate
 from app.features.media.service import (
     delete_stored_variants,
@@ -29,6 +29,7 @@ from app.features.media.service import (
     to_public,
     validate_kind,
 )
+from app.features.product.models.brand import Brand
 from app.features.product.models.category import Category
 from app.features.product.models.product import Product
 
@@ -187,6 +188,24 @@ async def media_usages(session: SessionDep, asset_id: uuid.UUID) -> list[str]:
         )
     ).all()
     usages += [f"Accueil : {title}" for title in blocks]
+    # The tiles of a homepage section (reassurance, brand strip, free block)
+    # and the brand logos: deleting the image emptied them without a word
+    # (review of PR 204).
+    tiles = (
+        await session.exec(
+            select(HomepageBlock.title)
+            .join(
+                HomepageBlockItem, col(HomepageBlockItem.block_id) == HomepageBlock.id
+            )
+            .where(col(HomepageBlockItem.media_id) == asset_id)
+            .distinct()
+        )
+    ).all()
+    usages += [f"Accueil : {title}" for title in tiles if title not in blocks]
+    logos = (
+        await session.exec(select(Brand.name).where(col(Brand.media_id) == asset_id))
+    ).all()
+    usages += [f"Marque : {name}" for name in logos]
     products = (
         await session.exec(
             select(func.count())

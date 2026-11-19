@@ -11,6 +11,8 @@ const UNREAD_POLL_MS = 60_000;
  * the unread count (polled while the tab is visible) and the public
  * information (topics, opening hours, response time).
  */
+const INFO_TTL_MS = 5 * 60 * 1000;
+
 export const useMessagingStore = defineStore('messaging', () => {
   const unread = ref(0);
   const info = ref<MessagingInfo | null>(null);
@@ -47,12 +49,19 @@ export const useMessagingStore = defineStore('messaging', () => {
     }
   }
 
+  /**
+   * The hours and « open now » change during a visit (review of PR 204: the
+   * first answer was kept for the whole session) — read again after a few
+   * minutes, the last known answer kept when the call fails.
+   */
+  let infoAt = 0;
   async function loadInfo(): Promise<MessagingInfo | null> {
-    if (info.value) return info.value;
+    if (info.value && Date.now() - infoAt < INFO_TTL_MS) return info.value;
     try {
       info.value = await getMessagingInfo();
+      infoAt = Date.now();
     } catch {
-      info.value = null;
+      // Keep what was known: a passing failure does not hide the hours.
     }
     return info.value;
   }
