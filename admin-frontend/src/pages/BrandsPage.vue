@@ -168,6 +168,17 @@
               counter
               :label="$t('brands.description')"
             />
+            <q-input
+              v-for="lang in otherLocales"
+              :key="lang"
+              v-model="form.translations[lang]"
+              type="textarea"
+              autogrow
+              outlined
+              maxlength="500"
+              :label="`${$t('brands.description')} (${lang.toUpperCase()})`"
+              :data-testid="`brand-description-${lang}`"
+            />
             <div class="row items-center q-gutter-sm">
               <img v-if="formLogo" :src="formLogo" alt="" class="brands__logo brands__logo--lg" />
               <q-btn
@@ -275,8 +286,14 @@ import {
   type AdminBrand,
 } from '@/api/brands';
 import type { MediaAsset } from '@/api/media';
+import { useShopConfigStore } from '@/stores/shopConfig';
 
 const { t } = useI18n();
+const shop = useShopConfigStore();
+/** The languages offered besides the shop's own (the source text). */
+const otherLocales = computed<string[]>(() =>
+  (shop.config?.available_locales ?? ['fr', 'en']).slice(1),
+);
 const { confirmDelete } = useConfirm();
 
 const brands = ref<AdminBrand[]>([]);
@@ -296,6 +313,8 @@ const pickerOpen = ref(false);
 const formLogo = ref<string | null>(null);
 
 interface BrandForm {
+  /** The description in the other offered languages. */
+  translations: Record<string, string>;
   name: string;
   slug: string;
   description: string;
@@ -306,6 +325,7 @@ interface BrandForm {
 }
 
 const form = reactive<BrandForm>({
+  translations: {},
   name: '',
   slug: '',
   description: '',
@@ -350,6 +370,8 @@ function bodyOf(brand: AdminBrand) {
     aliases: brand.aliases ?? [],
     is_validated: brand.is_validated,
     is_active: brand.is_active,
+    // Sent back as they are: an empty mapping would erase them.
+    translations: brand.translations ?? {},
   };
 }
 
@@ -363,6 +385,12 @@ function openEdit(brand: AdminBrand | null) {
   form.aliases = [...(brand?.aliases ?? [])];
   form.is_validated = brand?.is_validated ?? true;
   form.is_active = brand?.is_active ?? true;
+  form.translations = Object.fromEntries(
+    otherLocales.value.map((lang) => {
+      const texts = (brand?.translations ?? {})[lang] as Record<string, unknown> | undefined;
+      return [lang, typeof texts?.['description'] === 'string' ? texts['description'] : ''];
+    }),
+  );
   formLogo.value = brand?.logo?.src ?? null;
   dialog.value = true;
 }
@@ -391,6 +419,11 @@ async function submit() {
         aliases: form.aliases,
         is_validated: form.is_validated,
         is_active: form.is_active,
+        translations: Object.fromEntries(
+          Object.entries(form.translations)
+            .filter(([, text]) => text.trim())
+            .map(([lang, text]) => [lang, { description: text.trim() }]),
+        ),
       },
       editingId.value ?? undefined,
     );

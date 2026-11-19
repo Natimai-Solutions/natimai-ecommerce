@@ -18,6 +18,7 @@ from app.features.product.crud.product import (
     ProductCrud,
     crud_product,
 )
+from app.features.product.models.brand import Brand
 from app.features.product.models.product import (
     Product,
     ProductCreate,
@@ -99,11 +100,18 @@ class ProductRouter(
                         },
                     )
 
-            return (
+            public = (
                 await publish_with_availability(
                     session, [record], customer=STAFF if is_admin else current_user
                 )
             )[0]
+            brand_id = getattr(record, "brand_id", None)
+            if brand_id is not None:
+                brand = await session.get(Brand, brand_id)
+                if brand is not None and brand.is_validated and brand.is_active:
+                    public.brand_name = brand.name
+                    public.brand_slug = brand.slug
+            return public
 
         read.__name__ = "get_one_product"
         return read

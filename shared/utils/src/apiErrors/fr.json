@@ -39,6 +39,7 @@
   "brand.merge_self": "Une marque ne peut pas être fusionnée avec elle-même.",
   "brand.not_found": "Marque introuvable.",
   "brand.slug_taken": "Une autre marque utilise déjà l'adresse {slug}.",
+  "brand.translations": "Traductions invalides.",
   "captcha.failed": "Vérification anti-robot échouée : réessayez.",
   "captcha.required": "Vérification anti-robot requise.",
   "capture.failed": "Le prestataire a refusé la capture.",

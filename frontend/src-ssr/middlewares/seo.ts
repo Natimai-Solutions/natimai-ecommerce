@@ -86,7 +86,33 @@ async function fetchProducts(): Promise<SitemapEntry[]> {
   }
 }
 
-function buildSitemap(origin: string, products: SitemapEntry[]): string {
+interface BrandEntry {
+  slug: string;
+  modify_at?: string | null;
+}
+
+/** The brand pages (lot BR): validated sheets with products on sale. */
+async function fetchBrands(): Promise<BrandEntry[]> {
+  const apiUrl = (process.env.API_URL || import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+  if (!apiUrl) return [];
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const response = await fetch(`${apiUrl}/api/v1/brands/sitemap`, { signal: controller.signal });
+    if (!response.ok) return [];
+    return (await response.json()) as BrandEntry[];
+  } catch {
+    return [];
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function buildSitemap(
+  origin: string,
+  products: SitemapEntry[],
+  brands: BrandEntry[] = [],
+): string {
   const urls: string[] = STATIC_PATHS.map(
     ({ path, changefreq, priority }) =>
       `<url><loc>${escapeXml(origin + path)}</loc><changefreq>${changefreq}</changefreq><priority>${priority}</priority></url>`,
@@ -97,6 +123,12 @@ function buildSitemap(origin: string, products: SitemapEntry[]): string {
     const lastmod = product.modify_at ? product.modify_at.slice(0, 10) : null;
     urls.push(
       `<url><loc>${escapeXml(origin + path)}</loc>${lastmod ? `<lastmod>${lastmod}</lastmod>` : ''}<changefreq>weekly</changefreq><priority>0.7</priority></url>`,
+    );
+  }
+  for (const brand of brands) {
+    const lastmod = brand.modify_at ? brand.modify_at.slice(0, 10) : null;
+    urls.push(
+      `<url><loc>${escapeXml(`${origin}/marque/${encodeURIComponent(brand.slug)}`)}</loc>${lastmod ? `<lastmod>${lastmod}</lastmod>` : ''}<changefreq>weekly</changefreq><priority>0.6</priority></url>`,
     );
   }
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join('\n')}\n</urlset>\n`;
@@ -123,8 +155,8 @@ export default defineSsrMiddleware(({ app, resolve }) => {
   app.get(resolve.urlPath('/sitemap.xml'), async (req: Request, res: Response) => {
     const origin = siteOrigin(req);
     if (!cache || cache.origin !== origin || Date.now() - cache.builtAt > SITEMAP_TTL_MS) {
-      const products = await fetchProducts();
-      cache = { origin, body: buildSitemap(origin, products), builtAt: Date.now() };
+      const [products, brands] = await Promise.all([fetchProducts(), fetchBrands()]);
+      cache = { origin, body: buildSitemap(origin, products, brands), builtAt: Date.now() };
     }
     res.setHeader('Content-Type', 'application/xml; charset=utf-8');
     res.setHeader('Cache-Control', 'public, max-age=3600');

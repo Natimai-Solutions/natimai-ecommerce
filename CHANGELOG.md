@@ -84,6 +84,12 @@ takes a tag as its `ref`.
 
 ### Added
 
+- Brand sheets, what was left: the description is translated (admin
+  *Marques*, migration `c3d4e5f6a7b9`), the product page names its brand
+  and links to its page when the sheet is validated and shown
+  (`brand_name`, `brand_slug`; also in the product JSON-LD), and the
+  storefront sitemap lists the brand pages (`GET /brands/sitemap`).
+
 - Messaging outside the hours: the customer page and the contact page say
   when the team is back (« We will answer from Monday 08:00 »), computed in
   the shop's zone (`open_now`, `next_opening`, `next_opening_days` of the

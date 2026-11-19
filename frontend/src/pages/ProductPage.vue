@@ -63,8 +63,18 @@
         </div>
 
         <div class="product__buy">
+          <!-- The brand page when the sheet is shown (lot BR), else the
+               catalogue filtered on the supplier's name. -->
           <router-link
-            v-if="product.manufacturer"
+            v-if="product.brand_slug"
+            :to="{ name: 'brand', params: { slug: product.brand_slug } }"
+            class="product__brand"
+            data-testid="product-brand"
+          >
+            {{ product.brand_name || product.manufacturer }}
+          </router-link>
+          <router-link
+            v-else-if="product.manufacturer"
             :to="{ name: 'catalogue', query: { mfr: product.manufacturer } }"
             class="product__brand"
           >
@@ -992,7 +1002,10 @@ const productJsonLd = computed<Record<string, unknown> | null>(() => {
     description: plainDescription.value || undefined,
     sku: p.vendor_part_number ?? p.supplier_sku ?? undefined,
     gtin13: p.ean ?? undefined,
-    brand: p.manufacturer ? { '@type': 'Brand', name: p.manufacturer } : undefined,
+    brand:
+      p.brand_name || p.manufacturer
+        ? { '@type': 'Brand', name: p.brand_name || p.manufacturer }
+        : undefined,
     category: categoryLabel.value ?? undefined,
     itemCondition:
       p.condition === 'refurbished'

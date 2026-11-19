@@ -675,6 +675,10 @@ class ProductPublic(ProductBase, BasePublic):
     supplier_sku: str | None = None
     vendor_part_number: str | None = None
     manufacturer: str | None = None
+    #: Product page only: its brand page, when the sheet is validated and
+    #: shown (lot BR) — the manufacturer's name links to it.
+    brand_name: str | None = None
+    brand_slug: str | None = None
     supplier_name: str | None = None
     supplier_category: str | None = None
     supplier_subcategory: str | None = None

@@ -39,6 +39,7 @@
   "brand.merge_self": "A brand cannot be merged into itself.",
   "brand.not_found": "Brand not found.",
   "brand.slug_taken": "Another brand already uses the address {slug}.",
+  "brand.translations": "Invalid translations.",
   "captcha.failed": "The anti-robot check failed: try again.",
   "captcha.required": "Anti-robot check required.",
   "capture.failed": "The provider refused the capture.",

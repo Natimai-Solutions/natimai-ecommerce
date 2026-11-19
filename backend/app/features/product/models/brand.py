@@ -1,7 +1,10 @@
 # mypy: disable-error-code="assignment,misc,override"
 
 import uuid
+from typing import Any
 
+from sqlalchemy import Column
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, SQLModel
 
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
@@ -64,6 +67,11 @@ class Brand(BrandBase, table=True):
         primary_key=True,
         index=True,
         description="Unique identifier for the brand",
+    )
+    #: The description in the other offered languages (R9 / T3).
+    translations: dict[str, dict[str, Any]] = Field(
+        default_factory=dict,
+        sa_column=Column(JSONB, nullable=False, server_default="{}"),
     )
 
 

@@ -299,3 +299,38 @@ async def test_a_sheet_saved_under_its_own_name_beside_a_hidden_namesake(
             None,  # type: ignore[arg-type]
         )
         assert saved.description == "Portables"
+
+
+async def test_brand_page_language_sitemap_and_product_link(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.api.routes import product as product_routes
+
+    hp = Brand(
+        name="HP",
+        slug="hp",
+        description="Ordinateurs et imprimantes.",
+        translations={"en": {"description": "Computers and printers."}},
+    )
+    hidden = Brand(name="Acer", slug="acer", is_active=False)
+    db_session.add_all([hp, hidden])
+    await db_session.flush()
+    laptop = _product("Portable", "HP")
+    laptop.brand_id = hp.id
+    other = _product("Écran", "Acer")
+    other.brand_id = hidden.id
+    db_session.add_all([laptop, other])
+    ids = (laptop.id, other.id)
+    await db_session.commit()
+
+    monkeypatch.setattr(brand_pages, "request_locale", lambda: "en")
+    page = await brand_pages.get_brand_page("hp", _Request(), db_session)  # type: ignore[arg-type]
+    assert page.description == "Computers and printers."
+    # Only validated, shown brands with products go to the sitemap.
+    assert [e.slug for e in await brand_pages.brand_sitemap(db_session)] == ["hp"]
+
+    read = product_routes.router.generate_read_endpoint()
+    shown = await read(db_session, ids[0], None)
+    assert (shown.brand_name, shown.brand_slug) == ("HP", "hp")
+    hidden_brand = await read(db_session, ids[1], None)
+    assert hidden_brand.brand_slug is None

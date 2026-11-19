@@ -10,7 +10,7 @@ them a logo and aliases, or merges a spelling into the right sheet.
 from __future__ import annotations
 
 import uuid
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel, Field
@@ -19,7 +19,14 @@ from sqlmodel import col, select
 
 from app.api.deps import CurrentSuperUser, SessionDep
 from app.api.routes.media import request_origin
+from app.core.content_i18n import (
+    BRAND_FIELDS,
+    InvalidTranslations,
+    clean_translations,
+    translated_values,
+)
 from app.core.errors import AppError
+from app.core.i18n import request_locale
 from app.features.media.models import MediaAsset
 from app.features.media.service import public_base_url, to_public
 from app.features.product.models.brand import Brand, BrandAlias
@@ -50,6 +57,8 @@ class BrandPagePublic(BaseModel):
 
 class AdminBrand(BrandPagePublic):
     is_validated: bool
+    #: The description in the other offered languages.
+    translations: dict[str, dict[str, Any]] = {}
     is_active: bool
     aliases: list[str] = []
     media_id: uuid.UUID | None = None
@@ -69,6 +78,7 @@ class BrandWrite(BaseModel):
     is_validated: bool = True
     is_active: bool = True
     aliases: list[str] = Field(default_factory=list, max_length=50)
+    translations: dict[str, dict[str, Any]] = Field(default_factory=dict)
 
 
 class BrandMerge(BaseModel):
@@ -77,6 +87,12 @@ class BrandMerge(BaseModel):
 
 class LinkResult(BaseModel):
     linked: int
+
+
+def _description(brand: Brand) -> str | None:
+    """The description in the visitor's language (the source otherwise)."""
+    texts = translated_values(brand.translations, BRAND_FIELDS, request_locale())
+    return texts.get("description") or brand.description
 
 
 def _not_found() -> AppError:
@@ -139,7 +155,7 @@ async def get_brand_page(
         id=brand.id,
         name=brand.name,
         slug=brand.slug or slug,
-        description=brand.description,
+        description=_description(brand),
         logo=await brand_logo(session, brand, public_base_url(request_origin(request))),
         product_count=counts.get(brand.id, 0),
     )
@@ -192,13 +208,42 @@ async def brand_showcase(
             id=brand.id,
             name=brand.name,
             slug=brand.slug or "",
-            description=brand.description,
+            description=_description(brand),
             logo=logo,
             product_count=count,
         )
         for brand, logo, count in await showcase(
             session, public_base_url(request_origin(request)), limit
         )
+    ]
+
+
+class BrandSitemapEntry(BaseModel):
+    slug: str
+    modify_at: str | None = None
+
+
+@router.get("/sitemap", response_model=list[BrandSitemapEntry], summary="Brand pages")
+async def brand_sitemap(session: SessionDep) -> list[BrandSitemapEntry]:
+    """The brand pages search engines should know: validated, active, with
+    products on sale (the storefront's sitemap.xml lists them)."""
+    brands = (
+        await session.exec(
+            select(Brand).where(
+                col(Brand.is_validated).is_(True),
+                col(Brand.is_active).is_(True),
+                col(Brand.slug).is_not(None),
+            )
+        )
+    ).all()
+    counts = await _product_counts(session, [b.id for b in brands])
+    return [
+        BrandSitemapEntry(
+            slug=b.slug or "",
+            modify_at=b.modify_at.isoformat() if b.modify_at else None,
+        )
+        for b in sorted(brands, key=lambda b: b.slug or "")
+        if counts.get(b.id)
     ]
 
 
@@ -232,6 +277,7 @@ async def _admin_view(
             is_active=b.is_active,
             aliases=aliases.get(b.id, []),
             media_id=b.media_id,
+            translations=b.translations or {},
         )
         for b in brands
     ]
@@ -319,6 +365,20 @@ async def _save(
     brand.name = body.name.strip()
     brand.slug = slug
     brand.description = (body.description or "").strip() or None
+    try:
+        brand.translations = clean_translations(
+            body.translations,
+            previous=brand.translations,
+            source_values={"description": brand.description},
+            fields=BRAND_FIELDS,
+        )
+    except InvalidTranslations as exc:
+        raise AppError(
+            code="brand.translations",
+            status_code=400,
+            message="Invalid translations.",
+            details={"field": "translations", "problem": str(exc)},
+        ) from exc
     brand.media_id = body.media_id
     brand.is_validated = body.is_validated
     brand.is_active = body.is_active

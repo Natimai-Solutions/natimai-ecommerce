@@ -4833,6 +4833,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/brands/sitemap": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Brand pages
+         * @description The brand pages search engines should know: validated, active, with
+         *     products on sale (the storefront's sitemap.xml lists them).
+         */
+        get: operations["brand-brand_sitemap"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/brands": {
         parameters: {
             query?: never;
@@ -9627,6 +9648,15 @@ export interface components {
             product_count: number;
             /** Is Validated */
             is_validated: boolean;
+            /**
+             * Translations
+             * @default {}
+             */
+            translations: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            };
             /** Is Active */
             is_active: boolean;
             /**
@@ -10856,6 +10886,13 @@ export interface components {
              */
             id: string;
         };
+        /** BrandSitemapEntry */
+        BrandSitemapEntry: {
+            /** Slug */
+            slug: string;
+            /** Modify At */
+            modify_at?: string | null;
+        };
         /**
          * BrandUpdate
          * @description Represents brand update.
@@ -10914,6 +10951,12 @@ export interface components {
             is_active: boolean;
             /** Aliases */
             aliases?: string[];
+            /** Translations */
+            translations?: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            };
         };
         /**
          * BrandingIcon
@@ -19600,6 +19643,10 @@ export interface components {
             id: string;
             /** Category Id */
             category_id?: string | null;
+            /** Brand Name */
+            brand_name?: string | null;
+            /** Brand Slug */
+            brand_slug?: string | null;
             /**
              * Offers Count
              * @default 1
@@ -33578,6 +33625,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "brand-brand_sitemap": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrandSitemapEntry"][];
                 };
             };
         };
