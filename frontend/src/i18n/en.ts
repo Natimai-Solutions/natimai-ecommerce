@@ -394,6 +394,17 @@ const en: MessageSchema = {
     unknown: 'Unknown error',
     catalogue_unavailable: 'The catalogue is temporarily unavailable. Try again in a moment.',
   },
+  brand: {
+    not_found: 'Brand not found',
+    load_failed: 'This brand cannot be shown right now.',
+    see_catalogue: 'Browse the catalogue',
+    count: 'No products | 1 product | {n} products',
+    empty: 'No product of this brand is on sale right now.',
+    see_all: 'All {name} products in the catalogue',
+    meta_title: '{name} — {shop}',
+    meta_description: '{name} products available at {shop}, delivered in French Polynesia.',
+    strip_title: 'Our brands',
+  },
   catalogue: {
     categories: 'Categories',
     back_to: 'Back to {name}',

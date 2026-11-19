@@ -47,7 +47,7 @@ from app.features.payment.models.payment_webhook_event import PaymentWebhookEven
 from app.features.payment.models.refund import Refund
 from app.features.payment.models.store_credit import StoreCreditEntry
 from app.features.place.models import Place, PlacePostalCode
-from app.features.product.models.brand import Brand
+from app.features.product.models.brand import Brand, BrandAlias
 from app.features.product.models.category import Category
 from app.features.product.models.price_group import PriceGroup
 from app.features.product.models.price_history import ProductPriceEntry
@@ -83,6 +83,7 @@ from app.features.user.models.user_preference import UserPreference
 from app.features.user.models.wishlist import Wishlist, WishlistItem
 
 __all__ = [
+    "BrandAlias",
     "CannedReply",
     "Conversation",
     "ConversationAttachment",

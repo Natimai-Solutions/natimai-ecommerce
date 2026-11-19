@@ -42,6 +42,8 @@ from app.api.routes.admin_system_status import router as admin_system_status_rou
 from app.api.routes.admin_tax_rates import router as admin_tax_rates_router
 from app.api.routes.admin_users import router as admin_users_router
 from app.api.routes.brand import router as brand_router
+from app.api.routes.brand_pages import admin_router as admin_brands_router
+from app.api.routes.brand_pages import router as brand_pages_router
 from app.api.routes.branding import router as branding_router
 from app.api.routes.cart import router as cart_router
 from app.api.routes.category import router as category_router
@@ -143,6 +145,8 @@ api_router.include_router(cart_router)
 # Product related routes
 api_router.include_router(category_router)
 api_router.include_router(brand_router)
+api_router.include_router(brand_pages_router)
+api_router.include_router(admin_brands_router)
 api_router.include_router(admin_messaging_router)
 api_router.include_router(canned_replies_router)
 api_router.include_router(messaging_router)

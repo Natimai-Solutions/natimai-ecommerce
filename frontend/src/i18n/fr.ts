@@ -398,6 +398,17 @@ const fr = {
     catalogue_unavailable:
       'Le catalogue est momentanément indisponible. Réessayez dans un instant.',
   },
+  brand: {
+    not_found: 'Marque introuvable',
+    load_failed: 'La marque ne peut pas être affichée pour le moment.',
+    see_catalogue: 'Voir le catalogue',
+    count: 'Aucun produit | 1 produit | {n} produits',
+    empty: "Aucun produit de cette marque n'est en vente pour le moment.",
+    see_all: 'Tous les produits {name} dans le catalogue',
+    meta_title: '{name} — {shop}',
+    meta_description: 'Les produits {name} disponibles chez {shop}, livrés en Polynésie.',
+    strip_title: 'Nos marques',
+  },
   catalogue: {
     categories: 'Catégories',
     all: 'Tout le catalogue',

@@ -620,6 +620,11 @@ class Product(ProductBase, table=True):
         index=True,
         description="Category ID of the product",
     )
+    #: The brand sheet the manufacturer's name resolves to (lot BR); filled
+    #: from ``manufacturer`` by the brand service, never typed by a supplier.
+    brand_id: uuid.UUID | None = Field(
+        default=None, foreign_key="brands.id", index=True, ondelete="SET NULL"
+    )
     category: Category | None = Relationship(
         sa_relationship_kwargs={
             "foreign_keys": "[Product.category_id]",
@@ -735,6 +740,8 @@ class ProductSearchRequest(SQLModel):
     q: str | None = Field(default=None, max_length=200)
     category_id: uuid.UUID | None = None
     manufacturer: str | None = Field(default=None, max_length=100)
+    #: The brand page (lot BR): products linked to this brand sheet.
+    brand_id: uuid.UUID | None = None
     price_min: Decimal | None = Field(default=None, ge=0, decimal_places=2)
     price_max: Decimal | None = Field(default=None, ge=0, decimal_places=2)
     specs: dict[str, Any] = Field(default_factory=dict)

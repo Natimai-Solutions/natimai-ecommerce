@@ -211,6 +211,7 @@ const allNav: NavSection[] = [
     links: [
       { label: 'layout.nav.products', icon: 'ph:package', to: '/products' },
       { label: 'layout.nav.categories', icon: 'ph:folders', to: '/categories' },
+      { label: 'layout.nav.brands', icon: 'ph:tag', to: '/brands' },
       { label: 'layout.nav.specs', icon: 'ph:sliders-horizontal', to: '/spec-definitions' },
       { label: 'layout.nav.promotions', icon: 'ph:seal-percent', to: '/promotions' },
       { label: 'layout.nav.discounts', icon: 'ph:tag', to: '/discounts' },

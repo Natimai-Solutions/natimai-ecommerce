@@ -62,6 +62,20 @@ takes a tag as its `ref`.
 
 ### Added
 
+- Brand sheets (chantier accueil et messagerie, lot BR): every product is
+  linked to a brand (`products.brand_id`) from the supplier's manufacturer
+  name; spellings are gathered by a normalized key (case, accents, company
+  suffixes) and by aliases (`brand_aliases`). An unknown name creates a brand
+  « to validate », shown on the shop once the admin checks it. The migration
+  links the existing products; a worker job relinks every hour (new imports,
+  edited names). Admin screen *Marques*: validate, rename, page address, logo
+  from the media library, aliases, merge two sheets, link now. The catalogue
+  facet names a validated brand once and its filter finds every spelling; a
+  brand page `/marque/<slug>` (server-rendered title and description,
+  breadcrumb) and `GET /brands/showcase` for the homepage brand strip.
+  `preFetch` is enabled on the storefront for pages whose title comes from
+  loaded data.
+
 - Messaging between customers and the shop (module *Messagerie*, Admin →
   Modules): a customer writes to customer service, technical support or
   sales from *My account → Messages* (topic → channel, optional order /

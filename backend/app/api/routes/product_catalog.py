@@ -501,6 +501,7 @@ async def search_products(
         q=payload.q,
         category_id=payload.category_id,
         manufacturer=payload.manufacturer,
+        brand_id=payload.brand_id,
         price_min=payload.price_min,
         price_max=payload.price_max,
         specs=payload.specs,

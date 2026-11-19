@@ -934,7 +934,6 @@ les identifiants M· de l'audit fonctionnel.
 | **A3** | Annonce au-dessus de l'en-tête sur toutes les pages, réassurance, marques (après BR), bloc libre (R4 à R7) | M |
 | **A4** | Aperçu et programmation (R10), SEO de l'accueil (R11) | S à M |
 | **A5** | Sections personnelles (R9) et héros par audience | M |
-| **BR** | Marques : `Product.brand_id`, alias, reprise depuis `manufacturer`, écran admin, filtre et facette, page marque (M9 de l'audit) | M à L |
 
 Livré le 18/11/2026 : correctifs du §12, **A1** (sections ordonnables,
 masquables, titrées, public par section, page du client) ; **MSG1** (socle de la
@@ -961,9 +960,18 @@ de sécurité éteints (`ENABLE_GROUP_PERMISSIONS`) ; pas de table d'agents (les
 canaux découlent du rôle). Reste : sur la fiche commande, les boutons
 d'action restent affichés à un membre de l'équipe et l'API les refuse (403) —
 à masquer. **MSG3** (raccourcis produit, commande, groupe ; panneau client ; le panier
-passe par la demande de devis, déjà en conversation depuis MSG5). **MSG4** (réponses types, priorité par groupe, digest du matin). Ordre
-conseillé pour la suite : **A3 → A4 → A5**, BR quand on veut la bande de marques (R6) et
-les pages marque, en parallèle.
+passe par la demande de devis, déjà en conversation depuis MSG5). **MSG4** (réponses types, priorité par groupe, digest du matin). **BR** (fiches
+marque : `products.brand_id`, alias, reprise des fabricants, rattachement horaire,
+écran *Marques*, facette et filtre par marque, page `/marque/<slug>`). Écarts :
+les graphies sont regroupées par une clé normalisée (casse, accents, suffixes de
+société) puis par les alias et fusions de l'admin, sans liste d'alias proposée ;
+la reprise crée les fiches « à valider » directement ; la description de la
+marque n'est pas encore traduite ; la fiche produit ne renvoie pas encore vers
+la page marque. Constat en passant : en rendu serveur, le titre et la
+description de la **fiche produit** restent ceux par défaut (« Produit »),
+Quasar figeant `useMeta` au montage — la page marque précharge par `preFetch` ;
+la fiche produit est à traiter de même (noté au plan). Ordre conseillé pour la
+suite : **A3 → A4 → A5**.
 ROLE peut attendre : sans lui, les superusers répondent.
 
 ---

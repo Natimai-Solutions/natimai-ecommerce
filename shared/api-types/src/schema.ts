@@ -4770,6 +4770,131 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/brands/page/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Brand page
+         * @description A validated, active brand by its path (``/marque/<slug>``).
+         */
+        get: operations["brand-get_brand_page"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/brands/showcase": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Brands with a logo
+         * @description The validated brands that have a logo and products on sale, the
+         *     best-stocked first (the homepage brand strip).
+         */
+        get: operations["brand-brand_showcase"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/brands": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Brand sheets
+         * @description Every sheet, those to validate first, then by name.
+         */
+        get: operations["admin-brand-admin_list_brands"];
+        put?: never;
+        /** Admin Create Brand */
+        post: operations["admin-brand-admin_create_brand"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/brands/{brand_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Admin Update Brand */
+        put: operations["admin-brand-admin_update_brand"];
+        post?: never;
+        /**
+         * Admin Delete Brand
+         * @description Delete a sheet: its products lose the link until the next pass links
+         *     them again (to a new sheet to validate, or to an alias).
+         */
+        delete: operations["admin-brand-admin_delete_brand"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/brands/{brand_id}/merge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Admin Merge Brand
+         * @description This sheet is a spelling of another: its products and aliases move to
+         *     the target, its name becomes an alias of it, and it goes.
+         */
+        post: operations["admin-brand-admin_merge_brand"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/brands/link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Admin Link Products
+         * @description Link now the products without a sheet (the worker does it hourly).
+         */
+        post: operations["admin-brand-admin_link_products"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/conversations": {
         parameters: {
             query?: never;
@@ -9369,6 +9494,46 @@ export interface components {
             /** Count */
             count: number;
         };
+        /** AdminBrand */
+        AdminBrand: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Slug */
+            slug: string;
+            /** Description */
+            description?: string | null;
+            logo?: components["schemas"]["BrandLogo"] | null;
+            /**
+             * Product Count
+             * @default 0
+             */
+            product_count: number;
+            /** Is Validated */
+            is_validated: boolean;
+            /** Is Active */
+            is_active: boolean;
+            /**
+             * Aliases
+             * @default []
+             */
+            aliases: string[];
+            /** Media Id */
+            media_id?: string | null;
+        };
+        /** AdminBrandList */
+        AdminBrandList: {
+            /** Data */
+            data: components["schemas"]["AdminBrand"][];
+            /** Count */
+            count: number;
+            /** To Validate */
+            to_validate: number;
+        };
         /**
          * AdminCategoriesPublic
          * @description Liste complète (pas de pagination : quelques dizaines de lignes).
@@ -10474,6 +10639,57 @@ export interface components {
              * @description URL of the brand image
              */
             image_url?: string | null;
+            /** Slug */
+            slug?: string | null;
+            /** Media Id */
+            media_id?: string | null;
+            /**
+             * Is Validated
+             * @default true
+             */
+            is_validated: boolean;
+        };
+        /** BrandLogo */
+        BrandLogo: {
+            /** Src */
+            src: string;
+            /** Srcset */
+            srcset?: string | null;
+            /** Width */
+            width?: number | null;
+            /** Height */
+            height?: number | null;
+        };
+        /** BrandMerge */
+        BrandMerge: {
+            /**
+             * Target Id
+             * Format: uuid
+             */
+            target_id: string;
+        };
+        /**
+         * BrandPagePublic
+         * @description What the storefront shows of a brand.
+         */
+        BrandPagePublic: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Slug */
+            slug: string;
+            /** Description */
+            description?: string | null;
+            logo?: components["schemas"]["BrandLogo"] | null;
+            /**
+             * Product Count
+             * @default 0
+             */
+            product_count: number;
         };
         /**
          * BrandPublic
@@ -10513,6 +10729,15 @@ export interface components {
              * @description URL of the brand image
              */
             image_url?: string | null;
+            /** Slug */
+            slug?: string | null;
+            /** Media Id */
+            media_id?: string | null;
+            /**
+             * Is Validated
+             * @default true
+             */
+            is_validated: boolean;
             /**
              * Id
              * Format: uuid
@@ -10548,6 +10773,35 @@ export interface components {
             description?: string | null;
             /** Image Url */
             image_url?: string | null;
+            /** Slug */
+            slug?: string | null;
+            /** Media Id */
+            media_id?: string | null;
+            /** Is Validated */
+            is_validated?: boolean | null;
+        };
+        /** BrandWrite */
+        BrandWrite: {
+            /** Name */
+            name: string;
+            /** Slug */
+            slug?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Media Id */
+            media_id?: string | null;
+            /**
+             * Is Validated
+             * @default true
+             */
+            is_validated: boolean;
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Aliases */
+            aliases?: string[];
         };
         /**
          * BrandingIcon
@@ -14647,6 +14901,11 @@ export interface components {
              * @default 0.00
              */
             customs_declaration_fee: string;
+        };
+        /** LinkResult */
+        LinkResult: {
+            /** Linked */
+            linked: number;
         };
         /**
          * LivenessResponse
@@ -19197,6 +19456,8 @@ export interface components {
             category_id?: string | null;
             /** Manufacturer */
             manufacturer?: string | null;
+            /** Brand Id */
+            brand_id?: string | null;
             /** Price Min */
             price_min?: number | string | null;
             /** Price Max */
@@ -32981,6 +33242,252 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "brand-get_brand_page": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrandPagePublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "brand-brand_showcase": {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrandPagePublic"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-brand-admin_list_brands": {
+        parameters: {
+            query?: {
+                q?: string | null;
+                to_validate?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBrandList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-brand-admin_create_brand": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BrandWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBrand"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-brand-admin_update_brand": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                brand_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BrandWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBrand"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-brand-admin_delete_brand": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                brand_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-brand-admin_merge_brand": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                brand_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BrandMerge"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBrand"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-brand-admin_link_products": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LinkResult"];
                 };
             };
         };

@@ -1,0 +1,171 @@
+"""Integration tests (real DB): brand sheets (chantier accueil et messagerie,
+lot BR) — products linked from the supplier's manufacturer name, spellings
+gathered by aliases and merges, the storefront showing validated sheets."""
+
+from __future__ import annotations
+
+import uuid
+from decimal import Decimal
+from typing import Any
+
+import pytest
+from sqlmodel import col, select
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+from app.api.routes import brand_pages
+from app.core.errors import AppError
+from app.features.product.crud.product import crud_product
+from app.features.product.models.brand import Brand
+from app.features.product.models.product import PricingMode, Product
+from app.features.product.services import brands
+from app.tasks.pricing_tasks import refresh_sale_prices
+
+pytestmark = pytest.mark.asyncio
+
+
+class _Request:
+    class url:  # noqa: N801 - mimics starlette's request.url
+        scheme = "http"
+        netloc = "test"
+
+
+def _product(name: str, manufacturer: str) -> Product:
+    return Product(
+        name=name,
+        description="article de test",
+        manufacturer=manufacturer,
+        pricing_mode=PricingMode.FIXED,
+        base_price=Decimal("10000"),
+        supplier_name="tahiti",
+        supplier_sku=f"sku-{uuid.uuid4().hex[:8]}",
+        supplier_quantity=Decimal("5"),
+        is_enriched=True,
+    )
+
+
+def test_brand_key() -> None:
+    assert brands.brand_key("  HP Inc. ") == "hp"
+    assert brands.brand_key("Hewlett-Packard Company") == "hewlett packard"
+    assert brands.brand_key("Société Générale SA") == "societe generale"
+    assert brands.brand_key("Inc") == "inc"
+    assert brands.slugify("TP-Link") == "tp-link"
+
+
+async def _brand_of(session: AsyncSession, product_id: uuid.UUID) -> Brand | None:
+    product = await session.get(Product, product_id)
+    assert product is not None
+    await session.refresh(product)
+    return await session.get(Brand, product.brand_id) if product.brand_id else None
+
+
+async def test_spellings_link_merge_and_search(db_session: AsyncSession) -> None:
+    rows = [
+        _product("Portable", "HP"),
+        _product("Imprimante", "HP Inc."),
+        _product("Écran", "Hewlett-Packard"),
+        _product("Souris", "Logitech"),
+    ]
+    db_session.add_all(rows)
+    ids = [p.id for p in rows]
+    await db_session.commit()
+    await refresh_sale_prices(db_session)
+
+    await brands.link_unbranded_products(db_session)
+    hp = await _brand_of(db_session, ids[0])
+    assert hp is not None and not hp.is_validated
+    hp_id = hp.id
+    # « HP Inc. » is the same key as « HP »; « Hewlett-Packard » is not.
+    assert (b := await _brand_of(db_session, ids[1])) and b.id == hp_id
+    hewlett = await _brand_of(db_session, ids[2])
+    assert hewlett is not None and hewlett.id != hp_id
+    hewlett_id = hewlett.id
+
+    # The admin merges the long name into HP and validates the sheet.
+    merged = await brand_pages.admin_merge_brand(
+        hewlett_id,
+        brand_pages.BrandMerge(target_id=hp_id),
+        _Request(),  # type: ignore[arg-type]
+        db_session,
+        None,  # type: ignore[arg-type]
+    )
+    assert merged.product_count == 3
+    assert merged.aliases == ["Hewlett-Packard"]
+    saved = await brand_pages.admin_update_brand(
+        hp_id,
+        brand_pages.BrandWrite(
+            name="HP", aliases=["Hewlett-Packard", "HPE"], is_validated=True
+        ),
+        _Request(),  # type: ignore[arg-type]
+        db_session,
+        None,  # type: ignore[arg-type]
+    )
+    assert saved.slug == "hp" and saved.is_validated
+
+    # A new import under the alias lands on HP.
+    db_session.add(late := _product("Station", "HPE"))
+    late_id = late.id
+    await db_session.commit()
+    await brands.link_unbranded_products(db_session)
+    assert (b := await _brand_of(db_session, late_id)) and b.id == hp_id
+
+    # Facets name the validated brand once; a sheet to validate shows as given.
+    result: dict[str, Any] = await crud_product.search_products(
+        db_session, group_offers=False
+    )
+    makers = result["facets"]["manufacturers"]
+    assert makers.get("HP") == 4
+    assert makers.get("Logitech") == 1
+    # Filtering by the facet name finds every spelling.
+    found = await crud_product.search_products(
+        db_session, manufacturer="HP", group_offers=False, with_facets=False
+    )
+    assert {p.name for p in found["data"]} == {
+        "Portable",
+        "Imprimante",
+        "Écran",
+        "Station",
+    }
+    by_page = await crud_product.search_products(
+        db_session, brand_id=hp_id, group_offers=False, with_facets=False
+    )
+    assert by_page["count"] == 4
+
+    # The storefront page: validated sheets only.
+    page = await brand_pages.get_brand_page(
+        "hp",
+        _Request(),  # type: ignore[arg-type]
+        db_session,
+    )
+    assert page.name == "HP"
+    logitech = (
+        await db_session.exec(select(Brand).where(col(Brand.name) == "Logitech"))
+    ).one()
+    with pytest.raises(AppError) as hidden:
+        await brand_pages.get_brand_page(
+            logitech.slug or "",
+            _Request(),  # type: ignore[arg-type]
+            db_session,
+        )
+    assert hidden.value.status_code == 404
+
+
+async def test_slug_and_name_are_unique(db_session: AsyncSession) -> None:
+    created = await brand_pages.admin_create_brand(
+        brand_pages.BrandWrite(name="Dell"),
+        _Request(),  # type: ignore[arg-type]
+        db_session,
+        None,  # type: ignore[arg-type]
+    )
+    assert created.slug == "dell"
+    for body, code in (
+        (brand_pages.BrandWrite(name="DELL Inc."), "brand.slug_taken"),
+        (brand_pages.BrandWrite(name="Dell", slug="dell-2"), "brand.exists"),
+    ):
+        with pytest.raises(AppError) as refused:
+            await brand_pages.admin_create_brand(
+                body,
+                _Request(),  # type: ignore[arg-type]
+                db_session,
+                None,  # type: ignore[arg-type]
+            )
+        assert refused.value.code == code

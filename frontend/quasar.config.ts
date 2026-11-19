@@ -8,7 +8,9 @@ import path from 'node:path';
 export default defineConfig((ctx) => {
   return {
     // https://v2.quasar.dev/quasar-cli-vite/prefetch-feature
-    // preFetch: true,
+    // Quasar evaluates useMeta once at setup on the server: a page whose
+    // title comes from loaded data loads it in a `preFetch` hook first (lot BR).
+    preFetch: true,
 
     // app boot file (/src/boot)
     // --> boot files are part of "main.js"
