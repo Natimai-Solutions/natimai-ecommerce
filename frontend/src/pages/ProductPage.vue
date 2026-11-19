@@ -515,6 +515,27 @@
     <CartErrorToast v-model="relatedCartError" />
   </q-page>
 </template>
+<script lang="ts">
+import { defineComponent } from 'vue';
+
+// Server render: the product is loaded before setup, so that the title and
+// description `useMeta` computes once are the product's (they stayed
+// « Produit »: Quasar evaluates useMeta at setup on the server).
+export default defineComponent({
+  async preFetch({ store, currentRoute }) {
+    // In the browser the page loads it itself (in the visitor's language).
+    if (!import.meta.env.QUASAR_SERVER) return;
+    const id = currentRoute.params['id'];
+    if (typeof id !== 'string') return;
+    const [{ useProductDetailStore }, { currentRequestScope }] = await Promise.all([
+      import('@/stores/productDetail'),
+      import('@/ssr/requestScope'),
+    ]);
+    await useProductDetailStore(store).load(id, currentRequestScope()?.locale ?? 'fr');
+  },
+});
+</script>
+
 <script setup lang="ts">
 import CartErrorToast from '@/components/CartErrorToast.vue';
 import AppNotice from '@app/ui/AppNotice.vue';

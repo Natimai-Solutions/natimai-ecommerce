@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia';
+import { Cookies } from 'quasar';
 import { ref } from 'vue';
 
 import { getAnnouncement } from '@/api/homepage';
@@ -23,8 +24,17 @@ export const useAnnouncementStore = defineStore('announcement', () => {
   const current = ref<HomepageSection | null>(null);
   const loaded = ref(false);
   const loadedLocale = ref<string | null>(null);
-  /** Read in the browser after mount: the server render cannot know it. */
+  /**
+   * The announcement this visitor closed. Kept in a cookie (a preference,
+   * nothing tracked) so that the server render already leaves it out: read
+   * from localStorage only, it showed for a moment on every page load.
+   */
   const dismissed = ref<string | null>(null);
+
+  /** Server render: the visitor's choice, from the request's cookies. */
+  function readFromCookies(cookies: { get: (name: string) => string | null | undefined }): void {
+    dismissed.value = cookies.get(DISMISSED_KEY) ?? null;
+  }
 
   async function load(locale: string): Promise<void> {
     if (loaded.value && loadedLocale.value === locale) return;
@@ -38,18 +48,35 @@ export const useAnnouncementStore = defineStore('announcement', () => {
     }
   }
 
+  /** In the browser: the cookie, else a choice made before it existed. */
   function readDismissed(): void {
+    const fromCookie = Cookies.get(DISMISSED_KEY);
+    if (fromCookie) {
+      dismissed.value = fromCookie;
+      return;
+    }
     try {
       dismissed.value = window.localStorage.getItem(DISMISSED_KEY);
     } catch {
       dismissed.value = null;
     }
+    if (dismissed.value) remember(dismissed.value);
+  }
+
+  function remember(key: string): void {
+    Cookies.set(DISMISSED_KEY, key, {
+      path: '/',
+      expires: 365,
+      sameSite: 'Lax',
+      secure: window.location.protocol === 'https:',
+    });
   }
 
   function dismiss(): void {
     if (!current.value) return;
     const key = announcementKey(current.value);
     dismissed.value = key;
+    remember(key);
     try {
       window.localStorage.setItem(DISMISSED_KEY, key);
     } catch {
@@ -66,5 +93,14 @@ export const useAnnouncementStore = defineStore('announcement', () => {
     dismissed.value = null;
   }
 
-  return { current, loaded, dismissed, load, readDismissed, dismiss, showPreview };
+  return {
+    current,
+    loaded,
+    dismissed,
+    load,
+    readFromCookies,
+    readDismissed,
+    dismiss,
+    showPreview,
+  };
 });

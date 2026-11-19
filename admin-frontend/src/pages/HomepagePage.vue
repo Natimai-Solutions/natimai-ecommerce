@@ -394,7 +394,19 @@
                 :label="$t('homepage.category')"
               />
               <q-select
-                v-if="['category', 'newest', 'promotion'].includes(form.source)"
+                v-if="form.source === 'brand'"
+                v-model="form.brand_id"
+                class="col-12 col-sm-6"
+                :options="brandOptions"
+                emit-value
+                map-options
+                outlined
+                dense
+                :label="$t('homepage.brand')"
+                data-testid="homepage-brand"
+              />
+              <q-select
+                v-if="['category', 'brand', 'newest', 'promotion'].includes(form.source)"
                 v-model="form.sort"
                 class="col-12 col-sm-6"
                 :options="sortOptions"
@@ -466,13 +478,55 @@
                 <q-item v-for="(entry, index) in form.items" :key="entry.id">
                   <q-item-section>{{ entry.name }}</q-item-section>
                   <q-item-section v-if="form.kind === 'categories'" side>
-                    <q-input
-                      v-model="entry.label"
-                      dense
-                      outlined
-                      maxlength="100"
-                      :placeholder="$t('homepage.item_label')"
-                    />
+                    <div class="column q-gutter-xs">
+                      <q-input
+                        v-model="entry.label"
+                        dense
+                        outlined
+                        maxlength="100"
+                        :placeholder="$t('homepage.item_label')"
+                      />
+                      <q-input
+                        v-for="lang in otherLocales"
+                        :key="lang"
+                        v-model="entry.translations[lang]"
+                        dense
+                        outlined
+                        maxlength="100"
+                        :placeholder="`${$t('homepage.item_label')} (${lang.toUpperCase()})`"
+                      />
+                    </div>
+                  </q-item-section>
+                  <q-item-section v-if="form.kind === 'categories'" side>
+                    <div class="row items-center no-wrap q-gutter-xs">
+                      <img
+                        v-if="entry.image_url"
+                        :src="entry.image_url"
+                        alt=""
+                        class="homepage-item-image"
+                      />
+                      <q-btn
+                        flat
+                        dense
+                        no-caps
+                        icon="ph:image"
+                        :label="
+                          entry.media_id
+                            ? $t('homepage.item_image_change')
+                            : $t('homepage.item_image')
+                        "
+                        @click="pickItemImage(index)"
+                      />
+                      <q-btn
+                        v-if="entry.media_id"
+                        flat
+                        round
+                        dense
+                        icon="ph:x"
+                        :aria-label="$t('homepage.remove_image')"
+                        @click="((entry.media_id = null), (entry.image_url = null))"
+                      />
+                    </div>
                   </q-item-section>
                   <q-item-section side>
                     <div class="row no-wrap">
@@ -541,6 +595,16 @@
                 dense
               />
             </div>
+            <q-option-group
+              v-if="['featured', 'popular', 'collection'].includes(form.kind)"
+              v-model="form.layout"
+              :options="[
+                { label: $t('homepage.layout_grid'), value: 'grid' },
+                { label: $t('homepage.layout_carousel'), value: 'carousel' },
+              ]"
+              inline
+              data-testid="homepage-layout"
+            />
             <div v-if="hasCta" class="row q-col-gutter-sm">
               <q-input
                 v-model="texts.cta_label"
@@ -580,7 +644,7 @@
                     icon="ph:images"
                     :label="$t('homepage.pick')"
                     data-testid="homepage-pick-image"
-                    @click="pickerOpen = true"
+                    @click="((itemPickerIndex = null), (pickerOpen = true))"
                   />
                   <q-btn
                     v-if="form.media_id || form.image_url"
@@ -708,7 +772,7 @@
       v-model="pickerOpen"
       kind="homepage"
       :format="form.kind === 'hero' ? 'hero' : 'banner'"
-      @select="onPick"
+      @select="onPickAny"
     />
   </q-page>
 </template>
@@ -768,7 +832,7 @@ type Kind =
   | 'popular'
   | 'collection';
 type Scope = 'all' | 'guest' | 'customer';
-type Source = 'manual' | 'category' | 'newest' | 'promotion' | 'popular' | 'best_sellers';
+type Source = 'manual' | 'category' | 'brand' | 'newest' | 'promotion' | 'popular' | 'best_sellers';
 const BUILTIN: Kind[] = ['categories', 'featured', 'popular', 'collection'];
 /** Lot A3: written in the admin, the title optional. */
 const TITLE_OPTIONAL: Kind[] = [...BUILTIN, 'reassurance', 'brand_strip', 'rich_text', 'personal'];
@@ -805,6 +869,10 @@ interface ListedItem {
   id: string;
   name: string;
   label: string;
+  /** A chosen category: its label in the other languages, its own image. */
+  translations: Record<string, string>;
+  media_id: string | null;
+  image_url: string | null;
 }
 
 const blocks = ref<HomepageBlock[]>([]);
@@ -830,9 +898,9 @@ const kindOptions = computed<{ label: string; value: Kind }[]>(() => [
 ]);
 
 const sourceOptions = computed(() =>
-  (['manual', 'category', 'newest', 'promotion', 'popular', 'best_sellers'] as Source[]).map(
-    (value) => ({ value, label: t(`homepage.source_${value}`) }),
-  ),
+  (
+    ['manual', 'category', 'brand', 'newest', 'promotion', 'popular', 'best_sellers'] as Source[]
+  ).map((value) => ({ value, label: t(`homepage.source_${value}`) })),
 );
 const sortOptions = computed(() =>
   ['newest', 'price_asc', 'price_desc', 'name'].map((value) => ({
@@ -870,7 +938,14 @@ function onProductFilter(term: string, update: (fn: () => void) => void) {
 }
 function addItem(choice: { value: string; label: string } | null) {
   if (!choice || form.items.some((i) => i.id === choice.value)) return;
-  form.items.push({ id: choice.value, name: choice.label, label: '' });
+  form.items.push({
+    id: choice.value,
+    name: choice.label,
+    label: '',
+    translations: Object.fromEntries(otherLocales.value.map((lang) => [lang, ''])),
+    media_id: null,
+    image_url: null,
+  });
 }
 function moveItem(index: number, delta: number) {
   const [entry] = form.items.splice(index, 1);
@@ -1042,6 +1117,8 @@ interface BlockForm {
   /** Selection (lot A2). */
   source: Source;
   category_id: string | null;
+  brand_id: string | null;
+  layout: 'grid' | 'carousel';
   sort: string;
   mode: 'auto' | 'manual';
   items: ListedItem[];
@@ -1091,6 +1168,8 @@ function emptyForm(kind: Kind): BlockForm {
     days: 30,
     source: 'manual',
     category_id: null,
+    brand_id: null,
+    layout: 'grid',
     sort: 'newest',
     mode: 'auto',
     items: [],
@@ -1183,13 +1262,18 @@ function openEdit(block: HomepageBlock) {
     days: Number((block.config as Record<string, number> | undefined)?.['days'] ?? 30),
     source: (block.config as { source?: Source } | undefined)?.source ?? 'manual',
     category_id: (block.config as { category_id?: string } | undefined)?.category_id ?? null,
+    brand_id: (block.config as { brand_id?: string } | undefined)?.brand_id ?? null,
+    layout:
+      (block.config as { layout?: string } | undefined)?.layout === 'carousel'
+        ? 'carousel'
+        : 'grid',
     sort: (block.config as { sort?: string } | undefined)?.sort ?? 'newest',
     mode: ((block.config as { mode?: string } | undefined)?.mode ?? 'auto') as 'auto' | 'manual',
     body_html: block.body_html ?? '',
     personal_source: ((block.config as { source?: string } | undefined)?.source ??
       'recently_viewed') as PersonalSource,
-    image_side: ((block.config as { image_side?: string } | undefined)?.image_side ??
-      'right') as 'left' | 'right',
+    image_side: ((block.config as { image_side?: string } | undefined)?.image_side ?? 'right') as
+      'left' | 'right',
     reassurance: (
       (block.config as { items?: Partial<ReassuranceEntry>[] } | undefined)?.items ?? []
     ).map((entry) => ({
@@ -1202,6 +1286,11 @@ function openEdit(block: HomepageBlock) {
       id: (item.product_id ?? item.category_id ?? item.brand_id) as string,
       name: item.name,
       label: item.label ?? '',
+      translations: Object.fromEntries(
+        otherLocales.value.map((lang) => [lang, (item.translations ?? {})[lang] ?? '']),
+      ),
+      media_id: item.media_id ?? null,
+      image_url: item.image_url ?? null,
     })),
     scope: (block.audience as { scope?: Scope } | undefined)?.scope ?? 'all',
     price_group_ids: [
@@ -1214,6 +1303,25 @@ function openEdit(block: HomepageBlock) {
   pickedPreview.value = null;
   dialogError.value = null;
   dialog.value = true;
+}
+
+/** The chosen category whose image the media picker is choosing, if any. */
+const itemPickerIndex = ref<number | null>(null);
+function pickItemImage(index: number) {
+  itemPickerIndex.value = index;
+  pickerOpen.value = true;
+}
+function onPickAny(asset: MediaAsset) {
+  const index = itemPickerIndex.value;
+  itemPickerIndex.value = null;
+  const entry = index !== null ? form.items[index] : undefined;
+  if (entry) {
+    entry.media_id = asset.id;
+    entry.image_url = asset.variants?.[0]?.url ?? asset.url;
+    pickerOpen.value = false;
+    return;
+  }
+  onPick(asset);
 }
 
 function onPick(asset: MediaAsset) {
@@ -1230,17 +1338,22 @@ function clearImage() {
 }
 
 function configFromForm(): Record<string, unknown> {
-  if (form.kind === 'popular') return { limit: form.limit, days: form.days };
+  if (form.kind === 'popular') return { limit: form.limit, days: form.days, layout: form.layout };
   if (form.kind === 'categories') return { limit: form.limit, mode: form.mode };
   if (form.kind === 'collection') {
     return {
       source: form.source,
       limit: form.limit,
+      layout: form.layout,
       ...(form.source === 'category' ? { category_id: form.category_id } : {}),
+      ...(form.source === 'brand' ? { brand_id: form.brand_id } : {}),
       ...(['popular', 'best_sellers'].includes(form.source) ? { days: form.days } : {}),
-      ...(['category', 'newest', 'promotion'].includes(form.source) ? { sort: form.sort } : {}),
+      ...(['category', 'brand', 'newest', 'promotion'].includes(form.source)
+        ? { sort: form.sort }
+        : {}),
     };
   }
+  if (form.kind === 'featured') return { limit: form.limit, layout: form.layout };
   if (BUILTIN.includes(form.kind)) return { limit: form.limit };
   if (form.kind === 'brand_strip') return { mode: form.mode, limit: form.limit };
   if (form.kind === 'rich_text') return { image_side: form.image_side };
@@ -1270,6 +1383,8 @@ function itemsFromForm(): {
   category_id?: string;
   brand_id?: string;
   label?: string | null;
+  translations?: Record<string, string>;
+  media_id?: string | null;
 }[] {
   if (!listsItems.value) return [];
   return form.items.map((item) =>
@@ -1277,7 +1392,14 @@ function itemsFromForm(): {
       ? { product_id: item.id }
       : form.kind === 'brand_strip'
         ? { brand_id: item.id }
-        : { category_id: item.id, label: item.label.trim() || null },
+        : {
+            category_id: item.id,
+            label: item.label.trim() || null,
+            translations: Object.fromEntries(
+              Object.entries(item.translations).filter(([, text]) => text.trim()),
+            ),
+            media_id: item.media_id,
+          },
   );
 }
 
@@ -1362,6 +1484,13 @@ onMounted(load);
 </script>
 
 <style scoped lang="scss">
+.homepage-item-image {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
 .homepage-reassurance {
   padding: 12px 0;
   border-bottom: 1px solid var(--n-line);

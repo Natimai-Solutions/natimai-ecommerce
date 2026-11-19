@@ -203,8 +203,8 @@ const en: MessageSchema = {
     alert_ok: 'Noted: we will notify you at {email} as soon as this product is available.',
     alert_failed: 'Signing up for the alert failed. Please try again.',
     wish_failed: 'Your favourites could not be updated.',
-    meta_title: '{name} | {shop}',
-    meta_title_default: 'Product | {shop}',
+    meta_title: "{name} {'|'} {shop}",
+    meta_title_default: "Product {'|'} {shop}",
     meta_description: "See the product's details and specifications.",
     not_found: 'Product not found',
     unknown_error: 'Unknown error',
@@ -435,7 +435,7 @@ const en: MessageSchema = {
     no_match_hint: 'Change the search or remove some filters.',
     pagination: 'Pagination',
     page_of: 'Page {page} of {total}',
-    meta_title: 'Catalogue | {shop}',
+    meta_title: "Catalogue {'|'} {shop}",
     meta_description: 'Explore our product catalogue with filters by manufacturer and price.',
     new_and_refurbished: 'New and refurbished',
     new: 'New',
@@ -462,7 +462,7 @@ const en: MessageSchema = {
   account: {
     hello: 'Hello {name}.',
     logout: 'Sign out',
-    meta: '{section} | My account',
+    meta: "{section} {'|'} My account",
     section: {
       messages: 'Messages',
       addresses: 'Addresses',
@@ -700,7 +700,7 @@ const en: MessageSchema = {
     lead: 'Price, availability and lead time are on every product page. Order online or request a quote from your cart.',
     meta_description:
       'Computer equipment: price, availability and lead time shown on every page. Order online or on quote.',
-    meta_title: 'Home | {shop}',
+    meta_title: "Home {'|'} {shop}",
     popular: 'Most viewed',
     see_catalogue: 'Browse the catalogue',
   },

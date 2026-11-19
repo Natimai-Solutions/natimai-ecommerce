@@ -106,6 +106,19 @@ register(
         order=10,
     ),
     SettingSpec(
+        "shop_social_links",
+        "list",
+        "shop",
+        "Réseaux sociaux",
+        "Adresses https des pages de la boutique (Facebook, Instagram…), une "
+        "par ligne : les moteurs de recherche les relient à la boutique "
+        "(données structurées de l'accueil).",
+        default=[],
+        public=True,
+        max_length=2000,
+        order=15,
+    ),
+    SettingSpec(
         "shop_logo_media_id",
         "str",
         "shop",

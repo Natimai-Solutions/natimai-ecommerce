@@ -203,8 +203,8 @@ const fr = {
     alert_ok: "C'est noté : nous vous préviendrons à {email} dès que ce produit sera disponible.",
     alert_failed: "L'inscription à l'alerte a échoué. Veuillez réessayer.",
     wish_failed: "Les favoris n'ont pas pu être mis à jour.",
-    meta_title: '{name} | {shop}',
-    meta_title_default: 'Produit | {shop}',
+    meta_title: "{name} {'|'} {shop}",
+    meta_title_default: "Produit {'|'} {shop}",
     meta_description: 'Consultez les détails et caractéristiques du produit.',
     not_found: 'Produit introuvable',
     unknown_error: 'Erreur inconnue',
@@ -439,7 +439,7 @@ const fr = {
     no_match_hint: 'Modifiez la recherche ou retirez des filtres.',
     pagination: 'Pagination',
     page_of: 'Page {page} sur {total}',
-    meta_title: 'Catalogue | {shop}',
+    meta_title: "Catalogue {'|'} {shop}",
     meta_description: 'Explorez notre catalogue de produits avec filtres par fabricant et prix.',
     new_and_refurbished: 'Neuf et reconditionné',
     new: 'Neuf',
@@ -466,7 +466,7 @@ const fr = {
   account: {
     hello: 'Bonjour {name}.',
     logout: 'Se déconnecter',
-    meta: '{section} | Mon compte',
+    meta: "{section} {'|'} Mon compte",
     section: {
       messages: 'Messages',
       addresses: 'Adresses',
@@ -710,7 +710,7 @@ const fr = {
     lead: 'Prix, disponibilité et délai figurent sur chaque fiche. Commandez en ligne ou demandez un devis depuis votre panier.',
     meta_description:
       'Matériel informatique : prix, disponibilité et délai affichés sur chaque fiche. Commande en ligne ou sur devis.',
-    meta_title: 'Accueil | {shop}',
+    meta_title: "Accueil {'|'} {shop}",
     popular: 'Les plus consultés',
     see_catalogue: 'Voir le catalogue',
   },

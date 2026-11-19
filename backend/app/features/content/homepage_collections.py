@@ -127,7 +127,14 @@ async def collection_products(
         products = list(rows.all())
     else:
         statement = select(Product).where(*visible)
-        if source == "category":
+        if source == "brand":
+            brand_id = config.get("brand_id")
+            if not brand_id:
+                return []
+            statement = statement.where(
+                col(Product.brand_id) == uuid.UUID(str(brand_id))
+            )
+        elif source == "category":
             category_id = config.get("category_id")
             if not category_id:
                 return []

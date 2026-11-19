@@ -84,6 +84,13 @@ takes a tag as its `ref`.
 
 ### Added
 
+- Homepage, what R2/R3 left: a selection by brand, a carousel layout (one
+  row that scrolls sideways) for the product sections, and a chosen
+  category with its own image and a label in each language (migration
+  `d4e5f6a7b8c0`). The shop's social network pages are a setting
+  (`shop_social_links`), given to search engines as the homepage
+  `Organization.sameAs`.
+
 - Brand sheets, what was left: the description is translated (admin
   *Marques*, migration `c3d4e5f6a7b9`), the product page names its brand
   and links to its page when the sheet is validated and shown
@@ -564,6 +571,12 @@ takes a tag as its `ref`.
   (superuser-only), as the base of the future fine-grained roles.
 
 ### Fixed
+
+- Page titles of the form « … | Natimai » showed their first part only
+  (vue-i18n read the `|` as a plural separator); the product page title
+  and description are server-rendered (they stayed « Produit »); a closed
+  announcement is remembered in a cookie the server render reads, so it no
+  longer shows for a moment on every page load.
 
 - A quote issued without its e-mail (or whose e-mail failed) still sends
   the messaging « a reply is waiting » notice; the automatic release counts

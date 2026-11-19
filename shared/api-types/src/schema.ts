@@ -14629,6 +14629,8 @@ export interface components {
             title: string;
             /** Image Url */
             image_url?: string | null;
+            /** Image Srcset */
+            image_srcset?: string | null;
         };
         /**
          * HomepageCurrentOrder
@@ -14681,6 +14683,14 @@ export interface components {
             brand_id?: string | null;
             /** Label */
             label?: string | null;
+            /** Translations */
+            translations?: {
+                [key: string]: string;
+            };
+            /** Media Id */
+            media_id?: string | null;
+            /** Image Url */
+            image_url?: string | null;
             /**
              * Name
              * @default
@@ -14697,6 +14707,12 @@ export interface components {
             brand_id?: string | null;
             /** Label */
             label?: string | null;
+            /** Translations */
+            translations?: {
+                [key: string]: string;
+            };
+            /** Media Id */
+            media_id?: string | null;
         };
         /**
          * HomepageOrder
@@ -22386,6 +22402,11 @@ export interface components {
             /** Captcha Site Key */
             captcha_site_key?: string | null;
             branding?: components["schemas"]["ShopBranding"];
+            /**
+             * Social Links
+             * @default []
+             */
+            social_links: string[];
         };
         /**
          * Shortage

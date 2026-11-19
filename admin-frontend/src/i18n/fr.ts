@@ -1077,6 +1077,12 @@ const fr = {
     intro:
       "L'accueil affiche ses <strong>sections dans l'ordre de la liste</strong> : le <strong>hero</strong> (grand bandeau du haut, un seul par période et par public), les bannières, les catégories et les sélections de produits. Chaque section a son <strong>public</strong> (tout le monde, visiteurs, clients connectés ou certains groupes tarifaires) ; masquez-la en la dépubliant. Un bloc programmé n'apparaît qu'entre ses dates.",
     kind_banner: 'Bannière',
+    brand: 'Marque',
+    layout_grid: 'Grille',
+    layout_carousel: 'Carrousel (une rangée qui défile)',
+    item_image: 'Image',
+    item_image_change: "Changer l'image",
+    source_brand: "D'une marque",
     kind_personal: 'Section personnelle',
     personal_source: 'Contenu',
     personal_recently_viewed: 'Vus récemment',

@@ -239,6 +239,15 @@ class HomepageBlockItem(SQLModel, table=True):
     )
     #: Label shown instead of the category's own name (optional).
     label: str | None = Field(default=None, max_length=100)
+    #: The label in the other offered languages: ``{"en": "…"}``.
+    translations: dict[str, str] = Field(
+        default_factory=dict,
+        sa_column=Column(JSONB, nullable=False, server_default="{}"),
+    )
+    #: An image of its own for a chosen category's tile (R3).
+    media_id: uuid.UUID | None = Field(
+        default=None, foreign_key="media_assets.id", ondelete="SET NULL"
+    )
 
 
 class HomepageItemWrite(SQLModel):
@@ -246,6 +255,8 @@ class HomepageItemWrite(SQLModel):
     category_id: uuid.UUID | None = None
     brand_id: uuid.UUID | None = None
     label: str | None = Field(default=None, max_length=100)
+    translations: dict[str, str] = Field(default_factory=dict)
+    media_id: uuid.UUID | None = None
 
 
 class HomepageItemPublic(SQLModel):
@@ -253,6 +264,10 @@ class HomepageItemPublic(SQLModel):
     category_id: uuid.UUID | None = None
     brand_id: uuid.UUID | None = None
     label: str | None = None
+    translations: dict[str, str] = Field(default_factory=dict)
+    media_id: uuid.UUID | None = None
+    #: Back-office: the chosen image's address (preview).
+    image_url: str | None = None
     #: Name of the product or the category (back-office list).
     name: str = ""
 
@@ -263,6 +278,7 @@ class HomepageCategoryTile(SQLModel):
     id: uuid.UUID
     title: str
     image_url: str | None = None
+    image_srcset: str | None = None
 
 
 class HomepageBrandTile(SQLModel):

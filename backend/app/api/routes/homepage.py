@@ -34,7 +34,12 @@ from app.core.content_i18n import (
 )
 from app.core.datetimes import as_utc, utcnow
 from app.core.errors import AppError
-from app.core.i18n import default_locale, request_locale
+from app.core.i18n import (
+    default_locale,
+    normalize_locale,
+    offered_locales,
+    request_locale,
+)
 from app.core.security import create_preview_token, decode_token
 from app.features.content.homepage_collections import (
     chosen_categories,
@@ -179,6 +184,11 @@ async def _clean_sections_fields(
         group = await session.get(PriceGroup, uuid.UUID(group_id))
         if group is None:
             raise _invalid("Invalid audience.", "homepage.audience", "audience")
+    if (
+        config.get("brand_id")
+        and await session.get(Brand, uuid.UUID(str(config["brand_id"]))) is None
+    ):
+        raise _invalid("Invalid section settings.", "homepage.config", "config")
     return config, audience
 
 
@@ -229,16 +239,31 @@ async def _to_public(
         chosen = await chosen_categories(session, block.id)
         if localized:
             localize_all([c for c, _ in chosen], CATEGORY_FIELDS)
-        item.categories = [
-            HomepageCategoryTile(
-                id=category.id,
-                title=listed.label
-                or (category.display_name or "").strip()
-                or category.name,
-                image_url=category.image_url,
+        locale = request_locale() if localized else default_locale()
+        tiles: list[HomepageCategoryTile] = []
+        for category, listed in chosen:
+            # The section's own label, in the visitor's language when given.
+            label = (listed.translations or {}).get(locale) or listed.label
+            image_url, image_srcset = category.image_url, None
+            media = (
+                await session.get(MediaAsset, listed.media_id)
+                if listed.media_id
+                else None
             )
-            for category, listed in chosen
-        ]
+            if media is not None and media.is_active:
+                described = to_public(media, base_url)
+                image_url, image_srcset = described.url, described.srcset
+            tiles.append(
+                HomepageCategoryTile(
+                    id=category.id,
+                    title=label
+                    or (category.display_name or "").strip()
+                    or category.name,
+                    image_url=image_url,
+                    image_srcset=image_srcset,
+                )
+            )
+        item.categories = tiles
     if block.kind == "reassurance":
         item.reassurance = _reassurance(block, localized=localized)
     if block.kind == "brand_strip" and localized:
@@ -253,12 +278,20 @@ async def _to_public(
                 target = await session.get(Category, listed.category_id)
             else:
                 target = await session.get(Brand, listed.brand_id)
+            media = (
+                await session.get(MediaAsset, listed.media_id)
+                if listed.media_id
+                else None
+            )
             names.append(
                 HomepageItemPublic(
                     product_id=listed.product_id,
                     category_id=listed.category_id,
                     brand_id=listed.brand_id,
                     label=listed.label,
+                    translations=listed.translations or {},
+                    media_id=listed.media_id,
+                    image_url=to_public(media, base_url).url if media else None,
                     name=getattr(target, "name", "") if target else "",
                 )
             )
@@ -766,10 +799,28 @@ async def _prepare(session: SessionDep, body: HomepageBlockWrite) -> None:
         if await session.get(model, target) is None:
             raise _invalid("Invalid list of the section.", "homepage.items", "items")
         seen.add(target)
+        translations: dict[str, str] = {}
+        media_id = None
+        if manual_categories:
+            # A chosen category's own image and translated label (R3).
+            offered = set(offered_locales())
+            for code, text in (item.translations or {}).items():
+                lang = normalize_locale(code)
+                if lang is None or lang not in offered:
+                    raise _invalid(
+                        "Invalid list of the section.", "homepage.items", "items"
+                    )
+                if text and text.strip():
+                    translations[lang] = text.strip()[:100]
+            if item.media_id is not None:
+                await _check_media(session, item.media_id)
+                media_id = item.media_id
         cleaned.append(
             HomepageItemWrite(
                 **{field: target},
                 label=(item.label or "").strip() or None,
+                translations=translations,
+                media_id=media_id,
             )
         )
     body.items = cleaned
@@ -789,6 +840,8 @@ async def _save_items(
                 category_id=item.category_id,
                 brand_id=item.brand_id,
                 label=item.label,
+                translations=item.translations,
+                media_id=item.media_id,
             )
         )
 

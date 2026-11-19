@@ -31,7 +31,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
+import { Cookies } from 'quasar';
+import { computed, onMounted, useSSRContext } from 'vue';
 import { useRoute } from 'vue-router';
 
 import { announcementKey, useAnnouncementStore } from '@/stores/announcement';
@@ -51,6 +52,12 @@ const visible = computed(
     store.dismissed !== announcementKey(item.value),
 );
 
+// Server render: the visitor's choice is in the request's cookies, so a
+// closed announcement is not drawn at all (no flash, no layout shift).
+if (import.meta.env.QUASAR_SERVER) {
+  const ssrContext = useSSRContext();
+  if (ssrContext) store.readFromCookies(Cookies.parseSSR(ssrContext as never));
+}
 onMounted(() => store.readDismissed());
 </script>
 

@@ -120,7 +120,7 @@
                 <img
                   v-if="category.image_url"
                   :src="category.image_url"
-                  :srcset="mediaSrcset(category.image_url)"
+                  :srcset="category.image_srcset ?? mediaSrcset(category.image_url)"
                   sizes="(max-width: 599px) 50vw, 240px"
                   :alt="category.image_alt ?? ''"
                   loading="lazy"
@@ -156,7 +156,18 @@
           </span>
         </div>
         <p v-if="part.section.subtitle" class="home-section__lead">{{ part.section.subtitle }}</p>
-        <div class="product-grid" :data-testid="`home-${part.section.kind}`">
+        <!-- A grid, or one row that scrolls sideways (R2: « carrousel »). -->
+        <div
+          :class="part.section.config?.['layout'] === 'carousel' ? 'product-row' : 'product-grid'"
+          :data-testid="`home-${part.section.kind}`"
+          :tabindex="part.section.config?.['layout'] === 'carousel' ? 0 : undefined"
+          :role="part.section.config?.['layout'] === 'carousel' ? 'region' : undefined"
+          :aria-label="
+            part.section.config?.['layout'] === 'carousel'
+              ? part.section.title || defaultTitle(part.section.kind)
+              : undefined
+          "
+        >
           <ProductCard
             v-for="product in part.section.products"
             :key="product.id"
@@ -319,7 +330,8 @@ const hero = computed(() => {
 });
 const heroImage = computed(() => hero.value?.image ?? null);
 
-type CategoryPublic = components['schemas']['CategoryPublic'];
+/** A category tile: a chosen one may carry the srcset of its own image. */
+type CategoryPublic = components['schemas']['CategoryPublic'] & { image_srcset?: string | null };
 type Part =
   | { type: 'banners'; key: string; items: HomepageSection[] }
   | { type: 'categories'; key: string; section: HomepageSection; tiles: CategoryPublic[] }
@@ -350,6 +362,7 @@ const parts = computed<Part[]>(() => {
             name: c.title,
             display_name: c.title,
             image_url: c.image_url ?? null,
+            image_srcset: c.image_srcset ?? null,
           }))
         : home.categoryTiles(limit);
       result.push({ type: 'categories', key: section.id, section, tiles });
@@ -433,6 +446,9 @@ useMeta(() => {
       name: shopName,
       url: `${siteUrl}/`,
       ...(logo ? { logo } : {}),
+      ...(shopModules.config.social_links?.length
+        ? { sameAs: shopModules.config.social_links }
+        : {}),
       // Lot A5 / R11: where a customer reaches the shop (the messaging).
       contactPoint: {
         '@type': 'ContactPoint',
@@ -708,6 +724,33 @@ a.banner:hover {
 
   & + & {
     margin-top: 56px;
+  }
+}
+
+.product-row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(220px, calc((100% - 3 * 20px) / 4));
+  gap: 20px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding-bottom: 8px;
+  overscroll-behavior-x: contain;
+
+  > * {
+    scroll-snap-align: start;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--n-ink);
+    outline-offset: 4px;
+  }
+}
+
+@media (max-width: 599px) {
+  .product-row {
+    grid-auto-columns: 72%;
+    gap: 12px;
   }
 }
 

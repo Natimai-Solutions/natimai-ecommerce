@@ -40,11 +40,24 @@ class _CategoriesConfig(_Strict):
     mode: Literal["auto", "manual"] = "auto"
 
 
+#: How a product section is laid out: a grid, or one scrolling row.
+Layout = Literal["grid", "carousel"]
+
+
 class _CollectionConfig(_Strict):
     source: Literal[
-        "manual", "category", "newest", "promotion", "popular", "best_sellers"
+        "manual",
+        "category",
+        "brand",
+        "newest",
+        "promotion",
+        "popular",
+        "best_sellers",
     ] = "manual"
     category_id: uuid.UUID | None = None
+    #: ``brand`` source (lot BR): the products of this brand sheet.
+    brand_id: uuid.UUID | None = None
+    layout: Layout = "grid"
     limit: int = Field(default=8, ge=2, le=24)
     days: int = Field(default=30, ge=1, le=365)
     sort: Literal["newest", "price_asc", "price_desc", "name"] = "newest"
@@ -52,11 +65,13 @@ class _CollectionConfig(_Strict):
 
 class _FeaturedConfig(_Strict):
     limit: int = Field(default=8, ge=2, le=24)
+    layout: Layout = "grid"
 
 
 class _PopularConfig(_Strict):
     limit: int = Field(default=8, ge=2, le=24)
     days: int = Field(default=30, ge=1, le=365)
+    layout: Layout = "grid"
 
 
 #: Pictograms of a reassurance band: a closed list, drawn by the storefront
@@ -154,6 +169,10 @@ def clean_config(kind: str, raw: dict[str, Any] | None) -> dict[str, Any]:
         (config.source == "category") != (config.category_id is not None)
     ):
         raise InvalidSection("a category is required for, and only for, that source")
+    if isinstance(config, _CollectionConfig) and (
+        (config.source == "brand") != (config.brand_id is not None)
+    ):
+        raise InvalidSection("a brand is required for, and only for, that source")
     if isinstance(config, _ReassuranceConfig):
         offered = set(offered_locales())
         for item in config.items:

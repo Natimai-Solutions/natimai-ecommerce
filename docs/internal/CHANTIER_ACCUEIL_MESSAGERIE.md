@@ -1023,15 +1023,25 @@ minimum d'une sélection est de 2 produits ; le message hors horaires de la
 messagerie (§6) manque ; le service client ne lit pas les demandes de devis
 contrairement à la grille (§4) ; les pages marque ne sont pas au sitemap.
 
-**Reste après le chantier** (repris au plan de travail) : ces écarts ; la
-traduction de la description d'une marque et le lien de la fiche produit
-vers sa marque ; les rôles du §4 autres que service client et commercial ;
-les constats mineurs de la revue non corrigés (contact public : limite par
-adresse et captcha avant le compteur, visiteur qui rejoint le fil ouvert
-d'une adresse ; avis de messagerie d'un devis émis sans e-mail ; libération
-automatique comptée depuis la prise en charge ; écritures de messagerie
-module éteint ; libellé de catégorie non traduisible ; annonce fermée qui
-réapparaît une image) ; `sameAs` de l'`Organization`.
+**Reste du chantier, livré le 19/11/2026** : message hors horaires ;
+lecture des devis par le service client ; contact public resserré (captcha
+avant le plafond, 3 demandes par adresse et par heure, un fil rejoint
+seulement sur le même canal, hors devis, sous le même nom et les mêmes
+coordonnées) ; avis de messagerie d'un devis émis sans e-mail ; libération
+automatique comptée depuis le dernier message du client ; plus d'écriture
+module éteint ; description de marque traduite, lien de la fiche produit
+vers sa marque, pages marque au sitemap ; sélection par marque, affichage
+en carrousel ou en grille, image et libellé traduit d'une catégorie
+choisie ; annonce fermée mémorisée dans un cookie lu par le rendu serveur
+(plus de clignotement) ; réseaux sociaux réglables (`sameAs`) ; titre et
+description de la fiche produit dans le rendu serveur. Écart assumé : une
+sélection garde un minimum de 2 produits (et non 4), pour ne pas faire
+disparaître les sections déjà réglées plus bas. Corrigé en passant : les
+titres de page de la forme « … | Natimai » n'affichaient que leur première
+partie (vue-i18n lisait le `|` comme un séparateur de pluriels).
+
+**Reste** : les rôles fins du §4 autres que service client et commercial
+(préparateur, comptable), dont les droits sont à fixer.
 
 ---
 

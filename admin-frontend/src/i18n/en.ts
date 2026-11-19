@@ -1070,6 +1070,12 @@ const en: MessageSchema = {
     intro:
       'The homepage shows its <strong>sections in the order of the list</strong>: the <strong>hero</strong> (large top banner, one per period and per audience), banners, categories and product selections. Each section has its <strong>audience</strong> (everyone, visitors, signed-in customers or some price groups); hide it by unpublishing it. A scheduled block only appears between its dates.',
     kind_banner: 'Banner',
+    brand: 'Brand',
+    layout_grid: 'Grid',
+    layout_carousel: 'Carousel (one scrolling row)',
+    item_image: 'Image',
+    item_image_change: 'Change the image',
+    source_brand: 'From a brand',
     kind_personal: 'Personal section',
     personal_source: 'Content',
     personal_recently_viewed: 'Recently viewed',

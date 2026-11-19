@@ -196,3 +196,87 @@ async def test_a_stored_setting_that_no_longer_passes_never_breaks_the_page(
     await db_session.commit()
     page = await get_homepage(_request(), db_session)
     assert all(s.kind != "reassurance" for s in page.sections)
+
+
+async def test_brand_selection_layout_and_chosen_category_extras(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """R2 / R3 leftovers: a selection by brand, a carousel layout, a chosen
+    category with its own image and a translated label."""
+    from decimal import Decimal
+
+    from app.features.content.homepage_collections import collection_products
+    from app.features.media.models import MediaAsset
+    from app.features.product.models.category import Category
+    from app.features.product.models.product import PricingMode, Product
+
+    admin = await _admin(db_session)
+    hp = Brand(name="HP", slug="hp")
+    network = Category(name="Réseau")
+    picture = MediaAsset(
+        kind="homepage",
+        original_filename="reseau.webp",
+        width=800,
+        height=600,
+        size_bytes=1,
+        variants=[{"width": 800, "height": 600, "key": "x/800.webp"}],
+    )
+    db_session.add_all([hp, network, picture])
+    await db_session.flush()
+    laptop = Product(
+        name="Portable HP",
+        pricing_mode=PricingMode.FIXED,
+        base_price=Decimal("1000"),
+        is_enriched=True,
+        weight=1.0,
+        customs_rate_pct=Decimal("0"),
+        brand_id=hp.id,
+    )
+    db_session.add(laptop)
+    ids = {"hp": hp.id, "network": network.id, "picture": picture.id}
+    await db_session.commit()
+
+    selection = await create_block(
+        HomepageBlockWrite.model_validate(
+            {
+                "kind": "collection",
+                "title": "Tout HP",
+                "is_published": True,
+                "config": {
+                    "source": "brand",
+                    "brand_id": str(ids["hp"]),
+                    "layout": "carousel",
+                },
+            }
+        ),
+        _request(),
+        db_session,
+        await _fresh(db_session, admin),
+    )
+    assert selection.config["layout"] == "carousel"
+    found = await collection_products(db_session, selection.id, selection.config)
+    assert [p.name for p in found] == ["Portable HP"]
+    refused = await _refused(
+        db_session, admin, kind="collection", title="x", config={"source": "brand"}
+    )
+    assert refused.code == "homepage.config"
+
+    await _create(
+        db_session,
+        admin,
+        kind="categories",
+        config={"mode": "manual"},
+        items=[
+            {
+                "category_id": str(ids["network"]),
+                "label": "Wifi et réseau",
+                "translations": {"en": "Wifi & networking"},
+                "media_id": str(ids["picture"]),
+            }
+        ],
+    )
+    monkeypatch.setattr("app.api.routes.homepage.request_locale", lambda: "en")
+    page = await get_homepage(_request(), db_session)
+    tiles = next(s for s in page.sections if s.kind == "categories").categories or []
+    assert tiles[0].title == "Wifi & networking"
+    assert tiles[0].image_url and "800" in tiles[0].image_url

@@ -176,7 +176,7 @@ async def test_hidden_sections_languages_and_no_product_twice(
     sections = await _page_of(db_session, None)
     assert [s.kind for s in sections] == ["featured", "featured"]
     first, second = sections
-    assert first.title == "" and first.config == {"limit": 2}
+    assert first.title == "" and first.config == {"limit": 2, "layout": "grid"}
     assert len(first.products) == 2
     # The same products further down are not shown twice.
     assert second.products == []
