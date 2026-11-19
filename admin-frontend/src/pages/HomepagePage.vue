@@ -10,6 +10,14 @@
           :loading="loading"
           @click="load"
         />
+        <q-btn
+          flat
+          no-caps
+          icon="ph:eye"
+          :label="$t('homepage.preview')"
+          data-testid="homepage-preview"
+          @click="previewOpen = true"
+        />
         <q-btn-dropdown
           color="primary"
           unelevated
@@ -669,6 +677,10 @@
       </q-card>
     </q-dialog>
 
+    <HomepageCalendar :blocks="blocks" :title-of="(b) => b.title || defaultTitle(b.kind)" />
+    <HomepageSeoCard />
+    <HomepagePreviewDialog v-model="previewOpen" :groups="priceGroups" />
+
     <MediaPicker
       v-model="pickerOpen"
       kind="homepage"
@@ -688,6 +700,9 @@ import type { StatusTone } from '@app/ui/statusTone';
 import { formatDateTime, fromShopDateTimeInput, toShopDateTimeInput } from '@app/utils';
 import PageHeader from '@/components/PageHeader.vue';
 import MediaPicker from '@/components/MediaPicker.vue';
+import HomepageCalendar from '@/components/homepage/HomepageCalendar.vue';
+import HomepagePreviewDialog from '@/components/homepage/HomepagePreviewDialog.vue';
+import HomepageSeoCard from '@/components/homepage/HomepageSeoCard.vue';
 import { imageFormatLabelKey } from '@/utils/imageFormats';
 import ContentLanguageTabs from '@/components/ContentLanguageTabs.vue';
 import { useDialogGuard, useFormSnapshot } from '@/composables/useUnsavedGuard';
@@ -972,6 +987,7 @@ async function load() {
 // --- Formulaire ------------------------------------------------------------
 const dialog = ref(false);
 const pickerOpen = ref(false);
+const previewOpen = ref(false);
 const saving = ref(false);
 const dialogError = ref<string | null>(null);
 const editingId = ref<string | null>(null);

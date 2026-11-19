@@ -153,6 +153,7 @@
   "homepage.media": "Image introuvable.",
   "homepage.not_found": "Bloc introuvable.",
   "homepage.order_conflict": "La page a changé entre-temps : rechargez-la et ordonnez à nouveau les sections.",
+  "homepage.preview_invalid": "Ce lien d'aperçu a expiré : rouvrez l'aperçu depuis l'administration.",
   "homepage.title": "Le titre est obligatoire.",
   "homepage.translations": "Traductions invalides.",
   "icecat.batch.queue_failed": "Le lot d'enrichissement n'a pas pu être mis en file (voir le journal du serveur).",

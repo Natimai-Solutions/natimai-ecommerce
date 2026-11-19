@@ -39,6 +39,22 @@
 
     <CartErrorToast v-model="cartError" />
 
+    <div v-if="home.preview" class="home-preview page-container" data-testid="home-preview">
+      <AppNotice :tone="home.previewFailed ? 'error' : 'warning'" dense>
+        {{
+          home.previewFailed
+            ? $t('home.preview_failed')
+            : $t('home.preview_notice', {
+                date: home.preview.at ? previewDate(home.preview.at) : $t('home.preview_now'),
+                audience:
+                  home.preview.scope === 'customer'
+                    ? $t('home.preview_customers')
+                    : $t('home.preview_visitors'),
+              })
+        }}
+      </AppNotice>
+    </div>
+
     <template v-for="part in parts" :key="part.key">
       <section
         v-if="part.type === 'banners'"
@@ -213,6 +229,19 @@
   </q-page>
 </template>
 
+<script lang="ts">
+import { defineComponent } from 'vue';
+
+// Server render: the sections and the SEO texts typed in the admin are
+// loaded before setup, so the title `useMeta` computes once is theirs (A4).
+export default defineComponent({
+  async preFetch({ store }) {
+    const { useHomeStore } = await import('@/stores/home');
+    await useHomeStore(store).load();
+  },
+});
+</script>
+
 <script setup lang="ts">
 import { mediaSrcset } from '@/utils/mediaSrcset';
 import { isInternalLink, linkAttrs } from '@/utils/links';
@@ -231,7 +260,8 @@ import HomeReassurance from '@/components/home/HomeReassurance.vue';
 import HomeRichText from '@/components/home/HomeRichText.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useCartStore } from '@/stores/cart';
-import type { HomepageSection } from '@/api/homepage';
+import { previewFromHash, type HomepageSection } from '@/api/homepage';
+import { useAnnouncementStore } from '@/stores/announcement';
 import { categoryTitle, useHomeStore } from '@/stores/home';
 import { useUiStore } from '@/stores/ui';
 import { COMPARE_MAX } from '@/stores/compare';
@@ -242,6 +272,7 @@ const shopModules = useShopModulesStore();
 type ProductPublic = components['schemas']['ProductPublic'];
 
 const home = useHomeStore();
+const announcement = useAnnouncementStore();
 const authStore = useAuthStore();
 const cartStore = useCartStore();
 const uiStore = useUiStore();
@@ -298,6 +329,17 @@ const parts = computed<Part[]>(() => {
   return result;
 });
 
+function previewDate(iso: string): string {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime())
+    ? iso
+    : date.toLocaleString(locale.value, {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+        timeZone: 'Pacific/Tahiti',
+      });
+}
+
 function defaultTitle(kind: string): string {
   if (kind === 'popular') return t('home.popular');
   if (kind === 'collection') return t('home.selection');
@@ -310,8 +352,9 @@ function popularDays(section: HomepageSection): number {
 
 useMeta(() => {
   const shopName = shopModules.config.shop_name || 'Natimai';
-  const title = t('home.meta_title', { shop: shopName });
-  const description = t('home.meta_description');
+  // Typed in the admin (lot A4 / R11), else the storefront's own texts.
+  const title = home.seo?.title || t('home.meta_title', { shop: shopName });
+  const description = home.seo?.description || t('home.meta_description');
   const siteUrl = publicSiteUrl();
   const meta: Record<string, { name?: string; property?: string; content: string }> = {
     description: { name: 'description', content: description },
@@ -385,6 +428,13 @@ async function onAddToCart(product: ProductPublic) {
 
 onServerPrefetch(() => home.load());
 onMounted(async () => {
+  // The admin's preview link (#apercu=…): drafts, a date, an audience.
+  const preview = previewFromHash(window.location.hash);
+  if (preview) {
+    await home.startPreview(preview);
+    announcement.showPreview(home.previewAnnouncement);
+    return;
+  }
   await home.load();
   // Rendered by the server for a visitor: a signed-in customer gets their own
   // page (sections of their audience, prices of their price group).
@@ -587,6 +637,10 @@ a.banner:hover {
 
 .home__notice {
   margin-bottom: 24px;
+}
+
+.home-preview {
+  padding-top: 16px;
 }
 
 .home-section {

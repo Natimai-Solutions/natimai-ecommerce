@@ -361,3 +361,39 @@ class HomepageBlockPublic(SQLModel):
             {f: getattr(self, f, None) for f in HOMEPAGE_BLOCK_FIELDS},
             HOMEPAGE_BLOCK_FIELDS,
         )
+
+
+# --------------------------------------------------------------------------
+# Homepage SEO (chantier accueil et messagerie, lot A4 / R11): the title and
+# description search engines show for the homepage, translated. One row.
+# --------------------------------------------------------------------------
+HOMEPAGE_SEO_FIELDS: tuple[str, ...] = ("title", "description")
+
+
+class HomepageSeo(SQLModel, table=True):
+    __tablename__ = "homepage_seo"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    title: str = Field(default="", max_length=70)
+    description: str = Field(default="", max_length=170)
+    translations: dict[str, dict[str, Any]] = Field(
+        default_factory=dict,
+        sa_column=Column(JSONB, nullable=False, server_default="{}"),
+    )
+    modify_at: datetime.datetime | None = Field(default=None)
+    modify_by_id: uuid.UUID | None = Field(
+        default=None, foreign_key="users.id", nullable=True, ondelete="SET NULL"
+    )
+
+
+class HomepageSeoWrite(SQLModel):
+    title: str = Field(default="", max_length=70)
+    description: str = Field(default="", max_length=170)
+    translations: dict[str, dict[str, Any]] = Field(default_factory=dict)
+
+
+class HomepageSeoPublic(SQLModel):
+    title: str = ""
+    description: str = ""
+    #: Back-office only.
+    translations: dict[str, dict[str, Any]] = Field(default_factory=dict)

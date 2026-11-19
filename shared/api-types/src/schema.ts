@@ -7505,6 +7505,73 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/homepage/preview-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Homepage Preview Token
+         * @description A link to see the homepage with its drafts, at a chosen date, as a
+         *     chosen audience (lot A4 / R10). Valid 15 minutes.
+         */
+        post: operations["homepage-homepage_preview_token"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/homepage/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Homepage Preview
+         * @description The homepage as it will be: drafts included, at ``at``, for a visitor
+         *     or a customer of a price group. Only with a valid preview token (header
+         *     ``X-Homepage-Preview``); never cached. Prices stay the visitor's.
+         */
+        get: operations["homepage-get_homepage_preview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/homepage/seo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Homepage Seo
+         * @description The homepage title and description, with their translations.
+         */
+        get: operations["homepage-get_homepage_seo"];
+        /**
+         * Save Homepage Seo
+         * @description Set the homepage title and description (empty: the storefront's).
+         */
+        put: operations["homepage-save_homepage_seo"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/homepage-blocks": {
         parameters: {
             query?: never;
@@ -14553,7 +14620,7 @@ export interface components {
         /**
          * HomepagePublic
          * @description The storefront homepage: its sections in display order (the hero, if
-         *     any, first).
+         *     any, first), and its title and description for search engines.
          */
         HomepagePublic: {
             /**
@@ -14561,6 +14628,8 @@ export interface components {
              * @default []
              */
             sections: components["schemas"]["HomepageSectionPublic"][];
+            seo?: components["schemas"]["HomepageSeoPublic"] | null;
+            announcement?: components["schemas"]["HomepageSectionPublic"] | null;
         };
         /**
          * HomepageReassurance
@@ -14648,6 +14717,44 @@ export interface components {
              */
             readonly translation_status: {
                 [key: string]: string;
+            };
+        };
+        /** HomepageSeoPublic */
+        HomepageSeoPublic: {
+            /**
+             * Title
+             * @default
+             */
+            title: string;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /** Translations */
+            translations?: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        /** HomepageSeoWrite */
+        HomepageSeoWrite: {
+            /**
+             * Title
+             * @default
+             */
+            title: string;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /** Translations */
+            translations?: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
             };
         };
         /**
@@ -18346,6 +18453,22 @@ export interface components {
             country: string;
             /** Entries */
             entries?: components["schemas"]["PostalCodeDirectoryEntry"][];
+        };
+        /**
+         * PreviewLink
+         * @description What the admin opens: the storefront address and a 15-minute token,
+         *     passed in the address fragment (never sent to the server).
+         */
+        PreviewLink: {
+            /** Token */
+            token: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Storefront Url */
+            storefront_url: string;
         };
         /**
          * PriceGroupOption
@@ -38817,6 +38940,114 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HomepageSectionPublic"] | null;
+                };
+            };
+        };
+    };
+    "homepage-homepage_preview_token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreviewLink"];
+                };
+            };
+        };
+    };
+    "homepage-get_homepage_preview": {
+        parameters: {
+            query?: {
+                at?: string | null;
+                scope?: "guest" | "customer";
+                price_group_id?: string | null;
+            };
+            header?: {
+                "x-homepage-preview"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HomepagePublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "homepage-get_homepage_seo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HomepageSeoPublic"];
+                };
+            };
+        };
+    };
+    "homepage-save_homepage_seo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HomepageSeoWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HomepageSeoPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

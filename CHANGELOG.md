@@ -66,6 +66,16 @@ takes a tag as its `ref`.
 
 ### Added
 
+- Homepage preview, calendar and SEO (chantier accueil et messagerie, lot
+  A4): the admin opens the storefront with the drafts, at a simulated date,
+  for visitors or customers of a price group, through a 15-minute token of
+  its own type tied to the administrator's security stamp and carried in the
+  address fragment (`POST /admin/homepage/preview-token`,
+  `GET /homepage/preview`, never cached); the admin lists the sections
+  starting or ending in the next 30 days; the homepage title and
+  description for search engines are typed and translated in the admin
+  (`/admin/homepage/seo`) and server-rendered.
+
 - Homepage sections of lot A3 (chantier accueil et messagerie, R4 to R7): an
   announcement above the header of every page but the checkout (one at a
   time, closable, remembered in the browser, part of the server render), a

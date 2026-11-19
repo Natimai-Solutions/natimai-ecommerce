@@ -672,6 +672,11 @@ const en: MessageSchema = {
     topic_rule: 'Choose a topic',
   },
   home: {
+    preview_notice: 'Preview of the homepage at {date}, as seen by {audience}: drafts included, visitor prices. Only you can see this page.',
+    preview_now: 'the present time',
+    preview_visitors: 'visitors',
+    preview_customers: 'signed-in customers',
+    preview_failed: 'This preview link has expired: open the preview again from the admin.',
     reassurance: 'Our commitments',
     brands: 'Our brands',
     selection: 'Our selection',

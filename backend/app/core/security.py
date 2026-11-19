@@ -53,6 +53,24 @@ def create_access_token(
     return encoded_jwt
 
 
+#: Lifetime of a homepage preview link (chantier accueil et messagerie, A4).
+PREVIEW_TOKEN_MINUTES = 15
+
+
+def create_preview_token(subject: str | Any, stamp: str) -> tuple[str, datetime]:
+    """A token that only opens the homepage preview (drafts, simulated date
+    and audience): its own type, refused as an access token and the other
+    way round, tied to the administrator's ``security_stamp``."""
+    expire = datetime.now(UTC) + timedelta(minutes=PREVIEW_TOKEN_MINUTES)
+    to_encode = {
+        "exp": expire,
+        "sub": str(subject),
+        "type": "homepage_preview",
+        "stp": stamp,
+    }
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=ALGORITHM), expire
+
+
 def create_refresh_token(
     subject: str | Any,
     expires_delta: timedelta,

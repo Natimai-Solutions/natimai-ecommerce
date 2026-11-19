@@ -153,6 +153,7 @@
   "homepage.media": "Image not found.",
   "homepage.not_found": "Block not found.",
   "homepage.order_conflict": "The page changed meanwhile: reload it and order the sections again.",
+  "homepage.preview_invalid": "This preview link has expired: open the preview again from the admin.",
   "homepage.title": "A title is required.",
   "homepage.translations": "Invalid translations.",
   "icecat.batch.queue_failed": "The enrichment batch could not be queued (see the server log).",

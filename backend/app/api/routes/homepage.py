@@ -12,16 +12,19 @@ replace, reorder and delete sections.
 from __future__ import annotations
 
 import datetime
+import hmac
 import uuid
-from typing import Any
+from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Request, Response
+from fastapi import APIRouter, Header, Query, Request, Response
+from jwt import InvalidTokenError
 from pydantic import BaseModel
 from sqlmodel import col, select
 
 from app.api.deps import CurrentSuperUser, CurrentUser, SessionDep
 from app.api.routes.brand_pages import brand_logo, showcase
 from app.api.routes.media import request_origin
+from app.core.config import settings
 from app.core.content_i18n import (
     CATEGORY_FIELDS,
     HOMEPAGE_BLOCK_FIELDS,
@@ -32,6 +35,7 @@ from app.core.content_i18n import (
 from app.core.datetimes import as_utc, utcnow
 from app.core.errors import AppError
 from app.core.i18n import default_locale, request_locale
+from app.core.security import create_preview_token, decode_token
 from app.features.content.homepage_collections import (
     chosen_categories,
     collection_products,
@@ -48,6 +52,7 @@ from app.features.content.homepage_sections import (
 )
 from app.features.content.models import (
     HOMEPAGE_BLOCK_KINDS,
+    HOMEPAGE_SEO_FIELDS,
     HOMEPAGE_TITLE_OPTIONAL_KINDS,
     HomepageBlock,
     HomepageBlockItem,
@@ -60,6 +65,9 @@ from app.features.content.models import (
     HomepageItemWrite,
     HomepageOrder,
     HomepageReassurance,
+    HomepageSeo,
+    HomepageSeoPublic,
+    HomepageSeoWrite,
 )
 from app.features.inventory.services.availability import publish_with_availability
 from app.features.media.models import MediaAsset
@@ -71,6 +79,7 @@ from app.features.product.models.price_group import PriceGroup
 from app.features.product.models.product import Product, ProductPublic
 from app.features.product.services.group_pricing import resolve_customer_group
 from app.features.product.services.popularity import popular_products
+from app.features.user.models.user import User
 
 router = APIRouter(tags=["homepage"])
 
@@ -84,9 +93,21 @@ class HomepageSectionPublic(HomepageBlockPublic):
 
 class HomepagePublic(BaseModel):
     """The storefront homepage: its sections in display order (the hero, if
-    any, first)."""
+    any, first), and its title and description for search engines."""
 
     sections: list[HomepageSectionPublic] = []
+    seo: HomepageSeoPublic | None = None
+    #: Preview only: the announcement of the simulated date (lot A4).
+    announcement: HomepageSectionPublic | None = None
+
+
+class PreviewLink(BaseModel):
+    """What the admin opens: the storefront address and a 15-minute token,
+    passed in the address fragment (never sent to the server)."""
+
+    token: str
+    expires_at: datetime.datetime
+    storefront_url: str
 
 
 def _invalid(message: str, code: str, field: str) -> AppError:
@@ -321,20 +342,38 @@ async def _section_products(
     return await publish_with_availability(session, products, customer=customer)
 
 
+async def _seo(session: SessionDep, *, localized: bool) -> HomepageSeoPublic | None:
+    row = (await session.exec(select(HomepageSeo))).first()
+    if row is None:
+        return None
+    seo = HomepageSeoPublic.model_validate(row, from_attributes=True)
+    if localized:
+        localize_all([seo], HOMEPAGE_SEO_FIELDS)
+        seo.translations = {}
+    return seo
+
+
 async def _page(
-    request: Request, session: SessionDep, *, viewer: Viewer, customer: Any
+    request: Request,
+    session: SessionDep,
+    *,
+    viewer: Viewer,
+    customer: Any,
+    now: datetime.datetime | None = None,
+    drafts: bool = False,
 ) -> HomepagePublic:
     """The sections ``viewer`` sees, in order: the first hero, then the rest.
     Two sections showing the same products (featured, then most viewed) do
-    not show a product twice."""
-    now = utcnow()
+    not show a product twice. ``now`` and ``drafts`` are the preview's (a
+    simulated date, the unpublished sections too)."""
+    now = now or utcnow()
+    conditions = [col(HomepageBlock.is_active).is_(True)]
+    if not drafts:
+        conditions.append(col(HomepageBlock.is_published).is_(True))
     rows = (
         await session.exec(
             select(HomepageBlock)
-            .where(
-                col(HomepageBlock.is_active).is_(True),
-                col(HomepageBlock.is_published).is_(True),
-            )
+            .where(*conditions)
             .order_by(col(HomepageBlock.position).asc(), col(HomepageBlock.title).asc())
         )
     ).all()
@@ -357,7 +396,7 @@ async def _page(
             section.products = [p for p in products if p.id not in shown]
             shown.update(p.id for p in section.products)
         sections.append(section)
-    return HomepagePublic(sections=sections)
+    return HomepagePublic(sections=sections, seo=await _seo(session, localized=True))
 
 
 @router.get("/homepage", response_model=HomepagePublic)
@@ -413,6 +452,138 @@ async def get_announcement(
                 localized=True,
             )
     return None
+
+
+def _preview_refused() -> AppError:
+    return AppError(
+        code="homepage.preview_invalid",
+        status_code=401,
+        message="This preview link has expired: open the preview again from the admin.",
+    )
+
+
+async def _preview_admin(session: SessionDep, token: str | None) -> User:
+    """The administrator a preview token was issued to, still active, still
+    an administrator, still with the same security stamp."""
+    if not token:
+        raise _preview_refused()
+    try:
+        payload = decode_token(token)
+    except InvalidTokenError:
+        raise _preview_refused()
+    if payload.get("type") != "homepage_preview":
+        raise _preview_refused()
+    try:
+        user = await session.get(User, uuid.UUID(str(payload.get("sub"))))
+    except ValueError:
+        raise _preview_refused()
+    stamp = str(payload.get("stp") or "")
+    if (
+        user is None
+        or not user.is_superuser
+        or not user.is_active
+        or not stamp
+        or not hmac.compare_digest(stamp, user.security_stamp or "")
+    ):
+        raise _preview_refused()
+    return user
+
+
+@router.post("/admin/homepage/preview-token", response_model=PreviewLink)
+async def homepage_preview_token(admin: CurrentSuperUser) -> PreviewLink:
+    """A link to see the homepage with its drafts, at a chosen date, as a
+    chosen audience (lot A4 / R10). Valid 15 minutes."""
+    token, expires = create_preview_token(admin.id, admin.security_stamp)
+    return PreviewLink(
+        token=token,
+        expires_at=expires,
+        storefront_url=settings.FRONTEND_HOST.rstrip("/"),
+    )
+
+
+@router.get("/homepage/preview", response_model=HomepagePublic)
+async def get_homepage_preview(
+    request: Request,
+    response: Response,
+    session: SessionDep,
+    x_homepage_preview: Annotated[str | None, Header()] = None,
+    at: Annotated[datetime.datetime | None, Query()] = None,
+    scope: Annotated[Literal["guest", "customer"], Query()] = "guest",
+    price_group_id: Annotated[uuid.UUID | None, Query()] = None,
+) -> HomepagePublic:
+    """The homepage as it will be: drafts included, at ``at``, for a visitor
+    or a customer of a price group. Only with a valid preview token (header
+    ``X-Homepage-Preview``); never cached. Prices stay the visitor's."""
+    await _preview_admin(session, x_homepage_preview)
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["X-Robots-Tag"] = "noindex"
+    moment = as_utc(at) if at is not None else utcnow()
+    viewer = Viewer(
+        signed_in=scope == "customer",
+        price_group_id=price_group_id if scope == "customer" else None,
+        locale=request_locale(),
+    )
+    page = await _page(
+        request, session, viewer=viewer, customer=None, now=moment, drafts=True
+    )
+    announcements = (
+        await session.exec(
+            select(HomepageBlock)
+            .where(
+                col(HomepageBlock.kind) == "announcement",
+                col(HomepageBlock.is_active).is_(True),
+            )
+            .order_by(col(HomepageBlock.position).asc())
+        )
+    ).all()
+    for block in announcements:
+        if _is_live(block, moment) and is_shown_to(block.audience, viewer):
+            page.announcement = await _to_public(
+                session,
+                block,
+                public_base_url(request_origin(request)),
+                localized=True,
+            )
+            break
+    return page
+
+
+@router.get("/admin/homepage/seo", response_model=HomepageSeoPublic)
+async def get_homepage_seo(
+    session: SessionDep, _admin: CurrentSuperUser
+) -> HomepageSeoPublic:
+    """The homepage title and description, with their translations."""
+    return await _seo(session, localized=False) or HomepageSeoPublic()
+
+
+@router.put("/admin/homepage/seo", response_model=HomepageSeoPublic)
+async def save_homepage_seo(
+    body: HomepageSeoWrite, session: SessionDep, admin: CurrentSuperUser
+) -> HomepageSeoPublic:
+    """Set the homepage title and description (empty: the storefront's)."""
+    row = (await session.exec(select(HomepageSeo))).first()
+    values = {"title": body.title.strip(), "description": body.description.strip()}
+    try:
+        translations = clean_translations(
+            body.translations,
+            previous=row.translations if row else None,
+            source_values=values,
+            fields=HOMEPAGE_SEO_FIELDS,
+        )
+    except InvalidTranslations as exc:
+        raise _invalid(
+            f"Invalid translations: {exc}", "homepage.translations", "translations"
+        )
+    if row is None:
+        row = HomepageSeo()
+    row.title = values["title"]
+    row.description = values["description"]
+    row.translations = translations
+    row.modify_at = utcnow()
+    row.modify_by_id = admin.id
+    session.add(row)
+    await session.commit()
+    return await _seo(session, localized=False) or HomepageSeoPublic()
 
 
 @router.get("/admin/homepage-blocks", response_model=list[HomepageSectionPublic])

@@ -5,9 +5,12 @@ import type { components } from '@app/api-types';
 import { accessToken } from '@/boot/api';
 import {
   getHomepage,
+  getHomepagePreview,
   getPersonalHomepage,
   type HomepageContent,
   type HomepageSection,
+  type HomepageSeo,
+  type PreviewParams,
 } from '@/api/homepage';
 import { getCategories } from '@/api/products';
 import { pickCategoryTiles } from '@/utils/categories';
@@ -50,9 +53,23 @@ export const useHomeStore = defineStore('home', () => {
    * their own (sections of their audience, prices of their group).
    */
   const pageFor = ref<'guest' | 'account'>('guest');
+  /** Title and description typed in the admin (lot A4 / R11), else null. */
+  const seo = ref<HomepageSeo | null>(null);
+  /** The admin's preview (drafts, simulated date and audience): set in the
+   *  browser only, from the address fragment. */
+  const preview = ref<PreviewParams | null>(null);
+  const previewFailed = ref(false);
+  const previewAnnouncement = ref<HomepageSection | null>(null);
 
   function pageRequest(): Promise<HomepageContent> {
+    if (preview.value) return getHomepagePreview(preview.value);
     return currentAudience() === 'account' ? getPersonalHomepage() : getHomepage();
+  }
+
+  function apply(page: HomepageContent): void {
+    sections.value = page.sections ?? [];
+    seo.value = page.seo ?? null;
+    previewAnnouncement.value = page.announcement ?? null;
   }
 
   async function load(): Promise<void> {
@@ -63,7 +80,8 @@ export const useHomeStore = defineStore('home', () => {
       pageRequest(),
       getCategories(),
     ]);
-    sections.value = pageResult.status === 'fulfilled' ? (pageResult.value.sections ?? []) : [];
+    if (pageResult.status === 'fulfilled') apply(pageResult.value);
+    else sections.value = [];
     categories.value =
       categoriesResult.status === 'fulfilled' ? categoriesResult.value.data : [];
     loaded.value = [pageResult, categoriesResult].some((r) => r.status === 'fulfilled');
@@ -76,10 +94,11 @@ export const useHomeStore = defineStore('home', () => {
    * someone else's. A failure keeps the page shown.
    */
   async function syncAudience(): Promise<void> {
+    if (preview.value) return;
     if (!loaded.value || loading.value || pageFor.value === currentAudience()) return;
     pageFor.value = currentAudience();
     try {
-      sections.value = (await pageRequest()).sections ?? [];
+      apply(await pageRequest());
     } catch {
       // The visitor's page stays: better than an empty homepage.
     }
@@ -89,6 +108,17 @@ export const useHomeStore = defineStore('home', () => {
   async function reload(): Promise<void> {
     loaded.value = false;
     await load();
+  }
+
+  /** Show the admin's preview instead of the visitor's page. */
+  async function startPreview(params: PreviewParams): Promise<void> {
+    preview.value = params;
+    previewFailed.value = false;
+    try {
+      apply(await getHomepagePreview(params));
+    } catch {
+      previewFailed.value = true;
+    }
   }
 
   /** The category tiles of a « categories » section. */
@@ -103,6 +133,11 @@ export const useHomeStore = defineStore('home', () => {
     loading,
     failed,
     pageFor,
+    seo,
+    preview,
+    previewFailed,
+    previewAnnouncement,
+    startPreview,
     load,
     reload,
     syncAudience,

@@ -931,7 +931,6 @@ les identifiants M· de l'audit fonctionnel.
 
 | Lot | Contenu | Taille |
 |---|---|---|
-| **A4** | Aperçu et programmation (R10), SEO de l'accueil (R11) | S à M |
 | **A5** | Sections personnelles (R9) et héros par audience | M |
 
 Livré le 18/11/2026 : correctifs du §12, **A1** (sections ordonnables,
@@ -979,7 +978,15 @@ réassurance est traduit dans la section elle-même (pas dans les colonnes de
 traduction) ; le texte libre est nettoyé par DOMPurify à l'affichage, pas à
 l'enregistrement (saisi par un administrateur seulement). Le validateur de
 lien refuse désormais aussi `/\…` et les caractères de contrôle, pour toutes
-les sections. Ordre conseillé pour la suite : **A4 → A5**.
+les sections. **A4** (aperçu par jeton dédié de 15 minutes, lié au
+`security_stamp` de l'administrateur, passé dans le fragment de l'adresse
+`#apercu=…` — jamais envoyé au serveur ni sérialisé dans l'état du rendu
+serveur ; date et public simulés ; liste des changements des 30 prochains
+jours ; titre et description de l'accueil saisis et traduits, rendus côté
+serveur par `preFetch`). Écarts : l'aperçu montre les prix des visiteurs,
+même pour un groupe simulé ; le « calendrier » est une liste chronologique
+des apparitions et disparitions ; l'`Organization` enrichi (logo, `sameAs`,
+`contactPoint`) reste à faire avec A5. Reste : **A5**.
 ROLE peut attendre : sans lui, les superusers répondent.
 
 ---

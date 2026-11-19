@@ -3,7 +3,7 @@ from app.features.analytic.models.analytic_sale import AnalyticsSale
 from app.features.analytic.models.analytic_user import AnalyticsUser
 from app.features.cart.models.cart import Cart, CartItem
 from app.features.cart.models.quote_request import QuoteRequest
-from app.features.content.models import ContentPage, HomepageBlock
+from app.features.content.models import ContentPage, HomepageBlock, HomepageSeo
 from app.features.departure.models import DepartureReminder, GroupedDeparture
 from app.features.discount.models import Discount
 from app.features.integrations.models.supplier import Supplier
@@ -83,6 +83,7 @@ from app.features.user.models.user_preference import UserPreference
 from app.features.user.models.wishlist import Wishlist, WishlistItem
 
 __all__ = [
+    "HomepageSeo",
     "BrandAlias",
     "CannedReply",
     "Conversation",

@@ -682,6 +682,11 @@ const fr = {
     topic_rule: 'Choisissez un motif',
   },
   home: {
+    preview_notice: "Aperçu de l'accueil au {date}, vu par {audience} : brouillons compris, prix des visiteurs. Cette page n'est visible que par vous.",
+    preview_now: 'moment présent',
+    preview_visitors: 'les visiteurs',
+    preview_customers: 'les clients connectés',
+    preview_failed: "Ce lien d'aperçu a expiré : rouvrez l'aperçu depuis l'administration.",
     reassurance: 'Nos engagements',
     brands: 'Nos marques',
     selection: 'Notre sélection',

@@ -57,5 +57,14 @@ export const useAnnouncementStore = defineStore('announcement', () => {
     }
   }
 
-  return { current, loaded, dismissed, load, readDismissed, dismiss };
+  /** The admin's preview: the announcement of the simulated date, shown
+   *  even if this browser closed it. */
+  function showPreview(item: HomepageSection | null): void {
+    current.value = item;
+    loaded.value = true;
+    loadedLocale.value = null;
+    dismissed.value = null;
+  }
+
+  return { current, loaded, dismissed, load, readDismissed, dismiss, showPreview };
 });
