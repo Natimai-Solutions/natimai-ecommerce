@@ -73,6 +73,13 @@
             <q-item-section>
               <q-item-label class="text-weight-medium">
                 <span v-if="item.staff_unread" class="messaging__dot" />
+                <q-badge
+                  v-if="item.priority"
+                  color="accent"
+                  class="q-mr-xs"
+                  :label="$t('messaging.priority')"
+                  data-testid="conversation-priority"
+                />
                 {{ item.subject }}
               </q-item-label>
               <q-item-label caption>
@@ -309,6 +316,26 @@
             @change="onPickFile"
           />
           <div class="row justify-end q-gutter-sm">
+            <q-btn-dropdown
+              v-if="cannedReplies.length"
+              flat
+              no-caps
+              icon="ph:chat-text"
+              :label="$t('messaging.canned')"
+              data-testid="conversation-canned"
+            >
+              <q-list dense style="min-width: 240px">
+                <q-item
+                  v-for="reply in cannedFor(current.channel)"
+                  :key="reply.id"
+                  v-close-popup
+                  clickable
+                  @click="insertCanned(reply)"
+                >
+                  <q-item-section>{{ reply.title }}</q-item-section>
+                </q-item>
+              </q-list>
+            </q-btn-dropdown>
             <q-btn
               flat
               no-caps
@@ -358,6 +385,9 @@ import {
   conversationAction,
   conversationTeam,
   downloadStaffFile,
+  fillCannedReply,
+  listCannedReplies,
+  type CannedReply,
   postStaffFile,
   getConversation,
   listConversations,
@@ -568,6 +598,25 @@ async function onMove(topic: string) {
   }
 }
 
+const cannedReplies = ref<CannedReply[]>([]);
+
+function cannedFor(channel: string): CannedReply[] {
+  return cannedReplies.value.filter((r) => !r.channel || r.channel === channel);
+}
+
+/** A prepared answer in the customer's language, variables filled (MSG4). */
+function insertCanned(reply: CannedReply) {
+  const conversation = current.value;
+  if (!conversation) return;
+  const text = fillCannedReply(reply, conversation.customer_locale, {
+    prenom: (conversation.customer_name ?? '').trim().split(/\s+/)[0] ?? '',
+    commande: conversation.context_type === 'order' ? (conversation.context_label ?? '') : '',
+    numero: conversation.number,
+  });
+  draft.value = draft.value.trim() ? `${draft.value.trim()}\n\n${text}` : text;
+  composeKind.value = 'message';
+}
+
 const fileInput = ref<HTMLInputElement | null>(null);
 const pendingFile = ref<File | null>(null);
 
@@ -638,6 +687,9 @@ watch(
 onMounted(async () => {
   void loadQueue();
   void counters.refresh();
+  listCannedReplies()
+    .then((replies) => (cannedReplies.value = replies))
+    .catch(() => (cannedReplies.value = []));
   getMe()
     .then((me) => (meId.value = me.id))
     .catch(() => (meId.value = null));

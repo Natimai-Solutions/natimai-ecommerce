@@ -1117,6 +1117,8 @@ const en: MessageSchema = {
     empty: 'No section: the homepage only shows the default title.',
   },
   messaging: {
+    priority: 'Priority',
+    canned: 'Prepared answer',
     points: '{n} loyalty points',
     no_order: 'No order',
     attach: 'Attach',
@@ -1182,6 +1184,20 @@ const en: MessageSchema = {
     },
     topic_label: 'Topic',
     transfer: 'Transfer',
+  },
+  canned: {
+    title: 'Prepared answers',
+    hint: "The team's prepared answers, inserted in a conversation in the customer's language.",
+    new: 'New prepared answer',
+    edit_title: 'Edit the prepared answer',
+    empty: 'No prepared answer.',
+    channel: 'Channel',
+    channel_hint: 'Empty = every channel',
+    field_title: 'Title *',
+    body: 'Text *',
+    variables: "Variables: {'{'}prenom{'}'}, {'{'}commande{'}'}, {'{'}numero{'}'}",
+    required: 'Required',
+    all_channels: 'Every channel',
   },
   inventory: {
     adjust: 'Adjust',
@@ -1253,6 +1269,7 @@ const en: MessageSchema = {
     language: 'Language',
     logout: 'Sign out',
     nav: {
+      canned_replies: 'Prepared answers',
       messages: 'Messaging',
       system_status: 'System status',
       abandoned_carts: 'Abandoned carts',
@@ -1892,6 +1909,8 @@ const en: MessageSchema = {
     to: 'To',
   },
   price_groups: {
+    col_priority: 'Priority (messaging)',
+    priority_hint: "Its customers' conversations come first in « To do »",
     col_discount: 'Discount on the reference price',
     col_group: 'Group',
     col_margin: 'Margin of computed prices',

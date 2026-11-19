@@ -69,6 +69,12 @@ class PriceGroupBase(Base):
         default=False,
         description="L'acompte est imposé (sinon au choix du client)",
     )
+    #: Its customers' conversations come first in the team's queue (MSG4).
+    messaging_priority: bool = Field(
+        default=False,
+        sa_column_kwargs={"server_default": "false"},
+        description="Conversations of its customers first in the messaging queue",
+    )
 
 
 class PriceGroupCreate(PriceGroupBase, BaseCreate):
@@ -90,6 +96,7 @@ class PriceGroupUpdate(BaseUpdate):
     deposit_fee_pct: Decimal | None = None
     deposit_fee_fixed: Decimal | None = None
     deposit_required: bool | None = None
+    messaging_priority: bool | None = None
 
 
 class PriceGroup(PriceGroupBase, table=True):

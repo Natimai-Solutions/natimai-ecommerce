@@ -189,6 +189,16 @@ MESSAGES: dict[str, tuple[str, str]] = {
         "personne ne l'a lu depuis dix minutes. Ouvrez-la dans "
         "l'administration : {url}",
     ),
+    "messaging.digest_subject": (
+        "Messaging: {todo} to do, {mine} for you",
+        "Messagerie : {todo} à traiter, {mine} pour vous",
+    ),
+    "messaging.digest_body": (
+        "This morning: {todo} conversation(s) to take, {mine} in your hands, "
+        "{pending} waiting for the customer. {url}",
+        "Ce matin : {todo} conversation(s) à prendre, {mine} entre vos mains, "
+        "{pending} en attente du client. {url}",
+    ),
     "messaging.channel.customer_service": ("customer service", "service client"),
     "messaging.channel.technical": ("technical support", "support technique"),
     "messaging.channel.sales": ("sales", "service commercial"),

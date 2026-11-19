@@ -259,4 +259,60 @@ async def release_stale(
     return released
 
 
-__all__ = ["MessageSide", "messages_url", "notify_unread", "release_stale"]
+async def staff_digest(session: AsyncSession) -> int:
+    """Morning summary to each member of the team — counters only, never a
+    message — when something waits on their channels."""
+    from app.features.messaging.service import staff_summary
+
+    members = (
+        await session.exec(
+            select(User).where(
+                or_(
+                    col(User.is_superuser).is_(True),
+                    col(User.staff_role).in_(list(STAFF_ROLES)),
+                ),
+                col(User.is_active).is_(True),
+            )
+        )
+    ).all()
+    to_send: list[tuple[str, str, str]] = []
+    for member in members:
+        if not member.email:
+            continue
+        counts = await staff_summary(
+            session, member.id, channels=staff_channels(member)
+        )
+        if not (counts.todo or counts.mine or counts.unread):
+            continue
+        values: dict[str, Any] = {
+            "todo": counts.todo,
+            "mine": counts.mine,
+            "pending": counts.pending,
+            "url": (settings.ADMIN_FRONTEND_HOST or "").rstrip("/") + "/messages",
+        }
+        to_send.append(
+            (
+                str(member.email),
+                operator_text("messaging.digest_subject", **values),
+                operator_text("messaging.digest_body", **values),
+            )
+        )
+    for recipient, subject, body in to_send:
+        await queue_email(
+            session,
+            recipient=recipient,
+            subject=subject,
+            text=body,
+            html=f"<p>{html.escape(body)}</p>",
+            event_type="messaging.staff_digest",
+        )
+    return len(to_send)
+
+
+__all__ = [
+    "MessageSide",
+    "messages_url",
+    "notify_unread",
+    "release_stale",
+    "staff_digest",
+]

@@ -131,6 +131,12 @@ takes a tag as its `ref`.
   it is about (the customer's messages), or the contact page pre-filled for
   a visitor. Beside a thread, the team sees the customer: price group,
   phone, last five orders (linked) and loyalty points.
+- The team's tools (lot MSG4): prepared answers (*Prepared answers* screen —
+  per channel or for all, translated; variables `{prenom}`, `{commande}`,
+  `{numero}`) inserted in a thread in the customer's language; a price group
+  marked « priority in the messaging » puts its customers' conversations
+  first in « To do », with a badge; a morning digest e-mails each member the
+  counters of their channels (never a message). Migration `e9a0b1c2d3e4`.
 
 - Homepage sections: the homepage is an ordered list of sections set in the
   admin (*Site homepage*) — hero, banners, category tiles, « favourites »

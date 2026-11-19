@@ -166,9 +166,33 @@ class ConversationAttachment(SQLModel, table=True):
     created_at: datetime.datetime
 
 
+class CannedReply(SQLModel, table=True):
+    """A prepared answer of the team (MSG4). Its texts take variables
+    ``{prenom}``, ``{commande}``, ``{numero}``, filled when inserted."""
+
+    __tablename__ = "canned_replies"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    #: Shown for this channel only; ``None`` = every channel.
+    channel: str | None = Field(default=None, max_length=30)
+    title: str = Field(max_length=120)
+    body: str = Field(sa_column=Column(Text, nullable=False))
+    #: ``{"en": {"title": …, "body": …}}`` — the language of the customer.
+    translations: dict[str, dict[str, Any]] = Field(
+        default_factory=dict,
+        sa_column=Column(JSONB, nullable=False, server_default="{}"),
+    )
+    position: int = Field(default=0)
+    created_at: datetime.datetime | None = None
+    created_by_id: uuid.UUID | None = Field(
+        default=None, foreign_key="users.id", ondelete="SET NULL"
+    )
+
+
 __all__ = [
     "BODY_MAX",
     "CHANNELS",
+    "CannedReply",
     "CHANNEL_TOPICS",
     "CONTEXT_TYPES",
     "SUBJECT_MAX",

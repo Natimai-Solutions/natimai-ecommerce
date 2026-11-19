@@ -17,7 +17,12 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, or_
 from sqlmodel import col, select
 
-from app.api.deps import CurrentMessagingStaff, SessionDep, module_required
+from app.api.deps import (
+    CurrentMessagingStaff,
+    CurrentSuperUser,
+    SessionDep,
+    module_required,
+)
 from app.api.routes.messaging import (
     AttachmentPublic,
     ConversationSummary,
@@ -27,12 +32,14 @@ from app.api.routes.messaging import (
 )
 from app.core.datetimes import utcnow
 from app.core.errors import AppError
+from app.core.i18n import offered_locales
 from app.features.cart.models.quote_request import QuoteRequest
 from app.features.messaging import attachments as files
 from app.features.messaging import guests, service
 from app.features.messaging.models import (
     BODY_MAX,
     CHANNELS,
+    CannedReply,
     Conversation,
     ConversationAttachment,
     ConversationMessage,
@@ -46,6 +53,8 @@ from app.features.payment.services import loyalty
 from app.features.product.models.price_group import PriceGroup
 from app.features.product.models.product import Product
 from app.features.product.services.group_pricing import resolve_customer_group
+from app.features.product.services.pricing import resolve_default_price_group
+from app.features.user.crud.user_preference import get_preference_for_user
 from app.features.user.models.group_upgrade_request import GroupUpgradeRequest
 from app.features.user.models.user import User
 from app.features.user.staff import STAFF_ROLES, staff_channels
@@ -69,6 +78,10 @@ class StaffConversation(ConversationSummary):
     assigned_to_name: str = ""
     #: A customer message the team has not read.
     staff_unread: bool = False
+    #: The customer's price group comes first in the queue (MSG4).
+    priority: bool = False
+    #: Language of the customer (the canned replies follow it).
+    customer_locale: str | None = None
     resolved_at: datetime.datetime | None = None
 
 
@@ -155,6 +168,12 @@ async def _staff_view(
         if conversation.assigned_to_id
         else None
     )
+    group = await resolve_customer_group(session, customer) if customer else None
+    preference = (
+        await get_preference_for_user(session, user_id=customer.id)
+        if customer
+        else None
+    )
     customer_at, read_at = (
         conversation.last_customer_message_at,
         conversation.staff_read_at,
@@ -170,6 +189,9 @@ async def _staff_view(
         assigned_to_name=service.display_name(holder),
         staff_unread=bool(customer_at and (read_at is None or customer_at > read_at)),
         resolved_at=conversation.resolved_at,
+        priority=bool(group and group.messaging_priority),
+        customer_locale=(preference.locale if preference else None)
+        or conversation.guest_locale,
     )
 
 
@@ -296,15 +318,23 @@ async def list_conversations(
             select(func.count()).select_from(Conversation).where(*conditions)
         )
     ).scalar_one()
+    # « To do »: the priority groups' customers first, then the oldest.
+    default_group = await resolve_default_price_group(session)
+    priority = func.coalesce(
+        col(PriceGroup.messaging_priority),
+        bool(default_group and default_group.messaging_priority),
+    )
     order = (
-        col(Conversation.last_message_at).asc()
+        [priority.desc(), col(Conversation.last_message_at).asc()]
         if tab == "todo"
-        else col(Conversation.last_message_at).desc().nulls_last()
+        else [col(Conversation.last_message_at).desc().nulls_last()]
     )
     rows = await session.exec(
         select(Conversation)
+        .outerjoin(User, col(User.id) == col(Conversation.customer_id))
+        .outerjoin(PriceGroup, col(PriceGroup.id) == col(User.price_group_id))
         .where(*conditions)
-        .order_by(order)
+        .order_by(*order)
         .offset(skip)
         .limit(limit)
     )
@@ -593,4 +623,126 @@ async def move_conversation(
     return await _detail(session, conversation_id, channels)
 
 
-__all__ = ["ConversationMessage", "router"]
+# --- Canned replies (MSG4) ---------------------------------------------------
+canned_router = APIRouter(
+    prefix="/admin/canned-replies",
+    tags=["admin-messaging"],
+    dependencies=[Depends(module_required("messaging"))],
+)
+
+
+class CannedReplyWrite(BaseModel):
+    channel: str | None = Field(default=None, max_length=30)
+    title: str = Field(min_length=1, max_length=120)
+    body: str = Field(min_length=1, max_length=BODY_MAX)
+    #: ``{"en": {"title": …, "body": …}}``
+    translations: dict[str, dict[str, str]] = Field(default_factory=dict)
+
+
+class CannedReplyPublic(CannedReplyWrite):
+    id: uuid.UUID
+    position: int
+
+
+def _clean_canned(body: CannedReplyWrite) -> CannedReplyWrite:
+    if body.channel is not None and body.channel not in CHANNELS:
+        raise AppError(
+            code="messaging.topic",
+            status_code=400,
+            message="Unknown topic: {topic}.",
+            details={"field": "channel", "topic": body.channel},
+        )
+    translations = {
+        lang: {
+            k: str(v).strip()[: 120 if k == "title" else BODY_MAX]
+            for k, v in texts.items()
+            if k in ("title", "body") and str(v).strip()
+        }
+        for lang, texts in body.translations.items()
+        if lang in offered_locales()
+    }
+    return body.model_copy(
+        update={"translations": {k: v for k, v in translations.items() if v}}
+    )
+
+
+@canned_router.get("", response_model=list[CannedReplyPublic])
+async def list_canned_replies(
+    session: SessionDep, admin: CurrentMessagingStaff
+) -> list[CannedReplyPublic]:
+    """The prepared answers of the channels the member works on."""
+    channels = staff_channels(admin)
+    rows = await session.exec(
+        select(CannedReply)
+        .where(
+            or_(
+                col(CannedReply.channel).is_(None),
+                col(CannedReply.channel).in_(channels),
+            )
+        )
+        .order_by(col(CannedReply.position), col(CannedReply.title))
+    )
+    return [
+        CannedReplyPublic.model_validate(r, from_attributes=True) for r in rows.all()
+    ]
+
+
+@canned_router.post("", response_model=CannedReplyPublic, status_code=201)
+async def create_canned_reply(
+    body: CannedReplyWrite, session: SessionDep, admin: CurrentSuperUser
+) -> CannedReplyPublic:
+    clean = _clean_canned(body)
+    last = (
+        await session.exec(
+            select(func.max(CannedReply.position)).select_from(CannedReply)
+        )
+    ).first()
+    row = CannedReply(
+        **clean.model_dump(),
+        position=(last or 0) + 1,
+        created_at=utcnow(),
+        created_by_id=admin.id,
+    )
+    session.add(row)
+    await session.commit()
+    await session.refresh(row)
+    return CannedReplyPublic.model_validate(row, from_attributes=True)
+
+
+async def _canned(session: SessionDep, reply_id: uuid.UUID) -> CannedReply:
+    row = await session.get(CannedReply, reply_id)
+    if row is None:
+        raise AppError(
+            code="messaging.canned_not_found",
+            status_code=404,
+            message="Prepared answer not found.",
+            details={},
+        )
+    return row
+
+
+@canned_router.put("/{reply_id}", response_model=CannedReplyPublic)
+async def replace_canned_reply(
+    reply_id: uuid.UUID,
+    body: CannedReplyWrite,
+    session: SessionDep,
+    _admin: CurrentSuperUser,
+) -> CannedReplyPublic:
+    row = await _canned(session, reply_id)
+    for key, value in _clean_canned(body).model_dump().items():
+        setattr(row, key, value)
+    session.add(row)
+    await session.commit()
+    await session.refresh(row)
+    return CannedReplyPublic.model_validate(row, from_attributes=True)
+
+
+@canned_router.delete("/{reply_id}", status_code=204)
+async def delete_canned_reply(
+    reply_id: uuid.UUID, session: SessionDep, _admin: CurrentSuperUser
+) -> None:
+    await session.delete(await _canned(session, reply_id))
+    await session.commit()
+
+
+__all__ = ["ConversationMessage", "canned_router", "router"]

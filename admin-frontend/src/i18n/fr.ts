@@ -1124,6 +1124,8 @@ const fr = {
     empty: "Aucune section : l'accueil n'affiche que le titre par défaut.",
   },
   messaging: {
+    priority: 'Prioritaire',
+    canned: 'Réponse type',
     points: '{n} points de fidélité',
     no_order: 'Aucune commande',
     attach: 'Joindre',
@@ -1189,6 +1191,20 @@ const fr = {
     },
     topic_label: 'Motif',
     transfer: 'Transférer',
+  },
+  canned: {
+    title: 'Réponses types',
+    hint: "Réponses préparées de l'équipe, insérées dans une conversation dans la langue du client.",
+    new: 'Nouvelle réponse type',
+    edit_title: 'Modifier la réponse type',
+    empty: 'Aucune réponse type.',
+    channel: 'Canal',
+    channel_hint: 'Vide = tous les canaux',
+    field_title: 'Titre *',
+    body: 'Texte *',
+    variables: "Variables : {'{'}prenom{'}'}, {'{'}commande{'}'}, {'{'}numero{'}'}",
+    required: 'Obligatoire',
+    all_channels: 'Tous les canaux',
   },
   inventory: {
     adjust: 'Ajuster',
@@ -1260,6 +1276,7 @@ const fr = {
     language: 'Langue',
     logout: 'Se déconnecter',
     nav: {
+      canned_replies: 'Réponses types',
       messages: 'Messagerie',
       system_status: 'État du système',
       abandoned_carts: 'Paniers abandonnés',
@@ -1905,6 +1922,8 @@ const fr = {
     to: 'Au',
   },
   price_groups: {
+    col_priority: 'Prioritaire (messagerie)',
+    priority_hint: 'Les conversations de ses clients passent en tête de « À traiter »',
     col_discount: 'Remise sur le prix de référence',
     col_group: 'Groupe',
     col_margin: 'Marge des prix calculés',

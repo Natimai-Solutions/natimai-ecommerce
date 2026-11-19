@@ -11,7 +11,7 @@ from arq import cron
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.db import engine
-from app.features.messaging.notify import notify_unread, release_stale
+from app.features.messaging.notify import notify_unread, release_stale, staff_digest
 from app.features.messaging.retention import retention_sweep
 from app.features.system.modules import module_enabled
 
@@ -32,13 +32,15 @@ async def notify_unread_messages_task(
 async def release_stale_conversations_task(
     _ctx: dict[str, Any], **_kwargs: Any
 ) -> dict[str, Any]:
-    """Conversations held for days without an answer go back to the queue."""
+    """Conversations held for days without an answer go back to the queue;
+    then the morning digest of the team."""
     async with AsyncSession(engine) as session:
         if not await module_enabled(session, "messaging"):
             return {"status": "disabled"}
         released = await release_stale(session)
+        digests = await staff_digest(session)
     logger.info("Messaging: %s conversation(s) released", released)
-    return {"status": "ok", "released": released}
+    return {"status": "ok", "released": released, "digests": digests}
 
 
 async def messaging_retention_task(

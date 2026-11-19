@@ -934,7 +934,6 @@ les identifiants M· de l'audit fonctionnel.
 | **A3** | Annonce au-dessus de l'en-tête sur toutes les pages, réassurance, marques (après BR), bloc libre (R4 à R7) | M |
 | **A4** | Aperçu et programmation (R10), SEO de l'accueil (R11) | S à M |
 | **A5** | Sections personnelles (R9) et héros par audience | M |
-| **MSG4** | Notes internes, réponses types, transfert, libération automatique, digest, priorité par groupe tarifaire | M |
 | **BR** | Marques : `Product.brand_id`, alias, reprise depuis `manufacturer`, écran admin, filtre et facette, page marque (M9 de l'audit) | M à L |
 
 Livré le 18/11/2026 : correctifs du §12, **A1** (sections ordonnables,
@@ -962,8 +961,8 @@ de sécurité éteints (`ENABLE_GROUP_PERMISSIONS`) ; pas de table d'agents (les
 canaux découlent du rôle). Reste : sur la fiche commande, les boutons
 d'action restent affichés à un membre de l'équipe et l'API les refuse (403) —
 à masquer. **MSG3** (raccourcis produit, commande, groupe ; panneau client ; le panier
-passe par la demande de devis, déjà en conversation depuis MSG5). Ordre
-conseillé pour la suite : **MSG4**, BR quand on veut la bande de marques (R6) et
+passe par la demande de devis, déjà en conversation depuis MSG5). **MSG4** (réponses types, priorité par groupe, digest du matin). Ordre
+conseillé pour la suite : **A3 → A4 → A5**, BR quand on veut la bande de marques (R6) et
 les pages marque, en parallèle.
 ROLE peut attendre : sans lui, les superusers répondent.
 

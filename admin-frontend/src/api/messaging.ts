@@ -138,3 +138,39 @@ export async function downloadStaffFile(
   link.click();
   URL.revokeObjectURL(url);
 }
+
+export type CannedReply = components['schemas']['CannedReplyPublic'];
+export type CannedReplyWrite = components['schemas']['CannedReplyWrite'];
+
+export async function listCannedReplies(): Promise<CannedReply[]> {
+  const { data } = await api.get<CannedReply[]>('/admin/canned-replies');
+  return data;
+}
+
+export async function saveCannedReply(
+  payload: CannedReplyWrite,
+  id?: string,
+): Promise<CannedReply> {
+  const { data } = id
+    ? await api.put<CannedReply>(`/admin/canned-replies/${id}`, payload)
+    : await api.post<CannedReply>('/admin/canned-replies', payload);
+  return data;
+}
+
+export async function deleteCannedReply(id: string): Promise<void> {
+  await api.delete(`/admin/canned-replies/${id}`);
+}
+
+/** A prepared answer in the customer's language, its variables filled. */
+export function fillCannedReply(
+  reply: CannedReply,
+  locale: string | null | undefined,
+  values: { prenom: string; commande: string; numero: string },
+): string {
+  const translated = locale ? reply.translations?.[locale]?.['body'] : undefined;
+  const body = translated || reply.body;
+  return body
+    .replaceAll('{prenom}', values.prenom)
+    .replaceAll('{commande}', values.commande)
+    .replaceAll('{numero}', values.numero);
+}

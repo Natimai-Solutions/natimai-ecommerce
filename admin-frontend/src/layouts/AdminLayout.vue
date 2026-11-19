@@ -192,6 +192,7 @@ const allNav: NavSection[] = [
     label: 'layout.nav.sales',
     links: [
       { label: 'layout.nav.messages', icon: 'ph:chat-circle-text', to: '/messages' },
+      { label: 'layout.nav.canned_replies', icon: 'ph:chat-text', to: '/canned-replies' },
       { label: 'layout.nav.orders', icon: 'ph:receipt', to: '/orders' },
       {
         label: 'layout.nav.payment_validations',

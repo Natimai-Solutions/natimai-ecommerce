@@ -24,6 +24,7 @@
           <th class="text-left">{{ $t('price_groups.col_group') }}</th>
           <th class="text-left">{{ $t('price_groups.col_discount') }}</th>
           <th class="text-left">{{ $t('price_groups.col_margin') }}</th>
+          <th v-if="messagingOn" class="text-left">{{ $t('price_groups.col_priority') }}</th>
           <th class="text-right"></th>
         </tr>
       </thead>
@@ -77,6 +78,17 @@
             </div>
             <span v-else class="text-muted">{{ $t('price_groups.margin_same') }}</span>
           </td>
+          <td v-if="messagingOn" class="text-left">
+            <q-toggle
+              :model-value="!!g.messaging_priority"
+              :aria-label="`${$t('price_groups.col_priority')} — ${g.label}`"
+              :disable="saving === g.id"
+              :data-testid="`price-group-priority-${g.code}`"
+              @update:model-value="(value: boolean) => setPriority(g, value)"
+            >
+              <q-tooltip>{{ $t('price_groups.priority_hint') }}</q-tooltip>
+            </q-toggle>
+          </td>
           <td class="text-right">
             <q-btn
               color="primary"
@@ -111,6 +123,7 @@ import HelpPanel from '@/components/HelpPanel.vue';
 import { pricingHelp } from '@/utils/helpTopics';
 import { extractApiError } from '@/api/errors';
 import { listPriceGroups, updatePriceGroup, type PriceGroup } from '@/api/eligibility';
+import { useShopConfigStore } from '@/stores/shopConfig';
 import { useUnsavedGuard } from '@/composables/useUnsavedGuard';
 
 const { t } = useI18n();
@@ -181,6 +194,21 @@ async function save(g: PriceGroup) {
     notice.value = g.default
       ? t('price_groups.margin_saved', { pct: num(updated.margin_rate_pct) })
       : t('price_groups.discount_saved', { label: g.label, pct: num(updated.discount_pct) });
+  } catch (err) {
+    error.value = extractApiError(err) ?? t('common.save_failed');
+  } finally {
+    saving.value = null;
+  }
+}
+
+const shopConfig = useShopConfigStore();
+const messagingOn = computed(() => shopConfig.moduleOn('messaging'));
+
+async function setPriority(g: PriceGroup, value: boolean) {
+  saving.value = g.id;
+  error.value = null;
+  try {
+    Object.assign(g, await updatePriceGroup(g.id, { messaging_priority: value }));
   } catch (err) {
     error.value = extractApiError(err) ?? t('common.save_failed');
   } finally {

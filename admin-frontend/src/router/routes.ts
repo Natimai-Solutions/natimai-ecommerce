@@ -15,6 +15,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'categories', component: () => import('@/pages/CategoriesPage.vue') },
       { path: 'messages', component: () => import('@/pages/MessagingPage.vue') },
       { path: 'messages/:id', component: () => import('@/pages/MessagingPage.vue') },
+      { path: 'canned-replies', component: () => import('@/pages/CannedRepliesPage.vue') },
       { path: 'orders', component: () => import('@/pages/OrdersPage.vue') },
       { path: 'orders/:id', component: () => import('@/pages/OrderDetailPage.vue') },
       {

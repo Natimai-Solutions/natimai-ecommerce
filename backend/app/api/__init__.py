@@ -12,6 +12,7 @@ from app.api.routes.admin_grouped_departures import (
 )
 from app.api.routes.admin_inventory import router as admin_inventory_router
 from app.api.routes.admin_invoices import router as admin_invoices_router
+from app.api.routes.admin_messaging import canned_router as canned_replies_router
 from app.api.routes.admin_messaging import router as admin_messaging_router
 from app.api.routes.admin_modules import router as admin_modules_router
 from app.api.routes.admin_orders import router as admin_orders_router
@@ -143,6 +144,7 @@ api_router.include_router(cart_router)
 api_router.include_router(category_router)
 api_router.include_router(brand_router)
 api_router.include_router(admin_messaging_router)
+api_router.include_router(canned_replies_router)
 api_router.include_router(messaging_router)
 api_router.include_router(contact_router)
 # User groups and security management

@@ -197,6 +197,7 @@
   "messaging.attachment.too_many": "A conversation holds at most {max} files.",
   "messaging.attachment.type": "Only PDF files and photos (JPEG, PNG, WebP, HEIC) are accepted.",
   "messaging.attachment.unreadable": "This image cannot be read.",
+  "messaging.canned_not_found": "Prepared answer not found.",
   "messaging.context_not_found": "What this conversation refers to was not found.",
   "messaging.empty": "The message is empty.",
   "messaging.held_by_other": "{holder} handles this conversation: confirm to take over.",

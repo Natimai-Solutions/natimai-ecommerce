@@ -197,6 +197,7 @@
   "messaging.attachment.too_many": "Une conversation compte au plus {max} fichiers.",
   "messaging.attachment.type": "Seuls les PDF et les photos (JPEG, PNG, WebP, HEIC) sont acceptés.",
   "messaging.attachment.unreadable": "Cette image est illisible.",
+  "messaging.canned_not_found": "Réponse type introuvable.",
   "messaging.context_not_found": "L'élément auquel se rapporte cette conversation est introuvable.",
   "messaging.empty": "Le message est vide.",
   "messaging.held_by_other": "{holder} s'occupe de cette conversation : confirmez pour la reprendre.",

@@ -5019,6 +5019,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/canned-replies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Canned Replies
+         * @description The prepared answers of the channels the member works on.
+         */
+        get: operations["admin-messaging-list_canned_replies"];
+        put?: never;
+        /** Create Canned Reply */
+        post: operations["admin-messaging-create_canned_reply"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/canned-replies/{reply_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Replace Canned Reply */
+        put: operations["admin-messaging-replace_canned_reply"];
+        post?: never;
+        /** Delete Canned Reply */
+        delete: operations["admin-messaging-delete_canned_reply"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/messaging/info": {
         parameters: {
             query?: never;
@@ -10552,6 +10591,43 @@ export interface components {
              * @default 0
              */
             count: number;
+        };
+        /** CannedReplyPublic */
+        CannedReplyPublic: {
+            /** Channel */
+            channel?: string | null;
+            /** Title */
+            title: string;
+            /** Body */
+            body: string;
+            /** Translations */
+            translations?: {
+                [key: string]: {
+                    [key: string]: string;
+                };
+            };
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Position */
+            position: number;
+        };
+        /** CannedReplyWrite */
+        CannedReplyWrite: {
+            /** Channel */
+            channel?: string | null;
+            /** Title */
+            title: string;
+            /** Body */
+            body: string;
+            /** Translations */
+            translations?: {
+                [key: string]: {
+                    [key: string]: string;
+                };
+            };
         };
         /**
          * CarrierPatchRequest
@@ -18044,6 +18120,12 @@ export interface components {
              */
             deposit_required: boolean;
             /**
+             * Messaging Priority
+             * @description Conversations of its customers first in the messaging queue
+             * @default false
+             */
+            messaging_priority: boolean;
+            /**
              * Id
              * Format: uuid
              */
@@ -18076,6 +18158,8 @@ export interface components {
             deposit_fee_fixed?: number | string | null;
             /** Deposit Required */
             deposit_required?: boolean | null;
+            /** Messaging Priority */
+            messaging_priority?: boolean | null;
         };
         /**
          * PriceGroupsPublic
@@ -22136,6 +22220,13 @@ export interface components {
              * @default false
              */
             staff_unread: boolean;
+            /**
+             * Priority
+             * @default false
+             */
+            priority: boolean;
+            /** Customer Locale */
+            customer_locale?: string | null;
             /** Resolved At */
             resolved_at?: string | null;
         };
@@ -22190,6 +22281,13 @@ export interface components {
              * @default false
              */
             staff_unread: boolean;
+            /**
+             * Priority
+             * @default false
+             */
+            priority: boolean;
+            /** Customer Locale */
+            customer_locale?: string | null;
             /** Resolved At */
             resolved_at?: string | null;
             /**
@@ -33294,6 +33392,123 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["StaffConversationDetail"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-messaging-list_canned_replies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CannedReplyPublic"][];
+                };
+            };
+        };
+    };
+    "admin-messaging-create_canned_reply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CannedReplyWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CannedReplyPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-messaging-replace_canned_reply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reply_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CannedReplyWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CannedReplyPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-messaging-delete_canned_reply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reply_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

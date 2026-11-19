@@ -21,6 +21,7 @@ from app.features.invoice.models.credit_note import CreditNote, CreditNoteCounte
 from app.features.invoice.models.invoice import Invoice, InvoiceCounter
 from app.features.media.models import MediaAsset
 from app.features.messaging.models import (
+    CannedReply,
     Conversation,
     ConversationAttachment,
     ConversationMessage,
@@ -82,6 +83,7 @@ from app.features.user.models.user_preference import UserPreference
 from app.features.user.models.wishlist import Wishlist, WishlistItem
 
 __all__ = [
+    "CannedReply",
     "Conversation",
     "ConversationAttachment",
     "ConversationMessage",
