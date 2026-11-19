@@ -340,6 +340,19 @@ async def get_current_logistics_admin(
 CurrentLogisticsAdmin = Annotated[User, Depends(get_current_logistics_admin)]
 
 
+async def get_current_journey_reader(
+    current_user: CurrentUser, session: SessionDep
+) -> User:
+    """Reading an order's transport legs: the logistics team, and the team
+    roles that read orders (lot ROLE: « where is my parcel? »)."""
+    if getattr(current_user, "staff_role", None) in STAFF_ROLES:
+        return current_user
+    return await get_current_logistics_admin(current_user, session)
+
+
+CurrentJourneyReader = Annotated[User, Depends(get_current_journey_reader)]
+
+
 def module_required(key: str) -> Callable[..., Awaitable[None]]:
     """Dependency: an explicit 404 while the module ``key`` is switched off.
 

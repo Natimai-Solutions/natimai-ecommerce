@@ -12,16 +12,30 @@ interface Access {
   staff_role?: string | null;
 }
 
+/**
+ * Screens every back-office account reaches: the two-factor enrolment the
+ * API demands before anything else (`auth.totp.enrollment_required`).
+ */
+export const COMMON_SCREENS: readonly string[] = ['/security'];
+
 /** Whether ``path`` is open to the signed-in person. */
 export function canOpen(access: Access | null, path: string): boolean {
   if (!access || access.is_superuser) return true;
   const screens = ROLE_SCREENS[access.staff_role ?? ''] ?? [];
   const first = '/' + (path.split('/')[1] ?? '');
-  return screens.includes(first);
+  return COMMON_SCREENS.includes(first) || screens.includes(first);
 }
 
-/** Where a team member lands (their first screen). */
-export function homeOf(access: Access | null): string {
+/**
+ * Where a team member lands: the first screen of their role that is open
+ * (``isOn``: its module switched on), else the security screen — never `/`,
+ * which would send them back here (a redirect loop).
+ */
+export function homeOf(
+  access: Access | null,
+  isOn: (path: string) => boolean = () => true,
+): string {
   if (!access || access.is_superuser) return '/';
-  return ROLE_SCREENS[access.staff_role ?? '']?.[0] ?? '/';
+  const screens = ROLE_SCREENS[access.staff_role ?? ''] ?? [];
+  return screens.find(isOn) ?? COMMON_SCREENS[0] ?? '/security';
 }

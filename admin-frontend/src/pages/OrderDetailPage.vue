@@ -64,8 +64,10 @@
                   <th class="text-right">{{ $t('order.unit_ttc') }}</th>
                   <th class="text-right">{{ $t('order.total_ttc') }}</th>
                   <th class="text-right">{{ $t('order.total_ht') }}</th>
-                  <th class="text-right">{{ $t('order.cost') }}</th>
-                  <th class="text-right">{{ $t('order.margin_ht') }}</th>
+                  <template v-if="canManage">
+                    <th class="text-right">{{ $t('order.cost') }}</th>
+                    <th class="text-right">{{ $t('order.margin_ht') }}</th>
+                  </template>
                 </tr>
               </thead>
               <tbody>
@@ -88,10 +90,10 @@
                       line.line_total_excl_tax == null ? '—' : formatMoney(line.line_total_excl_tax)
                     }}
                   </td>
-                  <td class="text-right font-mono text-muted">
+                  <td v-if="canManage" class="text-right font-mono text-muted">
                     {{ line.line_cost == null ? '—' : formatMoney(line.line_cost) }}
                   </td>
-                  <td class="text-right" data-testid="order-line-margin">
+                  <td v-if="canManage" class="text-right" data-testid="order-line-margin">
                     <template v-if="line.line_margin != null">
                       <span class="font-mono" :class="{ 'text-negative': line.line_margin < 0 }">{{
                         formatMoney(line.line_margin)
@@ -107,11 +109,13 @@
                   </td>
                 </tr>
                 <tr v-if="order.lines.length === 0">
-                  <td colspan="7" class="text-center text-subtle">{{ $t('order.no_items') }}</td>
+                  <td :colspan="canManage ? 7 : 5" class="text-center text-subtle">
+                    {{ $t('order.no_items') }}
+                  </td>
                 </tr>
               </tbody>
             </q-markup-table>
-            <div v-if="order.margin" class="order-margin" data-testid="order-margin">
+            <div v-if="canManage && order.margin" class="order-margin" data-testid="order-margin">
               <span class="text-muted">{{ $t('order.gross_margin') }}</span>
               <strong
                 class="font-mono"
@@ -152,7 +156,7 @@
                   <th class="text-left">{{ $t('order.status') }}</th>
                   <th class="text-right">{{ $t('order.amount') }}</th>
                   <th class="text-left">{{ $t('order.date') }}</th>
-                  <th class="text-right">{{ $t('order.actions') }}</th>
+                  <th v-if="canManage" class="text-right">{{ $t('order.actions') }}</th>
                 </tr>
               </thead>
               <tbody>
@@ -180,7 +184,7 @@
                     </div>
                   </td>
                   <td class="text-left">{{ formatDate(p.created_at) }}</td>
-                  <td class="text-right">
+                  <td v-if="canManage" class="text-right">
                     <q-btn
                       v-if="p.accepts_receipts"
                       flat
@@ -231,7 +235,9 @@
                   </td>
                 </tr>
                 <tr v-if="order.payments.length === 0">
-                  <td colspan="6" class="text-center text-subtle">{{ $t('order.no_payment') }}</td>
+                  <td :colspan="canManage ? 6 : 5" class="text-center text-subtle">
+                    {{ $t('order.no_payment') }}
+                  </td>
                 </tr>
               </tbody>
             </q-markup-table>
@@ -272,7 +278,7 @@
                         "
                       />
                       <q-btn
-                        v-else-if="receiptCancellable(r)"
+                        v-else-if="canManage && receiptCancellable(r)"
                         flat
                         dense
                         no-caps
@@ -300,6 +306,7 @@
                 {{ $t('order.chosen_mode', { mode: prettifyMode(order.delivery_type) }) }}
               </p>
               <q-btn
+                v-if="canManage"
                 flat
                 dense
                 no-caps
@@ -321,7 +328,7 @@
                   <th class="text-left">{{ $t('order.status') }}</th>
                   <th class="text-left">{{ $t('order.carrier_h') }}</th>
                   <th class="text-left">{{ $t('order.tracking_no') }}</th>
-                  <th class="text-right">{{ $t('order.actions') }}</th>
+                  <th v-if="canManage" class="text-right">{{ $t('order.actions') }}</th>
                 </tr>
               </thead>
               <tbody>
@@ -365,7 +372,7 @@
                     >
                     <span v-else>{{ leg.tracking_ref || '—' }}</span>
                   </td>
-                  <td class="text-right">
+                  <td v-if="canManage" class="text-right">
                     <q-btn
                       flat
                       dense
@@ -403,7 +410,7 @@
                   </td>
                 </tr>
                 <tr v-if="journey.length === 0">
-                  <td colspan="6" class="text-center text-subtle">
+                  <td :colspan="canManage ? 6 : 5" class="text-center text-subtle">
                     {{ journeyLoading ? $t('common.loading') : $t('order.no_leg') }}
                   </td>
                 </tr>
@@ -419,6 +426,7 @@
             <div class="order-panel__head">
               <h2 class="admin-subtitle q-mb-none">{{ $t('order.summary') }}</h2>
               <q-btn
+                v-if="canManage"
                 flat
                 dense
                 no-caps
@@ -429,7 +437,7 @@
                 <q-tooltip>{{ $t('order.credit_tip') }}</q-tooltip>
               </q-btn>
               <q-btn
-                v-if="loyalty?.rules.enabled || (loyalty && loyalty.points > 0)"
+                v-if="canManage && (loyalty?.rules.enabled || (loyalty && loyalty.points > 0))"
                 flat
                 dense
                 no-caps
@@ -498,7 +506,7 @@
                 <span class="font-mono">{{ formatMoney(order.balance_amount) }}</span>
               </div>
               <q-btn
-                v-if="!order.balance_paid_at"
+                v-if="canManage && !order.balance_paid_at"
                 flat
                 dense
                 no-caps
@@ -530,7 +538,7 @@
               }}</span>
             </div>
             <q-btn
-              v-if="(order.next_part_due ?? 0) > 0"
+              v-if="canManage && (order.next_part_due ?? 0) > 0"
               color="primary"
               unelevated
               no-caps
@@ -556,7 +564,11 @@
           <!-- Status + grouped departure -->
           <div class="app-panel">
             <h2 class="admin-subtitle">{{ $t('order.follow_up') }}</h2>
-            <div class="order-panel__fields">
+            <div v-if="!canManage" class="app-kv" data-testid="order-status-readonly">
+              <span>{{ $t('order.status') }}</span>
+              <span>{{ orderStatusLabel(order.status) }}</span>
+            </div>
+            <div v-else class="order-panel__fields">
               <q-select
                 :model-value="order.status"
                 :options="statusOptions"
@@ -890,6 +902,7 @@
 import { useI18n } from 'vue-i18n';
 import { providerLabel } from '@/utils/payments';
 import { computed, onMounted, ref } from 'vue';
+import { useAccessStore } from '@/stores/access';
 import { useRoute } from 'vue-router';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
@@ -1048,6 +1061,15 @@ const { t } = useI18n();
 // --- Order status (one order by hand; the departure handles the bulk case) ---
 const statusNames = ref<string[]>([]);
 const statusSaving = ref(false);
+// Lot ROLE: a team member (service client, commercial) reads the order; the
+// actions, costs and margins stay with the administrators (the API refuses
+// them anyway).
+const access = useAccessStore();
+// Unknown rights (not read yet) count as closed.
+const canManage = computed(
+  () => !!access.me && (!access.me.staff_role || access.me.is_superuser === true),
+);
+
 const statusOptions = computed(() =>
   statusNames.value.map((s) => ({ label: orderStatusLabel(s), value: s })),
 );
@@ -1220,9 +1242,11 @@ async function load() {
   error.value = null;
   try {
     order.value = await getOrder(orderId.value);
-    await loadStoreCredit();
-    await loadLoyalty();
-    departures.value = await listDepartures().catch(() => []);
+    if (canManage.value) {
+      await loadStoreCredit();
+      await loadLoyalty();
+      departures.value = await listDepartures().catch(() => []);
+    }
     statusNames.value = await listOrderStatuses().catch(() => []);
   } catch (err) {
     error.value = extractApiError(err) ?? t('common.load_failed');

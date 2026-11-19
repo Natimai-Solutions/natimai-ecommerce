@@ -268,7 +268,12 @@ import HomeRichText from '@/components/home/HomeRichText.vue';
 import HomePersonal from '@/components/home/HomePersonal.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useCartStore } from '@/stores/cart';
-import { previewFromHash, type HomepageSection } from '@/api/homepage';
+import {
+  previewFromHash,
+  type HomepageSection,
+  type PreviewParams,
+} from '@/api/homepage';
+import { useRoute, useRouter } from 'vue-router';
 import { useAnnouncementStore } from '@/stores/announcement';
 import { categoryTitle, useHomeStore } from '@/stores/home';
 import { useUiStore } from '@/stores/ui';
@@ -280,6 +285,26 @@ const shopModules = useShopModulesStore();
 type ProductPublic = components['schemas']['ProductPublic'];
 
 const home = useHomeStore();
+const route = useRoute();
+const router = useRouter();
+
+const PREVIEW_KEY = 'homepage-preview';
+function rememberPreview(params: PreviewParams | null): void {
+  try {
+    if (params) window.sessionStorage.setItem(PREVIEW_KEY, JSON.stringify(params));
+    else window.sessionStorage.removeItem(PREVIEW_KEY);
+  } catch {
+    // Blocked storage: a reload simply shows the public page.
+  }
+}
+function rememberedPreview(): PreviewParams | null {
+  try {
+    const raw = window.sessionStorage.getItem(PREVIEW_KEY);
+    return raw ? (JSON.parse(raw) as PreviewParams) : null;
+  } catch {
+    return null;
+  }
+}
 const announcement = useAnnouncementStore();
 const authStore = useAuthStore();
 const cartStore = useCartStore();
@@ -452,9 +477,19 @@ async function onAddToCart(product: ProductPublic) {
 onServerPrefetch(() => home.load());
 onMounted(async () => {
   // The admin's preview link (#apercu=…): drafts, a date, an audience.
-  const preview = previewFromHash(window.location.hash);
+  // The token leaves the address at once (not in the history, nor in an
+  // error report: Sentry records the URL), through the router so that its
+  // own state forgets it too; it is kept for this tab only, for a reload.
+  let preview = previewFromHash(window.location.hash);
+  if (preview) {
+    rememberPreview(preview);
+    await router.replace({ path: route.path, query: route.query, hash: '' });
+  } else {
+    preview = rememberedPreview();
+  }
   if (preview) {
     await home.startPreview(preview);
+    if (home.previewFailed) rememberPreview(null);
     announcement.showPreview(home.previewAnnouncement);
     return;
   }

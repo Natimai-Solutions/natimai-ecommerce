@@ -14,7 +14,7 @@ from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 from sqlmodel import col, func, select
 
-from app.api.deps import CurrentLogisticsAdmin, SessionDep
+from app.api.deps import CurrentJourneyReader, CurrentLogisticsAdmin, SessionDep
 from app.core.errors import AppError
 from app.features.base.crud import RecordNotFoundError
 from app.features.shipping.crud import (
@@ -969,7 +969,7 @@ async def consolidation_ungroup_hint(
 async def order_journey(
     order_id: uuid.UUID,
     session: SessionDep,
-    _admin: CurrentLogisticsAdmin,
+    _admin: CurrentJourneyReader,
 ) -> list[AdminJourneyLeg]:
     """Ordered legs (tronçons 1..N) of an order's journey, with resolved status
     and place names — feeds the admin « parcours du colis » timeline."""

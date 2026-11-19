@@ -5156,7 +5156,9 @@ export interface paths {
         get?: never;
         /**
          * Move Conversation
-         * @description Move the conversation to another channel / topic (traced).
+         * @description Move the conversation to another channel / topic (traced). Moved to a
+         *     channel the team member does not work on, it is answered once more (what
+         *     was just done), then reads as missing like any other of that channel.
          */
         put: operations["admin-messaging-move_conversation"];
         post?: never;

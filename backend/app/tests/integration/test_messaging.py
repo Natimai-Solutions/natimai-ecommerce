@@ -615,3 +615,66 @@ async def test_the_team_sees_the_customer_beside_the_thread(
     assert detail.context_label == "CMD-2026-00042"
     assert detail.customer_panel is not None
     assert [o.number for o in detail.customer_panel.orders] == ["CMD-2026-00042"]
+
+
+async def test_a_conversation_resolved_again_gets_a_new_notice(
+    db_session: AsyncSession,
+    sent: list[dict[str, Any]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Noticed, then reopened and resolved again: the old notice no longer
+    counts, the customer is told again before the new date (the conversation
+    was deleted without a new notice)."""
+    from app.features.messaging import retention
+
+    async def queue_email(_session: Any, **kwargs: Any) -> uuid.UUID:
+        sent.append(kwargs)
+        return uuid.uuid4()
+
+    monkeypatch.setattr(retention, "queue_email", queue_email)
+    alice = await _user(db_session, "alice")
+    conversation_id = await _open(db_session, alice)
+    await _fresh(db_session, alice)
+    await routes.resolve_my_conversation(conversation_id, db_session, alice)
+
+    five_years = utcnow() + datetime.timedelta(days=1826)
+    first = await retention.retention_sweep(
+        db_session, now=five_years - datetime.timedelta(days=20)
+    )
+    assert first["notices"] == 1
+
+    # The customer wrote again a year later; the team resolved it again.
+    row = await db_session.get(Conversation, conversation_id)
+    assert row is not None
+    row.last_message_at = utcnow() + datetime.timedelta(days=365)
+    db_session.add(row)
+    await db_session.commit()
+
+    new_due = five_years + datetime.timedelta(days=365)
+    on_old_date = await retention.retention_sweep(
+        db_session, now=five_years + datetime.timedelta(days=15)
+    )
+    assert on_old_date["deleted"] == 0
+    second = await retention.retention_sweep(
+        db_session, now=new_due - datetime.timedelta(days=20)
+    )
+    assert second == {"guests": 0, "notices": 1, "deleted": 0}
+    final = await retention.retention_sweep(
+        db_session, now=new_due + datetime.timedelta(days=15)
+    )
+    assert final["deleted"] == 1
+
+
+def test_an_oversized_image_is_refused_before_decoding() -> None:
+    import io
+
+    from PIL import Image
+
+    from app.features.messaging import attachments
+
+    buffer = io.BytesIO()
+    # 8000 × 8000 = 64 Mpx: above the limit, under twice Pillow's own.
+    Image.new("1", (8000, 8000)).save(buffer, format="PNG")
+    with pytest.raises(AppError) as refused:
+        attachments._reencode(buffer.getvalue(), "image/png")
+    assert refused.value.code == "messaging.attachment.unreadable"

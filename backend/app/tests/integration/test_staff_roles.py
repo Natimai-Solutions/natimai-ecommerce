@@ -156,3 +156,123 @@ async def test_a_superuser_gives_and_takes_a_role(db_session: AsyncSession) -> N
                 await _get(db_session, admin_id),
             )
         assert refused.value.status_code == 400
+
+
+async def test_the_team_reads_an_order_without_costs_nor_margins(
+    db_session: AsyncSession,
+) -> None:
+    from decimal import Decimal
+
+    from app.api.routes import admin_orders
+    from app.features.order.models.order import Order
+    from app.features.order.models.order_line import OrderLine
+    from app.features.order.models.order_status import OrderStatus
+    from app.features.product.models.product import PricingMode, Product
+
+    customer = await _user(db_session, "client")
+    support = await _user(db_session, "support", staff_role="customer_service")
+    admin = await _user(db_session, "admin", is_superuser=True)
+    product = Product(
+        name="Écran", pricing_mode=PricingMode.FIXED, base_price=Decimal("20000")
+    )
+    status = OrderStatus(name="Paid")
+    db_session.add_all([product, status])
+    await db_session.flush()
+    order = Order(
+        user_id=customer,
+        order_status_id=status.id,
+        order_number="CMD-COST",
+        total_amount=Decimal("20000"),
+        subtotal_amount=Decimal("20000"),
+        currency="XPF",
+    )
+    db_session.add(order)
+    await db_session.flush()
+    db_session.add(
+        OrderLine(
+            order_id=order.id,
+            product_id=product.id,
+            quantity=1,
+            unit_price=Decimal("20000"),
+            unit_cost_snapshot=Decimal("12000"),
+        )
+    )
+    order_id = order.id
+    await db_session.commit()
+
+    seen = await admin_orders.get_order_detail(
+        order_id, db_session, await _get(db_session, support)
+    )
+    assert seen.order_number == "CMD-COST"
+    assert seen.margin is None
+    assert all(
+        line.unit_cost is None and line.line_margin is None for line in seen.lines
+    )
+    full = await admin_orders.get_order_detail(
+        order_id, db_session, await _get(db_session, admin)
+    )
+    assert full.margin is not None
+    assert full.lines[0].unit_cost == 12000
+
+
+async def test_the_team_reads_the_transport_legs(db_session: AsyncSession) -> None:
+    support = await _user(db_session, "support", staff_role="customer_service")
+    customer = await _user(db_session, "client")
+    member = await _get(db_session, support)
+    assert await deps.get_current_journey_reader(member, db_session) is member
+    with pytest.raises(AppError) as refused:
+        await deps.get_current_journey_reader(
+            await _get(db_session, customer), db_session
+        )
+    assert refused.value.status_code == 403
+
+
+async def test_moving_out_of_the_holder_channels_releases_it(
+    db_session: AsyncSession,
+) -> None:
+    customer = await _user(db_session, "client")
+    seller = await _user(db_session, "seller", staff_role="sales")
+    support = await _user(db_session, "support", staff_role="customer_service")
+    quote = await _open(db_session, customer, "quote")
+    await staff_routes.claim_conversation(
+        quote, db_session, await _get(db_session, seller)
+    )
+
+    # The answer is the detail of what was just done, not « not found ».
+    moved = await staff_routes.move_conversation(
+        quote,
+        staff_routes.TopicBody(channel="customer_service", topic="delivery"),
+        db_session,
+        await _get(db_session, seller),
+    )
+    assert moved.channel == "customer_service"
+    # Back in the queue of its new channel, no longer held by the seller.
+    assert moved.assigned_to_id is None
+    page = await staff_routes.list_conversations(
+        db_session, await _get(db_session, support), tab="todo"
+    )
+    assert quote in {c.id for c in page.data}
+
+
+async def test_a_role_change_releases_the_conversations_it_no_longer_covers(
+    db_session: AsyncSession,
+) -> None:
+    admin = await _user(db_session, "admin", is_superuser=True)
+    customer = await _user(db_session, "client")
+    seller = await _user(db_session, "seller", staff_role="sales")
+    quote = await _open(db_session, customer, "quote")
+    await staff_routes.claim_conversation(
+        quote, db_session, await _get(db_session, seller)
+    )
+    await admin_users.update_user(
+        seller,
+        admin_users.AdminUserUpdate(staff_role="customer_service"),
+        db_session,
+        await _get(db_session, admin),
+    )
+    from app.features.messaging.models import Conversation
+
+    row = await db_session.get(Conversation, quote)
+    assert row is not None
+    await db_session.refresh(row)
+    assert row.assigned_to_id is None

@@ -207,7 +207,12 @@ async def retention_sweep(
         due = deletion_date(conversation, customer_retention)
         if due is None or due - NOTICE_BEFORE > now:
             continue
-        if conversation.deletion_notice_at is None:
+        notice = conversation.deletion_notice_at
+        # A notice of an earlier cycle (the conversation was reopened and
+        # resolved again since) does not count: the customer is told again.
+        if notice is not None and as_utc(notice) < due - NOTICE_BEFORE:
+            notice = None
+        if notice is None:
             conversation.deletion_notice_at = now
             session.add(conversation)
             customer = await session.get(User, conversation.customer_id)
@@ -227,10 +232,7 @@ async def retention_sweep(
                     resolve_locale(preference.locale if preference else None),
                 )
             )
-        elif (
-            due <= now
-            and as_utc(conversation.deletion_notice_at) <= now - NOTICE_BEFORE
-        ):
+        elif due <= now and as_utc(notice) <= now - NOTICE_BEFORE:
             expired.append(conversation.id)
     await _delete(session, expired)
     # The markers first: the mailer sends on its own transaction.

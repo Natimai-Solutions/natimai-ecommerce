@@ -24,7 +24,7 @@
         </span>
         <span class="current-order__meta">
           {{ orderStatusLabel(order.status, t) }} ·
-          {{ currency.format(order.total_amount) }}
+          {{ orderMoney(order.total_amount, order.currency, currency.reference) }}
         </span>
       </span>
       <span class="current-order__link">{{ $t('home.order_follow') }}</span>
@@ -52,6 +52,7 @@ import ProductCard from '@/components/ProductCard.vue';
 import type { HomepageSection } from '@/api/homepage';
 import { getProductsByIds } from '@/api/products';
 import { useCurrencyStore } from '@/stores/currency';
+import { orderMoney } from '@/utils/money';
 import { orderStatusLabel } from '@/utils/orderStatus';
 import { readRecentlyViewed } from '@/utils/recentlyViewed';
 

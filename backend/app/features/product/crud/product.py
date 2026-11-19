@@ -789,16 +789,23 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
             # « Réseau » lists WiFi and its access points too.
             conditions.append(product_in_category_condition(category_id))
         if manufacturer:
-            # The facet shows validated brands by name: their products under
-            # every spelling the supplier used (lot BR), else the free text.
+            # The facet shows a validated brand by name: exactly its products,
+            # under every spelling the supplier used (lot BR). Another name
+            # is free text (« HP » no longer finds « HPE »; % and _ are text).
+            name = manufacturer.strip()
             named_brand = select(col(Brand.id)).where(
                 col(Brand.is_validated).is_(True),
-                func.lower(col(Brand.name)) == manufacturer.strip().lower(),
+                col(Brand.is_active).is_(True),
+                func.lower(col(Brand.name)) == name.lower(),
             )
+            pattern = name.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
             conditions.append(
                 or_(
                     col(Product.brand_id).in_(named_brand),
-                    col(Product.manufacturer).ilike(f"%{manufacturer.strip()}%"),
+                    and_(
+                        ~named_brand.exists(),
+                        col(Product.manufacturer).ilike(f"%{pattern}%", escape="\\"),
+                    ),
                 )
             )
         if brand_id is not None:
@@ -985,7 +992,11 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
         # A validated brand gathers its spellings (« HP Inc. », « hp ») under
         # its name (lot BR); a brand still to validate shows as supplied.
         validated_name = case(
-            (col(Brand.is_validated).is_(True), col(Brand.name)), else_=null()
+            (
+                and_(col(Brand.is_validated).is_(True), col(Brand.is_active).is_(True)),
+                col(Brand.name),
+            ),
+            else_=null(),
         )
         clean_maker = func.coalesce(
             validated_name, func.nullif(func.trim(col(Product.manufacturer)), "")

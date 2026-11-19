@@ -315,6 +315,7 @@ async def _check(
 async def _save(
     session: SessionDep, brand: Brand, body: BrandWrite, slug: str, base_url: str
 ) -> AdminBrand:
+    old_name = brand.name
     brand.name = body.name.strip()
     brand.slug = slug
     brand.description = (body.description or "").strip() or None
@@ -324,6 +325,9 @@ async def _save(
     session.add(brand)
     await session.flush()
     await brand_service.set_aliases(session, brand, body.aliases)
+    # Renamed: the former name stays an alias (the products the suppliers
+    # still name so would go back to a new sheet « to validate »).
+    await brand_service.keep_old_name(session, brand, old_name)
     brand_id = brand.id
     await session.commit()
     saved = await session.get(Brand, brand_id)
@@ -363,6 +367,17 @@ async def admin_update_brand(
     brand = await session.get(Brand, brand_id)
     if brand is None:
         raise _not_found()
+    # Only a rename is checked: a sheet saved under its own name (or one of
+    # its aliases) must stay editable, even beside a hidden namesake.
+    renamed = brand_service.brand_key(body.name) != brand_service.brand_key(brand.name)
+    same = await brand_service.find_brand(session, body.name) if renamed else None
+    if same is not None and same.id != brand_id:
+        raise AppError(
+            code="brand.exists",
+            status_code=409,
+            message="A brand with this name already exists.",
+            details={"field": "name"},
+        )
     slug = await _check(session, body, brand_id)
     return await _save(
         session, brand, body, slug, public_base_url(request_origin(request))

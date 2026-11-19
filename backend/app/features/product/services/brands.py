@@ -88,9 +88,9 @@ async def find_brand(session: AsyncSession, name: str | None) -> Brand | None:
     ).first()
     if alias is not None:
         return await session.get(Brand, alias.brand_id)
-    for brand in (
-        await session.exec(select(Brand).where(col(Brand.is_active).is_(True)))
-    ).all():
+    # Hidden sheets included: a brand the admin switched off keeps its
+    # products (a new sheet « to validate » would take them back).
+    for brand in (await session.exec(select(Brand))).all():
         if brand_key(brand.name) == key:
             return brand
     return None
@@ -113,9 +113,10 @@ async def resolve_brand(session: AsyncSession, name: str | None) -> Brand | None
 
 async def _key_map(session: AsyncSession) -> dict[str, uuid.UUID]:
     keys: dict[str, uuid.UUID] = {}
+    # Active sheets win a shared key; hidden ones still claim theirs.
     for brand_id, name in (
         await session.exec(
-            select(Brand.id, Brand.name).where(col(Brand.is_active).is_(True))
+            select(Brand.id, Brand.name).order_by(col(Brand.is_active).desc())
         )
     ).all():
         keys.setdefault(brand_key(name), brand_id)
@@ -130,14 +131,27 @@ async def link_unbranded_products(session: AsyncSession, *, limit: int = 5000) -
     """Link every product to the sheet of its manufacturer name (commits):
     the products without a brand, and those whose name changed since (an
     import, an edit). One lookup per distinct (name, brand) pair."""
-    pairs = (
+    named = (
+        col(Product.manufacturer).is_not(None),
+        func.btrim(col(Product.manufacturer)) != "",
+    )
+    # The products without a brand first, all of them: a cap must never
+    # leave a new manufacturer out of every pass.
+    pairs = list(
+        (
+            await session.exec(
+                select(Product.manufacturer, Product.brand_id)
+                .where(*named, col(Product.brand_id).is_(None))
+                .distinct()
+            )
+        ).all()
+    )
+    pairs += (
         await session.exec(
             select(Product.manufacturer, Product.brand_id)
-            .where(
-                col(Product.manufacturer).is_not(None),
-                func.btrim(col(Product.manufacturer)) != "",
-            )
+            .where(*named, col(Product.brand_id).is_not(None))
             .distinct()
+            .order_by(col(Product.manufacturer))
             .limit(limit)
         )
     ).all()
@@ -221,6 +235,22 @@ async def _relink_names(session: AsyncSession, brand: Brand, keys: list[str]) ->
         )
 
 
+async def keep_old_name(
+    session: AsyncSession, brand: Brand, old_name: str | None
+) -> None:
+    """A renamed sheet keeps its former name as an alias: the products the
+    suppliers still name so stay with it (no commit)."""
+    old_key, new_key = brand_key(old_name), brand_key(brand.name)
+    if not old_key or old_key == new_key:
+        return
+    taken = (
+        await session.exec(select(BrandAlias).where(col(BrandAlias.key) == old_key))
+    ).first()
+    if taken is None:
+        session.add(BrandAlias(brand_id=brand.id, alias=old_name or "", key=old_key))
+        await session.flush()
+
+
 async def merge_brands(session: AsyncSession, source: Brand, target: Brand) -> int:
     """``source`` becomes an alias of ``target``: its products, aliases and
     name move over, then it goes (no commit). Returns the products moved."""
@@ -235,6 +265,8 @@ async def merge_brands(session: AsyncSession, source: Brand, target: Brand) -> i
         .where(col(BrandAlias.brand_id) == source.id)
         .values(brand_id=target.id)
     )
+    # The homepage brand strips that listed the source show the target.
+    await _move_homepage_tiles(session, source.id, target.id)
     key = brand_key(source.name)
     source_name = source.name
     await session.delete(source)
@@ -248,7 +280,33 @@ async def merge_brands(session: AsyncSession, source: Brand, target: Brand) -> i
     return moved
 
 
+async def _move_homepage_tiles(
+    session: AsyncSession, source_id: uuid.UUID, target_id: uuid.UUID
+) -> None:
+    from app.features.content.models import HomepageBlockItem
+
+    rows = (
+        await session.exec(
+            select(HomepageBlockItem).where(
+                col(HomepageBlockItem.brand_id).in_([source_id, target_id])
+            )
+        )
+    ).all()
+    blocks_with_target = {r.block_id for r in rows if r.brand_id == target_id}
+    for row in rows:
+        if row.brand_id != source_id:
+            continue
+        if row.block_id in blocks_with_target:
+            await session.delete(row)
+        else:
+            row.brand_id = target_id
+            session.add(row)
+            blocks_with_target.add(row.block_id)
+    await session.flush()
+
+
 __all__ = [
+    "keep_old_name",
     "brand_key",
     "find_brand",
     "link_unbranded_products",

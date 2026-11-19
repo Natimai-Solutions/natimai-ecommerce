@@ -18,18 +18,32 @@ from app.features.product.crud.product import crud_product
 from app.features.product.models.product import Product
 from app.features.user.models.wishlist import Wishlist, WishlistItem
 
-#: An order still worth showing on the homepage: not delivered nor closed.
-_CLOSED_STATUSES = frozenset(
-    {"Delivered", "Cancelled", "Refunded", "PartiallyRefunded"}
-)
+#: Orders that did not happen: never « bought », never « in progress »
+#: (an abandoned or failed payment stays Pending / PaymentFailed).
+_NOT_PLACED = ("Pending", "PaymentFailed", "Cancelled", "Refunded")
+#: An order in progress: placed, not yet delivered nor closed.
+_NOT_IN_PROGRESS = (*_NOT_PLACED, "Delivered", "PartiallyRefunded")
 
 
 async def _products(
     session: AsyncSession, ids: list[uuid.UUID], limit: int
 ) -> list[Product]:
-    """The products of ``ids`` still on sale, in that order."""
+    """The products of ``ids`` still on sale, in that order. A variant
+    (« T-shirt M », what an order line or a wish holds) stands for the
+    product the storefront lists, its parent; each product once."""
     if not ids:
         return []
+    parents = dict(
+        (
+            await session.exec(
+                select(Product.id, Product.parent_product_id).where(
+                    col(Product.id).in_(ids),
+                    col(Product.parent_product_id).is_not(None),
+                )
+            )
+        ).all()
+    )
+    ids = list(dict.fromkeys(parents.get(i) or i for i in ids))
     rows = (
         await session.exec(
             select(Product).where(
@@ -51,7 +65,11 @@ async def reorder_products(
         await session.exec(
             select(OrderLine.product_id, Order.created_at)
             .join(Order, col(Order.id) == col(OrderLine.order_id))
-            .where(col(Order.user_id) == user_id)
+            .join(OrderStatus, col(OrderStatus.id) == col(Order.order_status_id))
+            .where(
+                col(Order.user_id) == user_id,
+                col(OrderStatus.name).not_in(_NOT_PLACED),
+            )
             .order_by(col(Order.created_at).desc())
             .limit(200)
         )
@@ -68,7 +86,14 @@ async def wishlist_products(
         await session.exec(
             select(WishlistItem.product_id)
             .join(Wishlist, col(Wishlist.id) == col(WishlistItem.wishlist_id))
-            .where(col(Wishlist.user_id) == user_id)
+            .where(
+                col(Wishlist.user_id) == user_id,
+                # A product removed from the list is deactivated, not deleted.
+                col(WishlistItem.is_active).is_(True),
+                col(WishlistItem.is_admin_active).is_(True),
+                col(Wishlist.is_active).is_(True),
+                col(Wishlist.is_admin_active).is_(True),
+            )
             .order_by(col(WishlistItem.created_at).desc())
             .limit(200)
         )
@@ -80,18 +105,20 @@ async def current_order(
     session: AsyncSession, user_id: uuid.UUID
 ) -> HomepageCurrentOrder | None:
     """The customer's latest order not yet delivered nor closed."""
-    rows = (
+    row = (
         await session.exec(
             select(Order, OrderStatus.name)
             .join(OrderStatus, col(OrderStatus.id) == col(Order.order_status_id))
-            .where(col(Order.user_id) == user_id)
+            .where(
+                col(Order.user_id) == user_id,
+                col(OrderStatus.name).not_in(_NOT_IN_PROGRESS),
+            )
             .order_by(col(Order.created_at).desc())
-            .limit(5)
+            .limit(1)
         )
-    ).all()
-    for order, status in rows:
-        if status in _CLOSED_STATUSES:
-            continue
+    ).first()
+    if row is not None:
+        order, status = row
         return HomepageCurrentOrder(
             id=order.id,
             order_number=order.order_number,

@@ -55,6 +55,7 @@ from app.features.content.homepage_sections import (
     clean_config,
     is_safe_link,
     is_shown_to,
+    stored_config,
 )
 from app.features.content.models import (
     HOMEPAGE_BLOCK_KINDS,
@@ -194,9 +195,12 @@ def _with_translations(
             fields=HOMEPAGE_BLOCK_FIELDS,
         )
     except InvalidTranslations as exc:
-        raise _invalid(
-            f"Invalid translations: {exc}", "homepage.translations", "translations"
-        )
+        raise AppError(
+            code="homepage.translations",
+            status_code=400,
+            message="Invalid translations.",
+            details={"field": "translations", "problem": str(exc)},
+        ) from exc
     return data
 
 
@@ -266,8 +270,9 @@ def _reassurance(block: HomepageBlock, *, localized: bool) -> list[HomepageReass
     """The pictograms of a reassurance band, their text in the visitor's
     language (lot A3 / R5)."""
     locale = request_locale() if localized else default_locale()
-    shown = []
-    for raw in clean_config(block.kind, block.config)["items"]:
+    shown: list[HomepageReassurance] = []
+    config = stored_config(block.kind, block.config)
+    for raw in config["items"] if config else []:
         text = raw["text"]
         if localized and locale != default_locale():
             text = (raw.get("translations") or {}).get(locale) or text
@@ -282,8 +287,10 @@ async def _brand_tiles(
 ) -> list[HomepageBrandTile]:
     """The brands of a brand strip: chosen, or the best-stocked with a logo.
     A brand without a logo, hidden or still to validate is left out."""
-    config = clean_config(block.kind, block.config)
+    config = stored_config(block.kind, block.config)
     tiles: list[HomepageBrandTile] = []
+    if config is None:
+        return tiles
     if config["mode"] == "manual":
         for listed in await section_items(session, block.id):
             brand = (
@@ -328,7 +335,9 @@ async def _section_products(
 ) -> list[ProductPublic] | None:
     """The products of a product section, priced for ``customer`` (a user,
     or None for a visitor: the default group's prices)."""
-    config = clean_config(block.kind, block.config)
+    config = stored_config(block.kind, block.config)
+    if config is None:
+        return None
     if block.kind == "personal":
         if customer is None or config["source"] not in ("reorder", "wishlist"):
             return None
@@ -410,10 +419,15 @@ async def _page(
     sections: list[HomepageSectionPublic] = []
     shown: set[uuid.UUID] = set()
     for block in ordered:
+        config = stored_config(block.kind, block.config)
+        if config is None:
+            # Settings no longer usable (see stored_config): left out rather
+            # than the whole page failing.
+            continue
         section = await _to_public(session, block, base, localized=True)
         products = await _section_products(session, block, customer=customer)
         if block.kind == "personal":
-            source = clean_config(block.kind, block.config)["source"]
+            source = config["source"]
             if source == "current_order":
                 if customer is None:
                     continue
@@ -606,9 +620,12 @@ async def save_homepage_seo(
             fields=HOMEPAGE_SEO_FIELDS,
         )
     except InvalidTranslations as exc:
-        raise _invalid(
-            f"Invalid translations: {exc}", "homepage.translations", "translations"
-        )
+        raise AppError(
+            code="homepage.translations",
+            status_code=400,
+            message="Invalid translations.",
+            details={"field": "translations", "problem": str(exc)},
+        ) from exc
     if row is None:
         row = HomepageSeo()
     row.title = values["title"]

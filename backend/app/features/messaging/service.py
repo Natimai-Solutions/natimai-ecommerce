@@ -428,6 +428,49 @@ async def change_topic(
         channel=channel,
         topic=topic,
     )
+    # Moved to a channel its holder does not work on (lot ROLE): back to the
+    # queue of that channel, rather than held by someone who no longer sees
+    # it (and still notified of the customer's messages).
+    if conversation.assigned_to_id is not None:
+        holder = await session.get(User, conversation.assigned_to_id)
+        if holder is None or channel not in staff_channels(holder):
+            conversation.assigned_to_id = None
+            conversation.assigned_at = None
+            conversation.staff_notified_at = None
+            await event(session, conversation, action="released", staff=staff, now=now)
+
+
+async def release_out_of_scope(
+    session: AsyncSession,
+    holder: User,
+    staff: User,
+    *,
+    now: datetime.datetime | None = None,
+) -> int:
+    """The open conversations ``holder`` holds on channels they no longer
+    work on (a role changed or removed, an account deactivated) go back to
+    their channel's queue, traced; returns how many (no commit)."""
+    now = now or utcnow()
+    keeps = set(staff_channels(holder)) if holder.is_active else set()
+    held = (
+        await session.exec(
+            select(Conversation).where(
+                col(Conversation.assigned_to_id) == holder.id,
+                col(Conversation.status) != ConversationStatus.RESOLVED.value,
+            )
+        )
+    ).all()
+    released = 0
+    for conversation in held:
+        if conversation.channel in keeps:
+            continue
+        conversation.assigned_to_id = None
+        conversation.assigned_at = None
+        conversation.staff_notified_at = None
+        session.add(conversation)
+        await event(session, conversation, action="released", staff=staff, now=now)
+        released += 1
+    return released
 
 
 def mark_read(

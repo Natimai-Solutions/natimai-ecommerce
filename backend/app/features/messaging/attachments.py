@@ -103,9 +103,14 @@ def _reencode(data: bytes, mime: str) -> Prepared:
     """Re-encode an image without metadata (runs in a thread)."""
     if mime == "image/heic":
         _register_heif()
-    Image.MAX_IMAGE_PIXELS = MAX_PIXELS
     try:
         with Image.open(io.BytesIO(data)) as source:
+            # Read from the header, before any decoding: Pillow only refuses
+            # twice its own limit, and a 9900×9900 flat PNG of 300 KB would
+            # be decoded whole (≈ 300 MB). Pillow's process-wide limit is
+            # left as it is (the media library shares it).
+            if source.width * source.height > MAX_PIXELS:
+                raise ValueError("image too large")
             image = ImageOps.exif_transpose(source)
             image.thumbnail((MAX_SIDE, MAX_SIDE))
             has_alpha = image.mode in ("RGBA", "LA") or (

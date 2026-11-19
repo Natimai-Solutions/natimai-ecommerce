@@ -42,18 +42,20 @@ export default defineRouter((/* { store, ssrContext } */) => {
     if (to.path === '/login' && auth.isAuthenticated) {
       return { path: '/' };
     }
-    // A team member reaches the screens of their role only (lot ROLE).
+    // A team member reaches the screens of their role only (lot ROLE), and
+    // lands on the first one whose module is switched on.
     if (!isPublic && auth.isAuthenticated) {
       const access = useAccessStore();
-      const me = await access.load();
-      if (!canOpen(me, to.path)) return { path: homeOf(me) };
-    }
-    // A screen of a switched-off module: back to the dashboard.
-    const module = moduleOfPath(to.path);
-    if (module && auth.isAuthenticated) {
       const shopConfig = useShopConfigStore();
-      await shopConfig.load();
-      if (!shopConfig.moduleOn(module)) return { path: '/' };
+      const [me] = await Promise.all([access.load(), shopConfig.load()]);
+      const isOn = (path: string) => {
+        const module = moduleOfPath(path);
+        return !module || shopConfig.moduleOn(module);
+      };
+      const home = homeOf(me, isOn);
+      if (!canOpen(me, to.path)) return to.path === home ? true : { path: home };
+      // A screen of a switched-off module: back to the person's home.
+      if (!isOn(to.path)) return to.path === home ? true : { path: home };
     }
     return true;
   });

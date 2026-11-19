@@ -146,3 +146,92 @@ async def test_adding_to_the_wishlist_answers_the_list(
     assert user is not None
     removed = await remove_product_from_my_wishlist(db_session, user, ids[0])
     assert removed.items == []
+
+
+async def test_removed_wishes_and_abandoned_orders_stay_off_the_homepage(
+    db_session: AsyncSession,
+) -> None:
+    """A product removed from the list is deactivated, not deleted; an
+    abandoned payment leaves a Pending order: neither shows on the homepage."""
+    from app.api.routes.user_wishlist import (
+        add_product_to_my_wishlist,
+        remove_product_from_my_wishlist,
+    )
+    from app.features.user.models.wishlist import WishlistItemAddRequest
+
+    admin = await _admin(db_session)
+    wished, unpaid = _product("Souris"), _product("Casque")
+    customer = User(email=f"r+{uuid.uuid4().hex[:6]}@t.local", hashed_password="x")
+    pending = OrderStatus(name="Pending")
+    db_session.add_all([wished, unpaid, customer, pending])
+    await db_session.flush()
+    abandoned = Order(
+        user_id=customer.id,
+        order_status_id=pending.id,
+        order_number="CMD-ABANDON",
+        total_amount=Decimal("1"),
+        subtotal_amount=Decimal("1"),
+    )
+    db_session.add(abandoned)
+    await db_session.flush()
+    db_session.add(
+        OrderLine(
+            order_id=abandoned.id,
+            product_id=unpaid.id,
+            quantity=1,
+            unit_price=Decimal("1"),
+        )
+    )
+    ids = (wished.id, customer.id)
+    await db_session.commit()
+    for source in ("reorder", "wishlist", "current_order"):
+        await _section(db_session, admin, source)
+
+    async def user() -> User:
+        found = await db_session.get(User, ids[1])
+        assert found is not None
+        return found
+
+    await add_product_to_my_wishlist(
+        db_session, await user(), WishlistItemAddRequest(product_id=ids[0])
+    )
+    await remove_product_from_my_wishlist(db_session, await user(), ids[0])
+    page = await get_personal_homepage(_request(), Response(), db_session, await user())
+    # No wish left, nothing really bought, no order in progress: no section.
+    assert [s.config["source"] for s in page.sections] == []
+
+
+async def test_buy_again_shows_the_product_of_a_variant_bought(
+    db_session: AsyncSession,
+) -> None:
+    admin = await _admin(db_session)
+    shirt = _product("T-shirt")
+    shirt.has_variants = True
+    customer = User(email=f"v+{uuid.uuid4().hex[:6]}@t.local", hashed_password="x")
+    paid = OrderStatus(name="Paid")
+    db_session.add_all([shirt, customer, paid])
+    await db_session.flush()
+    size_m = _product("T-shirt M")
+    size_m.parent_product_id = shirt.id
+    db_session.add(size_m)
+    await db_session.flush()
+    order = Order(
+        user_id=customer.id,
+        order_status_id=paid.id,
+        total_amount=Decimal("1"),
+        subtotal_amount=Decimal("1"),
+    )
+    db_session.add(order)
+    await db_session.flush()
+    db_session.add(
+        OrderLine(
+            order_id=order.id, product_id=size_m.id, quantity=1, unit_price=Decimal("1")
+        )
+    )
+    ids = (shirt.id, customer.id)
+    await db_session.commit()
+    await _section(db_session, admin, "reorder")
+    user = await db_session.get(User, ids[1])
+    assert user is not None
+    page = await get_personal_homepage(_request(), Response(), db_session, user)
+    assert [p.id for p in page.sections[0].products or []] == [ids[0]]

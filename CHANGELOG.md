@@ -9,6 +9,18 @@ takes a tag as its `ref`.
 
 ### Security
 
+- Back-office team accounts (« service client », « commercial ») can no
+  longer sign in through Google / Microsoft: that path skipped their
+  two-factor authentication and network check (administrators were already
+  refused).
+- The team no longer receives the purchase costs and margins of an order
+  (order detail API and screen); the order actions they cannot use are
+  hidden.
+- The homepage preview token leaves the address as soon as it is read (it
+  stayed in the history and in error reports).
+- A message attachment larger than 50 Mpx is refused from its header,
+  before decoding (one up to 100 Mpx was decoded whole in memory).
+
 - The link of a homepage section (call to action, reassurance pictogram)
   refuses `/\…`, read by browsers as another site's address, and control
   characters.
@@ -533,6 +545,30 @@ takes a tag as its `ref`.
   (superuser-only), as the base of the future fine-grained roles.
 
 ### Fixed
+
+- Review of the chantier accueil et messagerie: a stored homepage section
+  that no longer passes validation (a language removed from the offered
+  ones, a rollback) is read leniently or left out, instead of a 500 on the
+  homepage and the admin screen; a product removed from the wishlist left
+  the homepage section; « best sellers » counts a variant's sales for its
+  product and ignores abandoned payments; « buy again » shows the product
+  of a variant bought; « buy again » and « order in progress » ignore
+  cancelled and unpaid orders, and the amount shows in the order's currency; a team
+  member can open the security screen to set up 2FA, lands on the first
+  screen whose module is on (a redirect loop when messaging was off) and
+  reads an order's transport legs; the back-office rights are read again
+  after a new sign-in; a conversation moved to a channel its holder does
+  not work on goes back to that channel's queue, and so do those a team
+  member holds when their role changes or their account is deactivated; a resolved conversation
+  reopened and resolved again gets a new notice before its deletion; a
+  hidden brand keeps its products (the hourly pass created a duplicate),
+  a renamed one keeps its former name as an alias, renaming onto another
+  sheet's name is refused, a merge moves the homepage tiles, and the hourly
+  pass always links the products without a brand first; the catalogue
+  filter on a brand is exact (« HP » no longer lists « HPE »; % and _ are
+  text); the morning digest links open the messaging (hash routes); the
+  announcement is hidden on every payment page; the homepage SEO and
+  section errors use the catalogue's message.
 
 - Adding a product to the wishlist, or removing it, answered 500
   (MissingGreenlet: the list read after the commit had expired) although

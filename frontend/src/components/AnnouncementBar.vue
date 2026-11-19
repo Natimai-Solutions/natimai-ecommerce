@@ -41,11 +41,13 @@ const store = useAnnouncementStore();
 const route = useRoute();
 
 const item = computed(() => store.current);
-/** Not in the checkout: nothing to distract from paying. */
+/** Not while paying (checkout, balance, return from the bank): nothing to
+ *  distract from it. */
+const HIDDEN_ON = new Set(['checkout', 'order-balance', 'payment-return']);
 const visible = computed(
   () =>
     !!item.value &&
-    route.name !== 'checkout' &&
+    !HIDDEN_ON.has(String(route.name ?? '')) &&
     store.dismissed !== announcementKey(item.value),
 );
 

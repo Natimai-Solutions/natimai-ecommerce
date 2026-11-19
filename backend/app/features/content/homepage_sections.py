@@ -172,6 +172,44 @@ def clean_config(kind: str, raw: dict[str, Any] | None) -> dict[str, Any]:
     return config.model_dump(mode="json")
 
 
+def stored_config(kind: str, raw: dict[str, Any] | None) -> dict[str, Any] | None:
+    """A stored section's settings, read back for display: never raises.
+
+    ``clean_config`` checks what the admin writes; a stored value can stop
+    passing it later without anyone editing the section — a language
+    removed from the offered ones, a setting dropped by a rollback. The
+    page must not fall over for that (a 500 on the homepage, the admin
+    screen unable to load): the obsolete parts are ignored and, if the rest
+    is still unusable, ``None`` says to leave the section out.
+    """
+    try:
+        return clean_config(kind, raw)
+    except InvalidSection:
+        pass
+    model = _CONFIGS.get(kind)
+    if model is None:
+        return None
+    data = {k: v for k, v in (raw or {}).items() if k in model.model_fields}
+    if kind == "reassurance":
+        offered = set(offered_locales())
+        data["items"] = [
+            {
+                **item,
+                "translations": {
+                    code: text
+                    for code, text in (item.get("translations") or {}).items()
+                    if normalize_locale(code) in offered
+                },
+            }
+            for item in data.get("items") or []
+            if isinstance(item, dict)
+        ]
+    try:
+        return clean_config(kind, data)
+    except InvalidSection:
+        return None
+
+
 def is_safe_link(link: str) -> bool:
     """A storefront path or an https address: never ``javascript:``, a
     protocol-relative URL (``//`` or ``/\\``) nor a control character."""
@@ -271,5 +309,6 @@ __all__ = [
     "audiences_overlap",
     "clean_audience",
     "clean_config",
+    "stored_config",
     "is_shown_to",
 ]

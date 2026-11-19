@@ -8,6 +8,7 @@ import uuid
 from typing import Any
 
 import pytest
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.routes.homepage import (
@@ -150,3 +151,48 @@ async def test_brand_strip_and_rich_text(db_session: AsyncSession) -> None:
 
     empty = await _refused(db_session, admin, kind="rich_text", body_html="  ")
     assert empty.code == "homepage.body"
+
+
+async def test_a_stored_setting_that_no_longer_passes_never_breaks_the_page(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A language removed from the offered ones, a setting left by a
+    rollback: the page and the admin screen still load (they answered 500)."""
+    from app.features.content import homepage_sections
+    from app.features.content.models import HomepageBlock
+
+    admin = await _admin(db_session)
+    items = [
+        {"icon": "boat", "text": "Livraison", "translations": {"en": "Delivery"}},
+        {"icon": "chat", "text": "Conseil"},
+    ]
+    await _create(db_session, admin, kind="reassurance", config={"items": items})
+    db_session.add(
+        HomepageBlock(
+            kind="featured",
+            is_published=True,
+            config={"limit": 4, "dropped_by_a_rollback": True},
+        )
+    )
+    await db_session.commit()
+
+    # English is no longer offered.
+    monkeypatch.setattr(homepage_sections, "offered_locales", lambda: ["fr"])
+    page = await get_homepage(_request(), db_session)
+    band = next(s for s in page.sections if s.kind == "reassurance")
+    assert [r.text for r in band.reassurance or []] == ["Livraison", "Conseil"]
+    assert any(s.kind == "featured" for s in page.sections)
+    listed = await list_blocks(_request(), db_session, await _fresh(db_session, admin))
+    assert {s.kind for s in listed} >= {"reassurance", "featured"}
+
+    # Settings beyond repair: that section is left out, the page stays up.
+    broken = next(
+        b
+        for b in (await db_session.exec(select(HomepageBlock))).all()
+        if b.kind == "reassurance"
+    )
+    broken.config = {"items": [{"icon": "skull", "text": "x"}]}
+    db_session.add(broken)
+    await db_session.commit()
+    page = await get_homepage(_request(), db_session)
+    assert all(s.kind != "reassurance" for s in page.sections)

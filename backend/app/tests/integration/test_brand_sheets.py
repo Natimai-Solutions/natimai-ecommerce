@@ -169,3 +169,133 @@ async def test_slug_and_name_are_unique(db_session: AsyncSession) -> None:
                 None,  # type: ignore[arg-type]
             )
         assert refused.value.code == code
+
+
+async def test_hiding_renaming_and_merging_keep_the_products(
+    db_session: AsyncSession,
+) -> None:
+    """A hidden sheet keeps its products (the hourly pass made a duplicate
+    « to validate »); a renamed one keeps its former name as an alias (its
+    products went back to a new sheet); renaming onto another sheet's name
+    is refused; a merge moves the homepage tiles."""
+    from app.features.content.models import HomepageBlock, HomepageBlockItem
+
+    acer, hewlett, hp = (
+        _product("Portable", "Acer"),
+        _product("Écran", "Hewlett-Packard"),
+        _product("Souris", "HP"),
+    )
+    db_session.add_all([acer, hewlett, hp])
+    ids = {"acer": acer.id, "hewlett": hewlett.id, "hp": hp.id}
+    await db_session.commit()
+    await brands.link_unbranded_products(db_session)
+
+    async def brand_of(key: str) -> Brand:
+        found = await _brand_of(db_session, ids[key])
+        assert found is not None
+        return found
+
+    acer_brand = await brand_of("acer")
+    acer_id = acer_brand.id
+    await brand_pages.admin_update_brand(
+        acer_id,
+        brand_pages.BrandWrite(name="Acer", is_active=False),
+        _Request(),  # type: ignore[arg-type]
+        db_session,
+        None,  # type: ignore[arg-type]
+    )
+    await brands.link_unbranded_products(db_session)
+    assert (await brand_of("acer")).id == acer_id
+    assert (
+        await db_session.exec(select(Brand).where(col(Brand.name) == "Acer"))
+    ).all().__len__() == 1
+
+    hewlett_id = (await brand_of("hewlett")).id
+    hp_id = (await brand_of("hp")).id
+    with pytest.raises(AppError) as taken:
+        await brand_pages.admin_update_brand(
+            hewlett_id,
+            brand_pages.BrandWrite(name="HP Inc."),
+            _Request(),  # type: ignore[arg-type]
+            db_session,
+            None,  # type: ignore[arg-type]
+        )
+    assert taken.value.code == "brand.exists"
+
+    renamed = await brand_pages.admin_update_brand(
+        hewlett_id,
+        brand_pages.BrandWrite(name="HPE", slug="hpe"),
+        _Request(),  # type: ignore[arg-type]
+        db_session,
+        None,  # type: ignore[arg-type]
+    )
+    assert renamed.aliases == ["Hewlett-Packard"]
+    await brands.link_unbranded_products(db_session)
+    assert (await brand_of("hewlett")).id == hewlett_id
+
+    strip = HomepageBlock(kind="brand_strip", config={"mode": "manual"})
+    db_session.add(strip)
+    await db_session.flush()
+    db_session.add(HomepageBlockItem(block_id=strip.id, brand_id=hewlett_id))
+    strip_id = strip.id
+    await db_session.commit()
+    await brand_pages.admin_merge_brand(
+        hewlett_id,
+        brand_pages.BrandMerge(target_id=hp_id),
+        _Request(),  # type: ignore[arg-type]
+        db_session,
+        None,  # type: ignore[arg-type]
+    )
+    tiles = (
+        await db_session.exec(
+            select(HomepageBlockItem).where(col(HomepageBlockItem.block_id) == strip_id)
+        )
+    ).all()
+    assert [t.brand_id for t in tiles] == [hp_id]
+
+
+async def test_the_brand_filter_is_exact_for_a_sheet_and_literal_otherwise(
+    db_session: AsyncSession,
+) -> None:
+    rows = [
+        _product("A", "HP"),
+        _product("B", "HPE"),
+        _product("C", "3_M"),
+        _product("D", "3XM"),
+    ]
+    db_session.add_all(rows)
+    await db_session.commit()
+    await refresh_sale_prices(db_session)
+    await brands.link_unbranded_products(db_session)
+    hp = (await db_session.exec(select(Brand).where(col(Brand.name) == "HP"))).one()
+    hp.is_validated = True
+    db_session.add(hp)
+    await db_session.commit()
+
+    async def names(manufacturer: str) -> set[str]:
+        found = await crud_product.search_products(
+            db_session, manufacturer=manufacturer, group_offers=False, with_facets=False
+        )
+        return {p.name for p in found["data"]}
+
+    assert await names("HP") == {"A"}
+    assert await names("3_M") == {"C"}
+
+
+async def test_a_sheet_saved_under_its_own_name_beside_a_hidden_namesake(
+    db_session: AsyncSession,
+) -> None:
+    hidden = Brand(name="Acer", slug="acer", is_active=False)
+    shown = Brand(name="ACER", slug="acer-2")
+    db_session.add_all([hidden, shown])
+    ids = (hidden.id, shown.id)
+    await db_session.commit()
+    for brand_id, slug in zip(ids, ("acer", "acer-2"), strict=True):
+        saved = await brand_pages.admin_update_brand(
+            brand_id,
+            brand_pages.BrandWrite(name="Acer", slug=slug, description="Portables"),
+            _Request(),  # type: ignore[arg-type]
+            db_session,
+            None,  # type: ignore[arg-type]
+        )
+        assert saved.description == "Portables"

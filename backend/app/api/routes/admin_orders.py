@@ -655,6 +655,8 @@ async def get_order_detail(
     _admin: CurrentOrderReader,
 ) -> AdminOrderDetail:
     """Return the enriched detail of one order: client, status, lines, payments."""
+    # Lot ROLE: the team reads the order, not its purchase costs nor margins.
+    sees_costs = bool(_admin.is_superuser)
     try:
         order = await crud_order.read(session, id=order_id)
     except RecordNotFoundError as exc:
@@ -741,14 +743,24 @@ async def get_order_detail(
                 line_total_excl_tax=(
                     float(figures.price_excl_tax) if figures is not None else None
                 ),
-                unit_cost=float(unit_cost) if unit_cost is not None else None,
-                line_cost=float(figures.unit_cost) if figures is not None else None,
+                unit_cost=(
+                    float(unit_cost) if sees_costs and unit_cost is not None else None
+                ),
+                line_cost=(
+                    float(figures.unit_cost)
+                    if sees_costs and figures is not None
+                    else None
+                ),
                 line_margin=(
-                    float(figures.margin_amount) if figures is not None else None
+                    float(figures.margin_amount)
+                    if sees_costs and figures is not None
+                    else None
                 ),
                 margin_pct=(
                     float(figures.margin_pct)
-                    if figures is not None and figures.margin_pct is not None
+                    if sees_costs
+                    and figures is not None
+                    and figures.margin_pct is not None
                     else None
                 ),
                 import_service_level=line.import_service_level,
@@ -756,7 +768,7 @@ async def get_order_detail(
             )
         )
     margin_summary: OrderMarginSummary | None = None
-    if lines and lines_without_cost < len(lines):
+    if sees_costs and lines and lines_without_cost < len(lines):
         goods_margin = (
             margin_totals["excl"] - margin_totals["fees"] - margin_totals["cost"]
         )

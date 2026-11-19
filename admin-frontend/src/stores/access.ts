@@ -1,5 +1,7 @@
 import { defineStore } from 'pinia';
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
+
+import { accessToken } from '@/boot/api';
 
 import { getMe, type Me } from '@/api/me';
 
@@ -20,6 +22,13 @@ export const useAccessStore = defineStore('access', () => {
   function reset(): void {
     me.value = null;
   }
+
+  // Signed out (or the session ended: a role change rotates the security
+  // stamp, the refresh fails and clears the token): the rights are read
+  // again at the next sign-in. A silent refresh of the token keeps them.
+  watch(accessToken, (token) => {
+    if (token === null) reset();
+  });
 
   return { me, load, reset };
 });

@@ -7,7 +7,8 @@ held without an answer (chantier accueil et messagerie, §6 « Notifications »)
   read; the team is never told about a resolved conversation.
 - The customer's e-mail carries no content (only a link to the messages),
   in the customer's language, and stops when they turn the preference off.
-- The team's e-mail goes to the holder, else to the channel's address
+- The team's e-mail goes to the holder, else to the active team members
+  whose role covers the channel (lot ROLE), else to the channel's address
   (customer service and technical support → ``email_support``, sales →
   ``email_contact``), else to the superusers; in the operator's language.
 - The mailer journals and sends on its own transaction: the « notified »
@@ -59,9 +60,15 @@ def messages_url(conversation: Conversation) -> str:
     return f"{base}/mon-compte?tab=messages&c={conversation.id}"
 
 
-def admin_url(conversation: Conversation) -> str:
+def admin_link(path: str) -> str:
+    """An address of the back-office, whose router works in hash mode
+    (``/#/messages``): ``/messages`` alone opened the dashboard."""
     base = (settings.ADMIN_FRONTEND_HOST or "").rstrip("/")
-    return f"{base}/messages/{conversation.id}" if base else ""
+    return f"{base}/#{path}" if base else ""
+
+
+def admin_url(conversation: Conversation) -> str:
+    return admin_link(f"/messages/{conversation.id}")
 
 
 async def _customer_due(
@@ -288,7 +295,7 @@ async def staff_digest(session: AsyncSession) -> int:
             "todo": counts.todo,
             "mine": counts.mine,
             "pending": counts.pending,
-            "url": (settings.ADMIN_FRONTEND_HOST or "").rstrip("/") + "/messages",
+            "url": admin_link("/messages"),
         }
         to_send.append(
             (

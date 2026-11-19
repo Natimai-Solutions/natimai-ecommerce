@@ -29,6 +29,7 @@ from app.api.deps import CurrentSuperUser, SessionDep
 from app.core.errors import AppError
 from app.core.logging_config import mask_email
 from app.core.security import new_security_stamp
+from app.features.messaging import service as messaging_service
 from app.features.product.models.price_group import PriceGroup
 from app.features.user.crud.refresh_token import crud_user_refresh_token
 from app.features.user.models.user import User
@@ -431,6 +432,10 @@ async def update_user(
     user.modify_at = _utcnow()
     user.modify_by_id = current_user.id
     session.add(user)
+    if fields.get("is_active") is False or role_changed:
+        # The conversations held on channels the new role does not cover go
+        # back to the queue (lot ROLE): their holder no longer sees them.
+        await messaging_service.release_out_of_scope(session, user, current_user)
 
     if fields.get("is_active") is False or role_changed:
         await crud_user_refresh_token.revoke_all_active_for_user(

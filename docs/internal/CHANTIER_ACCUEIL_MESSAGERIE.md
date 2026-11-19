@@ -998,13 +998,40 @@ lien « Nous écrire » de l'en-tête bascule après le montage (le rendu
 serveur est anonyme et un attribut corrigé à l'hydratation garde sa valeur
 serveur en production).
 
-**Reste après le chantier** : les boutons d'action de la fiche commande
-affichés à un membre de l'équipe (l'API les refuse) ; la traduction de la
-description d'une marque et le lien de la fiche produit vers sa marque ; le
-titre et la description de la fiche produit en rendu serveur (`preFetch`) ;
-les rôles du §4 autres que service client et commercial ; `sameAs` de
-l'`Organization`.
-ROLE peut attendre : sans lui, les superusers répondent.
+**Revue du 19/11/2026** (relecture de tous les lots, chaque constat
+contre-vérifié) : 36 défauts réels. Corrigés le jour même, avec un test sur
+base réelle chacun : connexion Google/Microsoft ouverte aux comptes de
+l'équipe (sans 2FA) ; coûts et marges des commandes servis à l'équipe ;
+écran Sécurité (enrôlement 2FA) fermé à l'équipe ; accueil en erreur 500
+quand une section stockée ne passe plus la validation (une langue retirée) ;
+liste de souhaits de l'accueil qui gardait les produits retirés ; meilleures
+ventes qui ignoraient les variantes ; boucle de redirection de l'admin
+module messagerie éteint ; conversation déplacée hors des canaux de son
+titulaire ; préavis d'effacement non renouvelé après une réouverture ;
+marque masquée dupliquée et marque renommée qui perdait ses produits ;
+puis, parmi les constats mineurs : actions de la fiche commande masquées à
+l'équipe (qui lit désormais le suivi de transport), « à racheter » et
+« commande en cours » sans les commandes annulées ou impayées, devise de la
+commande en cours, filtre marque exact (jokers échappés), tuile d'accueil
+d'une marque fusionnée, passe de rattachement plafonnée, cache des droits
+de l'admin, lien du digest, plafond de pixels des images, jeton d'aperçu
+retiré de l'adresse, annonce masquée sur toutes les pages de paiement,
+message d'erreur hors catalogue. Écarts relevés que le paragraphe
+« Livré » ne disait pas : A2 n'a livré ni la sélection par marque, ni le
+choix carrousel/grille, ni l'image propre d'une catégorie choisie, et le
+minimum d'une sélection est de 2 produits ; le message hors horaires de la
+messagerie (§6) manque ; le service client ne lit pas les demandes de devis
+contrairement à la grille (§4) ; les pages marque ne sont pas au sitemap.
+
+**Reste après le chantier** (repris au plan de travail) : ces écarts ; la
+traduction de la description d'une marque et le lien de la fiche produit
+vers sa marque ; les rôles du §4 autres que service client et commercial ;
+les constats mineurs de la revue non corrigés (contact public : limite par
+adresse et captcha avant le compteur, visiteur qui rejoint le fil ouvert
+d'une adresse ; avis de messagerie d'un devis émis sans e-mail ; libération
+automatique comptée depuis la prise en charge ; écritures de messagerie
+module éteint ; libellé de catégorie non traduisible ; annonce fermée qui
+réapparaît une image) ; `sameAs` de l'`Organization`.
 
 ---
 

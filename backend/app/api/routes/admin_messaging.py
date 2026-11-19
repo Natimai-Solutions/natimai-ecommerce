@@ -613,14 +613,16 @@ async def move_conversation(
     session: SessionDep,
     admin: CurrentMessagingStaff,
 ) -> StaffConversationDetail:
-    """Move the conversation to another channel / topic (traced)."""
+    """Move the conversation to another channel / topic (traced). Moved to a
+    channel the team member does not work on, it is answered once more (what
+    was just done), then reads as missing like any other of that channel."""
     channels = staff_channels(admin)
     conversation = await _get(session, conversation_id, channels)
     await service.change_topic(
         session, conversation, admin, channel=body.channel, topic=body.topic
     )
     await session.commit()
-    return await _detail(session, conversation_id, channels)
+    return await _detail(session, conversation_id, (*channels, body.channel))
 
 
 # --- Canned replies (MSG4) ---------------------------------------------------

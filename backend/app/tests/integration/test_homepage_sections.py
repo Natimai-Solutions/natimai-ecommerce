@@ -375,3 +375,77 @@ async def test_collections_by_source_and_chosen_categories(
             items=[{"product_id": str(uuid.uuid4())}],
         )
     assert refused.value.code == "homepage.items"
+
+
+async def test_best_sellers_count_a_variant_for_its_product(
+    db_session: AsyncSession,
+) -> None:
+    """A product with compulsory variants sells only as a variant: its sales
+    go to the parent the storefront lists (they were dropped)."""
+    from app.features.content.homepage_collections import collection_products
+    from app.features.order.models.order import Order
+    from app.features.order.models.order_line import OrderLine
+    from app.features.order.models.order_status import OrderStatus
+
+    def item(name: str, **fields: Any) -> Product:
+        return Product(
+            name=name,
+            pricing_mode=PricingMode.FIXED,
+            base_price=Decimal("1000"),
+            is_enriched=True,
+            weight=1.0,
+            customs_rate_pct=Decimal("0"),
+            **fields,
+        )
+
+    shirt, cable = item("T-shirt", has_variants=True), item("Câble")
+    db_session.add_all([shirt, cable])
+    await db_session.flush()
+    size_m = item("T-shirt M", parent_product_id=shirt.id)
+    paid = OrderStatus(name="Paid")
+    abandoned = OrderStatus(name="Pending")
+    buyer = User(email=f"b+{uuid.uuid4().hex[:6]}@t.local", hashed_password="x")
+    db_session.add_all([size_m, paid, abandoned, buyer])
+    await db_session.flush()
+    order = Order(
+        user_id=buyer.id,
+        order_status_id=paid.id,
+        total_amount=Decimal("1"),
+        subtotal_amount=Decimal("1"),
+        created_at=datetime.datetime.now(datetime.UTC),
+    )
+    db_session.add(order)
+    await db_session.flush()
+    # An abandoned payment (Pending) sold nothing.
+    unpaid = Order(
+        user_id=buyer.id,
+        order_status_id=abandoned.id,
+        total_amount=Decimal("1"),
+        subtotal_amount=Decimal("1"),
+        created_at=datetime.datetime.now(datetime.UTC),
+    )
+    db_session.add(unpaid)
+    await db_session.flush()
+    db_session.add(
+        OrderLine(
+            order_id=unpaid.id,
+            product_id=cable.id,
+            quantity=50,
+            unit_price=Decimal("1"),
+        )
+    )
+    for product, quantity in ((size_m, 20), (cable, 3)):
+        db_session.add(
+            OrderLine(
+                order_id=order.id,
+                product_id=product.id,
+                quantity=quantity,
+                unit_price=Decimal("1"),
+            )
+        )
+    await db_session.commit()
+
+    found = await collection_products(
+        db_session, uuid.uuid4(), {"source": "best_sellers", "limit": 4, "days": 30}
+    )
+    assert [p.name for p in found] == ["T-shirt", "Câble"]

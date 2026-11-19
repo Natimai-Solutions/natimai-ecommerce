@@ -26,6 +26,7 @@ import uuid
 from typing import Any
 
 from sqlalchemy import func, or_
+from sqlalchemy.orm import aliased
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -42,7 +43,9 @@ from app.features.product.services.group_pricing import load_active_promotions
 from app.features.product.services.popularity import popular_products
 
 #: Orders that did not happen do not make a best seller.
-_NOT_SOLD = ("Cancelled", "PaymentFailed", "Refunded")
+#: Orders that did not sell anything: an abandoned or failed payment stays
+#: Pending / PaymentFailed (the homepage personal sections judge the same).
+_NOT_SOLD = ("Pending", "PaymentFailed", "Cancelled", "Refunded")
 
 
 async def section_items(
@@ -93,15 +96,25 @@ async def collection_products(
         )
     elif source == "best_sellers":
         since = utcnow() - datetime.timedelta(days=days)
+        # A variant sells for its product: the storefront lists the parent
+        # (a T-shirt is ordered as « T-shirt M », never as « T-shirt »).
+        line_product = aliased(Product)
+        listed_id = func.coalesce(
+            col(line_product.parent_product_id), col(line_product.id)
+        )
         sold = (
-            select(OrderLine.product_id, func.sum(OrderLine.quantity).label("sold"))
+            select(
+                listed_id.label("product_id"),
+                func.sum(OrderLine.quantity).label("sold"),
+            )
+            .join(line_product, col(line_product.id) == col(OrderLine.product_id))
             .join(Order, col(Order.id) == col(OrderLine.order_id))
             .join(OrderStatus, col(OrderStatus.id) == col(Order.order_status_id))
             .where(
                 col(Order.created_at) >= since,
                 col(OrderStatus.name).not_in(_NOT_SOLD),
             )
-            .group_by(col(OrderLine.product_id))
+            .group_by(listed_id)
             .subquery()
         )
         rows = await session.exec(
