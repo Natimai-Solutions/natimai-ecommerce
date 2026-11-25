@@ -764,7 +764,10 @@ with read access for a private repository), the root `.env` filled in
 
 ### 8.2 By hand — build on the server
 
-Without GitHub Actions (or to debug a deploy), build on the server:
+Without GitHub Actions (or to debug a deploy), build on the server.
+[`scripts/release/update.sh`](../scripts/release/update.sh) runs the steps
+below in one command, with a database dump first and the health check last
+(`-y` skips the confirmation, `--no-pull` deploys the commit already checked out):
 
 ```bash
 # 0. Prerequisites: root .env complete — including VITE_API_URL=https://api.<DOMAIN>

@@ -92,6 +92,13 @@ takes a tag as its `ref`.
 
 ### Added
 
+- `scripts/release/update.sh`: the manual update on the server (DEPLOYMENT
+  §8.2) in one command, POSIX sh (runs under BusyBox `ash`) — fast-forward
+  pull with a preview of the commits and new migrations, confirmation
+  (`-y` to skip), pre-deploy database dump (5 kept), `build --pull`,
+  migrations, `up -d`, health check on `VITE_API_URL`; on failure it prints
+  the previous commit and the dump to restore.
+
 - Two more back-office roles (`users.staff_role`, grid validated on
   19/11/2026): « Préparateur » (orders read-only, shipping and transport,
   grouped departures — supplier summary without costs —, inventory,
